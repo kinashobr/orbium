@@ -170,7 +170,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                   <TabsContent value="geral" className="mt-0 space-y-8 focus-visible:outline-none">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
                       {[
-                        { l: 'Saldo Devedor', v: formatCurrency(calculos.saldoDevedor), i: isQuitado ? 'text-success' : 'text-destructive', i: TrendingDown },
+                        { l: 'Saldo Devedor', v: formatCurrency(calculos.saldoDevedor), c: isQuitado ? 'text-success' : 'text-destructive', i: TrendingDown },
                         { l: 'Parcela Mensal', v: formatCurrency(emprestimo.parcela), c: 'text-warning', i: Calendar },
                         { l: 'Progresso', v: `${calculos.percentualQuitado.toFixed(0)}%`, c: 'text-primary', i: Award },
                         { l: 'Venc. Final', v: calculos.dataFinal.toLocaleDateString('pt-BR'), c: 'text-foreground', i: Target }
