@@ -16,7 +16,7 @@ export function MotorcycleIcon({ className, ...props }: MotorcycleIconProps) {
       stroke="currentColor" 
       strokeWidth="2" 
       strokeLinecap="round" 
-      strokeLinelinejoin="round" 
+      strokeLinejoin="round" 
       className={cn("lucide lucide-motorbike-icon lucide-motorbike w-6 h-6", className)} 
       {...props}
     >
