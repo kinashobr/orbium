@@ -333,9 +333,9 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                       </TabsContent>
                     </div>
                   </ScrollArea>
-                </div>
-              </Tabs>
-            )}
+                </Tabs>
+              )}
+            </div>
           </div>
         </ResizableDialogContent>
       )}
