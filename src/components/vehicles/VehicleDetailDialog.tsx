@@ -24,12 +24,16 @@ import {
   AlertTriangle,
   History,
   FileText,
+  X,
+  ArrowLeft
 } from "lucide-react";
 import { formatCurrency, Veiculo, SeguroVeiculo } from "@/types/finance";
 import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { format, differenceInMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface VehicleDetailDialogProps {
   open: boolean;
@@ -48,13 +52,13 @@ export function VehicleDetailDialog({
   onUpdateFipe,
   onEdit,
 }: VehicleDetailDialogProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   if (!veiculo) return null;
 
   const mesesPropriedade = useMemo(() => {
     return differenceInMonths(new Date(), parseDateLocal(veiculo.dataCompra));
   }, [veiculo.dataCompra]);
 
-  // Calcular depreciação estimada (aproximação baseada em FIPE)
   const depreciacaoEstimada = useMemo(() => {
     const valorCompra = veiculo.valorVeiculo || veiculo.valorFipe;
     const valorAtual = veiculo.valorFipe;
@@ -62,32 +66,16 @@ export function VehicleDetailDialog({
     return ((valorCompra - valorAtual) / valorCompra) * 100;
   }, [veiculo.valorVeiculo, veiculo.valorFipe]);
 
-  // Status do seguro
   const seguroStatus = useMemo(() => {
     if (!seguro) return { status: 'sem_seguro', label: 'Sem Seguro', color: 'destructive' };
-    
     const parcelasPagas = seguro.parcelas.filter(p => p.paga).length;
     const totalParcelas = seguro.numeroParcelas;
     const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
     const hoje = new Date();
-    
-    if (vigenciaFim < hoje) {
-      return { status: 'vencido', label: 'Vencido', color: 'destructive' };
-    }
-    
-    const parcelasVencidas = seguro.parcelas.filter(
-      p => !p.paga && parseDateLocal(p.vencimento) < hoje
-    ).length;
-    
-    if (parcelasVencidas > 0) {
-      return { status: 'atrasado', label: `${parcelasVencidas} parcela(s) atrasada(s)`, color: 'warning' };
-    }
-    
-    return { 
-      status: 'em_dia', 
-      label: `${parcelasPagas}/${totalParcelas} pagas`, 
-      color: 'success' 
-    };
+    if (vigenciaFim < hoje) return { status: 'vencido', label: 'Vencido', color: 'destructive' };
+    const parcelasVencidas = seguro.parcelas.filter(p => !p.paga && parseDateLocal(p.vencimento) < hoje).length;
+    if (parcelasVencidas > 0) return { status: 'atrasado', label: `${parcelasVencidas} parcela(s) atrasada(s)`, color: 'warning' };
+    return { status: 'em_dia', label: `${parcelasPagas}/${totalParcelas} pagas`, color: 'success' };
   }, [seguro]);
 
   const proximaParcela = useMemo(() => {
@@ -97,325 +85,149 @@ export function VehicleDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl rounded-[32px] p-0 overflow-hidden border-0 shadow-2xl dark:bg-[hsl(24_8%_14%)]">
-        {/* Header com gradiente */}
-        <div className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent dark:from-primary/15 dark:via-primary/5 dark:to-transparent p-8 pb-6">
-          <DialogHeader>
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
-                  {veiculo.tipo === 'moto' ? <MotorcycleIcon className="w-8 h-8" /> : <Car className="w-8 h-8" />}
-                </div>
-                <div>
-                  <DialogTitle className="font-display font-black text-2xl text-foreground">
-                    {veiculo.modelo}
-                  </DialogTitle>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="text-[10px] font-black uppercase">
-                      {veiculo.marca}
-                    </Badge>
-                    <span className="text-xs font-bold text-muted-foreground">
-                      {veiculo.ano}
-                    </span>
-                    {veiculo.tipo && (
-                      <Badge variant="secondary" className="text-[10px] font-black uppercase">
-                        {veiculo.tipo}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
+      <DialogContent className={cn(
+        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
+        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] max-h-[85vh] rounded-[3rem]"
+      )}>
+        <DialogHeader className="p-6 sm:p-8 shrink-0 bg-muted/20 border-b relative">
+          {isMobile && (
+            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-4 top-4 rounded-full h-10 w-10">
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+          )}
+          
+          <div className={cn("flex items-center justify-between", isMobile && "pl-12")}>
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl">
+                {veiculo.tipo === 'moto' ? <MotorcycleIcon className="w-8 h-8" /> : <Car className="w-8 h-8" />}
               </div>
-              <div className="flex gap-2">
-                {onEdit && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onEdit(veiculo)}
-                    className="rounded-full hover:bg-primary/10"
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                )}
+              <div className="space-y-1">
+                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight">{veiculo.modelo}</DialogTitle>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[9px] font-black uppercase bg-muted/50 border-none">{veiculo.marca}</Badge>
+                  <span className="text-[10px] font-bold text-muted-foreground">{veiculo.ano}</span>
+                </div>
               </div>
             </div>
-          </DialogHeader>
-        </div>
-
-        {/* Conteúdo com Tabs */}
-        <Tabs defaultValue="resumo" className="px-8 pb-8">
-          <TabsList className="grid w-full grid-cols-3 h-12 bg-muted/30 p-1 rounded-2xl mb-6">
-            <TabsTrigger 
-              value="resumo" 
-              className="rounded-xl text-xs font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow"
-            >
-              Resumo
-            </TabsTrigger>
-            <TabsTrigger 
-              value="seguro" 
-              className="rounded-xl text-xs font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow"
-            >
-              Seguro
-            </TabsTrigger>
-            <TabsTrigger 
-              value="historico" 
-              className="rounded-xl text-xs font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow"
-            >
-              Histórico
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Tab Resumo */}
-          <TabsContent value="resumo" className="space-y-6 animate-in fade-in duration-300">
-            {/* Valor FIPE */}
-            <div className="bg-gradient-to-br from-success/5 to-transparent rounded-2xl p-6 border border-success/10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                    Avaliação FIPE Atual
-                  </p>
-                  <p className="font-display font-black text-3xl text-success tabular-nums">
-                    {formatCurrency(veiculo.valorFipe)}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onUpdateFipe(veiculo)}
-                  className="rounded-full gap-2 h-10 px-4 font-bold"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Atualizar
+            
+            <div className="flex gap-1 sm:gap-2">
+              {onEdit && (
+                <Button variant="ghost" size="icon" onClick={() => onEdit(veiculo)} className="rounded-full hover:bg-primary/10 text-primary">
+                  <Edit className="w-5 h-5" />
                 </Button>
-              </div>
-            </div>
-
-            {/* Grid de informações */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  Data de Compra
-                </p>
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-primary opacity-60" />
-                  <span className="font-bold text-foreground">
-                    {format(parseDateLocal(veiculo.dataCompra), "dd MMM yyyy", { locale: ptBR })}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  Tempo de Posse
-                </p>
-                <div className="flex items-center gap-2">
-                  <History className="w-4 h-4 text-primary opacity-60" />
-                  <span className="font-bold text-foreground">
-                    {mesesPropriedade} meses
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  Valor de Compra
-                </p>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-primary opacity-60" />
-                  <span className="font-bold text-foreground">
-                    {formatCurrency(veiculo.valorVeiculo || veiculo.valorFipe)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="bg-muted/30 rounded-xl p-4">
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                  Depreciação Estimada
-                </p>
-                <div className="flex items-center gap-2">
-                  {depreciacaoEstimada > 0 ? (
-                    <TrendingDown className="w-4 h-4 text-destructive" />
-                  ) : (
-                    <TrendingUp className="w-4 h-4 text-success" />
-                  )}
-                  <span className={cn(
-                    "font-bold",
-                    depreciacaoEstimada > 0 ? "text-destructive" : "text-success"
-                  )}>
-                    {depreciacaoEstimada.toFixed(1)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Status Seguro Resumo */}
-            <div className={cn(
-              "rounded-xl p-4 flex items-center justify-between",
-              seguroStatus.status === 'sem_seguro' ? "bg-destructive/5 border border-destructive/20" :
-              seguroStatus.status === 'vencido' ? "bg-destructive/5 border border-destructive/20" :
-              seguroStatus.status === 'atrasado' ? "bg-warning/5 border border-warning/20" :
-              "bg-success/5 border border-success/20"
-            )}>
-              <div className="flex items-center gap-3">
-                <Shield className={cn(
-                  "w-5 h-5",
-                  seguroStatus.color === 'destructive' ? "text-destructive" :
-                  seguroStatus.color === 'warning' ? "text-warning" : "text-success"
-                )} />
-                <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                    Status do Seguro
-                  </p>
-                  <p className={cn(
-                    "font-bold text-sm",
-                    seguroStatus.color === 'destructive' ? "text-destructive" :
-                    seguroStatus.color === 'warning' ? "text-warning" : "text-success"
-                  )}>
-                    {seguroStatus.label}
-                  </p>
-                </div>
-              </div>
-              {seguro && (
-                <Badge variant="outline" className="text-xs font-bold">
-                  {seguro.seguradora}
-                </Badge>
+              )}
+              {!isMobile && (
+                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full">
+                  <X className="w-5 h-5" />
+                </Button>
               )}
             </div>
-          </TabsContent>
+          </div>
+        </DialogHeader>
 
-          {/* Tab Seguro */}
-          <TabsContent value="seguro" className="space-y-6 animate-in fade-in duration-300">
-            {seguro ? (
-              <>
-                {/* Info do Seguro */}
-                <div className="bg-muted/30 rounded-2xl p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                        Seguradora
-                      </p>
-                      <p className="font-bold text-lg text-foreground">{seguro.seguradora}</p>
-                    </div>
-                    <Badge className="bg-primary/10 text-primary border-none font-black text-xs">
-                      Apólice: {seguro.numeroApolice}
-                    </Badge>
-                  </div>
+        <Tabs defaultValue="resumo" className="flex-1 flex flex-col min-h-0">
+          <TabsList className="bg-muted/30 h-14 border-b rounded-none px-6 sm:px-8 gap-8 justify-start">
+            <TabsTrigger value="resumo" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-[10px] font-black uppercase tracking-widest">RESUMO</TabsTrigger>
+            <TabsTrigger value="seguro" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-[10px] font-black uppercase tracking-widest">SEGURO</TabsTrigger>
+            <TabsTrigger value="historico" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-[10px] font-black uppercase tracking-widest">HISTÓRICO</TabsTrigger>
+          </TabsList>
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/40">
-                    <div>
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                        Vigência
-                      </p>
-                      <p className="font-bold text-sm text-foreground">
-                        {format(parseDateLocal(seguro.vigenciaInicio), "dd/MM/yyyy", { locale: ptBR })} - {format(parseDateLocal(seguro.vigenciaFim), "dd/MM/yyyy", { locale: ptBR })}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
-                        Valor Total
-                      </p>
-                      <p className="font-bold text-sm text-foreground">
-                        {formatCurrency(seguro.valorTotal)}
-                      </p>
-                    </div>
+          <ScrollArea className="flex-1">
+            <div className="p-6 sm:p-8 space-y-8 pb-12">
+              <TabsContent value="resumo" className="mt-0 space-y-8 focus-visible:outline-none animate-in fade-in duration-300">
+                <div className="bg-success/5 border-2 border-success/20 rounded-[2rem] p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-black text-success uppercase tracking-[0.2em] mb-1">Avaliação FIPE Atual</p>
+                    <p className="text-3xl font-black text-success tabular-nums">{formatCurrency(veiculo.valorFipe)}</p>
                   </div>
+                  <Button variant="outline" size="sm" onClick={() => onUpdateFipe(veiculo)} className="rounded-full h-10 px-5 font-bold gap-2 border-success/30 text-success bg-white/50">
+                    <RefreshCw className="w-4 h-4" /> ATUALIZAR
+                  </Button>
                 </div>
 
-                {/* Próxima Parcela */}
-                {proximaParcela && (
-                  <div className="bg-warning/5 border border-warning/20 rounded-xl p-4">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2">
-                      Próxima Parcela
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Clock className="w-5 h-5 text-warning" />
-                        <div>
-                          <p className="font-bold text-foreground">
-                            Parcela {proximaParcela.numero}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Vence em {format(parseDateLocal(proximaParcela.vencimento), "dd/MM/yyyy", { locale: ptBR })}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="font-black text-lg text-warning tabular-nums">
-                        {formatCurrency(proximaParcela.valor)}
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  {[
+                    { l: 'Compra', v: format(parseDateLocal(veiculo.dataCompra), "dd/MM/yyyy"), i: Calendar },
+                    { l: 'Posse', v: `${mesesPropriedade} meses`, i: History },
+                    { l: 'Valor Compra', v: formatCurrency(veiculo.valorVeiculo || veiculo.valorFipe), i: DollarSign },
+                    { l: 'Depreciação', v: `${depreciacaoEstimada.toFixed(1)}%`, i: depreciacaoEstimada > 0 ? TrendingDown : TrendingUp, c: depreciacaoEstimada > 0 ? 'text-destructive' : 'text-success' }
+                  ].map((item, idx) => (
+                    <div key={idx} className="p-4 rounded-2xl bg-muted/20 border border-border/40">
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                        <item.i className="w-3 h-3 opacity-60" /> {item.l}
                       </p>
+                      <p className={cn("text-sm font-black tabular-nums", item.c)}>{item.v}</p>
                     </div>
+                  ))}
+                </div>
+
+                <div className={cn(
+                  "p-5 rounded-[1.75rem] border flex items-center justify-between gap-4",
+                  seguroStatus.color === 'success' ? "bg-success/5 border-success/20" : "bg-destructive/5 border-destructive/20"
+                )}>
+                  <div className="flex items-center gap-4">
+                    <Shield className={cn("w-6 h-6", seguroStatus.color === 'success' ? "text-success" : "text-destructive")} />
+                    <div>
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Seguro</p>
+                      <p className={cn("font-bold text-sm", `text-${seguroStatus.color}`)}>{seguroStatus.label}</p>
+                    </div>
+                  </div>
+                  {seguro && <Badge variant="outline" className="text-[9px] font-black uppercase px-2 py-1">{seguro.seguradora}</Badge>}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="seguro" className="mt-0 space-y-6 focus-visible:outline-none">
+                {seguro ? (
+                  <div className="space-y-8">
+                    <div className="p-6 rounded-[2rem] bg-muted/20 border border-border/40 space-y-6">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Apólice</p>
+                          <p className="font-black text-lg text-foreground">{seguro.numeroApolice}</p>
+                          <p className="text-xs font-bold text-primary uppercase mt-1">{seguro.seguradora}</p>
+                        </div>
+                        <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-3 py-1 uppercase">VALOR: {formatCurrency(seguro.valorTotal)}</Badge>
+                      </div>
+                      <div className="pt-4 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Vigência Início</p><p className="font-bold text-sm">{format(parseDateLocal(seguro.vigenciaInicio), "dd/MM/yyyy")}</p></div>
+                        <div><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Vigência Fim</p><p className="font-bold text-sm">{format(parseDateLocal(seguro.vigenciaFim), "dd/MM/yyyy")}</p></div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2">Histórico de Parcelas</p>
+                      <div className="space-y-2">
+                        {seguro.parcelas.map((p) => {
+                          const isOver = !p.paga && parseDateLocal(p.vencimento) < new Date();
+                          return (
+                            <div key={p.numero} className={cn("flex items-center justify-between p-4 rounded-2xl border transition-all", p.paga ? "bg-success/[0.03] border-success/20 opacity-70" : isOver ? "bg-destructive/5 border-destructive/20" : "bg-muted/10 border-border/40")}>
+                              <div className="flex items-center gap-4">
+                                {p.paga ? <CheckCircle2 className="w-5 h-5 text-success" /> : isOver ? <AlertTriangle className="w-5 h-5 text-destructive" /> : <Clock className="w-5 h-5 text-muted-foreground/40" />}
+                                <div><p className="font-black text-sm text-foreground">Parcela {p.numero}</p><p className="text-[10px] font-bold text-muted-foreground uppercase">{format(parseDateLocal(p.vencimento), "dd 'de' MMMM", { locale: ptBR })}</p></div>
+                              </div>
+                              <span className={cn("font-black text-base tabular-nums", p.paga ? "text-success" : "text-foreground")}>{formatCurrency(p.valor)}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-20 text-center opacity-30">
+                    <Shield className="w-16 h-16 mx-auto mb-4" />
+                    <p className="font-black uppercase tracking-widest text-xs">Sem seguro ativo</p>
                   </div>
                 )}
+              </TabsContent>
 
-                {/* Lista de Parcelas */}
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest px-2">
-                    Histórico de Parcelas
-                  </p>
-                  <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2">
-                    {seguro.parcelas.map((p) => {
-                      const isOverdue = !p.paga && parseDateLocal(p.vencimento) < new Date();
-                      
-                      return (
-                        <div
-                          key={p.numero}
-                          className={cn(
-                            "flex items-center justify-between p-3 rounded-xl border transition-all",
-                            p.paga ? "bg-success/5 border-success/20" :
-                            isOverdue ? "bg-destructive/5 border-destructive/20" :
-                            "bg-muted/30 border-border/40"
-                          )}
-                        >
-                          <div className="flex items-center gap-3">
-                            {p.paga ? (
-                              <CheckCircle2 className="w-4 h-4 text-success" />
-                            ) : isOverdue ? (
-                              <AlertTriangle className="w-4 h-4 text-destructive" />
-                            ) : (
-                              <Clock className="w-4 h-4 text-muted-foreground" />
-                            )}
-                            <span className="font-bold text-sm">Parcela {p.numero}</span>
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <span className="text-xs text-muted-foreground">
-                              {format(parseDateLocal(p.vencimento), "dd/MM/yyyy", { locale: ptBR })}
-                            </span>
-                            <span className={cn(
-                              "font-bold text-sm tabular-nums",
-                              p.paga ? "text-success" : "text-foreground"
-                            )}>
-                              {formatCurrency(p.valor)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              <TabsContent value="historico" className="mt-0 focus-visible:outline-none">
+                <div className="py-20 text-center opacity-30">
+                  <FileText className="w-16 h-16 mx-auto mb-4" />
+                  <p className="font-black uppercase tracking-widest text-xs">Módulo em desenvolvimento</p>
                 </div>
-              </>
-            ) : (
-              <div className="py-12 text-center">
-                <Shield className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
-                <p className="font-black uppercase tracking-widest text-xs text-muted-foreground">
-                  Nenhum seguro cadastrado para este veículo
-                </p>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Cadastre um seguro na aba de Seguros para acompanhar as parcelas.
-                </p>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Tab Histórico */}
-          <TabsContent value="historico" className="space-y-6 animate-in fade-in duration-300">
-            <div className="py-12 text-center">
-              <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="font-black uppercase tracking-widest text-xs text-muted-foreground">
-                Histórico FIPE em desenvolvimento
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Em breve você poderá acompanhar a evolução do valor FIPE do seu veículo ao longo do tempo.
-              </p>
+              </TabsContent>
             </div>
-          </TabsContent>
+          </ScrollArea>
         </Tabs>
       </DialogContent>
     </Dialog>
