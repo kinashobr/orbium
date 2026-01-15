@@ -30,10 +30,10 @@ export function MainLayout({
         <Sidebar />
 
         <main className={cn(
-          "flex-1 min-h-[calc(100vh-3.5rem)] px-4 sm:px-6 md:px-8 pb-24 md:pb-8 pt-6 sm:pt-8 transition-all duration-300 w-full mx-auto",
-          sidebarCollapsed ? "md:ml-20" : "md:ml-[208px]"
+          "flex-1 min-h-[calc(100vh-3.5rem)] px-4 sm:px-6 md:px-8 lg:px-10 pb-24 md:pb-8 pt-4 sm:pt-6 transition-all duration-300 w-full mx-auto",
+          sidebarCollapsed ? "md:ml-20" : "md:ml-[168px]"
         )}>
-          <div className="max-w-[1400px] mx-auto w-full space-y-6 sm:space-y-8">{children}</div>
+          <div className="max-w-[1400px] mx-auto w-full space-y-4 sm:space-y-6">{children}</div>
         </main>
       </div>
 

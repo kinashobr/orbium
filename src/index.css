@@ -5,7 +5,7 @@
 @layer base {
   :root {
     /* Paleta clara inspirada no novo modelo - Mocha/Creamy */
-    --md-sys-color-primary: 26 72% 42%; /* #C07638 - Warm Mocha */
+    --md-sys-color-primary: 26 72% 42%;
     --md-sys-color-on-primary: 0 0% 100%;
     --md-sys-color-primary-container: 28 70% 90%;
     --md-sys-color-on-primary-container: 26 40% 22%;
@@ -15,26 +15,25 @@
     --md-sys-color-secondary-container: 32 30% 92%;
     --md-sys-color-on-secondary-container: 26 28% 20%;
 
-    --md-sys-color-surface: 35 41% 96%; /* #F5F2EE - Creamy background */
-    --md-sys-color-on-surface: 26 25% 18%; /* #422006 - Dark brown text */
-    --md-sys-color-surface-variant: 35 30% 92%; /* cards levemente destacados */
+    --md-sys-color-surface: 35 41% 96%;
+    --md-sys-color-on-surface: 26 25% 18%;
+    --md-sys-color-surface-variant: 35 30% 92%;
     --md-sys-color-on-surface-variant: 26 15% 32%;
 
     --md-sys-color-outline: 30 22% 80%;
-    --md-sys-color-outline-variant: 30 22% 85%; /* Neutral surface light */
+    --md-sys-color-outline-variant: 30 22% 85%;
 
     --md-sys-color-error: 4 73% 50%;
     --md-sys-color-on-error: 0 0% 100%;
 
-    --md-sys-color-success: 158 89% 31%; /* #059669 - Accent Green */
+    --md-sys-color-success: 158 89% 31%;
     --md-sys-color-warning: 37 92% 54%;
     --md-sys-color-info: 204 82% 45%;
 
-    /* Mapping to app design tokens used in Tailwind */
     --background: var(--md-sys-color-surface);
     --foreground: var(--md-sys-color-on-surface);
 
-    --card: 0 0% 100%; /* White surface for cards */
+    --card: 0 0% 100%;
     --card-foreground: var(--md-sys-color-on-surface);
 
     --popover: var(--md-sys-color-surface);
@@ -67,16 +66,15 @@
     --input: var(--md-sys-color-outline-variant);
     --ring: var(--md-sys-color-primary);
 
-    --radius: 1.75rem; /* Default radius for components */
+    /* Reduzido de 1.75rem para 1.25rem para desktop, mantendo arredondado mas eficiente */
+    --radius: 1.25rem;
 
-    /* Neon accents (light theme, mais sutis) */
     --neon-cyan: 174 72% 56%;
     --neon-purple: 267 83% 67%;
     --neon-blue: 217 91% 60%;
     --neon-pink: 340 82% 72%;
     --neon-green: 142 71% 45%;
 
-    /* Sidebar tokens alinhados com o novo fundo bege */
     --sidebar-background: var(--md-sys-color-surface);
     --sidebar-foreground: var(--md-sys-color-on-surface);
     --sidebar-primary: var(--md-sys-color-primary);
@@ -92,8 +90,7 @@
 
   .dark,
   .theme-dark-neon {
-    /* Dark theme - Warm dark com hierarquia visual aprimorada */
-    --md-sys-color-primary: 26 72% 42%; /* #C07638 - Warm Mocha (mantido) */
+    --md-sys-color-primary: 26 72% 42%;
     --md-sys-color-on-primary: 0 0% 100%;
     --md-sys-color-primary-container: 26 40% 22%;
     --md-sys-color-on-primary-container: 28 70% 90%;
@@ -103,29 +100,26 @@
     --md-sys-color-secondary-container: 26 28% 20%;
     --md-sys-color-on-secondary-container: 32 30% 92%;
 
-    /* Superfícies com hierarquia clara para dark mode */
-    --md-sys-color-surface: 24 11% 8%;  /* #151311 - Background mais escuro */
-    --md-sys-color-on-surface: 30 9% 90%; /* #E7E5E4 - Light text */
-    --md-sys-color-surface-variant: 24 9% 14%; /* #252220 - Cards intermediários */
-    --md-sys-color-surface-elevated: 24 8% 16%; /* #2A2724 - Modais destacados */
+    --md-sys-color-surface: 24 11% 8%;
+    --md-sys-color-on-surface: 30 9% 90%;
+    --md-sys-color-surface-variant: 24 9% 14%;
+    --md-sys-color-surface-elevated: 24 8% 16%;
     --md-sys-color-on-surface-variant: 27 9% 70%;
 
     --md-sys-color-outline: 24 8% 35%;
-    --md-sys-color-outline-variant: 24 11% 22%; /* Neutral surface dark */
+    --md-sys-color-outline-variant: 24 11% 22%;
 
     --md-sys-color-error: 0 91% 71%;
     --md-sys-color-on-error: 0 0% 0%;
 
-    --md-sys-color-success: 158 89% 31%; /* #059669 - Accent Green */
+    --md-sys-color-success: 158 89% 31%;
     --md-sys-color-warning: 35 100% 65%;
     --md-sys-color-info: 188 78% 59%;
 
-    /* Mapeamento para tokens da aplicação */
     --background: var(--md-sys-color-surface);
     --foreground: var(--md-sys-color-on-surface);
 
-    /* Card mais claro que background para criar contraste */
-    --card: 24 9% 14%; /* Levemente mais claro que surface */
+    --card: 24 9% 14%;
     --card-foreground: var(--md-sys-color-on-surface);
 
     --popover: var(--md-sys-color-surface-elevated);
@@ -137,8 +131,7 @@
     --secondary: var(--md-sys-color-secondary);
     --secondary-foreground: var(--md-sys-color-on-secondary);
 
-    /* Muted mais escuro para criar contraste com card */
-    --muted: 24 10% 11%; /* Mais escuro que card */
+    --muted: 24 10% 11%;
     --muted-foreground: var(--md-sys-color-on-surface-variant);
 
     --accent: var(--md-sys-color-secondary);
@@ -159,9 +152,8 @@
     --input: var(--md-sys-color-outline-variant);
     --ring: var(--md-sys-color-primary);
 
-    --radius: 1.75rem;
+    --radius: 1.25rem;
 
-    /* Sidebar acompanhando superfícies do dark M3 */
     --sidebar-background: var(--md-sys-color-surface);
     --sidebar-foreground: var(--md-sys-color-on-surface);
     --sidebar-primary: var(--md-sys-color-primary);
@@ -180,158 +172,55 @@
   }
 
   body {
-    /* Usando Outfit para display e Plus Jakarta Sans para body */
     @apply bg-background text-foreground antialiased;
     font-family: "Plus Jakarta Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 }
 
-
 @layer components {
-  /* ==================== SISTEMA DE CONTAINER QUERIES FLUÍDAS ==================== */
   .modal-viewport {
     container-type: inline-size;
     @apply h-full w-full overflow-hidden flex flex-col;
   }
 
-  /* Barra lateral como contêiner próprio para que o texto escale com a largura dela */
   .sidebar-container {
     container-type: inline-size;
   }
 
-  /* Utilitários de texto que escalam com o contêiner mais próximo */
   @container (min-width: 0px) {
-    .cq-text-xs { font-size: clamp(0.6rem, 1.5cqw + 0.3rem, 0.75rem); }
-    .cq-text-sm { font-size: clamp(0.7rem, 2cqw + 0.4rem, 0.875rem); }
-    .cq-text-base { font-size: clamp(0.8rem, 2.5cqw + 0.5rem, 1rem); }
-    .cq-text-lg { font-size: clamp(0.95rem, 3cqw + 0.6rem, 1.25rem); }
-    .cq-text-xl { font-size: clamp(1.2rem, 4cqw + 0.8rem, 1.875rem); }
-    
-    .cq-p-md { padding: clamp(0.5rem, 2cqw, 1.5rem); }
-    .cq-gap-md { gap: clamp(0.25rem, 1.5cqw, 1rem); }
+    .cq-text-xs { font-size: clamp(0.6rem, 1.2cqw + 0.25rem, 0.75rem); }
+    .cq-text-sm { font-size: clamp(0.7rem, 1.5cqw + 0.35rem, 0.875rem); }
+    .cq-text-base { font-size: clamp(0.8rem, 2cqw + 0.4rem, 1rem); }
   }
 
   .glass-card {
-    /* Novo estilo de card Expressivo - cores sólidas para evitar problemas de mistura */
     @apply bg-card border border-border/40 rounded-[var(--radius)];
     box-shadow:
-      0 12px 40px -12px hsl(var(--foreground) / 0.08),
-      0 4px 12px -4px hsl(var(--foreground) / 0.04);
+      0 8px 30px -10px hsl(var(--foreground) / 0.08),
+      0 2px 8px -2px hsl(var(--foreground) / 0.04);
   }
 
-  .stat-card-positive { border-left: 1px solid hsl(var(--success)); }
-  .stat-card-negative { border-left: 1px solid hsl(var(--destructive)); }
-  .stat-card-neutral { border-left: 1px solid hsl(var(--primary)); }
-  .stat-card-warning { border-left: 1px solid hsl(var(--warning)); }
-  .stat-card-info { border-left: 1px solid hsl(var(--info)); }
-
-  .sidebar-bg { background-color: hsl(var(--sidebar-background)); color: hsl(var(--sidebar-foreground)); }
-  .sidebar-border { border-color: hsl(var(--sidebar-border)); }
-  .sidebar-divider { background-color: hsl(var(--sidebar-divider)); }
-  .sidebar-logo-bg { background: linear-gradient(135deg, hsl(var(--sidebar-primary)), hsl(var(--sidebar-highlight))); }
-  .sidebar-logo-icon { color: hsl(var(--sidebar-primary-foreground)); }
-  .sidebar-brand-text { color: hsl(var(--sidebar-foreground)); }
-  .sidebar-brand-subtitle { color: hsl(var(--sidebar-muted)); }
-  .sidebar-section-header { color: hsl(var(--sidebar-muted)); }
-  .sidebar-section-header:hover { color: hsl(var(--sidebar-foreground)); background-color: hsl(var(--sidebar-accent) / 0.5); }
-  .sidebar-section-active { color: hsl(var(--sidebar-primary)); background-color: hsl(var(--sidebar-primary) / 0.1); }
-  .sidebar-section-label { color: hsl(var(--sidebar-muted)); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-  .sidebar-nav-item { color: hsl(var(--sidebar-muted)); }
-  .sidebar-nav-item:hover { color: hsl(var(--sidebar-foreground)); background-color: hsl(var(--sidebar-accent) / 0.7); }
-  .sidebar-nav-active { color: hsl(var(--sidebar-primary)); background-color: hsl(var(--sidebar-primary) / 0.15); }
-  .sidebar-action-btn { color: hsl(var(--sidebar-muted)); }
-  .sidebar-action-btn:hover { color: hsl(var(--sidebar-primary)); background-color: hsl(var(--sidebar-primary) / 0.1); }
-  .sidebar-theme-switcher-bg { background-color: hsl(var(--sidebar-accent) / 0.5); }
-  .sidebar-collapse-btn { color: hsl(var(--sidebar-muted)); background-color: hsl(var(--sidebar-accent) / 0.5); }
-  .sidebar-collapse-btn:hover { color: hsl(var(--sidebar-foreground)); background-color: hsl(var(--sidebar-accent)); }
-  .sidebar-tooltip { background-color: hsl(var(--popover)); color: hsl(var(--popover-foreground)); border: 1px solid hsl(var(--border)); }
-
-  /* ==================== CARD UTILITIES - DESIGN SYSTEM ==================== */
   .card-surface {
-    @apply bg-card rounded-card p-6 shadow-soft border border-border/40;
+    @apply bg-card rounded-xl p-4 sm:p-6 shadow-soft border border-border/40;
   }
 
   .card-hero {
-    @apply bg-card rounded-card-lg p-8 shadow-soft-lg border border-white/60 dark:border-white/5;
-  }
-
-  .card-interactive {
-    @apply bg-card rounded-card p-6 shadow-soft border border-border/40 
-           hover:-translate-y-1 hover:shadow-soft-lg transition-all duration-300 cursor-pointer;
-  }
-
-  .card-glass {
-    @apply bg-card rounded-card border border-border/40 shadow-soft;
+    @apply bg-card rounded-2xl p-6 sm:p-8 shadow-soft-lg border border-white/60 dark:border-white/5;
   }
 }
 
 @layer utilities {
-  /* Material Expressive 3 Scrollbar */
-  .scrollbar-material {
-    scrollbar-width: thin;
-    scrollbar-color: hsl(var(--primary) / 0.4) hsl(var(--muted) / 0.4);
-  }
   .scrollbar-material::-webkit-scrollbar {
-    height: 8px;
-    width: 8px;
-  }
-  .scrollbar-material::-webkit-scrollbar-track {
-    background: hsl(var(--muted) / 0.3);
-    border-radius: 9999px;
+    height: 6px;
+    width: 6px;
   }
   .scrollbar-material::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--primary) / 0.3));
+    background: hsl(var(--primary) / 0.3);
     border-radius: 9999px;
-    border: 2px solid transparent;
-    background-clip: padding-box;
-    transition: background 0.2s ease;
-  }
-  .scrollbar-material::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, hsl(var(--primary) / 0.7), hsl(var(--primary) / 0.5));
-    background-clip: padding-box;
-  }
-
-  .scrollbar-thin { scrollbar-width: thin; scrollbar-color: hsl(var(--muted)) transparent; }
-  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
-  .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 3px; }
-  .hide-scrollbar-mobile { -webkit-overflow-scrolling: touch; }
-  @media (max-width: 768px) { .hide-scrollbar-mobile { scrollbar-width: none; -ms-overflow-style: none; } .hide-scrollbar-mobile::-webkit-scrollbar { display: none; } }
-  
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-}
-
-/* Responsive Utilities for Mobile-First Design */
-@layer utilities {
-  .responsive-container {
-    @apply px-3 sm:px-4 md:px-6;
-  }
-  
-  .responsive-grid {
-    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
-  }
-  
-  .responsive-card {
-    @apply w-full sm:w-auto sm:min-w-[280px] sm:max-w-[320px];
-  }
-  
-  .modal-responsive {
-    @apply w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl;
-    @apply max-h-[90vh] overflow-y-auto;
   }
 }
 
 @media (max-width: 768px) {
-  button:not(.no-touch-target), [role="button"]:not(.no-touch-target), a:not(.no-touch-target), input[type="checkbox"], input[type="radio"], .touch-interactive { min-height: 44px; min-width: 44px; }
-  button, a, [role="button"] { -webkit-tap-highlight-color: hsl(var(--primary) / 0.1); }
+  button:not(.no-touch-target), [role="button"]:not(.no-touch-target), a:not(.no-touch-target) { min-height: 44px; min-width: 44px; }
   input, select, textarea { font-size: 16px !important; }
 }
-
-@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
-@media (max-height: 768px) { .glass-card { padding: var(--space-sm); } [role="dialog"] { max-height: 85vh !important; } .grid { gap: var(--space-sm); } }
-@media (max-width: 1400px) { .max-w-7xl { max-width: 95vw; } }
