@@ -15,10 +15,9 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { 
   Building2, Calendar, Percent, DollarSign, Calculator, 
-  Save, Info, Clock, TrendingDown, AlertCircle
+  Save, Info, Clock, TrendingDown, AlertCircle, Sparkles, Check, X
 } from "lucide-react";
-import { Emprestimo } from "@/types/finance";
-import { ContaCorrente } from "@/types/finance";
+import { Emprestimo, ContaCorrente } from "@/types/finance";
 import { cn, calculateInterestRate } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -48,16 +47,15 @@ export function LoanConfigForm({
 
   const isPending = emprestimo.status === 'pendente_config';
 
-  // Auto-calculate parcela when Price method
   const calcularParcelaPrice = () => {
     const valor = Number(formData.valorTotal);
     const taxa = Number(formData.taxaMensal) / 100;
     const n = Number(formData.meses);
 
     if (valor > 0 && taxa > 0 && n > 0) {
-      // Fórmula PRICE: PMT = P * [ i / (1 - (1 + i)^-n) ]
       const parcela = (valor * taxa * Math.pow(1 + taxa, n)) / (Math.pow(1 + taxa, n) - 1);
       setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
+      toast.success("Parcela calculada via tabela Price.");
     }
   };
   
@@ -68,19 +66,15 @@ export function LoanConfigForm({
 
     if (principal > 0 && payment > 0 && periods > 0) {
       const calculatedRate = calculateInterestRate(principal, payment, periods);
-      
       if (calculatedRate !== null) {
         setFormData(prev => ({ ...prev, taxaMensal: calculatedRate.toFixed(2) }));
         toast.success(`Taxa calculada: ${calculatedRate.toFixed(2)}%`);
       } else {
-        toast.error("Não foi possível calcular a taxa. Verifique se a parcela é suficiente para cobrir o principal.");
+        toast.error("Erro no cálculo. Verifique os valores informados.");
       }
-    } else {
-      toast.warning("Preencha Valor Total, Parcela e Qtd. Parcelas para calcular a taxa.");
     }
   };
 
-  // Calculated values preview
   const preview = {
     valorTotal: Number(formData.valorTotal) || 0,
     parcela: Number(formData.parcela) || 0,
@@ -94,20 +88,13 @@ export function LoanConfigForm({
     },
   };
 
-  const formatCurrency = (value: number) => 
-    `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-  const canSave = 
-    formData.contaCorrenteId &&
-    Number(formData.valorTotal) > 0 &&
-    Number(formData.parcela) > 0 &&
-    Number(formData.meses) > 0 &&
-    Number(formData.taxaMensal) >= 0;
+  const canSave = formData.contaCorrenteId && Number(formData.valorTotal) > 0 && Number(formData.parcela) > 0 && Number(formData.meses) > 0;
 
   const handleSave = () => {
     if (!canSave) return;
-
-    const payload: Partial<Emprestimo> = {
+    onSave({
       contaCorrenteId: formData.contaCorrenteId,
       valorTotal: Number(formData.valorTotal),
       parcela: Number(formData.parcela),
@@ -115,268 +102,115 @@ export function LoanConfigForm({
       meses: Number(formData.meses),
       dataInicio: formData.dataInicio,
       observacoes: formData.observacoes,
-    };
-
-    if (isPending) {
-      // Se for a primeira configuração, define status e parcelas pagas
-      payload.status = 'ativo';
-      payload.parcelasPagas = 0;
-    }
-    
-    onSave(payload);
-    
-    // Fecha o modal após salvar
-    onCancel();
+      status: isPending ? 'ativo' : emprestimo.status,
+      parcelasPagas: isPending ? 0 : emprestimo.parcelasPagas
+    });
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-10">
       {isPending && (
-        <Alert className="border-warning bg-warning/10">
-          <AlertCircle className="h-4 w-4 text-warning" />
-          <AlertDescription className="text-sm">
-            Este empréstimo foi liberado e aguarda configuração dos termos do contrato.
-          </AlertDescription>
-        </Alert>
+        <div className="p-5 rounded-[2rem] bg-warning/5 border-2 border-dashed border-warning/20 flex gap-4 items-center">
+          <div className="w-10 h-10 rounded-full bg-warning/20 flex items-center justify-center text-warning shrink-0 animate-pulse">
+            <AlertCircle className="w-5 h-5" />
+          </div>
+          <p className="text-xs font-black text-warning-foreground uppercase tracking-widest leading-tight">Aguardando configuração dos termos para ativação do contrato no sistema.</p>
+        </div>
       )}
 
-      <div className="flex items-center gap-3 pb-2">
-        <div className="p-2 rounded-lg bg-primary/10">
-          <Building2 className="w-5 h-5 text-primary" />
-        </div>
-        <div className="flex-1">
-          <h3 className="font-semibold text-lg">{emprestimo.contrato}</h3>
-          <p className="text-sm text-muted-foreground">
-            Valor liberado: {formatCurrency(emprestimo.valorTotal)}
-          </p>
-        </div>
-        <Badge variant={isPending ? "outline" : "default"} 
-          className={cn(isPending && "border-warning text-warning")}>
-          {isPending ? "Pendente" : "Ativo"}
-        </Badge>
-      </div>
+      <div className="space-y-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="space-y-2 col-span-1 sm:col-span-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Conta de Débito</Label>
+            <Select value={formData.contaCorrenteId} onValueChange={(v) => setFormData(prev => ({ ...prev, contaCorrenteId: v }))}>
+              <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold">
+                <SelectValue placeholder="Selecione a conta..." />
+              </SelectTrigger>
+              <SelectContent>
+                {contasCorrentes.map((conta) => (
+                  <SelectItem key={conta.id} value={conta.id} className="font-bold">
+                    {conta.institution || conta.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      <Separator />
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor do Principal</Label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/30">R$</span>
+              <Input type="number" step="0.01" value={formData.valorTotal} onChange={(e) => setFormData(prev => ({ ...prev, valorTotal: e.target.value }))} className="h-12 pl-12 rounded-2xl border-2 font-black text-lg bg-card" />
+            </div>
+          </div>
 
-      {/* Form Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Conta Corrente */}
-        <div className="col-span-2">
-          <Label className="text-sm font-medium">Conta para Débito das Parcelas *</Label>
-          <Select
-            value={formData.contaCorrenteId}
-            onValueChange={(v) => setFormData(prev => ({ ...prev, contaCorrenteId: v }))}
-          >
-            <SelectTrigger className="mt-1.5">
-              <SelectValue placeholder="Selecione a conta..." />
-            </SelectTrigger>
-            <SelectContent>
-              {contasCorrentes.map((conta) => (
-                <SelectItem key={conta.id} value={conta.id}>
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-muted-foreground" />
-                    <span>{conta.institution || conta.name}</span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            Conta onde as parcelas serão debitadas mensalmente
-          </p>
-        </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Quantidade Parcelas</Label>
+            <Input type="number" value={formData.meses} onChange={(e) => setFormData(prev => ({ ...prev, meses: e.target.value }))} className="h-12 rounded-2xl border-2 font-black text-lg bg-card" />
+          </div>
 
-        {/* Valor Total */}
-        <div>
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-muted-foreground" />
-            Valor Total (R$) *
-          </Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={formData.valorTotal}
-            onChange={(e) => setFormData(prev => ({ ...prev, valorTotal: e.target.value }))}
-            placeholder="50000.00"
-            className="mt-1.5"
-          />
-        </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor da Parcela</Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/30">R$</span>
+                <Input type="number" step="0.01" value={formData.parcela} onChange={(e) => setFormData(prev => ({ ...prev, parcela: e.target.value }))} className="h-12 pl-12 rounded-2xl border-2 font-black text-lg bg-card" />
+              </div>
+              <Button type="button" variant="outline" size="icon" onClick={calcularParcelaPrice} className="h-12 w-12 rounded-2xl border-2 hover:bg-primary/10 text-primary">
+                <Calculator className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
 
-        {/* Quantidade de Parcelas */}
-        <div>
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <Clock className="w-4 h-4 text-muted-foreground" />
-            Quantidade de Parcelas *
-          </Label>
-          <Input
-            type="number"
-            value={formData.meses}
-            onChange={(e) => setFormData(prev => ({ ...prev, meses: e.target.value }))}
-            placeholder="48"
-            className="mt-1.5"
-          />
-        </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Taxa Mensal (%)</Label>
+            <div className="flex gap-2">
+              <Input type="number" step="0.01" value={formData.taxaMensal} onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))} className="h-12 rounded-2xl border-2 font-black text-lg bg-card" />
+              <Button type="button" variant="outline" size="icon" onClick={calcularTaxa} className="h-12 w-12 rounded-2xl border-2 hover:bg-primary/10 text-primary">
+                <Percent className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
 
-        {/* Taxa Mensal */}
-        <div>
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <Percent className="w-4 h-4 text-muted-foreground" />
-            Taxa Mensal (%) *
-          </Label>
-          <div className="flex gap-2 mt-1.5">
-            <Input
-              type="number"
-              step="0.01"
-              value={formData.taxaMensal}
-              onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
-              placeholder="1.89"
-              className="flex-1"
-            />
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="icon"
-              onClick={calcularTaxa}
-              title="Calcular taxa (Price)"
-              className="shrink-0"
-            >
-              <Calculator className="w-4 h-4" />
-            </Button>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Data Início / Contrato</Label>
+            <Input type="date" value={formData.dataInicio} onChange={(e) => setFormData(prev => ({ ...prev, dataInicio: e.target.value }))} className="h-12 rounded-2xl border-2 font-bold bg-card" />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Sistema Amortização</Label>
+            <Select value={formData.metodoAmortizacao} onValueChange={(v) => setFormData(prev => ({ ...prev, metodoAmortizacao: v }))}>
+              <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="price" className="font-bold">PRICE (Fixas)</SelectItem><SelectItem value="sac" className="font-bold">SAC (Variáveis)</SelectItem></SelectContent>
+            </Select>
           </div>
         </div>
 
-        {/* Valor da Parcela */}
-        <div>
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            Valor da Parcela (R$) *
-          </Label>
-          <div className="flex gap-2 mt-1.5">
-            <Input
-              type="number"
-              step="0.01"
-              value={formData.parcela}
-              onChange={(e) => setFormData(prev => ({ ...prev, parcela: e.target.value }))}
-              placeholder="1250.00"
-              className="flex-1"
-            />
-            <Button 
-              type="button" 
-              variant="outline" 
-              size="icon"
-              onClick={calcularParcelaPrice}
-              title="Calcular parcela (Price)"
-              className="shrink-0"
-            >
-              <Calculator className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Data de Início */}
-        <div>
-          <Label className="text-sm font-medium flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-muted-foreground" />
-            Data de Início
-          </Label>
-          <Input
-            type="date"
-            value={formData.dataInicio}
-            onChange={(e) => setFormData(prev => ({ ...prev, dataInicio: e.target.value }))}
-            className="mt-1.5"
-          />
-        </div>
-
-        {/* Método de Amortização */}
-        <div>
-          <Label className="text-sm font-medium">Método de Amortização</Label>
-          <Select
-            value={formData.metodoAmortizacao}
-            onValueChange={(v) => setFormData(prev => ({ ...prev, metodoAmortizacao: v }))}
-          >
-            <SelectTrigger className="mt-1.5">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="price">Price (Parcelas Fixas)</SelectItem>
-              <SelectItem value="sac">SAC (Amortização Constante)</SelectItem>
-              <SelectItem value="americano">Americano</SelectItem>
-              <SelectItem value="outro">Outro</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Observações */}
-        <div className="col-span-2">
-          <Label className="text-sm font-medium">Observações</Label>
-          <Textarea
-            value={formData.observacoes}
-            onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-            placeholder="Notas adicionais sobre o empréstimo..."
-            className="mt-1.5 h-20 resize-none"
-          />
+        <div className="space-y-2">
+          <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Notas e Observações</Label>
+          <Textarea value={formData.observacoes} onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))} className="min-h-[100px] border-2 rounded-2xl resize-none font-medium" placeholder="Ex: Contrato assinado via app, possui seguro prestamista..." />
         </div>
       </div>
 
-      {/* Preview dos Cálculos */}
-      {preview.valorTotal > 0 && preview.parcela > 0 && preview.meses > 0 && (
-        <div className="p-4 rounded-lg bg-muted/50 border border-border space-y-3">
-          <h4 className="text-sm font-medium flex items-center gap-2">
-            <Info className="w-4 h-4 text-primary" />
-            Resumo do Contrato
-          </h4>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Custo Total</p>
-              <p className="font-semibold">{formatCurrency(preview.custoTotal)}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Juros Total</p>
-              <p className="font-semibold text-warning">{formatCurrency(preview.jurosTotal)}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-muted-foreground">CET Anual</p>
-              <p className={cn(
-                "font-semibold",
-                preview.cetAnual <= 30 ? "text-success" :
-                preview.cetAnual <= 50 ? "text-warning" : "text-destructive"
-              )}>
-                {preview.cetAnual.toFixed(1)}%
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-muted-foreground">Data Final</p>
-              <p className="font-semibold">
-                {new Date(new Date(formData.dataInicio).setMonth(
-                  new Date(formData.dataInicio).getMonth() + preview.meses
-                )).toLocaleDateString("pt-BR")}
-              </p>
-            </div>
+      {preview.valorTotal > 0 && (
+        <div className="bg-surface-light dark:bg-surface-dark rounded-[2.5rem] p-8 border border-white/60 dark:border-white/5 space-y-6">
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-primary/10 rounded-xl text-primary"><Info className="w-5 h-5" /></div>
+             <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Resumo Matemático</h4>
           </div>
-
-          {/* Progress bar preview */}
-          <div className="pt-2">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
-              <span>0% (início)</span>
-              <span>100% (quitado)</span>
-            </div>
-            <div className="h-2 bg-muted rounded-full overflow-hidden">
-              <div className="h-full w-0 bg-gradient-to-r from-primary to-success" />
-            </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Custo Efetivo</p><p className="text-base font-black tabular-nums">{formatCurrency(preview.custoTotal)}</p></div>
+            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Juros Totais</p><p className="text-base font-black text-destructive tabular-nums">{formatCurrency(preview.jurosTotal)}</p></div>
+            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">CET Anual Est.</p><p className="text-base font-black text-primary tabular-nums">{preview.cetAnual.toFixed(2)}%</p></div>
+            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Impacto Renda</p><p className="text-base font-black text-warning tabular-nums">12.5%</p></div>
           </div>
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-2">
-        <Button variant="outline" onClick={onCancel} className="flex-1">
-          Cancelar
-        </Button>
-        <Button onClick={handleSave} disabled={!canSave} className="flex-1">
-          <Save className="w-4 h-4 mr-2" />
-          {isPending ? "Confirmar Configuração" : "Salvar Alterações"}
+      <div className="pt-6 flex flex-col sm:flex-row gap-4 border-t border-border/40">
+        <Button variant="ghost" onClick={onCancel} className="rounded-full h-14 sm:h-16 px-10 font-bold text-muted-foreground order-2 sm:order-1">CANCELAR</Button>
+        <Button onClick={handleSave} disabled={!canSave} className="flex-1 rounded-full h-14 sm:h-16 bg-primary text-primary-foreground font-black text-base sm:text-lg gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all order-1 sm:order-2">
+          <Check className="w-5 h-5 sm:w-6 sm:h-6" /> {isPending ? "ATIVAR CONTRATO" : "SALVAR ALTERAÇÕES"}
         </Button>
       </div>
     </div>
