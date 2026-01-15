@@ -9,8 +9,6 @@ import {
   CheckCircle,
   AlertTriangle,
   XCircle,
-  TrendingUp,
-  Target
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -59,7 +57,6 @@ const getEstabilidadeStatus = (val: number): StatusConfig => {
   return { label: "MÉDIA", color: "text-primary", bg: "bg-primary/5 dark:bg-primary/10", border: "border-primary/20 dark:border-primary/30", badgeClass: "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary", statusIcon: AlertTriangle };
 };
 
-// Estrutura de indicadores com metadados
 const indicadoresConfig = [
   {
     id: 'liquidez',
@@ -125,7 +122,7 @@ export function SaudeFinanceira({
           <span className="text-[10px] font-bold text-primary bg-orange-100 dark:bg-orange-900/30 px-3 py-1.5 rounded-full uppercase tracking-wide">Desempenho</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
           {indicadoresConfig.map((config) => {
             const value = valores[config.id as keyof typeof valores];
             const status = config.getStatus(value);
@@ -134,24 +131,24 @@ export function SaudeFinanceira({
             return (
               <Tooltip key={config.id}>
                 <TooltipTrigger asChild>
-                  <div className={cn("rounded-3xl p-5 border transition-all hover:scale-[1.02] group relative overflow-hidden cursor-help", status.bg, status.border)}>
+                  <div className={cn("rounded-3xl p-4 lg:p-6 border transition-all hover:scale-[1.02] group relative overflow-hidden cursor-help", status.bg, status.border)}>
                     <div className="flex justify-between items-start mb-4">
-                      <div className="w-10 h-10 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm shrink-0">
                         <config.icon className={cn("w-5 h-5", status.color)} />
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <StatusIcon className={cn("w-3 h-3", status.color)} />
-                        <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full border border-black/5 dark:border-white/5", status.badgeClass)}>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <StatusIcon className={cn("w-3 h-3 shrink-0", status.color)} />
+                        <span className={cn("text-[8px] lg:text-[9px] font-bold px-2 py-0.5 rounded-full border border-black/5 dark:border-white/5 truncate", status.badgeClass)}>
                           {status.label}
                         </span>
                       </div>
                     </div>
-                    <p className={cn("text-3xl font-display font-bold", status.color)}>
+                    <p className={cn("text-2xl lg:text-3xl font-display font-bold tabular-nums", status.color)}>
                       {config.format === 'decimal' ? `${value.toFixed(1)}x` : `${value.toFixed(0)}%`}
                     </p>
                     <div className="flex items-center gap-1 mt-1">
-                      <p className="text-[10px] font-bold uppercase tracking-tight opacity-60">{config.label}</p>
-                      <Info className="w-2.5 h-2.5 opacity-40" />
+                      <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-tight opacity-60 truncate">{config.label}</p>
+                      <Info className="w-2.5 h-2.5 opacity-40 shrink-0" />
                     </div>
                   </div>
                 </TooltipTrigger>

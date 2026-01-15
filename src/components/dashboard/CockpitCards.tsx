@@ -41,19 +41,19 @@ export function CockpitCards({ data }: CockpitCardsProps) {
 
   return (
     <TooltipProvider>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-6 h-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-6 h-full">
         {/* Card de Liquidez */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 shadow-soft border border-white/60 dark:border-white/5 flex items-center justify-between relative overflow-hidden h-[200px] hover:shadow-lg transition-shadow group cursor-help">
-              <div className="flex flex-col h-full justify-between z-10">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex items-center justify-between relative overflow-hidden min-h-[180px] h-full hover:shadow-lg transition-all group cursor-help">
+              <div className="flex flex-col h-full justify-between z-10 space-y-2">
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Capital Disponível</p>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
                   </div>
-                  <p className="font-display font-bold text-3xl text-foreground">R$ {formatCompact(data.liquidezImediata)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Dinheiro livre para usar</p>
+                  <p className="font-display font-bold text-2xl lg:text-3xl text-foreground">R$ {formatCompact(data.liquidezImediata)}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Dinheiro livre para usar</p>
                 </div>
                 <div className="flex items-center gap-2 mt-auto">
                   <span className={cn(
@@ -61,34 +61,34 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                     data.liquidezImediata > 0 ? "bg-primary" : "bg-neutral-300"
                   )}></span>
                   <span className={cn(
-                    "text-xs font-bold",
+                    "text-[10px] sm:text-xs font-bold",
                     data.liquidezImediata > 0 ? "text-primary" : "text-muted-foreground"
                   )}>
                     {data.liquidezImediata > 0 ? "Com saldo" : "Zerado"}
                   </span>
                 </div>
               </div>
-              <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+              <div className="relative w-24 h-24 lg:w-32 lg:h-32 flex items-center justify-center shrink-0">
                 <svg className="transform -rotate-90 w-full h-full">
                   <circle 
                     className="text-neutral-100 dark:text-neutral-800" 
-                    cx="64" cy="64" r="54" 
+                    cx="50%" cy="50%" r="42%" 
                     fill="transparent" 
                     stroke="currentColor" 
-                    strokeWidth="10"
+                    strokeWidth="8"
                   />
                   <circle 
                     className="text-primary transition-all duration-1000 ease-out" 
-                    cx="64" cy="64" r="54" 
+                    cx="50%" cy="50%" r="42%" 
                     fill="transparent" 
                     stroke="currentColor" 
-                    strokeWidth="10"
+                    strokeWidth="8"
                     strokeDasharray={CIRCUMFERENCE}
                     strokeDashoffset={CIRCUMFERENCE - (CIRCUMFERENCE * liquidezPercent / 100)}
                     strokeLinecap="round"
                   />
                 </svg>
-                <span className="absolute text-2xl font-bold text-foreground">{liquidezPercent.toFixed(0)}%</span>
+                <span className="absolute text-xl lg:text-2xl font-bold text-foreground">{liquidezPercent.toFixed(0)}%</span>
               </div>
             </div>
           </TooltipTrigger>
@@ -103,15 +103,15 @@ export function CockpitCards({ data }: CockpitCardsProps) {
         {/* Card de Compromissos */}
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 shadow-soft border border-white/60 dark:border-white/5 flex items-center justify-between relative overflow-hidden h-[200px] hover:shadow-lg transition-shadow group cursor-help">
-              <div className="flex flex-col h-full justify-between z-10">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex items-center justify-between relative overflow-hidden min-h-[180px] h-full hover:shadow-lg transition-all group cursor-help">
+              <div className="flex flex-col h-full justify-between z-10 space-y-2">
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
                     <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Contas do Mês</p>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
                   </div>
-                  <p className="font-display font-bold text-3xl text-foreground">R$ {formatCompact(data.compromissosMes)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Valor comprometido</p>
+                  <p className="font-display font-bold text-2xl lg:text-3xl text-foreground">R$ {formatCompact(data.compromissosMes)}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">Valor comprometido</p>
                 </div>
                 <div className="flex items-center gap-2 mt-auto">
                   <span className={cn(
@@ -120,7 +120,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                     data.compromissosPercent <= 70 ? "bg-green-400" : "bg-red-400"
                   )}></span>
                   <span className={cn(
-                    "text-xs font-bold",
+                    "text-[10px] sm:text-xs font-bold",
                     data.totalAtivos === 0 ? "text-muted-foreground" :
                     data.compromissosPercent <= 70 ? "text-green-600" : "text-red-600"
                   )}>
@@ -129,14 +129,14 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                   </span>
                 </div>
               </div>
-              <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+              <div className="relative w-24 h-24 lg:w-32 lg:h-32 flex items-center justify-center shrink-0">
                 <svg className="transform -rotate-90 w-full h-full">
                   <circle 
                     className="text-neutral-100 dark:text-neutral-800" 
-                    cx="64" cy="64" r="54" 
+                    cx="50%" cy="50%" r="42%" 
                     fill="transparent" 
                     stroke="currentColor" 
-                    strokeWidth="10"
+                    strokeWidth="8"
                   />
                   <circle 
                     className={cn(
@@ -144,16 +144,16 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                       data.totalAtivos === 0 ? "text-neutral-200" :
                       data.compromissosPercent <= 70 ? "text-indigo-400" : "text-red-400"
                     )}
-                    cx="64" cy="64" r="54" 
+                    cx="50%" cy="50%" r="42%" 
                     fill="transparent" 
                     stroke="currentColor" 
-                    strokeWidth="10"
+                    strokeWidth="8"
                     strokeDasharray={CIRCUMFERENCE}
                     strokeDashoffset={CIRCUMFERENCE - (CIRCUMFERENCE * Math.min(100, data.compromissosPercent) / 100)}
                     strokeLinecap="round"
                   />
                 </svg>
-                <span className="absolute text-2xl font-bold text-foreground">{data.compromissosPercent.toFixed(0)}%</span>
+                <span className="absolute text-xl lg:text-2xl font-bold text-foreground">{data.compromissosPercent.toFixed(0)}%</span>
               </div>
             </div>
           </TooltipTrigger>

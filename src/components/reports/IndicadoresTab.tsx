@@ -70,18 +70,11 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
       .reduce((acc, c) => acc + Math.max(0, calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento)), 0);
 
     const passivoCirculante = getCreditCardDebt(date) + getSegurosAPagar(date);
-
     const receitas = txs.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
     const despesas = txs.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0);
     const lucro = receitas - despesas;
-    
-    const fixas = txs.filter(t => {
-        const cat = categoriasV2.find(c => c.id === t.categoryId);
-        return cat?.nature === 'despesa_fixa';
-    }).reduce((a, t) => a + t.amount, 0);
-
+    const fixas = txs.filter(t => categoriasV2.find(c => c.id === t.categoryId)?.nature === 'despesa_fixa').reduce((a, t) => a + t.amount, 0);
     const imobilizado = getValorFipeTotal(date);
-
     const variaveis = despesas - fixas;
     const parcelas = txs.filter(t => t.operationType === 'pagamento_emprestimo').reduce((a, t) => a + t.amount, 0);
     const rendimentos = txs.filter(t => t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
@@ -112,27 +105,12 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
   const m1 = useMemo(() => calculateMetrics(range1), [calculateMetrics, range1]);
   const m2 = useMemo(() => calculateMetrics(range2), [calculateMetrics, range2]);
-
   const getTrend = (v1: number, v2: number) => v2 !== 0 ? ((v1 - v2) / Math.abs(v2)) * 100 : 0;
 
-  const handleSaveIndicator = (indicator: CustomIndicator) => {
-    setCustomIndicators(prev => {
-      const exists = prev.find(i => i.id === indicator.id);
-      if (exists) return prev.map(i => i.id === indicator.id ? indicator : i);
-      return [...prev, indicator];
-    });
-  };
-
-  const handleDeleteIndicator = (id: string) => {
-    setCustomIndicators(prev => prev.filter(i => i.id !== id));
-  };
-
   const SectionHeader = ({ title, subtitle, icon: Icon }: any) => (
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 px-2 gap-4">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 lg:mb-8 px-2 gap-4">
       <div className="flex items-center gap-4">
-        <div className="p-3 bg-primary/10 rounded-2xl text-primary shadow-sm shrink-0">
-          <Icon size={24} />
-        </div>
+        <div className="p-3 bg-primary/10 rounded-2xl text-primary shadow-sm shrink-0"><Icon size={24} /></div>
         <div>
           <h3 className="font-display font-black text-xl text-foreground uppercase tracking-tight">{title}</h3>
           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5">{subtitle}</p>
@@ -143,10 +121,8 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
   const hasData = useMemo(() => {
     const date = range1.to || new Date();
-    const totalAtivos = getAtivosTotal(date);
-    const totalPassivos = getPassivosTotal(date);
-    return transacoesV2.length > 0 || totalAtivos > 0 || totalPassivos > 0;
-  }, [range1, getAtivosTotal, getPassivosTotal, transacoesV2]);
+    return transacoesV2.length > 0 || getAtivosTotal(date) > 0;
+  }, [range1, getAtivosTotal, transacoesV2]);
 
   const scorePatrimonial = useMemo(() => {
     if (!hasData) return null;
@@ -158,72 +134,34 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
   }, [m1, hasData]);
 
   return (
-    <div className="space-y-12 sm:space-y-20 animate-fade-in-up pb-20">
-      {/* DESTAQUE PRINCIPAL: SCORE DE SAÚDE PATRIMONIAL */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10">
-        <div className="lg:col-span-6">
-          <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[40px] p-8 sm:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[400px] flex flex-col justify-center group">
+    <div className="space-y-12 lg:space-y-16 animate-fade-in-up pb-20">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 sm:gap-10">
+        <div className="col-span-12 xl:col-span-6">
+          <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[40px] p-6 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[350px] sm:h-[400px] flex flex-col justify-center group transition-all">
              <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent"></div>
-             
              <div className="relative z-10 flex flex-col sm:flex-row items-center gap-8 sm:gap-12">
-                <div className="shrink-0 scale-90 sm:scale-100">
-                  {scorePatrimonial !== null ? (
-                    <RadialGauge 
-                      value={scorePatrimonial} 
-                      label="Score"
-                      status={scorePatrimonial >= 70 ? "success" : scorePatrimonial >= 40 ? "warning" : "danger"}
-                      size={200}
-                    />
-                  ) : (
-                    <div className="w-[180px] h-[180px] rounded-full border-4 border-dashed border-muted-foreground/20 flex items-center justify-center">
-                      <Activity className="w-8 h-8 text-muted-foreground/30" />
-                    </div>
-                  )}
-                </div>
+                <div className="shrink-0 scale-90 sm:scale-100">{scorePatrimonial !== null ? (<RadialGauge value={scorePatrimonial} label="Score" status={scorePatrimonial >= 70 ? "success" : scorePatrimonial >= 40 ? "warning" : "danger"} size={180} />) : (<div className="w-[180px] h-[180px] rounded-full border-4 border-dashed border-muted-foreground/20 flex items-center justify-center"><Activity className="w-8 h-8 text-muted-foreground/30" /></div>)}</div>
                 <div className="flex-1 text-center sm:text-left space-y-4">
-                  <Badge className="bg-primary/10 text-primary border-none font-black text-[9px] sm:text-[10px] px-4 py-1.5 rounded-full uppercase tracking-[0.2em]">Saúde Patrimonial</Badge>
+                  <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-4 py-1.5 rounded-full uppercase tracking-[0.2em]">Saúde Patrimonial</Badge>
                   <h2 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Score Consolidado</h2>
-                  <h3 className="font-display font-extrabold text-3xl sm:text-4xl text-foreground tracking-tighter leading-tight">
-                    {scorePatrimonial === null ? "Aguardando Dados" : scorePatrimonial >= 70 ? "Patrimônio Blindado" : scorePatrimonial >= 40 ? "Ajuste Recomendado" : "Alerta Estrutural"}
-                  </h3>
+                  <h3 className="font-display font-extrabold text-2xl sm:text-4xl text-foreground tracking-tighter leading-tight">{scorePatrimonial === null ? "Aguardando Dados" : scorePatrimonial >= 70 ? "Patrimônio Blindado" : scorePatrimonial >= 40 ? "Ajuste Recomendado" : "Alerta Estrutural"}</h3>
                 </div>
              </div>
           </div>
         </div>
-
-        <div className="lg:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <IndicatorCard 
-            title="Taxa de Economia" 
-            value={`${m1.poupanca.toFixed(1)}%`} 
-            trend={getTrend(m1.poupanca, m2.poupanca)}
-            status={m1.poupanca >= 20 ? "success" : m1.poupanca >= 10 ? "warning" : "danger"}
-            icon={ShieldCheck}
-            description="Quanto da sua renda sobra para investir."
-          />
-          <IndicatorCard 
-            title="Folga Mensal" 
-            value={`${m1.margemSeguranca.toFixed(1)}%`} 
-            trend={getTrend(m1.margemSeguranca, m2.margemSeguranca)} 
-            status={m1.margemSeguranca >= 30 ? "success" : "warning"} 
-            icon={Heart}
-            description="Percentual de renda livre após gastos fixos."
-          />
-          
-          <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between bg-muted/20 px-6 py-5 rounded-[2rem] border border-border/40 gap-4">
-            <div className="flex gap-4 sm:gap-6">
-              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-success" /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Saudável</span></div>
-              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-warning" /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Atenção</span></div>
-              <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-destructive" /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Crítico</span></div>
-            </div>
-            <Button onClick={() => setShowManagerModal(true)} variant="ghost" size="sm" className="rounded-full h-10 gap-2 px-6 font-black text-[10px] uppercase tracking-widest bg-card border border-border/60"><Settings2 size={14} /> Personalizar</Button>
+        <div className="col-span-12 xl:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <IndicatorCard title="Taxa de Economia" value={`${m1.poupanca.toFixed(1)}%`} trend={getTrend(m1.poupanca, m2.poupanca)} status={m1.poupanca >= 20 ? "success" : m1.poupanca >= 10 ? "warning" : "danger"} icon={ShieldCheck} />
+          <IndicatorCard title="Folga Mensal" value={`${m1.margemSeguranca.toFixed(1)}%`} trend={getTrend(m1.margemSeguranca, m2.margemSeguranca)} status={m1.margemSeguranca >= 30 ? "success" : "warning"} icon={Heart} />
+          <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between bg-muted/20 px-6 py-4 rounded-[2rem] border border-border/40 gap-4">
+            <div className="flex gap-4 sm:gap-6 shrink-0">{[{ c: 'bg-success', l: 'Saudável' }, { c: 'bg-warning', l: 'Atenção' }, { c: 'bg-destructive', l: 'Crítico' }].map((s, idx) => (<div key={idx} className="flex items-center gap-2"><div className={cn("w-2 h-2 rounded-full", s.c)} /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{s.l}</span></div>))}</div>
+            <Button onClick={() => setShowManagerModal(true)} variant="ghost" size="sm" className="rounded-full h-9 gap-2 px-5 font-black text-[10px] uppercase tracking-widest bg-card border border-border/60"><Settings2 size={14} /> Ajustar</Button>
           </div>
         </div>
       </div>
 
-      {/* SEÇÕES DE INDICADORES COM GRADE CORRIGIDA PARA MOBILE */}
       <section className="space-y-8">
         <SectionHeader title="Gestão de Liquidez" subtitle="Capacidade de Pagamento" icon={Wallet} />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           <IndicatorCard title="Liquidez Corrente" value={`${m1.liqCorrente.toFixed(2)}x`} trend={getTrend(m1.liqCorrente, m2.liqCorrente)} status={m1.liqCorrente >= 1.5 ? "success" : "warning"} icon={TrendingUp} />
           <IndicatorCard title="Cobertura Mensal" value={`${m1.solvenciaImediata.toFixed(2)}x`} trend={getTrend(m1.solvenciaImediata, m2.solvenciaImediata)} status={m1.solvenciaImediata >= 1 ? "success" : "warning"} icon={Activity} />
           <IndicatorCard title="Solvência Geral" value={`${m1.liqGeral.toFixed(2)}x`} trend={getTrend(m1.liqGeral, m2.liqGeral)} status={m1.liqGeral >= 2 ? "success" : "warning"} icon={Shield} />
@@ -232,7 +170,7 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
       <section className="space-y-8">
         <SectionHeader title="Endividamento" subtitle="Comprometimento do Patrimônio" icon={Scale} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6">
           <IndicatorCard title="Dívida / Ativo" value={`${m1.endivTotal.toFixed(1)}%`} status={m1.endivTotal <= 30 ? "success" : "warning"} icon={TrendingDown} />
           <IndicatorCard title="Dívida / PL" value={`${m1.dividaPatrimonio.toFixed(1)}%`} status={m1.dividaPatrimonio <= 50 ? "success" : "warning"} icon={Target} />
           <IndicatorCard title="Imobilização" value={`${m1.imobPL.toFixed(1)}%`} status={m1.imobPL <= 60 ? "success" : "warning"} icon={Landmark} />
@@ -242,7 +180,7 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
       <section className="space-y-8">
         <SectionHeader title="Rentabilidade & Eficiência" subtitle="Performance Financeira" icon={TrendingUp} />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6">
           <IndicatorCard title="Taxa de Sobra" value={`${m1.margemLiquida.toFixed(1)}%`} status={m1.margemLiquida >= 15 ? "success" : "warning"} icon={Sparkles} />
           <IndicatorCard title="Retorno Ativos" value={`${m1.roa.toFixed(1)}%`} status={m1.roa >= 5 ? "success" : "warning"} icon={BarChart3} />
           <IndicatorCard title="Burn Rate" value={`${m1.burnRate.toFixed(1)}%`} status={m1.burnRate <= 80 ? "success" : "warning"} icon={Zap} />

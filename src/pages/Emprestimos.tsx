@@ -73,7 +73,7 @@ const Emprestimos = () => {
 
   const calculos = useMemo(() => {
     const targetDate = dateRanges.range1.to;
-    const rec = 10000; // Mock de receita para cálculo de comprometimento
+    const rec = 10000; 
     const parcelas = emprestimos.reduce((acc, e) => acc + e.parcela, 0);
     
     return {
@@ -115,7 +115,6 @@ const Emprestimos = () => {
 
     const lineD = getCurvePath(coords);
     const areaD = `${lineD} L800,250 L0,250 Z`;
-
     return { line: lineD, area: areaD };
   }, [getLoanPrincipalRemaining]);
 
@@ -144,13 +143,12 @@ const Emprestimos = () => {
           </header>
 
           {/* Hero Section: Painel de Dívida Expressivo */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10 animate-fade-in-up">
-            <div className="col-span-12 lg:col-span-8">
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[40px] p-6 sm:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[300px] sm:h-[420px] flex flex-col justify-between group">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 sm:gap-10 animate-fade-in-up">
+            <div className="col-span-12 xl:col-span-8">
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[40px] p-6 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[300px] sm:h-[420px] flex flex-col justify-between group transition-all">
                 <div className="absolute inset-0 bg-gradient-to-br from-destructive/[0.03] to-transparent opacity-50"></div>
                 
-                {/* Gráfico de Fundo */}
-                <div className="absolute bottom-0 left-0 right-0 h-[300px] pointer-events-none opacity-40">
+                <div className="absolute bottom-0 left-0 right-0 h-[200px] sm:h-[300px] pointer-events-none opacity-40">
                   <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 800 250">
                     <defs>
                       <linearGradient id="debtFill" x1="0" x2="0" y1="0" y2="1">
@@ -198,10 +196,8 @@ const Emprestimos = () => {
               </div>
             </div>
 
-            {/* Cockpit de Indicadores Laterais */}
-            <div className="col-span-12 lg:col-span-4 grid grid-cols-2 lg:flex lg:flex-col gap-6">
-              {/* Card Parcela Mensal */}
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] sm:h-[200px] hover:-translate-y-1 transition-transform cursor-help">
+            <div className="col-span-12 xl:col-span-4 grid grid-cols-2 xl:flex xl:flex-col gap-6">
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] xl:h-[200px] hover:-translate-y-1 transition-transform cursor-help">
                 <div className="flex items-start justify-between">
                   <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
                     <Wallet className="w-5 h-5" />
@@ -210,19 +206,18 @@ const Emprestimos = () => {
                 </div>
                 <div>
                   <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Parcela Total</p>
-                  <p className="font-display font-black text-lg sm:text-3xl text-foreground tabular-nums">{formatCurrency(calculos.parcelaMensalTotal)}</p>
+                  <p className="font-display font-black text-lg lg:text-3xl text-foreground tabular-nums">{formatCurrency(calculos.parcelaMensalTotal)}</p>
                 </div>
               </div>
 
-              {/* Card Comprometimento Renda */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] sm:h-[194px] hover:-translate-y-1 transition-transform cursor-help">
+                  <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] xl:h-[194px] hover:-translate-y-1 transition-transform cursor-help">
                     <div className="flex items-start justify-between">
                       <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 shadow-sm">
                         <TrendingUp className="w-5 h-5" />
                       </div>
-                      <div className="relative w-10 h-10 flex items-center justify-center">
+                      <div className="relative w-10 h-10 flex items-center justify-center shrink-0">
                         <svg className="w-full h-full -rotate-90">
                           <circle cx="20" cy="20" r="16" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-muted/20" />
                           <circle cx="20" cy="20" r="16" fill="transparent" stroke="currentColor" strokeWidth="4" 
@@ -240,41 +235,30 @@ const Emprestimos = () => {
                     </div>
                     <div>
                       <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Comprometimento</p>
-                      <div className="flex items-center gap-2">
-                        <p className={cn(
-                          "font-display font-black text-lg sm:text-3xl tabular-nums",
-                          calculos.comprometimentoRenda <= 30 ? "text-success" :
-                          calculos.comprometimentoRenda <= 50 ? "text-warning" : "text-destructive"
-                        )}>{calculos.comprometimentoRenda.toFixed(1)}%</p>
-                      </div>
+                      <p className={cn(
+                        "font-display font-black text-lg lg:text-3xl tabular-nums",
+                        calculos.comprometimentoRenda <= 30 ? "text-success" :
+                        calculos.comprometimentoRenda <= 50 ? "text-warning" : "text-destructive"
+                      )}>{calculos.comprometimentoRenda.toFixed(1)}%</p>
                     </div>
                   </div>
                 </TooltipTrigger>
-                <TooltipContent side="bottom" className="max-w-[280px] p-4 rounded-2xl">
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Percentual da sua renda comprometido com parcelas de empréstimos.
-                  </p>
-                </TooltipContent>
+                <TooltipContent side="bottom" className="max-w-[280px] p-4 rounded-2xl"><p className="text-xs text-muted-foreground leading-relaxed">Percentual da sua renda comprometido com parcelas de empréstimos.</p></TooltipContent>
               </Tooltip>
             </div>
           </div>
 
-          {/* Seção Central: Insights e Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12">
-            <div className="lg:col-span-2 space-y-12">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 sm:gap-12">
+            <div className="xl:col-span-2 space-y-12">
               <section className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                 <LoanAlerts emprestimos={emprestimos} onOpenPendingConfig={() => { setSelectedLoan(pendingLoans[0]); setDetailDialogOpen(true); }} />
               </section>
               
               <section className="animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-                <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[48px] p-6 sm:p-10 shadow-soft border border-white/60 dark:border-white/5 overflow-hidden">
+                <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[48px] p-6 lg:p-10 shadow-soft border border-white/60 dark:border-white/5 overflow-hidden transition-all">
                   <div className="flex items-center gap-4 mb-8">
-                    <div className="p-3 bg-primary/10 rounded-2xl text-primary shadow-sm">
-                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-display font-bold text-xl sm:text-2xl text-foreground">Inteligência de Evolução</h3>
-                    </div>
+                    <div className="p-3 bg-primary/10 rounded-2xl text-primary shadow-sm"><Sparkles className="w-5 h-5 sm:w-6 sm:h-6" /></div>
+                    <div><h3 className="font-display font-bold text-xl sm:text-2xl text-foreground">Inteligência de Evolução</h3></div>
                   </div>
                   <LoanCharts emprestimos={emprestimos.filter(e => e.status !== 'pendente_config')} />
                 </div>
@@ -285,22 +269,17 @@ const Emprestimos = () => {
               <section className="animate-fade-in-up" style={{ animationDelay: '300ms' }}>
                 <LoanSimulator 
                   emprestimos={emprestimos.filter(e => e.status !== 'pendente_config')} 
-                  className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[40px] p-6 sm:p-8 shadow-soft border border-white/60 dark:border-white/5" 
+                  className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[40px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5" 
                 />
               </section>
             </div>
           </div>
 
-          {/* Grid de Contratos: O Inventário Premium */}
           <section className="space-y-8 animate-fade-in-up" style={{ animationDelay: '400ms' }}>
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-destructive/10 rounded-2xl text-destructive shadow-sm">
-                  <Banknote className="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <div>
-                  <h3 className="font-display font-black text-xl sm:text-2xl text-foreground uppercase tracking-tight">Contratos Ativos</h3>
-                </div>
+                <div className="p-3 bg-destructive/10 rounded-2xl text-destructive shadow-sm"><Banknote className="w-5 h-5 sm:w-6 sm:h-6" /></div>
+                <div><h3 className="font-display font-black text-xl sm:text-2xl text-foreground uppercase tracking-tight">Contratos Ativos</h3></div>
               </div>
             </div>
 
@@ -308,22 +287,12 @@ const Emprestimos = () => {
               {emprestimos.map((loan) => {
                 const paidCount = calculatePaidInstallmentsUpToDate(loan.id, dateRanges.range1.to || new Date());
                 const progress = (paidCount / loan.meses) * 100;
-                
                 return (
-                  <div 
-                    key={loan.id}
-                    onClick={() => { setSelectedLoan(loan); setDetailDialogOpen(true); }}
-                    className="bg-card hover:bg-muted/20 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/40 shadow-sm hover:shadow-2xl hover:-translate-y-2 group cursor-pointer relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-125 group-hover:rotate-12 transition-transform duration-700">
-                        <Building2 className="w-32 h-32" />
-                    </div>
-
+                  <div key={loan.id} onClick={() => { setSelectedLoan(loan); setDetailDialogOpen(true); }} className="bg-card hover:bg-muted/20 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/40 shadow-sm hover:shadow-2xl hover:-translate-y-2 group cursor-pointer relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-125 group-hover:rotate-12 transition-transform duration-700"><Building2 className="w-32 h-32" /></div>
                     <div className="flex items-start justify-between mb-8 relative z-10">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-[1rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500">
-                          <Building2 className="w-6 h-6" />
-                        </div>
+                        <div className="w-12 h-12 rounded-[1rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500"><Building2 className="w-6 h-6" /></div>
                         <div className="space-y-1">
                           <p className="font-black text-base text-foreground truncate max-w-[160px] leading-tight">{loan.contrato}</p>
                           <div className="flex items-center gap-2">
@@ -333,38 +302,14 @@ const Emprestimos = () => {
                         </div>
                       </div>
                     </div>
-
                     <div className="space-y-4 relative z-10">
                       <div className="flex justify-between items-end">
-                        <div className="space-y-0.5">
-                           <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Parcela Mensal</p>
-                           <p className="font-black text-xl text-foreground tabular-nums">{formatCurrency(loan.parcela)}</p>
-                        </div>
-                        <div className="text-right">
-                           <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Progresso</p>
-                           <p className="text-xs font-black text-primary uppercase">{paidCount}/{loan.meses}</p>
-                        </div>
+                        <div className="space-y-0.5"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Parcela Mensal</p><p className="font-black text-xl text-foreground tabular-nums">{formatCurrency(loan.parcela)}</p></div>
+                        <div className="text-right"><p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Progresso</p><p className="text-xs font-black text-primary uppercase">{paidCount}/{loan.meses}</p></div>
                       </div>
-                      
-                      <div className="h-2 bg-muted/50 rounded-full overflow-hidden shadow-inner">
-                        <div 
-                          className="h-full bg-gradient-to-r from-primary to-primary-dark rounded-full transition-all duration-1000 ease-out" 
-                          style={{ width: `${progress}%` }} 
-                        />
-                      </div>
+                      <div className="h-2 bg-muted/50 rounded-full overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-primary to-primary-dark rounded-full transition-all duration-1000 ease-out" style={{ width: `${progress}%` }} /></div>
                     </div>
-
-                    <div className="mt-8 pt-6 border-t border-border/40 flex items-center justify-between relative z-10">
-                      <Badge variant="outline" className={cn(
-                        "border-none font-black text-[9px] px-3 py-1 rounded-xl uppercase tracking-widest",
-                        loan.status === 'ativo' ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                      )}>
-                        {loan.status === 'ativo' ? 'EM DIA' : 'PENDENTE'}
-                      </Badge>
-                      <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
-                        VER <ArrowRight className="w-4 h-4" />
-                      </div>
-                    </div>
+                    <div className="mt-8 pt-6 border-t border-border/40 flex items-center justify-between relative z-10"><Badge variant="outline" className={cn("border-none font-black text-[9px] px-3 py-1 rounded-xl uppercase tracking-widest", loan.status === 'ativo' ? "bg-success/10 text-success" : "bg-warning/10 text-warning")}>{loan.status === 'ativo' ? 'EM DIA' : 'PENDENTE'}</Badge><div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">VER <ArrowRight className="w-4 h-4" /></div></div>
                   </div>
                 );
               })}
@@ -372,7 +317,6 @@ const Emprestimos = () => {
           </section>
         </div>
       </TooltipProvider>
-
       <LoanDetailDialog emprestimo={selectedLoan} open={detailDialogOpen} onOpenChange={setDetailDialogOpen} />
     </MainLayout>
   );
