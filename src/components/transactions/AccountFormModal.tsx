@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, X, Sparkles } from "lucide-react";
+import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, X, Sparkles, ArrowLeft } from "lucide-react";
 import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId, formatCurrency } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface AccountFormModalProps {
   open: boolean;
@@ -47,6 +48,7 @@ export function AccountFormModal({
   onDelete,
   hasTransactions = false
 }: AccountFormModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState<AccountType>("corrente");
   const [institution, setInstitution] = useState("");
@@ -110,29 +112,53 @@ export function AccountFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,34rem)] p-0 overflow-hidden rounded-[2.5rem] sm:rounded-[3rem] border-none shadow-2xl bg-card flex flex-col z-[130]">
-        <DialogHeader className="px-8 pt-10 pb-6 bg-muted/30 shrink-0 border-b border-border/40 relative">
-          <div className="flex items-center gap-5">
-            <div className={cn("w-16 h-16 rounded-[1.5rem] flex items-center justify-center shadow-lg transition-all duration-500", config.bg, config.color)}>
-              <Icon className="w-8 h-8" />
+      <DialogContent className={cn(
+        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col z-[130]",
+        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[34rem] max-h-[90vh] rounded-[3rem]"
+      )}>
+        <DialogHeader className={cn(
+          "px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/30 shrink-0 border-b border-border/40 relative",
+          isMobile && "pt-12"
+        )}>
+          {isMobile && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => onOpenChange(false)}
+              className="absolute left-4 top-4 rounded-full h-10 w-10"
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+          )}
+
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className={cn(
+              "w-12 h-12 sm:w-16 sm:h-16 rounded-[1rem] sm:rounded-[1.5rem] flex items-center justify-center shadow-lg transition-all duration-500", 
+              config.bg, 
+              config.color
+            )}>
+              <Icon className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black tracking-tight">
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight">
                 {isEditing ? "Editar Conta" : "Nova Conta"}
               </DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 mt-1">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <DialogDescription className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2 mt-1">
+                <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
                 Configuração Patrimonial
               </DialogDescription>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute right-6 top-6 rounded-full">
-            <X className="h-5 w-5" />
-          </Button>
+          
+          {!isMobile && (
+            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute right-6 top-6 rounded-full">
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-8">
-          <div className="py-8 space-y-8 pb-12">
+        <ScrollArea className="flex-1 px-6 sm:px-8">
+          <div className="py-6 sm:py-8 space-y-6 sm:space-y-8 pb-32 sm:pb-12">
             {/* Campo Principal: Nome */}
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome de Identificação</Label>
@@ -140,16 +166,16 @@ export function AccountFormModal({
                 placeholder="Ex: Conta Corrente Principal"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-14 text-lg font-bold rounded-2xl border-2 bg-muted/20 focus:bg-card transition-all"
+                className="h-12 sm:h-14 text-base sm:text-lg font-bold rounded-xl sm:rounded-2xl border-2 bg-muted/20 focus:bg-card transition-all"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {/* Tipo de Conta */}
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Classificação</Label>
                 <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
-                  <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold">
+                  <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl sm:rounded-2xl bg-card font-bold">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -176,24 +202,24 @@ export function AccountFormModal({
                   placeholder="Ex: Nubank, Itaú..."
                   value={institution}
                   onChange={(e) => setInstitution(e.target.value)}
-                  className="h-12 border-2 rounded-2xl bg-card font-bold"
+                  className="h-11 sm:h-12 border-2 rounded-xl sm:rounded-2xl bg-card font-bold"
                 />
               </div>
             </div>
 
             {/* Saldo Inicial e Data */}
-            <div className="p-6 rounded-[2rem] bg-muted/30 border-2 border-dashed border-border/60 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="p-5 sm:p-6 rounded-[1.75rem] sm:rounded-[2rem] bg-muted/30 border-2 border-dashed border-border/60 space-y-5 sm:space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Saldo Atual</Label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/30">R$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base sm:text-lg font-black text-muted-foreground/30">R$</span>
                     <Input
                       type="text"
                       inputMode="decimal"
                       value={initialBalanceInput}
                       onChange={(e) => handleBalanceChange(e.target.value)}
-                      className="h-14 pl-12 rounded-2xl border-2 font-black text-xl bg-card"
+                      className="h-12 sm:h-14 pl-10 sm:pl-12 rounded-xl sm:rounded-2xl border-2 font-black text-lg sm:text-xl bg-card"
                     />
                   </div>
                 </div>
@@ -203,24 +229,27 @@ export function AccountFormModal({
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="h-14 rounded-2xl border-2 font-bold bg-card"
+                    className="h-12 sm:h-14 rounded-xl sm:rounded-2xl border-2 font-bold bg-card"
                   />
                 </div>
               </div>
-              <p className="text-[10px] text-center font-bold text-muted-foreground uppercase tracking-tight opacity-60 px-4">
+              <p className="text-[9px] sm:text-[10px] text-center font-bold text-muted-foreground uppercase tracking-tight opacity-60 px-2 sm:px-4">
                 O saldo será registrado como um lançamento de implantação na data selecionada.
               </p>
             </div>
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-8 bg-muted/10 border-t flex flex-col-reverse sm:flex-row gap-3 shrink-0">
+        <DialogFooter className={cn(
+          "p-6 sm:p-8 bg-muted/10 border-t flex flex-col-reverse sm:flex-row gap-3 shrink-0",
+          isMobile && "fixed bottom-0 left-0 right-0"
+        )}>
           {isEditing && onDelete && (
             <Button 
               variant="ghost" 
               onClick={() => { if (confirm("Excluir conta?")) { onDelete(account.id); onOpenChange(false); } }}
               disabled={hasTransactions}
-              className="sm:mr-auto rounded-full h-12 px-6 font-bold text-destructive hover:bg-destructive/10"
+              className="sm:mr-auto rounded-full h-12 px-6 font-bold text-destructive hover:bg-destructive/10 w-full sm:w-auto"
             >
               Excluir
             </Button>
@@ -228,13 +257,13 @@ export function AccountFormModal({
           <Button 
             variant="ghost" 
             onClick={() => onOpenChange(false)} 
-            className="rounded-full h-12 px-6 font-bold text-muted-foreground"
+            className="rounded-full h-12 px-6 font-bold text-muted-foreground w-full sm:w-auto"
           >
             Cancelar
           </Button>
           <Button 
             onClick={handleSubmit} 
-            className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="flex-1 rounded-full h-12 sm:h-14 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <Check className="w-5 h-5" />
             {isEditing ? "SALVAR ALTERAÇÕES" : "CRIAR CONTA MOVIMENTO"}
