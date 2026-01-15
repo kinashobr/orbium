@@ -21,16 +21,19 @@ export function MainLayout({
       window.removeEventListener("sidebar-toggle", handleSidebarToggle as EventListener);
     };
   }, []);
-  return <div className="min-h-screen bg-background text-foreground flex flex-col">
+  return <div className="min-h-screen bg-background text-foreground flex flex-col overflow-x-hidden">
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur-sm">
         
       </header>
 
-      <div className="flex-1 flex w-full">
+      <div className="flex-1 flex w-full relative">
         <Sidebar />
 
-        <main className={cn("flex-1 min-h-[calc(100vh-3.5rem)] px-3 md:px-6 pb-20 md:pb-8 pt-4 md:pt-6 transition-all duration-300", sidebarCollapsed ? "md:ml-20" : "md:ml-[208px]")}>
-          <div className="max-w-[min(1400px,95vw)] mx-auto space-y-4">{children}</div>
+        <main className={cn(
+          "flex-1 min-h-[calc(100vh-3.5rem)] px-4 sm:px-6 md:px-8 pb-24 md:pb-8 pt-6 sm:pt-8 transition-all duration-300 w-full mx-auto",
+          sidebarCollapsed ? "md:ml-20" : "md:ml-[208px]"
+        )}>
+          <div className="max-w-[1400px] mx-auto w-full space-y-6 sm:space-y-8">{children}</div>
         </main>
       </div>
 

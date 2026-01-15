@@ -176,56 +176,56 @@ export function PeriodSelector({
         <Button
           variant="outline"
           className={cn(
-            "w-full sm:w-auto justify-start text-left h-10 px-4 rounded-full border-border/40 bg-card shadow-sm hover:shadow-md hover:bg-accent hover:text-accent-foreground transition-all duration-300 group",
+            "w-full sm:w-auto justify-start text-left h-8 sm:h-10 px-3 sm:px-4 rounded-full border-border/40 bg-card shadow-sm hover:shadow-md hover:bg-accent hover:text-accent-foreground transition-all duration-300 group mx-auto sm:mx-0",
             (!range.from && !range.to) && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-2.5 h-4 w-4 shrink-0 text-primary transition-transform group-hover:scale-110" />
-          <span className="text-xs md:text-sm font-bold tracking-tight truncate flex-1 capitalize">
+          <CalendarIcon className="mr-1.5 sm:mr-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-primary transition-transform group-hover:scale-110" />
+          <span className="text-[10px] sm:text-sm font-bold tracking-tight truncate flex-1 capitalize">
             {displayRange}
           </span>
           <ChevronDown className={cn(
-            "ml-2 h-4 w-4 opacity-50 shrink-0 transition-transform duration-300",
+            "ml-1.5 h-3 w-3 opacity-50 shrink-0 transition-transform duration-300",
             isOpen && "rotate-180"
           )} />
         </Button>
       </PopoverTrigger>
       
       <PopoverContent 
-        className="p-3 bg-popover text-popover-foreground border-border/40 w-auto shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] rounded-[2rem]"
+        className="p-3 bg-popover text-popover-foreground border-border/40 w-[min(calc(100vw-2rem),20rem)] sm:w-auto shadow-[0_25px_50px_-12px_rgba(0,0,0,0.25)] rounded-[2rem]"
         side="bottom"
-        align="end"
+        align="center"
         sideOffset={12}
       >
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Presets Column */}
-          <div className="sm:w-[160px] shrink-0 flex flex-col gap-1 sm:border-r border-border/40 pr-3">
+          <div className="sm:w-[160px] shrink-0 flex flex-col gap-1 sm:border-r border-border/40 pr-0 sm:pr-3">
             <div className="flex items-center gap-2 px-3 py-2 mb-1">
               <Clock className="w-3.5 h-3.5 text-muted-foreground" />
               <Label className="text-[10px] uppercase tracking-[0.15em] font-black text-muted-foreground/80">Recentes</Label>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="grid grid-cols-2 sm:grid-cols-1 gap-1">
               {presets.map((preset) => (
                 <button
                   key={preset.id}
                   onClick={() => handleSelectPreset(preset.id)}
                   className={cn(
-                    "flex items-center w-full px-3 py-2.5 rounded-2xl text-left text-xs font-bold transition-all duration-200",
+                    "flex items-center w-full px-3 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-left text-[10px] sm:text-xs font-bold transition-all duration-200",
                     selectedPreset === preset.id 
                       ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" 
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  {preset.label}
-                  {selectedPreset === preset.id && <Check className="ml-auto w-3.5 h-3.5" />}
+                  <span className="truncate">{preset.label}</span>
+                  {selectedPreset === preset.id && <Check className="ml-auto w-3 h-3 hidden sm:block" />}
                 </button>
               ))}
             </div>
           </div>
 
           {/* Calendar Area */}
-          <div className="space-y-4 flex flex-col items-center pt-1">
+          <div className="space-y-4 flex flex-col items-center pt-1 overflow-hidden">
             <Calendar
               mode="range"
               selected={{ from: tempRange.from, to: tempRange.to }}
@@ -233,7 +233,7 @@ export function PeriodSelector({
               numberOfMonths={1}
               locale={ptBR}
               initialFocus
-              className="p-0 pointer-events-auto"
+              className="p-0 pointer-events-auto scale-90 sm:scale-100"
               classNames={{
                 months: "flex flex-col space-y-4",
                 month: "space-y-4",
@@ -267,17 +267,17 @@ export function PeriodSelector({
                 variant="ghost"
                 size="sm"
                 onClick={handleClearAll}
-                className="h-9 px-4 rounded-full text-xs font-bold text-destructive hover:bg-destructive/10 active:scale-95 transition-all"
+                className="h-9 px-4 rounded-full text-[10px] sm:text-xs font-bold text-destructive hover:bg-destructive/10 active:scale-95 transition-all"
               >
                 Limpar
               </Button>
               <Button 
                 onClick={handleCalendarApply} 
-                className="flex-1 h-9 rounded-full text-xs font-bold gap-2 shadow-lg shadow-primary/10 active:scale-95 transition-all"
+                className="flex-1 h-9 rounded-full text-[10px] sm:text-xs font-bold gap-2 shadow-lg shadow-primary/10 active:scale-95 transition-all"
                 disabled={!tempRange.from || !tempRange.to}
               >
-                <Check className="w-4 h-4" />
-                Aplicar Período
+                <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                Aplicar
               </Button>
             </div>
           </div>
