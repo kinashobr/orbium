@@ -84,8 +84,8 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,52rem)] max-h-[min(95vh,900px)] p-0 overflow-hidden rounded-[2.5rem] flex flex-col">
-        <DialogHeader className="shrink-0 px-8 pt-8 pb-6 bg-surface-light dark:bg-surface-dark">
+      <DialogContent className="w-[95vw] max-w-[52rem] max-h-[90vh] p-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col">
+        <DialogHeader className="shrink-0 px-4 sm:px-8 pt-4 sm:pt-8 pb-4 sm:pb-6 bg-surface-light dark:bg-surface-dark">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent shadow-lg shadow-accent/5">
               <FileText className="w-7 h-7" />
@@ -119,7 +119,7 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
           </div>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto px-8 pb-8 space-y-8">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 pb-4 sm:pb-8 space-y-6 sm:space-y-8">
             {/* Dropzone */}
             <div 
               className={cn(
@@ -198,12 +198,12 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
         </div>
         
         {/* Footer Expressivo */}
-        <div className="p-6 bg-surface-light dark:bg-surface-dark border-t flex gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-bold text-muted-foreground">Cancelar</Button>
+        <div className="p-4 sm:p-6 bg-surface-light dark:bg-surface-dark border-t flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-bold text-muted-foreground order-2 sm:order-1">Cancelar</Button>
           <Button 
             disabled={statementsForAccount.length === 0 || !selectedAccountId}
             onClick={() => { onOpenChange(false); onStartConsolidatedReview(selectedAccountId); }}
-            className="flex-1 rounded-full h-11 bg-neutral-800 text-white dark:bg-white dark:text-black font-bold text-sm gap-2 hover:scale-[1.02] transition-transform shadow-xl shadow-black/10"
+            className="flex-1 rounded-full h-11 bg-neutral-800 text-white dark:bg-white dark:text-black font-bold text-sm gap-2 hover:scale-[1.02] transition-transform shadow-xl shadow-black/10 order-1 sm:order-2"
           >
             <Eye className="w-4 h-4" /> Revisar Transações
           </Button>

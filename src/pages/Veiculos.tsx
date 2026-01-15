@@ -322,9 +322,9 @@ const BensImobilizados = () => {
         </header>
 
         {/* Hero Section: Valor da Frota */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in-up">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 animate-fade-in-up">
           <div className="col-span-12 lg:col-span-8">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[40px] p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 h-[400px] flex flex-col justify-between group">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[40px] p-5 sm:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[280px] sm:h-[400px] flex flex-col justify-between group">
               <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] to-transparent opacity-50"></div>
               
               <div className="relative z-10">
@@ -338,15 +338,15 @@ const BensImobilizados = () => {
                   </div>
                 </div>
                 
-                <h2 className="font-display font-extrabold text-6xl sm:text-7xl text-foreground tracking-tighter leading-none tabular-nums">
+                <h2 className="font-display font-extrabold text-4xl sm:text-6xl md:text-7xl text-foreground tracking-tighter leading-none tabular-nums">
                   {formatCurrency(patrimonioImobilizadoTotal)}
                 </h2>
                 
-                <div className="flex flex-wrap items-center gap-4 mt-8">
-                  <Badge variant="outline" className="bg-success/10 text-success border-none px-4 py-1.5 rounded-xl font-black text-xs">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-4 sm:mt-8">
+                  <Badge variant="outline" className="bg-success/10 text-success border-none px-3 sm:px-4 py-1 sm:py-1.5 rounded-xl font-black text-[10px] sm:text-xs">
                     <TrendingUp className="w-3 h-3 mr-1" /> PATRIMÔNIO ATIVO
                   </Badge>
-                  <div className="flex items-center gap-2 text-muted-foreground font-bold text-sm">
+                  <div className="hidden sm:flex items-center gap-2 text-muted-foreground font-bold text-sm">
                     <History className="w-4 h-4 opacity-40" />
                     <span>Última atualização em {format(new Date(), "MMMM yyyy", { locale: ptBR })}</span>
                   </div>
@@ -368,30 +368,30 @@ const BensImobilizados = () => {
           </div>
 
           {/* Cockpit Lateral */}
-          <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-[190px] hover:-translate-y-1 transition-transform cursor-help">
+          <div className="col-span-12 lg:col-span-4 grid grid-cols-2 lg:flex lg:flex-col gap-3 sm:gap-6">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[130px] sm:h-[190px] hover:-translate-y-1 transition-transform cursor-help">
               <div className="flex items-start justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
-                  <Zap className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
+                  <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <Badge className="bg-warning/10 text-warning border-none font-black text-[10px] px-3 py-1 rounded-lg uppercase">Manutenção</Badge>
+                <Badge className="bg-warning/10 text-warning border-none font-black text-[8px] sm:text-[10px] px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg uppercase">Manutenção</Badge>
               </div>
               <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Custo Mensal Médio</p>
-                <p className="font-display font-black text-3xl text-foreground tabular-nums">R$ 850,00</p>
+                <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Custo Mensal Médio</p>
+                <p className="font-display font-black text-xl sm:text-3xl text-foreground tabular-nums">R$ 850,00</p>
               </div>
             </div>
 
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-[184px] hover:-translate-y-1 transition-transform cursor-help">
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[130px] sm:h-[184px] hover:-translate-y-1 transition-transform cursor-help">
                <div className="flex items-start justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-success shadow-sm">
-                  <ShieldCheck className="w-6 h-6" />
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-success shadow-sm">
+                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <Badge className="bg-success/10 text-success border-none font-black text-[10px] px-3 py-1 rounded-lg uppercase">Proteção</Badge>
+                <Badge className="bg-success/10 text-success border-none font-black text-[8px] sm:text-[10px] px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg uppercase">Proteção</Badge>
               </div>
               <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Cobertura Total</p>
-                <p className="font-display font-black text-3xl text-foreground tabular-nums">100% Frota</p>
+                <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Cobertura Total</p>
+                <p className="font-display font-black text-xl sm:text-3xl text-foreground tabular-nums">100% Frota</p>
               </div>
             </div>
           </div>

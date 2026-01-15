@@ -78,21 +78,21 @@ export function TransactionFilters({
   return (
     <div className="space-y-3">
       {/* Linha principal de filtros */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 sm:gap-3">
         {/* Busca */}
-        <div className="relative flex-1 min-w-[200px] max-w-[300px]">
+        <div className="relative flex-1 w-full sm:min-w-[200px] sm:max-w-[300px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Buscar transações..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-9"
+            className="pl-9 h-10"
           />
         </div>
 
         {/* Conta */}
         <Select value={selectedAccountId} onValueChange={onAccountChange}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px] h-10">
             <SelectValue placeholder="Todas contas" />
           </SelectTrigger>
           <SelectContent>
@@ -107,7 +107,7 @@ export function TransactionFilters({
 
         {/* Categoria */}
         <Select value={selectedCategoryId} onValueChange={onCategoryChange}>
-          <SelectTrigger className="w-[160px]">
+          <SelectTrigger className="w-full sm:w-[160px] h-10">
             <SelectValue placeholder="Todas categorias" />
           </SelectTrigger>
           <SelectContent>

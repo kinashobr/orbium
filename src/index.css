@@ -306,6 +306,26 @@
   }
 }
 
+/* Responsive Utilities for Mobile-First Design */
+@layer utilities {
+  .responsive-container {
+    @apply px-3 sm:px-4 md:px-6;
+  }
+  
+  .responsive-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4;
+  }
+  
+  .responsive-card {
+    @apply w-full sm:w-auto sm:min-w-[280px] sm:max-w-[320px];
+  }
+  
+  .modal-responsive {
+    @apply w-[95vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl;
+    @apply max-h-[90vh] overflow-y-auto;
+  }
+}
+
 @media (max-width: 768px) {
   button:not(.no-touch-target), [role="button"]:not(.no-touch-target), a:not(.no-touch-target), input[type="checkbox"], input[type="radio"], .touch-interactive { min-height: 44px; min-width: 44px; }
   button, a, [role="button"] { -webkit-tap-highlight-color: hsl(var(--primary) / 0.1); }

@@ -146,9 +146,9 @@ const Emprestimos = () => {
           </header>
 
           {/* Hero Section: Painel de Dívida Expressivo */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in-up">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 animate-fade-in-up">
             <div className="col-span-12 lg:col-span-8">
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[40px] p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 h-[420px] flex flex-col justify-between group">
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[40px] p-5 sm:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[280px] sm:h-[420px] flex flex-col justify-between group">
                 <div className="absolute inset-0 bg-gradient-to-br from-destructive/[0.03] to-transparent opacity-50"></div>
                 
                 {/* Gráfico de Fundo */}
@@ -176,15 +176,15 @@ const Emprestimos = () => {
                     </div>
                   </div>
                   
-                  <h2 className="font-display font-extrabold text-6xl sm:text-7xl text-foreground tracking-tighter leading-none tabular-nums">
+                  <h2 className="font-display font-extrabold text-4xl sm:text-6xl md:text-7xl text-foreground tracking-tighter leading-none tabular-nums">
                     {formatCurrency(calculos.saldoDevedorTotal)}
                   </h2>
                   
-                  <div className="flex flex-wrap items-center gap-4 mt-8">
-                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-none px-4 py-1.5 rounded-xl font-black text-xs">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-4 sm:mt-8">
+                    <Badge variant="outline" className="bg-destructive/10 text-destructive border-none px-3 sm:px-4 py-1 sm:py-1.5 rounded-xl font-black text-[10px] sm:text-xs">
                       {emprestimos.length} CONTRATOS ATIVOS
                     </Badge>
-                    <div className="flex items-center gap-2 text-muted-foreground font-bold text-sm">
+                    <div className="hidden sm:flex items-center gap-2 text-muted-foreground font-bold text-sm">
                       <History className="w-4 h-4 opacity-40" />
                       <span>Atualizado com base no último período</span>
                     </div>
@@ -206,30 +206,30 @@ const Emprestimos = () => {
             </div>
 
             {/* Cockpit de Indicadores Laterais */}
-            <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+            <div className="col-span-12 lg:col-span-4 grid grid-cols-2 lg:flex lg:flex-col gap-3 sm:gap-6">
               {/* Card Parcela Mensal */}
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-[200px] hover:-translate-y-1 transition-transform cursor-help">
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] sm:h-[200px] hover:-translate-y-1 transition-transform cursor-help">
                 <div className="flex items-start justify-between">
-                  <div className="w-12 h-12 rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
-                    <Wallet className="w-6 h-6" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
+                    <Wallet className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
-                  <Badge className="bg-warning/10 text-warning border-none font-black text-[10px] px-3 py-1 rounded-lg uppercase">Fluxo Mensal</Badge>
+                  <Badge className="bg-warning/10 text-warning border-none font-black text-[8px] sm:text-[10px] px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg uppercase">Fluxo Mensal</Badge>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Parcela Total</p>
-                  <p className="font-display font-black text-3xl text-foreground tabular-nums">{formatCurrency(calculos.parcelaMensalTotal)}</p>
+                  <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Parcela Total</p>
+                  <p className="font-display font-black text-xl sm:text-3xl text-foreground tabular-nums">{formatCurrency(calculos.parcelaMensalTotal)}</p>
                 </div>
               </div>
 
               {/* Card Comprometimento Renda */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-[194px] hover:-translate-y-1 transition-transform cursor-help">
+                  <div className="bg-surface-light dark:bg-surface-dark rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] sm:h-[194px] hover:-translate-y-1 transition-transform cursor-help">
                     <div className="flex items-start justify-between">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 shadow-sm">
-                        <TrendingUp className="w-6 h-6" />
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
                       </div>
-                      <div className="relative w-12 h-12 flex items-center justify-center">
+                      <div className="relative w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center">
                         <svg className="w-full h-full -rotate-90">
                           <circle cx="24" cy="24" r="20" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-muted/20" />
                           <circle cx="24" cy="24" r="20" fill="transparent" stroke="currentColor" strokeWidth="4" 
@@ -251,17 +251,17 @@ const Emprestimos = () => {
                     </div>
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Comprometimento</p>
-                        <Info className="w-3 h-3 text-muted-foreground/50" />
+                        <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Comprometimento</p>
+                        <Info className="w-3 h-3 text-muted-foreground/50 hidden sm:block" />
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <p className={cn(
-                          "font-display font-black text-3xl tabular-nums",
+                          "font-display font-black text-xl sm:text-3xl tabular-nums",
                           calculos.comprometimentoRenda <= 30 ? "text-success" :
                           calculos.comprometimentoRenda <= 50 ? "text-warning" : "text-destructive"
                         )}>{calculos.comprometimentoRenda.toFixed(1)}%</p>
                         <Badge className={cn(
-                          "text-[8px] font-black border-none px-2 py-0.5 rounded-lg uppercase",
+                          "text-[7px] sm:text-[8px] font-black border-none px-1.5 sm:px-2 py-0.5 rounded-lg uppercase",
                           calculos.comprometimentoRenda <= 30 ? "bg-success/10 text-success" :
                           calculos.comprometimentoRenda <= 50 ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"
                         )}>
@@ -307,7 +307,7 @@ const Emprestimos = () => {
           </div>
 
           {/* Seção Central: Insights e Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-10">
             <div className="lg:col-span-2 space-y-10">
               <section className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                 <LoanAlerts emprestimos={emprestimos} onOpenPendingConfig={() => { setSelectedLoan(pendingLoans[0]); setDetailDialogOpen(true); }} />

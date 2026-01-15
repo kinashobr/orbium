@@ -124,13 +124,13 @@ const ReceitasDespesas = () => {
         </header>
 
         <section className="flex flex-wrap gap-2 px-1 animate-fade-in-up">
-          <Button variant="ghost" onClick={() => { setEditingTransaction(undefined); setShowMovimentarModal(true); }} className="h-10 rounded-full gap-2 px-5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/10"><Plus className="h-4 w-4" /><span className="font-bold text-sm">Novo Lançamento</span></Button>
-          <Button variant="outline" onClick={() => setShowBillsTrackerModal(true)} className="h-10 rounded-full gap-2 px-5 border-border/40 bg-card/50 backdrop-blur-sm"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Contas a Pagar</span></Button>
-          <Button variant="outline" onClick={() => setShowCategoryListModal(true)} className="h-10 rounded-full gap-2 px-5 border-border/40 bg-card/50 backdrop-blur-sm"><Tags className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Categorias</span></Button>
+          <Button variant="ghost" onClick={() => { setEditingTransaction(undefined); setShowMovimentarModal(true); }} className="h-10 rounded-full gap-2 px-4 sm:px-5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/10 flex-1 sm:flex-none justify-center"><Plus className="h-4 w-4" /><span className="font-bold text-sm">Novo Lançamento</span></Button>
+          <Button variant="outline" onClick={() => setShowBillsTrackerModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm hidden sm:inline">Contas a Pagar</span><span className="font-bold text-sm sm:hidden">Contas</span></Button>
+          <Button variant="outline" onClick={() => setShowCategoryListModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Tags className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Categorias</span></Button>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in-up">
-          <div className="col-span-12 lg:col-span-8 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 animate-fade-in-up">
+          <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
                 <div><h3 className="font-display font-bold text-lg text-foreground">Contas Correntes</h3><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Saldos e Disponibilidade</p></div>
@@ -140,25 +140,25 @@ const ReceitasDespesas = () => {
             </div>
 
             {/* Smart Conciliation Card Refined */}
-            <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[32px] p-8 shadow-lg relative overflow-hidden flex items-center justify-between group">
-              <div className="absolute right-0 bottom-0 opacity-10 scale-150 translate-x-10 translate-y-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles className="w-[180px] h-[180px]" /></div>
+            <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
+              <div className="absolute right-0 bottom-0 opacity-10 scale-150 translate-x-10 translate-y-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles className="w-[120px] h-[120px] sm:w-[180px] sm:h-[180px]" /></div>
               <div className="z-10">
-                <div className="flex items-center gap-2 mb-2"><Badge variant="outline" className="border-primary/50 text-primary-foreground text-[9px] font-black tracking-widest px-2">POWERED BY AI</Badge></div>
-                <h3 className="font-display font-bold text-2xl mb-2">Conciliação Inteligente</h3>
-                <p className="text-neutral-400 text-sm max-w-sm">Diga adeus ao trabalho manual. Importe múltiplos arquivos e deixe o Orbium reconhecer padrões e sugerir categorias automaticamente.</p>
-                <div className="flex gap-3 mt-6">
-                  <Button className="bg-primary text-primary-foreground rounded-full px-8 font-black h-11 hover:scale-105 transition-transform shadow-xl shadow-primary/20" onClick={() => setShowStatementManagerModal(true)}>
-                    <FileText className="w-4.5 h-4.5 mr-2" /> IMPORTAR EXTRATOS
+                <div className="flex items-center gap-2 mb-2"><Badge variant="outline" className="border-primary/50 text-primary-foreground text-[8px] sm:text-[9px] font-black tracking-widest px-2">POWERED BY AI</Badge></div>
+                <h3 className="font-display font-bold text-xl sm:text-2xl mb-2">Conciliação Inteligente</h3>
+                <p className="text-neutral-400 text-xs sm:text-sm max-w-sm">Diga adeus ao trabalho manual. Importe múltiplos arquivos e deixe o Orbium reconhecer padrões e sugerir categorias automaticamente.</p>
+                <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6">
+                  <Button className="bg-primary text-primary-foreground rounded-full px-4 sm:px-8 font-black h-10 sm:h-11 hover:scale-105 transition-transform shadow-xl shadow-primary/20 text-sm" onClick={() => setShowStatementManagerModal(true)}>
+                    <FileText className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">IMPORTAR EXTRATOS</span><span className="sm:hidden">IMPORTAR</span>
                   </Button>
-                  <Button variant="ghost" className="text-white hover:bg-white/10 rounded-full px-6 font-bold" onClick={() => setShowRuleManagerModal(true)}>
+                  <Button variant="ghost" className="text-white hover:bg-white/10 rounded-full px-4 sm:px-6 font-bold" onClick={() => setShowRuleManagerModal(true)}>
                     Regras <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
               </div>
-              <div className="hidden sm:flex z-10 w-24 h-24 rounded-full border-4 border-white/10 items-center justify-center bg-white/5 backdrop-blur-sm"><RefreshCw className="w-10 h-10 text-primary-foreground/40 group-hover:rotate-180 transition-transform duration-1000" /></div>
+              <div className="hidden md:flex z-10 w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-white/10 items-center justify-center bg-white/5 backdrop-blur-sm shrink-0"><RefreshCw className="w-8 h-8 sm:w-10 sm:h-10 text-primary-foreground/40 group-hover:rotate-180 transition-transform duration-1000" /></div>
             </div>
           </div>
-          <div className="col-span-12 lg:col-span-4"><div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 shadow-soft border border-white/60 dark:border-white/5 h-full"><KPISidebar transactions={transacoesPeriodo1} categories={categories} /></div></div>
+          <div className="col-span-12 lg:col-span-4"><div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-4 sm:p-6 shadow-soft border border-white/60 dark:border-white/5 h-full"><KPISidebar transactions={transacoesPeriodo1} categories={categories} /></div></div>
         </div>
       </div>
 
