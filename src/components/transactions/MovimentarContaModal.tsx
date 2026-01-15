@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, ArrowLeft, X } from "lucide-react";
-import { ContaCorrente, Categoria, AccountType, generateTransactionId, OperationType, TransacaoCompleta, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo, OPERATION_TYPE_LABELS } from "@/types/finance";
+import { ContaCorrente, Categoria, AccountType, generateTransactionId, generateTransferGroupId, OperationType, TransacaoCompleta, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo, OPERATION_TYPE_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -254,7 +254,7 @@ export function MovimentarContaModal({
               <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
                 {isEditing ? "Editar Registro" : "Nova Movimentação"}
               </DialogTitle>
-              <DialogDescription className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-muted-foreground mt-1">
+              <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
                 {selectedAccount?.name || "Registro Financeiro"}
               </DialogDescription>
             </div>

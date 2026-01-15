@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { MetaPersonalizada, MetaTipo, MetaMetrica, MetaPeriodo, MetaLogica, generateMetaId } from "@/types/finance";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { toast } from "sonner";
 
 interface MetaPersonalizadaFormModalProps {
   open: boolean;
