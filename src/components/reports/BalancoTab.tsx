@@ -14,6 +14,7 @@ import { subMonths, endOfMonth, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { IndicatorRadialCard } from "./IndicatorRadialCard";
 import { BalanceSheetList } from "./BalanceSheetList";
+import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, PieChart as RePieChart, Pie, Cell } from "recharts";
 
 const getIconForType = (type: string): React.ElementType => {

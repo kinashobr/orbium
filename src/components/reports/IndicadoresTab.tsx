@@ -43,6 +43,21 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
   
   const [showManagerModal, setShowManagerModal] = useState(false);
   const [customIndicators, setCustomIndicators] = useState<CustomIndicator[]>([]);
+
+  const handleSaveIndicator = (indicator: CustomIndicator) => {
+    setCustomIndicators(prev => {
+      const exists = prev.find(i => i.id === indicator.id);
+      if (exists) {
+        return prev.map(i => i.id === indicator.id ? indicator : i);
+      }
+      return [...prev, indicator];
+    });
+  };
+
+  const handleDeleteIndicator = (id: string) => {
+    setCustomIndicators(prev => prev.filter(i => i.id !== id));
+  };
+
   const { range1, range2 } = dateRanges;
 
   const calculateMetrics = useCallback((range: DateRange) => {
@@ -154,7 +169,7 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
           <IndicatorCard title="Folga Mensal" value={`${m1.margemSeguranca.toFixed(1)}%`} trend={getTrend(m1.margemSeguranca, m2.margemSeguranca)} status={m1.margemSeguranca >= 30 ? "success" : "warning"} icon={Heart} />
           <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between bg-muted/20 px-6 py-4 rounded-[2rem] border border-border/40 gap-4">
             <div className="flex gap-4 sm:gap-6 shrink-0">{[{ c: 'bg-success', l: 'Saudável' }, { c: 'bg-warning', l: 'Atenção' }, { c: 'bg-destructive', l: 'Crítico' }].map((s, idx) => (<div key={idx} className="flex items-center gap-2"><div className={cn("w-2 h-2 rounded-full", s.c)} /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{s.l}</span></div>))}</div>
-            <Button onClick={() => setShowManagerModal(true)} variant="ghost" size="sm" className="rounded-full h-9 gap-2 px-5 font-black text-[10px] uppercase tracking-widest bg-card border border-border/60"><Settings2 size={14} /> Ajustar</Button>
+            <button onClick={() => setShowManagerModal(true)} className="rounded-full h-9 gap-2 px-5 font-black text-[10px] uppercase tracking-widest bg-card border border-border/60 flex items-center"><Settings2 size={14} className="mr-2" /> Ajustar</button>
           </div>
         </div>
       </div>
