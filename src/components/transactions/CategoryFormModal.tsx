@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tags, TrendingUp, TrendingDown, Repeat, Check, Sparkles } from "lucide-react";
+import { Tags, TrendingUp, TrendingDown, Repeat, Check, Sparkles, ArrowLeft, X } from "lucide-react";
 import { Categoria, CategoryNature, CATEGORY_NATURE_LABELS, generateCategoryId, getCategoryTypeFromNature } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface CategoryFormModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ export function CategoryFormModal({
   onDelete,
   hasTransactions = false
 }: CategoryFormModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [label, setLabel] = useState("");
   const [icon, setIcon] = useState("📦");
   const [nature, setNature] = useState<CategoryNature>("despesa_variavel");
@@ -71,14 +73,28 @@ export function CategoryFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,28rem)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] z-[130]">
-        <DialogHeader className="px-8 pt-8 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
+      <DialogContent className={cn(
+        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
+        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[28rem] max-h-[90vh] rounded-[3rem]"
+      )}>
+        <DialogHeader className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative">
+          {isMobile && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => onOpenChange(false)}
+              className="absolute left-4 top-4 rounded-full h-10 w-10"
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+          )}
+
+          <div className={cn("flex items-center gap-4", isMobile && "pl-12")}>
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
               <Sparkles className="w-7 h-7" />
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black tracking-tight">
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
                 {isEditing ? "Editar Categoria" : "Nova Categoria"}
               </DialogTitle>
               <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
@@ -86,64 +102,80 @@ export function CategoryFormModal({
               </DialogDescription>
             </div>
           </div>
+
+          {!isMobile && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => onOpenChange(false)}
+              className="absolute right-4 top-4 rounded-full"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </DialogHeader>
 
-        <div className="p-8 space-y-8">
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome da Categoria</Label>
-            <Input
-              placeholder="Ex: Alimentação"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              className="h-12 border-2 dark:border-white/10 rounded-2xl bg-card dark:bg-white/5 font-bold"
-            />
-          </div>
+        <ScrollArea className="flex-1">
+          <div className="p-6 sm:p-8 space-y-8 pb-32 sm:pb-8">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome da Categoria</Label>
+              <Input
+                placeholder="Ex: Alimentação"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                className="h-12 border-2 dark:border-white/10 rounded-2xl bg-card dark:bg-white/5 font-bold"
+              />
+            </div>
 
-          <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Natureza do Fluxo</Label>
-            <RadioGroup value={nature} onValueChange={(v) => setNature(v as CategoryNature)} className="grid grid-cols-1 gap-2">
-              {[
-                { id: 'receita', label: 'Receita', icon: TrendingUp, color: 'text-success', bg: 'bg-success/5' },
-                { id: 'despesa_fixa', label: 'Despesa Fixa', icon: Repeat, color: 'text-primary', bg: 'bg-primary/5' },
-                { id: 'despesa_variavel', label: 'Despesa Variável', icon: TrendingDown, color: 'text-destructive', bg: 'bg-destructive/5' }
-              ].map(opt => (
-                <Label key={opt.id} className={cn(
-                  "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                  nature === opt.id ? "border-primary bg-primary/5" : "border-border/40 bg-card hover:border-primary/30"
-                )}>
-                  <RadioGroupItem value={opt.id} className="sr-only" />
-                  <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", nature === opt.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                    <opt.icon className="w-5 h-5" />
-                  </div>
-                  <span className={cn("font-black text-sm uppercase tracking-wider", nature === opt.id ? "text-primary" : "text-muted-foreground")}>
-                    {opt.label}
-                  </span>
-                  {nature === opt.id && <Check className="ml-auto w-5 h-5 text-primary" />}
-                </Label>
-              ))}
-            </RadioGroup>
-          </div>
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Natureza do Fluxo</Label>
+              <RadioGroup value={nature} onValueChange={(v) => setNature(v as CategoryNature)} className="grid grid-cols-1 gap-2">
+                {[
+                  { id: 'receita', label: 'Receita', icon: TrendingUp, color: 'text-success', bg: 'bg-success/5' },
+                  { id: 'despesa_fixa', label: 'Despesa Fixa', icon: Repeat, color: 'text-primary', bg: 'bg-primary/5' },
+                  { id: 'despesa_variavel', label: 'Despesa Variável', icon: TrendingDown, color: 'text-destructive', bg: 'bg-destructive/5' }
+                ].map(opt => (
+                  <Label key={opt.id} className={cn(
+                    "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
+                    nature === opt.id ? "border-primary bg-primary/5" : "border-border/40 bg-card hover:border-primary/30"
+                  )}>
+                    <RadioGroupItem value={opt.id} className="sr-only" />
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", nature === opt.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                      <opt.icon className="w-5 h-5" />
+                    </div>
+                    <span className={cn("font-black text-sm uppercase tracking-wider", nature === opt.id ? "text-primary" : "text-muted-foreground")}>
+                      {opt.label}
+                    </span>
+                    {nature === opt.id && <Check className="ml-auto w-5 h-5 text-primary" />}
+                  </Label>
+                ))}
+              </RadioGroup>
+            </div>
 
-          <div className="space-y-4">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Ícone (Emoji)</Label>
-            <div className="p-4 rounded-3xl bg-muted/20 dark:bg-white/5 border border-border/40 dark:border-white/5 grid grid-cols-5 sm:grid-cols-6 gap-2">
-              {(EMOJI_BY_CATEGORY[nature] || EMOJI_BY_CATEGORY.despesa_variavel).map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={() => setIcon(emoji)}
-                  className={cn(
-                    "w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center text-xl rounded-xl transition-all active:scale-95",
-                    icon === emoji ? "bg-primary shadow-lg scale-110" : "hover:bg-card active:bg-card"
-                  )}
-                >
-                  {emoji}
-                </button>
-              ))}
+            <div className="space-y-4">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Ícone (Emoji)</Label>
+              <div className="p-4 rounded-3xl bg-muted/20 dark:bg-white/5 border border-border/40 dark:border-white/5 grid grid-cols-5 sm:grid-cols-6 gap-2">
+                {(EMOJI_BY_CATEGORY[nature] || EMOJI_BY_CATEGORY.despesa_variavel).map(emoji => (
+                  <button
+                    key={emoji}
+                    onClick={() => setIcon(emoji)}
+                    className={cn(
+                      "w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center text-xl rounded-xl transition-all active:scale-95",
+                      icon === emoji ? "bg-primary shadow-lg scale-110" : "hover:bg-card active:bg-card"
+                    )}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+        </ScrollArea>
 
-        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3">
+        <DialogFooter className={cn(
+          "p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 shrink-0 flex flex-col-reverse sm:flex-row gap-3",
+          isMobile && "pb-12"
+        )}>
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground w-full sm:w-auto">
             Cancelar
           </Button>

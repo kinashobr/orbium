@@ -25,16 +25,22 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { SidebarAlertas } from "@/components/dashboard/SidebarAlertas";
+import { SidebarAlertas, DEFAULT_ALERTS, DEFAULT_METAS } from "@/components/dashboard/SidebarAlertas";
+import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
 export function BottomNav() {
   const location = useLocation();
-  const { exportData, importData } = useFinance();
+  const { exportData, importData, alertStartDate, setAlertStartDate } = useFinance();
   const { theme, setTheme, themes } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showNavDrawer, setShowNavDrawer] = useState(false);
+  
+  // Alertas Config State
+  const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
+  const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS)));
+  const [metasConfig, setMetasConfig] = useState<MetaConfig[]>(() => JSON.parse(localStorage.getItem("metas-config-v3") || JSON.stringify(DEFAULT_METAS)));
 
   const isPathActive = (path: string) => location.pathname === path;
 
@@ -218,7 +224,7 @@ export function BottomNav() {
                     <p className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.15em]">Alertas Ativos</p>
                   </div>
                   <div className="bg-muted/20 rounded-[2.5rem] p-2 border border-border/30">
-                    <SidebarAlertas collapsed={false} />
+                    <SidebarAlertas collapsed={false} onConfigOpen={() => { setShowNavDrawer(false); setAlertasConfigOpen(true); }} />
                   </div>
                 </div>
               </div>
@@ -226,6 +232,21 @@ export function BottomNav() {
           </Drawer>
         </div>
       </div>
+      
+      <AlertasConfigDialog 
+        open={alertasConfigOpen} 
+        onOpenChange={setAlertasConfigOpen} 
+        config={alertasConfig} 
+        metas={metasConfig} 
+        onSave={(newAlerts, newMetas) => {
+          setAlertasConfig(newAlerts);
+          setMetasConfig(newMetas);
+          localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
+          localStorage.setItem("metas-config-v3", JSON.stringify(newMetas));
+        }} 
+        initialStartDate={alertStartDate} 
+        onStartDateChange={setAlertStartDate} 
+      />
     </nav>
   );
 }

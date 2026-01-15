@@ -228,8 +228,8 @@ export function MovimentarContaModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "p-0 overflow-hidden border-none shadow-2xl bg-card",
-        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] rounded-[2.5rem]"
+        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
+        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] max-h-[90vh] rounded-[2.5rem]"
       )}>
         <DialogHeader className={cn(
           "px-6 sm:px-8 pt-6 sm:pt-10 pb-6 shrink-0 transition-colors duration-500 relative",
@@ -276,7 +276,6 @@ export function MovimentarContaModal({
           <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-thin">
             <div className="space-y-6">
               <div className="grid grid-cols-1 gap-6">
-                {/* Valor em destaque no mobile */}
                 <div className="space-y-2 text-center sm:text-left">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor do Lançamento</Label>
                   <div className="relative">
@@ -400,8 +399,8 @@ export function MovimentarContaModal({
           </div>
 
           <DialogFooter className={cn(
-            "p-6 sm:p-8 bg-muted/10 border-t",
-            isMobile && "sticky bottom-0"
+            "p-6 sm:p-8 bg-muted/10 border-t shrink-0",
+            isMobile && "pb-12"
           )}>
             <Button onClick={handleSubmit} className="w-full h-14 sm:h-16 rounded-2xl sm:rounded-3xl bg-primary text-primary-foreground font-black text-base sm:text-lg gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
               <Check className="w-5 h-5 sm:w-6 sm:h-6" />
