@@ -170,7 +170,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
           Novo Empréstimo
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[min(95vw,600px)] bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-primary" />
@@ -180,14 +180,14 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           {/* Conta Corrente e Contrato */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Banco / Instituição *</Label>
               <Select
                 value={formData.contaCorrenteId}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, contaCorrenteId: v }))}
               >
-                <SelectTrigger className="mt-1.5 bg-muted border-border">
+                <SelectTrigger className="mt-1.5 bg-muted border-border h-12 sm:h-10">
                   <SelectValue placeholder="Selecione a conta" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border-border">
@@ -208,13 +208,13 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                 value={formData.contrato}
                 onChange={(e) => setFormData(prev => ({ ...prev, contrato: e.target.value }))}
                 placeholder="Ex: Pessoal, Veículo, Consignado"
-                className="mt-1.5 bg-muted border-border"
+                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
               />
             </div>
           </div>
 
           {/* Valor e Parcela */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Label>Valor Total (R$) *</Label>
               <Input
@@ -223,7 +223,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                 value={formData.valorTotal}
                 onChange={(e) => setFormData(prev => ({ ...prev, valorTotal: e.target.value }))}
                 placeholder="50000.00"
-                className="mt-1.5 bg-muted border-border"
+                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
               />
             </div>
             <div>
@@ -235,7 +235,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                   value={formData.parcela}
                   onChange={(e) => setFormData(prev => ({ ...prev, parcela: e.target.value }))}
                   placeholder="1250.00"
-                  className="bg-muted border-border"
+                  className="bg-muted border-border h-12 sm:h-10"
                 />
                 <Button 
                   type="button" 
@@ -243,7 +243,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                   size="icon"
                   onClick={calcularParcela}
                   title="Calcular parcela (Price)"
-                  className="shrink-0"
+                  className="shrink-0 h-12 w-12 sm:h-10 sm:w-10"
                 >
                   <Calculator className="w-4 h-4" />
                 </Button>
@@ -252,7 +252,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
           </div>
 
           {/* Taxa e Meses */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <Label>Taxa Mensal (%) *</Label>
               <div className="flex gap-2 mt-1.5">
@@ -262,7 +262,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                   value={formData.taxaMensal}
                   onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
                   placeholder="1.89"
-                  className="bg-muted border-border"
+                  className="bg-muted border-border h-12 sm:h-10"
                 />
                 <Button 
                   type="button" 
@@ -270,7 +270,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                   size="icon"
                   onClick={calcularTaxa}
                   title="Calcular taxa (Price)"
-                  className="shrink-0"
+                  className="shrink-0 h-12 w-12 sm:h-10 sm:w-10"
                 >
                   <Calculator className="w-4 h-4" />
                 </Button>
@@ -283,7 +283,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                 value={formData.meses}
                 onChange={(e) => setFormData(prev => ({ ...prev, meses: e.target.value }))}
                 placeholder="48"
-                className="mt-1.5 bg-muted border-border"
+                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
               />
             </div>
             <div>
@@ -292,7 +292,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
                 type="date"
                 value={formData.dataInicio}
                 onChange={(e) => setFormData(prev => ({ ...prev, dataInicio: e.target.value }))}
-                className="mt-1.5 bg-muted border-border"
+                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
               />
             </div>
           </div>
@@ -348,7 +348,7 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
             </div>
           )}
 
-          <Button type="submit" className="w-full bg-neon-gradient hover:opacity-90">
+          <Button type="submit" className="w-full bg-neon-gradient hover:opacity-90 h-12">
             <Plus className="w-4 h-4 mr-2" />
             Adicionar Empréstimo
           </Button>

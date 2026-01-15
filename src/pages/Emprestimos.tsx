@@ -15,7 +15,8 @@ import {
   Info,
   TrendingUp,
   History,
-  Wallet
+  Wallet,
+  Banknote
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Emprestimo, ComparisonDateRanges } from "@/types/finance";
@@ -221,26 +222,87 @@ const Emprestimos = () => {
               </div>
 
               {/* Card Comprometimento Renda */}
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-[194px] hover:-translate-y-1 transition-transform cursor-help">
-                 <div className="flex items-start justify-between">
-                  <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 shadow-sm">
-                    <TrendingUp className="w-6 h-6" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-[194px] hover:-translate-y-1 transition-transform cursor-help">
+                    <div className="flex items-start justify-between">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <TrendingUp className="w-6 h-6" />
+                      </div>
+                      <div className="relative w-12 h-12 flex items-center justify-center">
+                        <svg className="w-full h-full -rotate-90">
+                          <circle cx="24" cy="24" r="20" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-muted/20" />
+                          <circle cx="24" cy="24" r="20" fill="transparent" stroke="currentColor" strokeWidth="4" 
+                            strokeDasharray="125.66" strokeDashoffset={125.66 - (125.66 * Math.min(calculos.comprometimentoRenda, 100) / 100)}
+                            strokeLinecap="round" 
+                            className={cn(
+                              "transition-all duration-1000",
+                              calculos.comprometimentoRenda <= 30 ? "text-success" :
+                              calculos.comprometimentoRenda <= 50 ? "text-warning" : "text-destructive"
+                            )} 
+                          />
+                        </svg>
+                        <span className={cn(
+                          "absolute text-[10px] font-black",
+                          calculos.comprometimentoRenda <= 30 ? "text-success" :
+                          calculos.comprometimentoRenda <= 50 ? "text-warning" : "text-destructive"
+                        )}>{Math.round(calculos.comprometimentoRenda)}%</span>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Comprometimento</p>
+                        <Info className="w-3 h-3 text-muted-foreground/50" />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <p className={cn(
+                          "font-display font-black text-3xl tabular-nums",
+                          calculos.comprometimentoRenda <= 30 ? "text-success" :
+                          calculos.comprometimentoRenda <= 50 ? "text-warning" : "text-destructive"
+                        )}>{calculos.comprometimentoRenda.toFixed(1)}%</p>
+                        <Badge className={cn(
+                          "text-[8px] font-black border-none px-2 py-0.5 rounded-lg uppercase",
+                          calculos.comprometimentoRenda <= 30 ? "bg-success/10 text-success" :
+                          calculos.comprometimentoRenda <= 50 ? "bg-warning/10 text-warning" : "bg-destructive/10 text-destructive"
+                        )}>
+                          {calculos.comprometimentoRenda <= 30 ? "Saudável" :
+                           calculos.comprometimentoRenda <= 50 ? "Atenção" : "Crítico"}
+                        </Badge>
+                      </div>
+                    </div>
                   </div>
-                  <div className="relative w-12 h-12 flex items-center justify-center">
-                    <svg className="w-full h-full -rotate-90">
-                      <circle cx="24" cy="24" r="20" fill="transparent" stroke="currentColor" strokeWidth="4" className="text-muted/20" />
-                      <circle cx="24" cy="24" r="20" fill="transparent" stroke="currentColor" strokeWidth="4" 
-                        strokeDasharray="125.66" strokeDashoffset={125.66 - (125.66 * calculos.comprometimentoRenda / 100)}
-                        strokeLinecap="round" className="text-indigo-500 transition-all duration-1000" />
-                    </svg>
-                    <span className="absolute text-[10px] font-black">{Math.round(calculos.comprometimentoRenda)}%</span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] p-4 rounded-2xl">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="w-4 h-4 text-primary" />
+                      <span className="font-bold text-sm">Comprometimento de Renda</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Percentual da sua renda comprometido com parcelas de empréstimos e financiamentos.
+                    </p>
+                    <div className="pt-2 border-t border-border/40 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-success" />
+                        <span className="text-[10px] font-bold">Até 30%: Saudável</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-warning" />
+                        <span className="text-[10px] font-bold">30-50%: Atenção</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-destructive" />
+                        <span className="text-[10px] font-bold">Acima de 50%: Crítico</span>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-border/40">
+                      <p className="text-[10px] font-bold text-muted-foreground">
+                        Parcelas Totais: {formatCurrency(calculos.parcelaMensalTotal)}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Comprometimento</p>
-                  <p className="font-display font-black text-3xl text-foreground tabular-nums">{calculos.comprometimentoRenda.toFixed(1)}%</p>
-                </div>
-              </div>
+                </TooltipContent>
+              </Tooltip>
             </div>
           </div>
 
@@ -283,8 +345,8 @@ const Emprestimos = () => {
           <section className="space-y-8 animate-fade-in-up" style={{ animationDelay: '400ms' }}>
             <div className="flex items-center justify-between px-2">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-primary/10 rounded-2xl text-primary shadow-sm">
-                  <LayoutGrid className="w-6 h-6" />
+                <div className="p-3 bg-destructive/10 rounded-2xl text-destructive shadow-sm">
+                  <Banknote className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-display font-black text-2xl text-foreground">Contratos Ativos</h3>

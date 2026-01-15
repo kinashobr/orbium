@@ -92,10 +92,10 @@ export function AddPurchaseInstallmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2rem] sm:rounded-[3rem] border-none shadow-2xl z-[140]">
-        <DialogHeader className="px-6 sm:px-8 pt-8 sm:pt-10 pb-6 bg-primary/5 relative">
+      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2rem] sm:rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] z-[140]">
+        <DialogHeader className="px-6 sm:px-8 pt-8 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 dark:border-b dark:border-white/5 relative">
           <div className="flex items-center gap-4 sm:gap-5">
-            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
               <ShoppingCart className="w-6 h-6 sm:w-8 sm:h-8" />
             </div>
             <div>
@@ -142,7 +142,7 @@ export function AddPurchaseInstallmentDialog({
                   placeholder="Ex: iPhone 15 Pro Max"
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  className="h-11 sm:h-12 border-2 rounded-xl font-bold"
+                  className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10"
                 />
               </div>
 
@@ -153,7 +153,7 @@ export function AddPurchaseInstallmentDialog({
                     type="number"
                     value={formData.installments}
                     onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))}
-                    className="h-11 sm:h-12 border-2 rounded-xl font-black text-lg"
+                    className="h-11 sm:h-12 border-2 rounded-xl font-black text-lg dark:bg-white/5 dark:border-white/10"
                   />
                 </div>
                 <div className="space-y-2">
@@ -162,7 +162,7 @@ export function AddPurchaseInstallmentDialog({
                     type="date"
                     value={formData.firstDueDate}
                     onChange={(e) => setFormData(prev => ({ ...prev, firstDueDate: e.target.value }))}
-                    className="h-11 sm:h-12 border-2 rounded-xl font-bold"
+                    className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10"
                   />
                 </div>
               </div>
@@ -172,7 +172,7 @@ export function AddPurchaseInstallmentDialog({
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Conta de Débito</Label>
                 <Select value={formData.accountId} onValueChange={(v) => setFormData(prev => ({ ...prev, accountId: v }))}>
-                  <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl font-bold">
+                  <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10">
                     <SelectValue placeholder="Selecione a conta..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -188,7 +188,7 @@ export function AddPurchaseInstallmentDialog({
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Categoria</Label>
                 <Select value={formData.categoryId} onValueChange={(v) => setFormData(prev => ({ ...prev, categoryId: v }))}>
-                  <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl font-bold">
+                  <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10">
                     <SelectValue placeholder="Selecione a categoria..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -204,7 +204,7 @@ export function AddPurchaseInstallmentDialog({
           </div>
 
           {installmentPreview > 0 && (
-            <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/30 border border-border/40 flex items-center justify-between">
+            <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 flex items-center justify-between">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-background flex items-center justify-center text-primary shadow-sm">
                   <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -224,7 +224,7 @@ export function AddPurchaseInstallmentDialog({
           )}
         </form>
 
-        <DialogFooter className="p-6 sm:p-8 bg-muted/10 border-t">
+        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5">
           <Button 
             type="submit"
             onClick={handleSubmit}

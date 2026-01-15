@@ -325,52 +325,64 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
         {/* Grade de Indicadores (50% no desktop) */}
         <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
           <IndicatorRadialCard 
-            title="Equity Ratio" 
-            description="PL / Ativos"
+            title="Participação Própria" 
             value={indicadores.equityRatio} 
             label="Particip." 
             unit="%"
             status={indicadores.equityRatio >= 40 ? "success" : "warning"}
+            description="Quanto do patrimônio é seu de fato, livre de dívidas."
+            formula="Capital Próprio ÷ Total Bens × 100"
+            idealRange="Acima de 40%"
           />
           <IndicatorRadialCard 
-            title="Liquidez Geral" 
-            description="Total / Dívidas"
+            title="Índice de Solvência" 
             value={indicadores.liqGeral} 
-            label="Razão" 
+            label="Solvência" 
             unit="x"
             status={indicadores.liqGeral >= 1.5 ? "success" : "warning"}
+            description="Capacidade de pagar todas as dívidas com seus bens."
+            formula="Total Bens ÷ Total Dívidas"
+            idealRange="Acima de 1.5x"
           />
           <IndicatorRadialCard 
-            title="Liq. Corrente" 
-            description="Disp / Curto P."
+            title="Liquidez de Curto Prazo" 
             value={indicadores.liqCorrente} 
-            label="Razão" 
+            label="Liquidez" 
             unit="x"
             status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"}
+            description="Capacidade de pagar dívidas que vencem em breve."
+            formula="Disponível ÷ Dívidas Curto Prazo"
+            idealRange="Acima de 1.2x"
           />
           <IndicatorRadialCard 
-            title="Endividamento" 
-            description="Dívida / Ativos"
+            title="Grau de Endividamento" 
             value={indicadores.endividamento} 
-            label="Risco" 
+            label="Dívidas" 
             unit="%"
             status={indicadores.endividamento <= 30 ? "success" : "warning"}
+            description="Peso das dívidas no seu patrimônio total."
+            formula="(Dívidas ÷ Bens) × 100"
+            idealRange="Abaixo de 30%"
           />
           <IndicatorRadialCard 
-            title="Solvência" 
-            description="PL / Passivos"
+            title="Cobertura Patrimonial" 
             value={indicadores.assetCoverage} 
             label="Cobert." 
             unit="x"
             status={indicadores.assetCoverage >= 2 ? "success" : "warning"}
+            description="Quanto o capital próprio cobre as dívidas."
+            formula="Capital Próprio ÷ Total Dívidas"
+            idealRange="Acima de 2x"
           />
           <IndicatorRadialCard 
-            title="Imobilização" 
-            description="Bens / PL"
+            title="Imobilização do Capital" 
             value={indicadores.fixedAssetEquity} 
-            label="Peso" 
+            label="Imobiliz." 
             unit="%"
             status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"}
+            description="Quanto do seu patrimônio está preso em bens físicos."
+            formula="(Bens Físicos ÷ Capital Próprio) × 100"
+            idealRange="Abaixo de 60%"
           />
         </div>
       </div>
@@ -378,23 +390,23 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
       {/* GRID DE INDICADORES TÉCNICOS (RAW VALUES) */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total Ativos</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total de Bens</p>
             <p className={cn("text-lg font-black tabular-nums", "text-success")}>{formatCurrency(b1.totalAtivos)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Ativos Circulantes</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Recursos Disponíveis</p>
             <p className={cn("text-lg font-black tabular-nums", "text-success/80")}>{formatCurrency(b1.ativoCirculante)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Inv. Não Circulantes</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Investimentos LP</p>
             <p className={cn("text-lg font-black tabular-nums", "text-indigo-500")}>{formatCurrency(b1.investimentosNaoCirculantes)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total Passivos</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total de Obrigações</p>
             <p className={cn("text-lg font-black tabular-nums", "text-destructive")}>{formatCurrency(b1.totalPassivos)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Patrimônio Líquido</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Capital Próprio</p>
             <p className={cn("text-lg font-black tabular-nums", "text-primary")}>{formatCurrency(b1.pl)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">

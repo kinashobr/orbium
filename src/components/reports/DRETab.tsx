@@ -221,38 +221,86 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
           </div>
         </div>
         <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <IndicatorRadialCard title="Margem Líquida" description="RL / Receita" value={indicadores.margemLiquida} label="Margem" status={indicadores.margemLiquida >= 20 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Eficiência" description="Bruto / Receita" value={indicadores.eficienciaOp} label="Eficiência" status={indicadores.eficienciaOp >= 70 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Peso Fixos" description="Fixo / Total" value={indicadores.pesoFixos} label="Fixos" status={indicadores.pesoFixos <= 40 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Savings Rate" description="Sobra / Receita" value={indicadores.savingsRate} label="Poupança" status={indicadores.savingsRate >= 15 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Alavancagem" description="Bruto / Operac." value={indicadores.impactoFinanceiro} label="Impacto" status={indicadores.impactoFinanceiro <= 5 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Equilíbrio" description="Fixo / Variável" value={indicadores.pontoEquilibrio} label="Mix" status={indicadores.pontoEquilibrio <= 50 ? "success" : "warning"} />
+          <IndicatorRadialCard 
+            title="Taxa de Sobra" 
+            value={indicadores.margemLiquida} 
+            label="Sobra" 
+            status={indicadores.margemLiquida >= 20 ? "success" : "warning"}
+            description="Quanto sobra da sua renda após pagar todas as contas."
+            formula="Resultado ÷ Renda × 100"
+            idealRange="Acima de 20%"
+          />
+          <IndicatorRadialCard 
+            title="Eficiência Operacional" 
+            value={indicadores.eficienciaOp} 
+            label="Eficiência" 
+            status={indicadores.eficienciaOp >= 70 ? "success" : "warning"}
+            description="Quanto da sua renda está livre após custos fixos."
+            formula="(Renda - Fixos) ÷ Renda × 100"
+            idealRange="Acima de 70%"
+          />
+          <IndicatorRadialCard 
+            title="Peso dos Fixos" 
+            value={indicadores.pesoFixos} 
+            label="Fixos" 
+            status={indicadores.pesoFixos <= 40 ? "success" : "warning"}
+            description="Quanto dos seus gastos são fixos e difíceis de cortar."
+            formula="Fixos ÷ Total Gastos × 100"
+            idealRange="Abaixo de 40%"
+          />
+          <IndicatorRadialCard 
+            title="Taxa de Economia" 
+            value={indicadores.savingsRate} 
+            label="Economia" 
+            status={indicadores.savingsRate >= 15 ? "success" : "warning"}
+            description="Quanto você consegue guardar da sua renda."
+            formula="Sobra ÷ Renda × 100"
+            idealRange="Acima de 15%"
+          />
+          <IndicatorRadialCard 
+            title="Custo das Dívidas" 
+            value={indicadores.impactoFinanceiro} 
+            label="Juros" 
+            status={indicadores.impactoFinanceiro <= 5 ? "success" : "warning"}
+            description="Impacto dos juros de empréstimos na sua renda."
+            formula="Juros ÷ Renda × 100"
+            idealRange="Abaixo de 5%"
+          />
+          <IndicatorRadialCard 
+            title="Balanço Fixo/Variável" 
+            value={indicadores.pontoEquilibrio} 
+            label="Mix" 
+            status={indicadores.pontoEquilibrio <= 50 ? "success" : "warning"}
+            description="Proporção entre gastos fixos e variáveis."
+            formula="Fixos ÷ (Fixos + Variáveis) × 100"
+            idealRange="Abaixo de 50%"
+          />
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Receita Bruta</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Renda Total</p>
             <p className="text-lg font-black tabular-nums text-success">{formatCurrency(dre1.rec)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Despesas Fixas</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Custos Fixos</p>
             <p className="text-lg font-black tabular-nums text-destructive/80">{formatCurrency(dre1.fix)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Variáveis & Juros</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Custos Variáveis</p>
             <p className="text-lg font-black tabular-nums text-destructive">{formatCurrency(dre1.var + dre1.juros)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Resultado Bruto</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Margem Bruta</p>
             <p className="text-lg font-black tabular-nums text-primary">{formatCurrency(dre1.rec - dre1.fix)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Res. Financeiro</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Resultado Financeiro</p>
             <p className={cn("text-lg font-black tabular-nums", (dre1.rendimentos - dre1.juros) >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(dre1.rendimentos - dre1.juros)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Variac. RL</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Variação do Período</p>
             <p className={cn("text-lg font-black tabular-nums", dre1.res >= dre2.res ? "text-success" : "text-destructive")}>{formatCurrency(dre1.res - dre2.res)}</p>
          </div>
       </div>

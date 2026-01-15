@@ -66,11 +66,11 @@ export function CategoryListModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,36rem)] h-[min(90vh,750px)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-background flex flex-col">
-        <DialogHeader className="px-8 pt-8 pb-4 bg-primary/5 shrink-0">
+      <DialogContent className="max-w-[min(95vw,36rem)] h-[min(90vh,750px)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] flex flex-col">
+        <DialogHeader className="px-8 pt-8 pb-4 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
                 <Tags className="w-7 h-7" />
               </div>
               <div>
@@ -101,8 +101,8 @@ export function CategoryListModal({
                 </div>
                 <div className="grid grid-cols-1 gap-2.5">
                   {list.map(cat => (
-                    <div key={cat.id} className="flex items-center gap-4 p-4 rounded-[1.75rem] bg-card border border-border/40 hover:border-primary/30 transition-all group">
-                      <div className="text-2xl w-10 h-10 flex items-center justify-center bg-muted/30 rounded-xl">
+                    <div key={cat.id} className="flex items-center gap-4 p-4 rounded-[1.75rem] bg-card dark:bg-white/5 border border-border/40 dark:border-white/5 hover:border-primary/30 transition-all group">
+                      <div className="text-2xl w-10 h-10 flex items-center justify-center bg-muted/30 dark:bg-white/5 rounded-xl">
                         {cat.icon}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -111,11 +111,11 @@ export function CategoryListModal({
                           {transactionCountByCategory[cat.id] || 0} lançamentos
                         </p>
                       </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-primary/10 hover:text-primary" onClick={() => onEditCategory(cat)}>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary" onClick={() => onEditCategory(cat)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDelete(cat)}>
+                        <Button variant="ghost" size="icon" className="h-10 w-10 sm:h-9 sm:w-9 rounded-full bg-muted/50 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDelete(cat)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -130,7 +130,7 @@ export function CategoryListModal({
           </div>
         </ScrollArea>
 
-        <DialogFooter className="p-8 bg-muted/10 border-t">
+        <DialogFooter className="p-8 bg-muted/30 dark:bg-black/20 border-t border-border/40 dark:border-white/5">
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-full h-12 font-black text-sm text-muted-foreground hover:text-foreground">
             FECHAR
           </Button>

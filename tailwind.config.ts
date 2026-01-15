@@ -35,6 +35,7 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          dark: "hsl(26 72% 32%)",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -75,6 +76,10 @@ export default {
           pink: "hsl(var(--neon-pink))",
           green: "hsl(var(--neon-green))",
         },
+        surface: {
+          light: "hsl(var(--card))",
+          dark: "hsl(var(--card))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
@@ -90,6 +95,16 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        card: "2rem",
+        "card-lg": "2.5rem",
+        modal: "2.5rem",
+        button: "var(--radius)",
+        pill: "9999px",
+      },
+      boxShadow: {
+        soft: "0 4px 20px -4px hsl(var(--foreground) / 0.08), 0 2px 8px -2px hsl(var(--foreground) / 0.04)",
+        "soft-lg": "0 8px 30px -6px hsl(var(--foreground) / 0.12), 0 4px 12px -4px hsl(var(--foreground) / 0.06)",
+        glow: "0 0 20px hsl(var(--primary) / 0.3), 0 0 40px hsl(var(--primary) / 0.15)",
       },
       keyframes: {
         "accordion-down": {

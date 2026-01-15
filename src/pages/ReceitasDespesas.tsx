@@ -131,10 +131,10 @@ const ReceitasDespesas = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in-up">
           <div className="col-span-12 lg:col-span-8 space-y-6">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 shadow-soft border border-white/60 dark:border-white/5">
-              <div className="flex items-center justify-between mb-6 px-1">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
                 <div><h3 className="font-display font-bold text-lg text-foreground">Contas Correntes</h3><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Saldos e Disponibilidade</p></div>
-                <Button variant="ghost" size="sm" onClick={() => { setEditingAccount(undefined); setShowAccountModal(true); }} className="w-10 h-10 rounded-full bg-primary/5 text-primary hover:bg-primary/10"><Plus className="h-5 w-5" /></Button>
+                <Button variant="ghost" size="sm" onClick={() => { setEditingAccount(undefined); setShowAccountModal(true); }} className="w-10 h-10 rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-5 w-5" /></Button>
               </div>
               <AccountsCarousel accounts={accountSummaries} onMovimentar={id => { setSelectedAccountForModal(id); setShowMovimentarModal(true); }} onViewHistory={id => { setViewingAccountId(id); setShowStatementDialog(true); }} onAddAccount={() => setShowAccountModal(true)} onEditAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { const tx = transactions.find(t => t.accountId === id && t.operationType === 'initial_balance'); setEditingAccount({ ...a, initialBalanceValue: tx ? (tx.flow === 'in' ? tx.amount : -tx.amount) : 0 } as any); setShowAccountModal(true); } }} onImportAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { setAccountForConsolidatedReview(null); setViewingAccountId(id); setShowStatementManagerModal(true); } }} showHeader={false} />
             </div>

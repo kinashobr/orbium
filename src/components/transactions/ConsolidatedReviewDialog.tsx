@@ -198,7 +198,7 @@ export function ConsolidatedReviewDialog({
     <div className="flex flex-1 overflow-hidden">
       {!isMobile && (
         <ResizableSidebar initialWidth={340} minWidth={280} maxWidth={420} storageKey="review_sidebar_width">
-          <div className="h-full bg-surface-light dark:bg-surface-dark border-r border-border/40">
+          <div className="h-full border-r border-border/40 dark:border-white/5">
             <ReviewContextSidebar
               accountId={accountId} statements={importedStatements.filter(s => s.accountId === accountId)}
               pendingCount={pendingCount} readyToContabilizeCount={readyCount} totalCount={transactionsToReview.length}
@@ -209,7 +209,7 @@ export function ConsolidatedReviewDialog({
         </ResizableSidebar>
       )}
 
-      <div className="flex-1 flex flex-col p-4 sm:p-8 overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col p-4 sm:p-8 overflow-hidden bg-background dark:bg-[hsl(24_8%_10%)]">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -232,7 +232,7 @@ export function ConsolidatedReviewDialog({
           )}
         </div>
         
-        <div className="flex-1 overflow-hidden bg-card rounded-[2.5rem] border border-border/40 shadow-sm">
+        <div className="flex-1 overflow-hidden bg-card dark:bg-[hsl(24_8%_14%)] rounded-[2.5rem] border border-border/40 dark:border-white/5 shadow-sm">
           {loading ? (
             <div className="flex flex-col items-center justify-center h-full opacity-50">
               <Loader2 className="w-12 h-12 animate-spin mb-4 text-primary" />
@@ -276,8 +276,8 @@ export function ConsolidatedReviewDialog({
   return (
     <>
       {isMobile && open ? (
-        <div className="fixed inset-0 z-[100] bg-background flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <header className="px-6 pt-6 pb-4 border-b shrink-0 bg-card">
+        <div className="fixed inset-0 z-[100] bg-background dark:bg-[hsl(24_8%_10%)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <header className="px-6 pt-6 pb-4 border-b dark:border-white/5 shrink-0 bg-card dark:bg-[hsl(24_8%_14%)]">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" className="rounded-full h-12 w-12" onClick={() => onOpenChange(false)}>
@@ -295,7 +295,7 @@ export function ConsolidatedReviewDialog({
           </header>
 
           {mobileView === 'filters' ? (
-            <div className="flex-1 p-6 bg-background overflow-y-auto">
+            <div className="flex-1 p-6 bg-background dark:bg-[hsl(24_8%_10%)] overflow-y-auto">
               <div className="flex items-center justify-between mb-8">
                 <h3 className="font-black uppercase tracking-widest text-sm">Ajustes de Período</h3>
                 <Button variant="ghost" size="sm" className="font-bold" onClick={() => setMobileView('list')}>Voltar</Button>
@@ -314,13 +314,13 @@ export function ConsolidatedReviewDialog({
           <ResizableDialogContent 
             storageKey="consolidated_review_modal"
             initialWidth={1400} initialHeight={900} minWidth={1000} minHeight={700} hideCloseButton={true}
-            className="rounded-[3rem] bg-background border-none shadow-2xl p-0 overflow-hidden"
+            className="rounded-[3rem] bg-background dark:bg-[hsl(24_8%_10%)] border-none shadow-2xl p-0 overflow-hidden"
           >
             <div className="modal-viewport">
-              <DialogHeader className="px-10 pt-10 pb-6 bg-background shrink-0">
+              <DialogHeader className="px-10 pt-10 pb-6 bg-background dark:bg-[hsl(24_8%_10%)] shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-[1.5rem] bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+                    <div className="w-16 h-16 rounded-[1.5rem] bg-primary/10 dark:bg-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
                       <FileText className="w-8 h-8" />
                     </div>
                     <div>

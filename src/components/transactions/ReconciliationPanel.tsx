@@ -131,7 +131,7 @@ export function ReconciliationPanel({ accounts, transactions, onReconcile }: Rec
   };
 
   return (
-    <Card className="glass-card">
+    <Card className="bg-card rounded-card border border-border/40 shadow-soft">
       <CardHeader>
         <div className="flex items-center gap-2">
           <Calculator className="w-5 h-5 text-primary" />

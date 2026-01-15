@@ -134,7 +134,7 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      <div className="glass-card p-2 shrink-0 bg-muted/30">
+      <div className="glass-card p-2 shrink-0 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-xl">
         <div className="grid grid-cols-[1fr_100px_110px_40px] gap-2 items-end">
           <div className="space-y-0.5">
             <Label className="cq-text-xs text-muted-foreground opacity-70">Nova Conta</Label>
@@ -152,10 +152,10 @@ export function BillsTrackerList({
         </div>
       </div>
 
-      <div className="glass-card flex-1 flex flex-col min-h-0 border-t-0 rounded-t-none">
+      <div className="glass-card flex-1 flex flex-col min-h-0 border border-border/40 dark:border-white/5 rounded-xl bg-card dark:bg-[hsl(24_8%_14%)]">
         <div className="rounded-lg overflow-y-auto flex-1 scrollbar-thin">
           <Table style={{ minWidth: `${totalWidth}px` }}>
-            <TableHeader className="sticky top-0 bg-card/95 backdrop-blur-sm z-10">
+            <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10">
               <TableRow className="border-border hover:bg-transparent h-10">
                 {columnHeaders.map((h) => (
                   <TableHead key={h.key} className={cn("text-muted-foreground p-2 cq-text-xs font-bold uppercase tracking-tight relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>

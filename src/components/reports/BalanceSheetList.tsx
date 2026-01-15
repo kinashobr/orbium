@@ -123,7 +123,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
                         </div>
                       </td>
                       <td className="text-right text-sm font-bold tabular-nums">{formatCurrency(detail.value)}</td>
-                      <td className="text-right text-sm font-bold tabular-nums text-muted-foreground">{detail.percent.toFixed(1)}%</td>
+                      <td className="text-right text-sm font-bold tabular-nums text-muted-foreground">{isNaN(detail.percent) || !isFinite(detail.percent) ? "0.0" : detail.percent.toFixed(1)}%</td>
                     </tr>
                   ))}
 
@@ -134,7 +134,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
                   )}>
                     <td className="p-3 text-sm uppercase tracking-tight">{section.type === 'patrimonio' ? 'Capital Próprio (Ativos - Passivos)' : `Subtotal ${section.type === 'circulante' ? 'Circulante' : 'Longo Prazo'}`}</td>
                     <td className="text-right p-3 text-sm tabular-nums">{formatCurrency(section.value)}</td>
-                    <td className="text-right p-3 text-sm tabular-nums">{section.percent.toFixed(1)}%</td>
+                    <td className="text-right p-3 text-sm tabular-nums">{isNaN(section.percent) || !isFinite(section.percent) ? "0.0" : section.percent.toFixed(1)}%</td>
                   </tr>
                 </React.Fragment>
               ))}
@@ -146,7 +146,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
               )}>
                 <td className="p-3 uppercase tracking-tight">{isAsset ? 'TOTAL DO ATIVO' : 'TOTAL DO PASSIVO'}</td>
                 <td className="text-right p-3 tabular-nums">{formatCurrency(totalPassivo)}</td>
-                <td className="text-right p-3 tabular-nums">{((totalPassivo / totalPassivoPL) * 100).toFixed(1)}%</td>
+                <td className="text-right p-3 tabular-nums">{totalPassivoPL > 0 ? ((totalPassivo / totalPassivoPL) * 100).toFixed(1) : "0.0"}%</td>
               </tr>
               
               {/* Total Passivo + PL (Apenas no lado do Passivo) */}

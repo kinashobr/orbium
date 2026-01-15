@@ -50,7 +50,7 @@ export function ReviewContextSidebar({
   }), [reviewRange]);
 
   return (
-    <div className="flex flex-col h-full p-6 space-y-8 bg-card">
+    <div className="flex flex-col h-full p-6 space-y-8 bg-card dark:bg-[hsl(24_8%_12%)]">
       {/* Status de Progresso Expressivo */}
       <div className="space-y-4">
         <div className="flex items-end justify-between">
@@ -67,7 +67,7 @@ export function ReviewContextSidebar({
             {pendingCount === 0 ? "CONCLUÍDO" : `${pendingCount} PENDENTES`}
           </Badge>
         </div>
-        <Progress value={progress} className="h-2.5 rounded-full bg-muted/50" />
+        <Progress value={progress} className="h-2.5 rounded-full bg-muted/50 dark:bg-white/10" />
       </div>
 
       <ScrollArea className="flex-1 -mx-2 px-2">
@@ -78,16 +78,16 @@ export function ReviewContextSidebar({
               <Calendar className="w-4 h-4 text-primary" />
               <Label className="text-[11px] font-bold uppercase tracking-widest text-foreground">Período de Análise</Label>
             </div>
-            <div className="p-4 rounded-[1.5rem] bg-background border border-border/40 shadow-sm space-y-3">
+            <div className="p-4 rounded-[1.5rem] bg-muted/30 dark:bg-black/20 border border-border/40 dark:border-white/5 shadow-sm space-y-3">
               <PeriodSelector 
                 initialRanges={dummyRanges}
                 onDateRangeChange={onPeriodChange}
-                className="w-full h-10 rounded-xl border-none bg-muted/30"
+                className="w-full h-10 rounded-xl border-none bg-card dark:bg-white/5"
               />
               <Button 
                 onClick={onApplyFilter} 
-                variant="secondary" 
-                className="w-full h-10 rounded-xl font-bold text-xs gap-2"
+                variant="outline" 
+                className="w-full h-10 rounded-xl font-bold text-xs gap-2 border-primary/30 text-primary hover:bg-primary/10 dark:border-primary/20 dark:bg-white/5"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Atualizar Lista
@@ -103,10 +103,10 @@ export function ReviewContextSidebar({
             </div>
             <Button 
               variant="outline" 
-              className="w-full h-14 justify-start rounded-[1.5rem] border-dashed border-2 border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+              className="w-full h-14 justify-start rounded-[1.5rem] border-dashed border-2 border-border/60 dark:border-white/10 hover:border-primary/40 hover:bg-primary/5 dark:bg-white/5 transition-all group"
               onClick={onManageRules}
             >
-              <div className="p-2 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors mr-3">
+              <div className="p-2 rounded-xl bg-muted dark:bg-white/10 group-hover:bg-primary/10 transition-colors mr-3">
                 <Pin className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
               </div>
               <div className="text-left">
@@ -117,19 +117,19 @@ export function ReviewContextSidebar({
           </div>
 
           {/* Resumo de Cargas */}
-          <div className="p-5 rounded-[1.75rem] bg-primary/5 border border-primary/10 space-y-3">
+          <div className="p-5 rounded-[1.75rem] bg-gradient-to-br from-primary/10 to-primary/5 dark:from-primary/15 dark:to-primary/5 border border-primary/20 dark:border-primary/10 space-y-3">
             <div className="flex items-center gap-2 text-primary">
               <FileText className="w-4 h-4" />
               <span className="text-[11px] font-black uppercase tracking-widest">Resumo da Conta</span>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-0.5">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Arquivos</p>
-                <p className="text-lg font-black text-foreground">{statements.length}</p>
+                <p className="text-[10px] font-bold text-primary/60 uppercase">Arquivos</p>
+                <p className="text-lg font-black text-primary">{statements.length}</p>
               </div>
               <div className="space-y-0.5">
-                <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Itens</p>
-                <p className="text-lg font-black text-foreground">{totalCount}</p>
+                <p className="text-[10px] font-bold text-primary/60 uppercase">Total Itens</p>
+                <p className="text-lg font-black text-primary">{totalCount}</p>
               </div>
             </div>
           </div>

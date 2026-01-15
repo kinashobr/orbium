@@ -93,13 +93,13 @@ export function AccountStatementDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "max-w-[min(95vw,80rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col rounded-[3rem] border-none shadow-2xl bg-background",
+        "max-w-[min(95vw,80rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col rounded-[3rem] border-none shadow-2xl bg-card",
         "[&>button]:hidden" // Esconde o botão de fechar padrão do DialogContent
       )}>
-        <DialogHeader className="px-8 pt-10 pb-6 border-b shrink-0 bg-primary/5">
+        <DialogHeader className="px-8 pt-10 pb-6 border-b shrink-0 bg-muted/50">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 text-primary shadow-sm">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shrink-0 text-white shadow-xl shadow-primary/30">
                 <Building2 className="w-6 h-6" />
               </div>
               <div className="min-w-0">

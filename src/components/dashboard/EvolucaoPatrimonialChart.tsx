@@ -22,9 +22,9 @@ interface EvolucaoPatrimonialChartProps {
 }
 
 const lineOptions = [
-  { id: "patrimonioTotal", label: "Patrimônio", color: "hsl(199, 89%, 48%)" },
-  { id: "receitas", label: "Receitas", color: "hsl(142, 76%, 36%)" },
-  { id: "despesas", label: "Despesas", color: "hsl(0, 72%, 51%)" },
+  { id: "patrimonioTotal", label: "Capital Próprio", color: "hsl(199, 89%, 48%)" },
+  { id: "receitas", label: "Entradas", color: "hsl(142, 76%, 36%)" },
+  { id: "despesas", label: "Saídas", color: "hsl(0, 72%, 51%)" },
 ];
 
 export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
@@ -103,7 +103,7 @@ export function EvolucaoPatrimonialChart({}: EvolucaoPatrimonialChartProps) {
   return (
     <div className="glass-card p-5 animate-fade-in-up">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-foreground">Evolução Patrimonial</h3>
+        <h3 className="text-lg font-semibold text-foreground">Evolução do Patrimônio</h3>
         <div className="flex items-center gap-2">
           <Select value={periodo} onValueChange={setPeriodo}>
             <SelectTrigger className="w-28 bg-muted border-border h-8 text-xs">

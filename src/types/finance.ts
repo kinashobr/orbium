@@ -239,6 +239,41 @@ export interface ObjetivoFinanceiro {
 }
 
 // ============================================
+// META PERSONALIZADA V1
+// ============================================
+
+export type MetaTipo = 'valor_fixo' | 'percentual' | 'economia' | 'categoria';
+export type MetaMetrica = 'receita' | 'despesa' | 'investimento' | 'saldo' | 'patrimonio' | 'categoria_especifica';
+export type MetaPeriodo = 'mensal' | 'trimestral' | 'anual';
+export type MetaLogica = 'maior_melhor' | 'menor_melhor';
+
+export interface MetaPersonalizada {
+  id: string;
+  nome: string;
+  descricao?: string;
+  tipo: MetaTipo;
+  metrica: MetaMetrica;
+  valorAlvo: number;
+  categoriaId?: string; // Para metas de categoria específica
+  periodoAvaliacao: MetaPeriodo;
+  logica: MetaLogica;
+  ativo: boolean;
+  criadoEm: string;
+  cor?: string;
+  icone?: string;
+}
+
+export interface MetaProgresso {
+  valorAtual: number;
+  percentual: number;
+  status: 'sucesso' | 'alerta' | 'perigo' | 'neutro';
+}
+
+export function generateMetaId(): string {
+  return `meta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// ============================================
 // NOVO: RASTREADOR DE CONTAS A PAGAR (BillTracker)
 // ============================================
 
@@ -381,8 +416,9 @@ export interface FinanceExportV2 {
     billsTracker: BillTracker[];
     standardizationRules: StandardizationRule[];
     importedStatements: ImportedStatement[];
-    imoveis: Imovel[]; // ADICIONADO
-    terrenos: Terreno[]; // ADICIONADO
+    imoveis: Imovel[];
+    terrenos: Terreno[];
+    metasPersonalizadas: MetaPersonalizada[]; // NOVO
     
     // Configuration/Context States
     monthlyRevenueForecast: number;

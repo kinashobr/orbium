@@ -86,7 +86,7 @@ export const CategoryDetailModal = ({
 
         <div className="space-y-6">
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="p-3 rounded-lg bg-muted/50 border border-border/50">
               <p className="text-xs text-muted-foreground">Total</p>
               <p className="text-lg font-bold text-destructive">{formatCurrency(totalCategoria)}</p>
@@ -147,28 +147,30 @@ export const CategoryDetailModal = ({
 
           {/* Transactions Table */}
           <div className="rounded-lg border border-border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-border hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">Data</TableHead>
-                  <TableHead className="text-muted-foreground">Descrição</TableHead>
-                  <TableHead className="text-muted-foreground text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transacoesCategoria.slice(0, 10).map((t) => (
-                  <TableRow key={t.id} className="border-border hover:bg-muted/50">
-                    <TableCell className="text-sm">
-                      {new Date(t.date + "T00:00:00").toLocaleDateString("pt-BR")}
-                    </TableCell>
-                    <TableCell className="text-sm">{t.description}</TableCell>
-                    <TableCell className="text-sm text-right font-medium text-destructive">
-                      {formatCurrency(t.amount)}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table className="min-w-[400px]">
+                <TableHeader>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="text-muted-foreground whitespace-nowrap">Data</TableHead>
+                    <TableHead className="text-muted-foreground">Descrição</TableHead>
+                    <TableHead className="text-muted-foreground text-right whitespace-nowrap">Valor</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {transacoesCategoria.slice(0, 10).map((t) => (
+                    <TableRow key={t.id} className="border-border hover:bg-muted/50">
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {new Date(t.date + "T00:00:00").toLocaleDateString("pt-BR")}
+                      </TableCell>
+                      <TableCell className="text-sm">{t.description}</TableCell>
+                      <TableCell className="text-sm text-right font-medium text-destructive whitespace-nowrap">
+                        {formatCurrency(t.amount)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
             {transacoesCategoria.length > 10 && (
               <div className="p-2 text-center text-sm text-muted-foreground border-t border-border">
                 + {transacoesCategoria.length - 10} transações

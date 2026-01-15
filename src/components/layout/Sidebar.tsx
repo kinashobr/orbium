@@ -26,7 +26,8 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { toast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SidebarAlertas } from "@/components/dashboard/SidebarAlertas";
+import { SidebarAlertas, DEFAULT_ALERTS, DEFAULT_METAS } from "@/components/dashboard/SidebarAlertas";
+import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { 
   Popover, 
   PopoverContent, 
@@ -52,6 +53,10 @@ const mainNavItems: NavItemData[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [alertasPopoverOpen, setAlertasPopoverOpen] = useState(false);
+  const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
+  const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS)));
+  const [metasConfig, setMetasConfig] = useState<MetaConfig[]>(() => JSON.parse(localStorage.getItem("metas-config-v3") || JSON.stringify(DEFAULT_METAS)));
   const location = useLocation();
   const { 
     exportData, 
@@ -62,6 +67,7 @@ export function Sidebar() {
     contasMovimento,
     getSaldoDevedor,
     alertStartDate,
+    setAlertStartDate,
     calculateBalanceUpToDate
   } = useFinance();
   const { theme, setTheme, themes, resolvedTheme } = useTheme();
@@ -114,7 +120,7 @@ export function Sidebar() {
     if (segurosVencendo > 0) count++;
     
     const contasLiquidez = contasMovimento.filter(c => 
-      ['conta_corrente', 'poupanca', 'reserva_emergencia', 'aplicacao_renda_fixa'].includes(c.accountType)
+      ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType)
     );
     const saldoLiquidez = contasLiquidez.reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0);
     if (saldoLiquidez < 0) count++;
@@ -221,7 +227,7 @@ export function Sidebar() {
         <Separator className="mx-2.5 mb-3 opacity-30" />
         
         {/* Alertas Popover */}
-        <Popover>
+        <Popover open={alertasPopoverOpen} onOpenChange={setAlertasPopoverOpen}>
           <PopoverTrigger asChild>
             <button className={cn(
               "relative flex items-center h-10 rounded-full transition-all duration-300 group hover:bg-muted/50",
@@ -236,12 +242,27 @@ export function Sidebar() {
               {!collapsed && <span className="text-[13px] font-bold text-muted-foreground group-hover:text-foreground">Alertas</span>}
             </button>
           </PopoverTrigger>
-          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/40 shadow-2xl rounded-[1.75rem] w-80 bg-card/98 backdrop-blur-xl">
+          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/40 shadow-2xl rounded-[1.75rem] w-80 bg-card">
             <div className="px-3 pb-5">
-              <SidebarAlertas collapsed={false} />
+              <SidebarAlertas collapsed={false} onConfigOpen={() => { setAlertasPopoverOpen(false); setAlertasConfigOpen(true); }} />
             </div>
           </PopoverContent>
         </Popover>
+
+        <AlertasConfigDialog 
+          open={alertasConfigOpen} 
+          onOpenChange={setAlertasConfigOpen} 
+          config={alertasConfig} 
+          metas={metasConfig} 
+          onSave={(newAlerts, newMetas) => {
+            setAlertasConfig(newAlerts);
+            setMetasConfig(newMetas);
+            localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
+            localStorage.setItem("metas-config-v3", JSON.stringify(newMetas));
+          }} 
+          initialStartDate={alertStartDate} 
+          onStartDateChange={setAlertStartDate} 
+        />
 
         {/* Ajustes Popover */}
         <Popover>
@@ -256,7 +277,7 @@ export function Sidebar() {
               {!collapsed && <span className="text-[13px] font-bold text-muted-foreground group-hover:text-foreground">Ajustes</span>}
             </button>
           </PopoverTrigger>
-          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/40 shadow-2xl rounded-[1.75rem] w-80 bg-card/98 backdrop-blur-xl">
+          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/40 shadow-2xl rounded-[1.75rem] w-80 bg-card">
             <div className="px-5 pt-5 pb-3">
               <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-foreground">
                 <Settings className="w-4 h-4 text-primary" /> Preferências
@@ -315,7 +336,7 @@ export function Sidebar() {
                     className="h-12 rounded-xl justify-start gap-3 border-border/60 group px-3"
                     onClick={handleImportClick}
                   >
-                    <div className="p-1.5 rounded-lg bg-info/10 text-info">
+                    <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                       <Upload size={16} />
                     </div>
                     <div className="text-left">

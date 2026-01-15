@@ -42,10 +42,10 @@ export function MovimentacoesRelevantes({ transacoes, limit = 6 }: Movimentacoes
     <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] p-6 shadow-soft border border-white/60 dark:border-white/5">
       <div className="flex items-center justify-between mb-6 px-1">
         <div>
-          <h3 className="font-display font-bold text-lg text-foreground">Movimentações</h3>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Impactos recentes</p>
+          <h3 className="font-display font-bold text-lg text-foreground">Últimas Movimentações</h3>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Transações importantes</p>
         </div>
-        <Button 
+        <Button
           variant="ghost" 
           size="sm" 
           className="text-[10px] font-black uppercase text-primary hover:bg-primary/5 rounded-full"

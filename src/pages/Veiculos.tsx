@@ -25,15 +25,18 @@ import {
   TrendingDown, 
   RefreshCw, 
   PieChart, 
-  Home, // Adicionado Home
-  Map, // Adicionado Map
-  Plus, // Adicionado Plus
+  Home,
+  Map,
+  Plus,
+  Info,
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
-import { ImovelFormModal } from "@/components/vehicles/ImovelFormModal"; // Importado
+import { ImovelFormModal } from "@/components/vehicles/ImovelFormModal";
+import { VehicleDetailDialog } from "@/components/vehicles/VehicleDetailDialog";
+import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
 import { formatCurrency, Veiculo, SeguroVeiculo, Imovel, Terreno } from "@/types/finance";
 import { 
   PieChart as RePieChart, 
@@ -48,9 +51,15 @@ import {
   CartesianGrid 
 } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
-import { format } from "date-fns"; 
+import { format, differenceInDays } from "date-fns"; 
 import { ptBR } from "date-fns/locale"; 
-import { toast } from "sonner"; 
+import { toast } from "sonner";
+
+interface VehicleInsight {
+  tipo: 'info' | 'alerta' | 'sucesso';
+  mensagem: string;
+  icone: 'depreciation' | 'insurance' | 'payment';
+}
 
 const BensImobilizados = () => {
   const { 
@@ -81,6 +90,10 @@ const BensImobilizados = () => {
   const [showImovelModal, setShowImovelModal] = useState(false);
   const [editingImovel, setEditingImovel] = useState<Imovel | Terreno | undefined>(undefined);
   const [imovelModalType, setImovelModalType] = useState<'imovel' | 'terreno'>('imovel');
+  
+  // Estado para modal de detalhes do veículo
+  const [showVehicleDetail, setShowVehicleDetail] = useState(false);
+  const [selectedVehicle, setSelectedVehicle] = useState<Veiculo | null>(null);
 
   const pendingVehicles = getPendingVehicles();
   const totalFipe = getValorFipeTotal(dateRanges.range1.to);
@@ -114,8 +127,160 @@ const BensImobilizados = () => {
   };
   
   const handleViewDetails = (veiculo: Veiculo) => {
-    toast.info(`Detalhes do veículo ${veiculo.modelo} em desenvolvimento.`);
+    setSelectedVehicle(veiculo);
+    setShowVehicleDetail(true);
   };
+  
+  // Função para obter insights dinâmicos dos veículos
+  const getVehicleInsights = useMemo((): VehicleInsight[] => {
+    const insights: VehicleInsight[] = [];
+    const hoje = new Date();
+    
+    // 1. Verificar veículos sem seguro
+    const veiculosAtivos = veiculos.filter(v => v.status === 'ativo');
+    const veiculosSemSeguro = veiculosAtivos.filter(
+      v => !segurosVeiculo.some(s => s.veiculoId === v.id)
+    );
+    
+    if (veiculosSemSeguro.length > 0) {
+      insights.push({
+        tipo: 'alerta',
+        mensagem: `${veiculosSemSeguro.length} veículo(s) sem seguro cadastrado: ${veiculosSemSeguro.map(v => v.modelo).join(', ')}.`,
+        icone: 'insurance'
+      });
+    } else if (veiculosAtivos.length > 0) {
+      insights.push({
+        tipo: 'sucesso',
+        mensagem: 'Todos os veículos possuem seguro cadastrado.',
+        icone: 'insurance'
+      });
+    }
+    
+    // 2. Verificar parcelas de seguro vencidas ou próximas do vencimento
+    const parcelasProximas: { veiculo: string; dias: number; valor: number }[] = [];
+    const parcelasVencidas: { veiculo: string; valor: number }[] = [];
+    
+    segurosVeiculo.forEach(s => {
+      const veiculo = veiculos.find(v => v.id === s.veiculoId);
+      if (!veiculo) return;
+      
+      s.parcelas.forEach(p => {
+        if (p.paga) return;
+        
+        const vencimento = parseDateLocal(p.vencimento);
+        const diasAteVencimento = differenceInDays(vencimento, hoje);
+        
+        if (diasAteVencimento < 0) {
+          parcelasVencidas.push({ veiculo: veiculo.modelo, valor: p.valor });
+        } else if (diasAteVencimento <= 7) {
+          parcelasProximas.push({ veiculo: veiculo.modelo, dias: diasAteVencimento, valor: p.valor });
+        }
+      });
+    });
+    
+    if (parcelasVencidas.length > 0) {
+      insights.push({
+        tipo: 'alerta',
+        mensagem: `${parcelasVencidas.length} parcela(s) de seguro vencida(s). Regularize para manter a cobertura.`,
+        icone: 'payment'
+      });
+    }
+    
+    if (parcelasProximas.length > 0) {
+      const totalValor = parcelasProximas.reduce((acc, p) => acc + p.valor, 0);
+      insights.push({
+        tipo: 'info',
+        mensagem: `${parcelasProximas.length} parcela(s) de seguro vencendo em até 7 dias. Total: ${formatCurrency(totalValor)}.`,
+        icone: 'payment'
+      });
+    }
+    
+    // 3. Calcular depreciação média da frota (estimativa)
+    if (veiculosAtivos.length > 0) {
+      const totalCompra = veiculosAtivos.reduce((acc, v) => acc + (v.valorVeiculo || v.valorFipe), 0);
+      const totalAtual = veiculosAtivos.reduce((acc, v) => acc + v.valorFipe, 0);
+      
+      if (totalCompra > 0) {
+        const depreciacaoPercent = ((totalCompra - totalAtual) / totalCompra) * 100;
+        
+        if (depreciacaoPercent > 0) {
+          insights.push({
+            tipo: 'info',
+            mensagem: `Sua frota acumulou ${depreciacaoPercent.toFixed(1)}% de depreciação desde a compra.`,
+            icone: 'depreciation'
+          });
+        } else if (depreciacaoPercent < 0) {
+          insights.push({
+            tipo: 'sucesso',
+            mensagem: `Sua frota valorizou ${Math.abs(depreciacaoPercent).toFixed(1)}% desde a compra!`,
+            icone: 'depreciation'
+          });
+        }
+      }
+    }
+    
+    // Se não houver insights, adicionar mensagem padrão
+    if (insights.length === 0) {
+      insights.push({
+        tipo: 'info',
+        mensagem: 'Cadastre veículos e seguros para receber insights personalizados.',
+        icone: 'insurance'
+      });
+    }
+    
+    return insights;
+  }, [veiculos, segurosVeiculo]);
+  
+  // Insights para imóveis
+  const getImovelInsights = useMemo((): VehicleInsight[] => {
+    const insights: VehicleInsight[] = [];
+    
+    const imoveisAtivos = imoveis.filter(i => i.status === 'ativo');
+    const terrenosAtivos = terrenos.filter(t => t.status === 'ativo');
+    
+    // Calcular valorização/desvalorização
+    if (imoveisAtivos.length > 0) {
+      const totalAquisicao = imoveisAtivos.reduce((acc, i) => acc + i.valorAquisicao, 0);
+      const totalAvaliacao = imoveisAtivos.reduce((acc, i) => acc + i.valorAvaliacao, 0);
+      
+      if (totalAquisicao > 0) {
+        const variacaoPercent = ((totalAvaliacao - totalAquisicao) / totalAquisicao) * 100;
+        
+        if (variacaoPercent >= 0) {
+          insights.push({
+            tipo: 'sucesso',
+            mensagem: `Seus imóveis valorizaram ${variacaoPercent.toFixed(1)}% desde a aquisição.`,
+            icone: 'depreciation'
+          });
+        } else {
+          insights.push({
+            tipo: 'info',
+            mensagem: `A avaliação dos seus imóveis está ${Math.abs(variacaoPercent).toFixed(1)}% abaixo do valor de aquisição.`,
+            icone: 'depreciation'
+          });
+        }
+      }
+    }
+    
+    // Info sobre terrenos
+    if (terrenosAtivos.length > 0) {
+      insights.push({
+        tipo: 'sucesso',
+        mensagem: `${terrenosAtivos.length} terreno(s) registrado(s), potencial para construção ou valorização.`,
+        icone: 'insurance'
+      });
+    }
+    
+    if (insights.length === 0) {
+      insights.push({
+        tipo: 'info',
+        mensagem: 'Cadastre imóveis e terrenos para receber insights personalizados.',
+        icone: 'insurance'
+      });
+    }
+    
+    return insights;
+  }, [imoveis, terrenos]);
   
   const handleOpenImovelModal = (type: 'imovel' | 'terreno', asset?: Imovel | Terreno) => {
     setImovelModalType(type);
@@ -292,13 +457,13 @@ const BensImobilizados = () => {
                     className="bg-card hover:bg-muted/20 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/40 shadow-sm hover:shadow-2xl hover:-translate-y-2 group relative overflow-hidden cursor-pointer"
                   >
                     <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-125 group-hover:rotate-12 transition-transform duration-700">
-                        <Car className="w-32 h-32" />
+                        {v.tipo === 'moto' ? <MotorcycleIcon className="w-32 h-32" /> : <Car className="w-32 h-32" />}
                     </div>
 
                     <div className="flex items-start justify-between mb-10 relative z-10">
                       <div className="flex items-center gap-5">
                         <div className="w-14 h-14 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500">
-                          <Car className="w-7 h-7" />
+                          {v.tipo === 'moto' ? <MotorcycleIcon className="w-7 h-7" /> : <Car className="w-7 h-7" />}
                         </div>
                         <div className="space-y-1">
                           <p className="font-black text-lg text-foreground leading-tight tracking-tight">{v.modelo}</p>
@@ -372,7 +537,7 @@ const BensImobilizados = () => {
                   </div>
                 </div>
                 
-                <div className="h-[300px] w-full">
+                <div className="h-[300px] w-full relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <RePieChart>
                       <Pie
@@ -394,6 +559,12 @@ const BensImobilizados = () => {
                       />
                     </RePieChart>
                   </ResponsiveContainer>
+                  {/* Texto central do gráfico radial */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Total</span>
+                    <span className="text-2xl font-black text-foreground">{formatCurrency(patrimonioImobilizadoTotal)}</span>
+                    <span className="text-[10px] text-muted-foreground mt-1">{distributionData.length} categorias</span>
+                  </div>
                 </div>
               </div>
 
@@ -409,18 +580,47 @@ const BensImobilizados = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex gap-3">
-                    <TrendingDown className="w-5 h-5 text-primary shrink-0" />
-                    <p className="text-[11px] font-bold text-primary-dark leading-tight uppercase">
-                      Sua frota desvalorizou 1.2% no último mês conforme tabela FIPE.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-success/5 border border-success/10 flex gap-3">
-                    <ShieldCheck className="w-5 h-5 text-success shrink-0" />
-                    <p className="text-[11px] font-bold text-success-dark leading-tight uppercase">
-                      Todos os veículos possuem seguro ativo e em dia.
-                    </p>
-                  </div>
+                  {getVehicleInsights.map((insight, idx) => (
+                    <div 
+                      key={idx}
+                      className={cn(
+                        "p-4 rounded-2xl flex gap-3 border",
+                        insight.tipo === 'alerta' ? "bg-warning/5 border-warning/10" :
+                        insight.tipo === 'sucesso' ? "bg-success/5 border-success/10" :
+                        "bg-primary/5 border-primary/10"
+                      )}
+                    >
+                      {insight.icone === 'depreciation' ? (
+                        insight.tipo === 'sucesso' ? (
+                          <TrendingUp className="w-5 h-5 text-success shrink-0" />
+                        ) : (
+                          <TrendingDown className="w-5 h-5 text-primary shrink-0" />
+                        )
+                      ) : insight.icone === 'insurance' ? (
+                        insight.tipo === 'sucesso' ? (
+                          <ShieldCheck className="w-5 h-5 text-success shrink-0" />
+                        ) : insight.tipo === 'alerta' ? (
+                          <AlertTriangle className="w-5 h-5 text-warning shrink-0" />
+                        ) : (
+                          <Info className="w-5 h-5 text-primary shrink-0" />
+                        )
+                      ) : (
+                        insight.tipo === 'alerta' ? (
+                          <Clock className="w-5 h-5 text-warning shrink-0" />
+                        ) : (
+                          <DollarSign className="w-5 h-5 text-primary shrink-0" />
+                        )
+                      )}
+                      <p className={cn(
+                        "text-[11px] font-bold leading-tight uppercase",
+                        insight.tipo === 'alerta' ? "text-warning-foreground" :
+                        insight.tipo === 'sucesso' ? "text-success" :
+                        "text-primary"
+                      )}>
+                        {insight.mensagem}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -584,18 +784,39 @@ const BensImobilizados = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex gap-3">
-                    <TrendingDown className="w-5 h-5 text-primary shrink-0" />
-                    <p className="text-[11px] font-bold text-primary-dark leading-tight uppercase">
-                      A avaliação média dos seus imóveis está 5% abaixo do valor de aquisição.
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-success/5 border border-success/10 flex gap-3">
-                    <ShieldCheck className="w-5 h-5 text-success shrink-0" />
-                    <p className="text-[11px] font-bold text-success-dark leading-tight uppercase">
-                      {terrenos.length} terrenos registrados, potencial para construção.
-                    </p>
-                  </div>
+                  {getImovelInsights.map((insight, idx) => (
+                    <div 
+                      key={idx}
+                      className={cn(
+                        "p-4 rounded-2xl flex gap-3 border",
+                        insight.tipo === 'alerta' ? "bg-warning/5 border-warning/10" :
+                        insight.tipo === 'sucesso' ? "bg-success/5 border-success/10" :
+                        "bg-primary/5 border-primary/10"
+                      )}
+                    >
+                      {insight.icone === 'depreciation' ? (
+                        insight.tipo === 'sucesso' ? (
+                          <TrendingUp className="w-5 h-5 text-success shrink-0" />
+                        ) : (
+                          <TrendingDown className="w-5 h-5 text-primary shrink-0" />
+                        )
+                      ) : (
+                        insight.tipo === 'sucesso' ? (
+                          <ShieldCheck className="w-5 h-5 text-success shrink-0" />
+                        ) : (
+                          <Info className="w-5 h-5 text-primary shrink-0" />
+                        )
+                      )}
+                      <p className={cn(
+                        "text-[11px] font-bold leading-tight uppercase",
+                        insight.tipo === 'alerta' ? "text-warning-foreground" :
+                        insight.tipo === 'sucesso' ? "text-success" :
+                        "text-primary"
+                      )}>
+                        {insight.mensagem}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -701,6 +922,14 @@ const BensImobilizados = () => {
         editingAsset={editingImovel}
         onSubmit={handleSaveImovel}
         onDelete={imovelModalType === 'imovel' ? deleteImovel : deleteTerreno}
+      />
+      
+      <VehicleDetailDialog
+        open={showVehicleDetail}
+        onOpenChange={setShowVehicleDetail}
+        veiculo={selectedVehicle}
+        seguro={selectedVehicle ? segurosVeiculo.find(s => s.veiculoId === selectedVehicle.id) : undefined}
+        onUpdateFipe={handleOpenFipe}
       />
     </MainLayout>
   );

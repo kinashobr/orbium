@@ -90,7 +90,7 @@ export function AccountsCarousel({
   }, [contasMovimento, setContasMovimento]);
 
   return (
-    <div className="relative">
+    <div className="relative group/carousel">
       {showHeader && (
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base md:text-lg font-semibold text-foreground">Contas Movimento</h3>
@@ -106,17 +106,33 @@ export function AccountsCarousel({
                 Nova conta
               </Button>
             )}
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleScroll('left')} title="Rolar para esquerda">
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleScroll('right')} title="Rolar para direita">
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
           </div>
         </div>
       )}
+
+      {/* Navigation Arrows - Floating Style */}
+      <div className="hidden md:flex absolute -left-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+        <Button 
+          variant="secondary" 
+          size="icon" 
+          className="h-10 w-10 rounded-full shadow-lg bg-card border border-border/60 hover:bg-primary hover:text-white transition-all" 
+          onClick={() => handleScroll('left')} 
+          title="Rolar para esquerda"
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+      </div>
+      <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
+        <Button 
+          variant="secondary" 
+          size="icon" 
+          className="h-10 w-10 rounded-full shadow-lg bg-card border border-border/60 hover:bg-primary hover:text-white transition-all" 
+          onClick={() => handleScroll('right')} 
+          title="Rolar para direita"
+        >
+          <ChevronRight className="w-5 h-5" />
+        </Button>
+      </div>
 
       <DndContext 
         sensors={sensors} 
@@ -127,7 +143,7 @@ export function AccountsCarousel({
         <SortableContext items={accountIds} strategy={horizontalListSortingStrategy}>
           <div 
             ref={scrollContainerRef} 
-            className="flex gap-4 pb-4 overflow-x-auto hide-scrollbar-mobile scroll-smooth touch-pan-x"
+            className="flex gap-4 pb-4 overflow-x-auto scroll-smooth touch-pan-x px-1 scrollbar-material max-md:[&::-webkit-scrollbar]:h-1"
           >
             {orderedSummaries.map(summary => (
               <SortableAccountCard 
@@ -141,10 +157,10 @@ export function AccountsCarousel({
             ))}
  
             {orderedSummaries.length === 0 && (
-              <div className="w-[280px] p-6 md:p-8 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-3 text-muted-foreground">
-                <p className="text-sm">Nenhuma conta cadastrada</p>
+              <div className="w-[280px] p-6 md:p-8 border-2 border-dashed border-border rounded-2xl flex flex-col items-center justify-center gap-3 text-muted-foreground bg-muted/30">
+                <p className="text-sm font-medium">Nenhuma conta cadastrada</p>
                 {onAddAccount && (
-                  <Button variant="outline" size="sm" onClick={onAddAccount}>
+                  <Button variant="outline" size="sm" onClick={onAddAccount} className="rounded-full">
                     <Plus className="w-4 h-4 mr-1" />
                     Adicionar Conta
                   </Button>
@@ -154,6 +170,19 @@ export function AccountsCarousel({
           </div>
         </SortableContext>
       </DndContext>
+
+      {/* Mobile Navigation Dots/Indicator */}
+      <div className="flex md:hidden justify-center gap-1.5 mt-2">
+        {orderedSummaries.slice(0, 5).map((_, idx) => (
+          <div 
+            key={idx} 
+            className="w-1.5 h-1.5 rounded-full bg-border transition-colors"
+          />
+        ))}
+        {orderedSummaries.length > 5 && (
+          <span className="text-[10px] text-muted-foreground ml-1">+{orderedSummaries.length - 5}</span>
+        )}
+      </div>
     </div>
   );
 }

@@ -140,87 +140,121 @@ export function AccountFormModal({
     }
   };
 
+  const SelectedIcon = ACCOUNT_TYPE_ICONS[accountType];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,28rem)]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Wallet className="w-5 h-5 text-primary" />
-            {isEditing ? "Editar Conta" : "Nova Conta Movimento"}
-          </DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? "Atualize os dados da conta" 
-              : "Adicione uma nova conta para controlar suas movimentações"}
-          </DialogDescription>
+      <DialogContent className="max-w-[min(95vw,32rem)] bg-card dark:bg-[hsl(24_8%_14%)] p-0 gap-0 overflow-hidden">
+        {/* Header com gradiente sutil */}
+        <DialogHeader className="bg-gradient-to-br from-muted/80 to-muted/40 dark:from-black/30 dark:to-black/10 px-6 sm:px-8 pt-6 sm:pt-8 pb-5 border-b border-border/50 dark:border-white/5">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-2xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
+              <Wallet className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                {isEditing ? "Editar Conta" : "Nova Conta Movimento"}
+              </DialogTitle>
+              <DialogDescription className="text-sm">
+                {isEditing 
+                  ? "Atualize os dados da sua conta" 
+                  : "Configure uma nova conta para gerenciar suas movimentações"}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        {/* Body com scroll suave */}
+        <div className="px-6 sm:px-8 py-6 space-y-5 max-h-[60vh] overflow-y-auto scrollbar-material">
+          {/* Nome da Conta - Campo destacado */}
           <div className="space-y-2">
-            <Label htmlFor="name">Nome da Conta *</Label>
+            <Label htmlFor="name" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Nome da Conta *
+            </Label>
             <Input
               id="name"
               placeholder="Ex: Conta Corrente Banco X"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              className="h-12 text-base rounded-xl border-border/60 dark:border-white/10 bg-muted/30 dark:bg-white/5 focus:bg-background transition-colors"
             />
           </div>
 
+          {/* Tipo de Conta com Preview do Ícone */}
           <div className="space-y-2">
-            <Label htmlFor="accountType">Tipo de Conta *</Label>
-            <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione o tipo..." />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[])
-                  .map((type) => {
-                  const Icon = ACCOUNT_TYPE_ICONS[type];
-                  return (
-                    <SelectItem key={type} value={type}>
-                      <span className="flex items-center gap-2">
-                        <Icon className="w-4 h-4" />
-                        {ACCOUNT_TYPE_LABELS[type]}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="accountType" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Tipo de Conta *
+            </Label>
+            <div className="flex gap-3">
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <SelectedIcon className="w-5 h-5 text-primary" />
+              </div>
+              <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
+                <SelectTrigger className="flex-1 h-12 rounded-xl border-border/60 dark:border-white/10 bg-muted/30 dark:bg-white/5">
+                  <SelectValue placeholder="Selecione o tipo..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => {
+                    const Icon = ACCOUNT_TYPE_ICONS[type];
+                    return (
+                      <SelectItem key={type} value={type}>
+                        <span className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4 text-primary" />
+                          {ACCOUNT_TYPE_LABELS[type]}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
+          {/* Instituição */}
           <div className="space-y-2">
-            <Label htmlFor="institution">Instituição</Label>
+            <Label htmlFor="institution" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Instituição
+            </Label>
             <Input
               id="institution"
               placeholder="Ex: Banco do Brasil"
               value={institution}
               onChange={(e) => setInstitution(e.target.value)}
+              className="h-12 rounded-xl border-border/60 dark:border-white/10 bg-muted/30 dark:bg-white/5 focus:bg-background transition-colors"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Saldo e Moeda - Grid responsivo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="initialBalance">Saldo Inicial</Label>
-              <Input
-                id="initialBalance"
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={initialBalanceInput}
-                onChange={(e) => handleBalanceChange(e.target.value)}
-              />
+              <Label htmlFor="initialBalance" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Saldo Inicial
+              </Label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">R$</span>
+                <Input
+                  id="initialBalance"
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={initialBalanceInput}
+                  onChange={(e) => handleBalanceChange(e.target.value)}
+                  className="h-12 pl-10 rounded-xl border-border/60 dark:border-white/10 bg-muted/30 dark:bg-white/5 focus:bg-background transition-colors font-semibold"
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="currency">Moeda</Label>
+              <Label htmlFor="currency" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Moeda
+              </Label>
               <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger>
+                <SelectTrigger className="h-12 rounded-xl border-border/60 dark:border-white/10 bg-muted/30 dark:bg-white/5">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="BRL">BRL - Real</SelectItem>
-                  <SelectItem value="USD">USD - Dólar</SelectItem>
-                  <SelectItem value="EUR">EUR - Euro</SelectItem>
+                  <SelectItem value="BRL">🇧🇷 BRL - Real</SelectItem>
+                  <SelectItem value="USD">🇺🇸 USD - Dólar</SelectItem>
+                  <SelectItem value="EUR">🇪🇺 EUR - Euro</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -228,35 +262,46 @@ export function AccountFormModal({
           
           {/* Data de Início */}
           <div className="space-y-2">
-            <Label htmlFor="startDate">Data de Início (Saldo Inicial) *</Label>
+            <Label htmlFor="startDate" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Data de Início *
+            </Label>
             <Input
               id="startDate"
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              className="h-12 rounded-xl border-border/60 dark:border-white/10 bg-muted/30 dark:bg-white/5 focus:bg-background transition-colors"
             />
-            <p className="text-xs text-muted-foreground">
-              Data em que o saldo inicial foi registrado.
+            <p className="text-xs text-muted-foreground pl-1">
+              Data em que o saldo inicial foi registrado
             </p>
           </div>
         </div>
 
-        <DialogFooter className="flex gap-2">
+        {/* Footer com botões estilizados */}
+        <DialogFooter className="px-6 sm:px-8 py-5 bg-muted/30 dark:bg-black/20 border-t border-border/50 dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3">
           {isEditing && onDelete && (
             <Button 
               variant="destructive" 
               onClick={handleDelete}
               disabled={hasTransactions}
-              className="mr-auto"
+              className="sm:mr-auto w-full sm:w-auto h-12 rounded-xl font-semibold"
             >
-              Excluir
+              Excluir Conta
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)} 
+            className="w-full sm:w-auto h-12 rounded-xl font-medium border-border/60"
+          >
             Cancelar
           </Button>
-          <Button onClick={handleSubmit}>
-            {isEditing ? "Salvar" : "Criar Conta"}
+          <Button 
+            onClick={handleSubmit} 
+            className="w-full sm:w-auto h-12 rounded-xl font-semibold bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/20"
+          >
+            {isEditing ? "Salvar Alterações" : "Criar Conta"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -74,8 +74,103 @@ export default function Investimentos() {
       .filter(c => c.accountType === 'cripto')
       .reduce((a, c) => a + Math.max(0, calculateBalanceUpToDate(c.id, targetDate, transacoesV2, contasMovimento)), 0);
 
-    return { patrimonioTotal, totalInvestido, rf, cripto };
+    // Reserva de emergência (contas do tipo 'reserva')
+    const reservaEmergencia = contasMovimento
+      .filter(c => c.accountType === 'reserva')
+      .reduce((a, c) => a + Math.max(0, calculateBalanceUpToDate(c.id, targetDate, transacoesV2, contasMovimento)), 0);
+
+    // Calcular gastos mensais médios (últimos 3 meses)
+    const tresMesesAtras = subMonths(targetDate, 3);
+    const txsUltimos3Meses = transacoesV2.filter(t => {
+      try {
+        const d = parseDateLocal(t.date);
+        return d >= tresMesesAtras && d <= targetDate && t.flow === 'out';
+      } catch { return false; }
+    });
+    const gastoMensalMedio = txsUltimos3Meses.reduce((a, t) => a + t.amount, 0) / 3;
+    
+    // Meta de reserva: 6 meses de gastos
+    const metaReserva = gastoMensalMedio * 6;
+    const progressoReserva = metaReserva > 0 ? Math.min(100, (reservaEmergencia / metaReserva) * 100) : 0;
+
+    // Rendimentos passivos (últimos 3 meses)
+    const rendimentosPassivos = transacoesV2.filter(t => {
+      try {
+        const d = parseDateLocal(t.date);
+        return d >= tresMesesAtras && d <= targetDate && t.operationType === 'rendimento';
+      } catch { return false; }
+    }).reduce((a, t) => a + t.amount, 0) / 3;
+
+    // Liberdade financeira: rendimentos passivos cobrem gastos
+    const progressoLiberdade = gastoMensalMedio > 0 ? Math.min(100, (rendimentosPassivos / gastoMensalMedio) * 100) : 0;
+
+    // Percentuais de alocação
+    const percCripto = patrimonioTotal > 0 ? (cripto / patrimonioTotal) * 100 : 0;
+    const percRF = patrimonioTotal > 0 ? (rf / patrimonioTotal) * 100 : 0;
+
+    return { 
+      patrimonioTotal, 
+      totalInvestido, 
+      rf, 
+      cripto, 
+      reservaEmergencia,
+      gastoMensalMedio,
+      metaReserva,
+      progressoReserva,
+      progressoLiberdade,
+      rendimentosPassivos,
+      percCripto,
+      percRF
+    };
   }, [calculateTotalInvestmentBalanceAtDate, getValorFipeTotal, targetDate, contasMovimento, calculateBalanceUpToDate, transacoesV2]);
+
+  // --- Recomendações Contextuais ---
+  const recomendacao = useMemo(() => {
+    const { percCripto, percRF, patrimonioTotal, progressoReserva, reservaEmergencia, metaReserva } = metricas;
+    
+    // Sem dados cadastrados
+    if (patrimonioTotal === 0) {
+      return {
+        tipo: 'info' as const,
+        icone: Wallet,
+        mensagem: 'Cadastre suas contas de investimento para acompanhar seu patrimônio e receber recomendações personalizadas.'
+      };
+    }
+
+    // Reserva de emergência baixa
+    if (progressoReserva < 50) {
+      return {
+        tipo: 'alerta' as const,
+        icone: Target,
+        mensagem: `Sua reserva de emergência cobre apenas ${progressoReserva.toFixed(0)}% do recomendado. Priorize completar antes de outros investimentos.`
+      };
+    }
+
+    // Exposição alta em cripto
+    if (percCripto > 15) {
+      return {
+        tipo: 'alerta' as const,
+        icone: Bitcoin,
+        mensagem: `Sua exposição em Cripto (${percCripto.toFixed(0)}%) está acima do recomendado (15%). Considere rebalancear para reduzir risco.`
+      };
+    }
+
+    // Concentração muito alta em RF
+    if (percRF > 80) {
+      return {
+        tipo: 'info' as const,
+        icone: Landmark,
+        mensagem: `Alta concentração em Renda Fixa (${percRF.toFixed(0)}%). Avalie diversificar para otimizar retornos de longo prazo.`
+      };
+    }
+
+    // Tudo ok
+    return {
+      tipo: 'sucesso' as const,
+      icone: Sparkles,
+      mensagem: 'Portfólio bem diversificado! Continue acompanhando e fazendo aportes regulares.'
+    };
+  }, [metricas]);
 
   // --- Dados para Gráfico de Evolução ---
   const evolutionData = useMemo(() => {
@@ -338,29 +433,73 @@ export default function Investimentos() {
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
                       <span className="text-muted-foreground">Reserva de Emergência</span>
-                      <span className="text-primary">85%</span>
+                      <span className={cn(
+                        metricas.progressoReserva >= 100 ? "text-success" : 
+                        metricas.progressoReserva >= 50 ? "text-primary" : "text-destructive"
+                      )}>
+                        {metricas.progressoReserva.toFixed(0)}%
+                      </span>
                     </div>
                     <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-                      <div className="h-full bg-primary rounded-full w-[85%]" />
+                      <div 
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          metricas.progressoReserva >= 100 ? "bg-success" : 
+                          metricas.progressoReserva >= 50 ? "bg-primary" : "bg-destructive"
+                        )} 
+                        style={{ width: `${Math.min(100, metricas.progressoReserva)}%` }} 
+                      />
                     </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {formatCurrency(metricas.reservaEmergencia)} de {formatCurrency(metricas.metaReserva)} (6 meses)
+                    </p>
                   </div>
                   
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
                       <span className="text-muted-foreground">Liberdade Financeira</span>
-                      <span className="text-accent">12%</span>
+                      <span className={cn(
+                        metricas.progressoLiberdade >= 100 ? "text-success" : 
+                        metricas.progressoLiberdade >= 30 ? "text-accent" : "text-muted-foreground"
+                      )}>
+                        {metricas.progressoLiberdade.toFixed(0)}%
+                      </span>
                     </div>
                     <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-                      <div className="h-full bg-accent rounded-full w-[12%]" />
+                      <div 
+                        className={cn(
+                          "h-full rounded-full transition-all duration-500",
+                          metricas.progressoLiberdade >= 100 ? "bg-success" : "bg-accent"
+                        )} 
+                        style={{ width: `${Math.min(100, metricas.progressoLiberdade)}%` }} 
+                      />
                     </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Renda passiva: {formatCurrency(metricas.rendimentosPassivos)}/mês
+                    </p>
                   </div>
                 </div>
 
                 <div className="pt-6 border-t border-border/40">
-                  <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex gap-3">
-                    <Zap className="w-5 h-5 text-primary shrink-0" />
-                    <p className="text-[11px] font-bold text-primary-dark leading-tight uppercase">
-                      Sua exposição em Cripto está acima da média recomendada (15%). Considere rebalancear.
+                  <div className={cn(
+                    "p-4 rounded-2xl flex gap-3 border",
+                    recomendacao.tipo === 'sucesso' ? "bg-success/5 border-success/10" :
+                    recomendacao.tipo === 'alerta' ? "bg-destructive/5 border-destructive/10" :
+                    "bg-primary/5 border-primary/10"
+                  )}>
+                    <recomendacao.icone className={cn(
+                      "w-5 h-5 shrink-0",
+                      recomendacao.tipo === 'sucesso' ? "text-success" :
+                      recomendacao.tipo === 'alerta' ? "text-destructive" :
+                      "text-primary"
+                    )} />
+                    <p className={cn(
+                      "text-[11px] font-bold leading-tight",
+                      recomendacao.tipo === 'sucesso' ? "text-success" :
+                      recomendacao.tipo === 'alerta' ? "text-destructive" :
+                      "text-primary-dark"
+                    )}>
+                      {recomendacao.mensagem}
                     </p>
                   </div>
                 </div>

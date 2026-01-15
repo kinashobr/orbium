@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Calculator, RefreshCw, Sparkles, ArrowRight, TrendingDown, Target, Zap, TrendingUp } from "lucide-react";
+import { Calculator, RefreshCw, Sparkles, ArrowRight, TrendingDown, Target, Zap, TrendingUp, ArrowDownRight, Percent, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,7 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
   const [aumentoParcela, setAumentoParcela] = useState("");
   const [valorQuitacao, setValorQuitacao] = useState("");
   const [novaTaxa, setNovaTaxa] = useState("");
+  const [cenarioRefinanciamento, setCenarioRefinanciamento] = useState<'reduzir_parcela' | 'reduzir_prazo'>('reduzir_parcela');
 
   const totalSaldoDevedor = useMemo(() => {
     return emprestimos.reduce((acc, e) => {
@@ -36,6 +37,14 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
   }, [emprestimos, calculateLoanSchedule]);
 
   const parcelaTotal = useMemo(() => emprestimos.reduce((acc, e) => acc + e.parcela, 0), [emprestimos]);
+  
+  const mesesRestantes = useMemo(() => {
+    if (emprestimos.length === 0) return 0;
+    return Math.max(...emprestimos.map(e => {
+      const parcelasPagas = e.parcelasPagas || 0;
+      return e.meses - parcelasPagas;
+    }));
+  }, [emprestimos]);
 
   const taxaMedia = useMemo(() => {
     if (emprestimos.length === 0) return 0;
@@ -80,17 +89,17 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     if (aumento <= 0 || totalSaldoDevedor <= 0) return null;
     const novaParcela = parcelaTotal + aumento;
     const i = taxaMedia / 100;
-    let mesesRestantes = 0, novosMesesRestantes = 0;
+    let mesesRestantesCalc = 0, novosMesesRestantes = 0;
     if (i > 0 && parcelaTotal > 0 && novaParcela > 0) {
         const term1 = (totalSaldoDevedor * i) / parcelaTotal;
-        mesesRestantes = term1 < 1 ? -Math.log(1 - term1) / Math.log(1 + i) : 999;
+        mesesRestantesCalc = term1 < 1 ? -Math.log(1 - term1) / Math.log(1 + i) : 999;
         const term2 = (totalSaldoDevedor * i) / novaParcela;
         novosMesesRestantes = term2 < 1 ? -Math.log(1 - term2) / Math.log(1 + i) : 999;
     } else if (i === 0) {
-        mesesRestantes = totalSaldoDevedor / parcelaTotal;
+        mesesRestantesCalc = totalSaldoDevedor / parcelaTotal;
         novosMesesRestantes = totalSaldoDevedor / novaParcela;
     }
-    return { novaParcela, mesesEconomizados: Math.max(0, mesesRestantes - novosMesesRestantes), jurosEconomizados: Math.max(0, (parcelaTotal * mesesRestantes) - (novaParcela * novosMesesRestantes)) };
+    return { novaParcela, mesesEconomizados: Math.max(0, mesesRestantesCalc - novosMesesRestantes), jurosEconomizados: Math.max(0, (parcelaTotal * mesesRestantesCalc) - (novaParcela * novosMesesRestantes)) };
   }, [aumentoParcela, parcelaTotal, totalSaldoDevedor, taxaMedia]);
 
   const simulacaoQuitacao = useMemo(() => {
@@ -106,6 +115,67 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     return { percentualQuitacao: Math.min(100, (valor / totalSaldoDevedor) * 100), saldoRestante: Math.max(0, totalSaldoDevedor - valor), jurosEconomizados: Math.max(0, jurosRestantesTotal * (valor / totalSaldoDevedor)) };
   }, [valorQuitacao, totalSaldoDevedor, calculateLoanSchedule, emprestimos]);
 
+  // Simulação de Refinanciamento/Portabilidade
+  const simulacaoRefinanciamento = useMemo(() => {
+    const novaTaxaNum = Number(novaTaxa) || 0;
+    if (novaTaxaNum <= 0 || totalSaldoDevedor <= 0 || novaTaxaNum >= taxaMedia) return null;
+    
+    const i = novaTaxaNum / 100;
+    const iAtual = taxaMedia / 100;
+    
+    // Calcular nova parcela mantendo o prazo
+    const calcularParcela = (principal: number, taxa: number, meses: number) => {
+      if (taxa === 0) return principal / meses;
+      return principal * (taxa * Math.pow(1 + taxa, meses)) / (Math.pow(1 + taxa, meses) - 1);
+    };
+    
+    // Cenário 1: Manter prazo, reduzir parcela
+    const novaParcelaReduzida = calcularParcela(totalSaldoDevedor, i, mesesRestantes);
+    const economiaParcelaMensal = parcelaTotal - novaParcelaReduzida;
+    const economiaTotalCenario1 = economiaParcelaMensal * mesesRestantes;
+    
+    // Cenário 2: Manter parcela, reduzir prazo
+    let novosMeses = 0;
+    if (i > 0 && parcelaTotal > 0) {
+      const term = (totalSaldoDevedor * i) / parcelaTotal;
+      if (term < 1) {
+        novosMeses = -Math.log(1 - term) / Math.log(1 + i);
+      }
+    } else if (i === 0) {
+      novosMeses = totalSaldoDevedor / parcelaTotal;
+    }
+    
+    const mesesEconomizados = Math.max(0, mesesRestantes - Math.ceil(novosMeses));
+    
+    // Calcular juros totais em cada cenário
+    const calcularJurosTotais = (principal: number, taxa: number, meses: number) => {
+      const parcela = calcularParcela(principal, taxa, meses);
+      return (parcela * meses) - principal;
+    };
+    
+    const jurosAtual = calcularJurosTotais(totalSaldoDevedor, iAtual, mesesRestantes);
+    const jurosNovoCenario1 = calcularJurosTotais(totalSaldoDevedor, i, mesesRestantes);
+    const jurosNovoCenario2 = calcularJurosTotais(totalSaldoDevedor, i, Math.ceil(novosMeses));
+    
+    const economiaJurosCenario1 = Math.max(0, jurosAtual - jurosNovoCenario1);
+    const economiaJurosCenario2 = Math.max(0, jurosAtual - jurosNovoCenario2);
+    
+    return {
+      taxaAtual: taxaMedia,
+      taxaNova: novaTaxaNum,
+      reducaoTaxa: ((taxaMedia - novaTaxaNum) / taxaMedia) * 100,
+      // Cenário 1: Reduzir parcela
+      novaParcelaReduzida,
+      economiaParcelaMensal,
+      economiaTotalCenario1,
+      economiaJurosCenario1,
+      // Cenário 2: Reduzir prazo
+      mesesEconomizados,
+      novosMeses: Math.ceil(novosMeses),
+      economiaJurosCenario2,
+    };
+  }, [novaTaxa, totalSaldoDevedor, taxaMedia, parcelaTotal, mesesRestantes]);
+
   return (
     <div className={cn("space-y-10", className)}>
       <div className="flex items-center gap-4 px-1">
@@ -113,16 +183,16 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
           <Calculator className="w-6 h-6" />
         </div>
         <div>
-           <h3 className="font-display font-bold text-2xl text-foreground">Laboratório de Crédito</h3>
-           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Simulações de Amortização</p>
+           <h3 className="font-display font-bold text-2xl text-foreground">Simulador de Empréstimos</h3>
+           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Simule amortizações e compare cenários</p>
         </div>
       </div>
 
       <Tabs defaultValue="aumentar" className="space-y-10">
         <TabsList className="bg-muted/30 w-full grid grid-cols-3 p-1.5 rounded-[2rem] h-16 border border-border/40">
-          <TabsTrigger value="aumentar" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all">Aporte</TabsTrigger>
-          <TabsTrigger value="quitar" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all">Quitar</TabsTrigger>
-          <TabsTrigger value="refinanciar" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all">Troca</TabsTrigger>
+          <TabsTrigger value="aumentar" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all">Aporte Extra</TabsTrigger>
+          <TabsTrigger value="quitar" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all">Amortizar</TabsTrigger>
+          <TabsTrigger value="refinanciar" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all">Portabilidade</TabsTrigger>
         </TabsList>
 
         <TabsContent value="aumentar" className="space-y-8 animate-in fade-in duration-500">
@@ -182,13 +252,149 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
         </TabsContent>
 
         <TabsContent value="refinanciar" className="space-y-8 animate-in fade-in duration-500">
-          <div className="p-10 rounded-[2.5rem] bg-muted/20 border-2 border-dashed border-border/60 flex flex-col items-center justify-center text-center">
-             <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
-                <RefreshCw className="w-8 h-8" />
-             </div>
-             <p className="font-bold text-foreground">Funcionalidade em Desenvolvimento</p>
-             <p className="text-xs text-muted-foreground mt-2 max-w-[200px]">Em breve você poderá simular a portabilidade da sua dívida para taxas menores.</p>
+          {/* Situação Atual */}
+          <div className="p-6 rounded-2xl bg-muted/30 border border-border/40 space-y-4">
+            <div className="flex items-center gap-2">
+              <Percent className="w-4 h-4 text-muted-foreground" />
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Situação Atual</span>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase">Taxa Média</p>
+                <p className="font-black text-lg text-foreground">{taxaMedia.toFixed(2)}% a.m.</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase">Parcela Total</p>
+                <p className="font-black text-lg text-foreground">{formatCurrency(parcelaTotal)}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-bold text-muted-foreground uppercase">Meses Restantes</p>
+                <p className="font-black text-lg text-foreground">{mesesRestantes}</p>
+              </div>
+            </div>
           </div>
+
+          {/* Input Nova Taxa */}
+          <div className="space-y-3 px-1">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+               <ArrowDownRight className="w-3 h-3" /> Nova Taxa Mensal (%)
+            </Label>
+            <div className="relative group">
+               <Input 
+                type="number" 
+                step="0.01"
+                placeholder={`< ${taxaMedia.toFixed(2)}`}
+                value={novaTaxa} 
+                onChange={(e) => setNovaTaxa(e.target.value)} 
+                className="h-16 px-6 border-2 border-border/40 rounded-[1.75rem] bg-card font-black text-2xl focus:border-primary/40 focus:ring-4 focus:ring-primary/5 transition-all outline-none" 
+               />
+               <span className="absolute right-6 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/30">%</span>
+            </div>
+            {Number(novaTaxa) > 0 && Number(novaTaxa) >= taxaMedia && (
+              <p className="text-xs text-destructive font-bold px-2">
+                A nova taxa deve ser menor que a taxa atual ({taxaMedia.toFixed(2)}%)
+              </p>
+            )}
+          </div>
+
+          {/* Seletor de Cenário */}
+          {simulacaoRefinanciamento && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setCenarioRefinanciamento('reduzir_parcela')}
+                  className={cn(
+                    "p-4 rounded-2xl border-2 transition-all text-left",
+                    cenarioRefinanciamento === 'reduzir_parcela' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border/40 bg-muted/20 hover:bg-muted/40"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    {cenarioRefinanciamento === 'reduzir_parcela' && (
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                    )}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cenário 1</span>
+                  </div>
+                  <p className="font-bold text-sm text-foreground">Reduzir Parcela</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Mantém o prazo, diminui o valor mensal</p>
+                </button>
+                
+                <button
+                  onClick={() => setCenarioRefinanciamento('reduzir_prazo')}
+                  className={cn(
+                    "p-4 rounded-2xl border-2 transition-all text-left",
+                    cenarioRefinanciamento === 'reduzir_prazo' 
+                      ? "border-primary bg-primary/5" 
+                      : "border-border/40 bg-muted/20 hover:bg-muted/40"
+                  )}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    {cenarioRefinanciamento === 'reduzir_prazo' && (
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                    )}
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cenário 2</span>
+                  </div>
+                  <p className="font-bold text-sm text-foreground">Reduzir Prazo</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Mantém a parcela, termina antes</p>
+                </button>
+              </div>
+
+              {/* Resultado do Cenário Selecionado */}
+              {cenarioRefinanciamento === 'reduzir_parcela' ? (
+                <ResultCard 
+                  title="Economia com Nova Taxa" 
+                  value={`R$ ${simulacaoRefinanciamento.economiaJurosCenario1.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} 
+                  badge={`-${simulacaoRefinanciamento.reducaoTaxa.toFixed(0)}% TAXA`}
+                  labelSub="Nova Parcela"
+                  subtext={formatCurrency(simulacaoRefinanciamento.novaParcelaReduzida)}
+                  icon={TrendingDown}
+                />
+              ) : (
+                <ResultCard 
+                  title="Economia com Nova Taxa" 
+                  value={`R$ ${simulacaoRefinanciamento.economiaJurosCenario2.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} 
+                  badge={`-${simulacaoRefinanciamento.mesesEconomizados} MESES`}
+                  labelSub="Novo Prazo"
+                  subtext={`${simulacaoRefinanciamento.novosMeses} meses`}
+                  icon={Zap}
+                />
+              )}
+
+              {/* Comparativo */}
+              <div className="p-5 rounded-2xl bg-muted/20 border border-border/40 space-y-3">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Comparativo de Cenários</p>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className={cn(
+                    "p-3 rounded-xl",
+                    cenarioRefinanciamento === 'reduzir_parcela' ? "bg-primary/10" : "bg-muted/30"
+                  )}>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">Reduzir Parcela</p>
+                    <p className="font-black text-success">-{formatCurrency(simulacaoRefinanciamento.economiaParcelaMensal)}/mês</p>
+                  </div>
+                  <div className={cn(
+                    "p-3 rounded-xl",
+                    cenarioRefinanciamento === 'reduzir_prazo' ? "bg-primary/10" : "bg-muted/30"
+                  )}>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase mb-1">Reduzir Prazo</p>
+                    <p className="font-black text-success">-{simulacaoRefinanciamento.mesesEconomizados} meses</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {!simulacaoRefinanciamento && !novaTaxa && (
+            <div className="p-10 rounded-[2.5rem] bg-muted/20 border-2 border-dashed border-border/60 flex flex-col items-center justify-center text-center">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-4">
+                <RefreshCw className="w-8 h-8" />
+              </div>
+              <p className="font-bold text-foreground">Simular Portabilidade</p>
+              <p className="text-xs text-muted-foreground mt-2 max-w-[250px]">
+                Insira uma taxa menor que a atual para comparar cenários de refinanciamento.
+              </p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

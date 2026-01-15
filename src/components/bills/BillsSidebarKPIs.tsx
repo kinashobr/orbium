@@ -80,10 +80,10 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
   };
 
   return (
-    <div className="flex flex-col h-full space-y-8">
+    <div className="flex flex-col h-full space-y-8 bg-transparent">
       {/* Saldo Projetado - O Grande KPI */}
       <div className="space-y-2">
-        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Saldo Final Projetado</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Saldo Previsto no Final do Mês</p>
         <div className={cn(
           "p-6 rounded-[2.5rem] border-2 transition-all",
           calculos.projectedBalance >= 0 ? "bg-success/5 border-success/20" : "bg-destructive/5 border-destructive/20"
@@ -96,20 +96,20 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
           </p>
           <div className="flex items-center gap-1.5 mt-2">
             <Calculator className="w-3.5 h-3.5 opacity-40" />
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cálculo de Fluxo</span>
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Projeção de Caixa</span>
           </div>
         </div>
       </div>
 
       <div className="space-y-6">
         {/* Caixa Inicial */}
-        <div className="flex items-center justify-between px-1">
+        <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground">
+            <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
               <Wallet className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Caixa Inicial</p>
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Saldo Inicial do Mês</p>
               <p className="text-sm font-black text-foreground">{formatCurrency(calculos.initialBalance)}</p>
             </div>
           </div>
@@ -120,7 +120,7 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-success" />
-              <Label className="text-[10px] font-black uppercase tracking-widest text-foreground">Prev. Entradas</Label>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-foreground">Previsão de Receitas</Label>
             </div>
             <button onClick={handleSuggest} className="text-[9px] font-black text-primary hover:underline flex items-center gap-1">
               <RefreshCw className="w-3 h-3" /> SUGERIR
@@ -132,7 +132,7 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
               value={forecastInput}
               onChange={(e) => setForecastInput(e.target.value)}
               onBlur={handleBlur}
-              className="h-12 pl-4 pr-10 text-lg font-black border-2 rounded-xl bg-background focus:border-primary/50 transition-all"
+              className="h-12 pl-4 pr-10 text-lg font-black border-2 rounded-xl bg-card dark:bg-white/5 dark:border-white/10 focus:border-success/50 transition-all"
             />
             <ArrowUpRight className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-success/40 group-focus-within:text-success transition-colors" />
           </div>
@@ -144,16 +144,16 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
         <div className="space-y-4">
           <div className="flex items-center gap-2 px-1">
             <TrendingDown className="w-4 h-4 text-destructive" />
-            <Label className="text-[10px] font-black uppercase tracking-widest text-foreground">Compromissos</Label>
+            <Label className="text-[10px] font-black uppercase tracking-widest text-foreground">Contas a Pagar</Label>
           </div>
           
-          <div className="space-y-3">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-bold text-muted-foreground">Pendentes + Cartão</span>
+          <div className="space-y-3 p-4 rounded-2xl bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-muted-foreground">Pendentes + Faturas</span>
               <span className="text-sm font-black text-destructive">{formatCurrency(totalPendingBills)}</span>
             </div>
-            <div className="flex items-center justify-between px-1">
-              <span className="text-xs font-bold text-muted-foreground">Já Pago (Débito)</span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-muted-foreground">Já Pago no Período</span>
               <span className="text-sm font-black text-success">{formatCurrency(totalPaidBills)}</span>
             </div>
           </div>

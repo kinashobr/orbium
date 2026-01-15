@@ -182,42 +182,50 @@ export function AllInstallmentsReviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,64rem)] h-[min(90vh,900px)] flex flex-col">
+      <DialogContent className="max-w-[min(95vw,64rem)] h-[min(90vh,900px)] flex flex-col p-4 sm:p-6">
         <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
             <ListChecks className="w-5 h-5 text-primary" />
             Revisão de Parcelas Fixas
           </DialogTitle>
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-            <TabsList className="bg-muted/50 shrink-0">
-                <TabsTrigger value="loan" className="gap-2">
+            <TabsList className="bg-muted/50 shrink-0 h-auto p-1 flex-wrap">
+                <TabsTrigger value="loan" className="gap-1 sm:gap-2 text-xs sm:text-sm h-10 px-3 sm:px-4">
                     <Building2 className="w-4 h-4" />
-                    Empréstimos ({loanInstallments.length})
+                    <span className="hidden sm:inline">Empréstimos</span>
+                    <span className="sm:hidden">Empr.</span>
+                    ({loanInstallments.length})
                 </TabsTrigger>
-                <TabsTrigger value="insurance" className="gap-2">
+                <TabsTrigger value="insurance" className="gap-1 sm:gap-2 text-xs sm:text-sm h-10 px-3 sm:px-4">
                     <Shield className="w-4 h-4" />
-                    Seguros ({insuranceInstallments.length})
+                    <span className="hidden sm:inline">Seguros</span>
+                    <span className="sm:hidden">Seg.</span>
+                    ({insuranceInstallments.length})
                 </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="loan" className="flex-1 pt-4 min-h-0">
-                <InstallmentTable 
-                    installments={loanInstallments}
-                    referenceDate={referenceDate}
-                    onToggle={handleToggle}
-                    type="loan"
-                />
+            <TabsContent value="loan" className="flex-1 pt-4 min-h-0 overflow-hidden">
+                <div className="h-full overflow-x-auto">
+                    <InstallmentTable 
+                        installments={loanInstallments}
+                        referenceDate={referenceDate}
+                        onToggle={handleToggle}
+                        type="loan"
+                    />
+                </div>
             </TabsContent>
             
-            <TabsContent value="insurance" className="flex-1 pt-4 min-h-0">
-                <InstallmentTable 
-                    installments={insuranceInstallments}
-                    referenceDate={referenceDate}
-                    onToggle={handleToggle}
-                    type="insurance"
-                />
+            <TabsContent value="insurance" className="flex-1 pt-4 min-h-0 overflow-hidden">
+                <div className="h-full overflow-x-auto">
+                    <InstallmentTable 
+                        installments={insuranceInstallments}
+                        referenceDate={referenceDate}
+                        onToggle={handleToggle}
+                        type="insurance"
+                    />
+                </div>
             </TabsContent>
         </Tabs>
       </DialogContent>

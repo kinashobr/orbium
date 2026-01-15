@@ -31,9 +31,9 @@ export function FixedBillSelectorModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,52rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2rem] sm:rounded-[3rem] border-none shadow-2xl flex flex-col z-[130]">
+      <DialogContent className="max-w-[min(95vw,52rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2rem] sm:rounded-[3rem] border-none shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]">
         <DialogHeader className={cn(
-          "px-6 sm:px-8 pt-8 sm:pt-10 pb-6 shrink-0 relative",
+          "px-6 sm:px-8 pt-8 sm:pt-10 pb-6 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5",
           isCurrent ? "bg-primary/5" : "bg-accent/5"
         )}>
           <div className="flex items-center gap-4 sm:gap-5">
@@ -81,7 +81,7 @@ export function FixedBillSelectorModal({
                     key={bill.key}
                     onClick={() => onToggleFixedBill(bill, !bill.isIncluded)}
                     className={cn(
-                      "p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border-2 text-left transition-all group relative overflow-hidden",
+                      "p-4 sm:p-5 rounded-[1.5rem] sm:rounded-[2rem] border-2 text-left transition-all group relative overflow-hidden dark:border-white/10",
                       bill.isIncluded 
                         ? "bg-primary/10 border-primary shadow-lg shadow-primary/5 scale-[1.02]" 
                         : "bg-card border-border/40 hover:border-primary/30 hover:bg-muted/20"
@@ -134,7 +134,7 @@ export function FixedBillSelectorModal({
           )}
         </ScrollArea>
 
-        <div className="p-6 sm:p-8 bg-surface-light dark:bg-surface-dark border-t shrink-0">
+        <div className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0">
           <Button 
             onClick={() => onOpenChange(false)}
             className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-sm sm:text-base shadow-xl shadow-primary/10"

@@ -71,10 +71,10 @@ export function CategoryFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,28rem)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-background z-[130]">
-        <DialogHeader className="px-8 pt-8 pb-6 bg-primary/5 shrink-0">
+      <DialogContent className="max-w-[min(95vw,28rem)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] z-[130]">
+        <DialogHeader className="px-8 pt-8 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
               <Sparkles className="w-7 h-7" />
             </div>
             <div>
@@ -95,7 +95,7 @@ export function CategoryFormModal({
               placeholder="Ex: Alimentação"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
-              className="h-12 border-2 rounded-2xl bg-card font-bold"
+              className="h-12 border-2 dark:border-white/10 rounded-2xl bg-card dark:bg-white/5 font-bold"
             />
           </div>
 
@@ -126,14 +126,14 @@ export function CategoryFormModal({
 
           <div className="space-y-4">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Ícone (Emoji)</Label>
-            <div className="p-4 rounded-3xl bg-muted/20 border border-border/40 grid grid-cols-6 gap-2">
+            <div className="p-4 rounded-3xl bg-muted/20 dark:bg-white/5 border border-border/40 dark:border-white/5 grid grid-cols-5 sm:grid-cols-6 gap-2">
               {(EMOJI_BY_CATEGORY[nature] || EMOJI_BY_CATEGORY.despesa_variavel).map(emoji => (
                 <button
                   key={emoji}
                   onClick={() => setIcon(emoji)}
                   className={cn(
-                    "w-10 h-10 flex items-center justify-center text-xl rounded-xl transition-all",
-                    icon === emoji ? "bg-primary shadow-lg scale-110" : "hover:bg-card"
+                    "w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center text-xl rounded-xl transition-all active:scale-95",
+                    icon === emoji ? "bg-primary shadow-lg scale-110" : "hover:bg-card active:bg-card"
                   )}
                 >
                   {emoji}
@@ -143,8 +143,8 @@ export function CategoryFormModal({
           </div>
         </div>
 
-        <DialogFooter className="p-8 bg-muted/10 border-t flex gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground">
+        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground w-full sm:w-auto">
             Cancelar
           </Button>
           <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">

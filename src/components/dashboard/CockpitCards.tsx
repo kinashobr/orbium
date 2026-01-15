@@ -49,11 +49,11 @@ export function CockpitCards({ data }: CockpitCardsProps) {
               <div className="flex flex-col h-full justify-between z-10">
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Liquidez</p>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Capital Disponível</p>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
                   </div>
                   <p className="font-display font-bold text-3xl text-foreground">R$ {formatCompact(data.liquidezImediata)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Disponível agora</p>
+                  <p className="text-xs text-muted-foreground mt-1">Dinheiro livre para usar</p>
                 </div>
                 <div className="flex items-center gap-2 mt-auto">
                   <span className={cn(
@@ -64,7 +64,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                     "text-xs font-bold",
                     data.liquidezImediata > 0 ? "text-primary" : "text-muted-foreground"
                   )}>
-                    {data.liquidezImediata > 0 ? "Saldo operante" : "Sem saldo"}
+                    {data.liquidezImediata > 0 ? "Com saldo" : "Zerado"}
                   </span>
                 </div>
               </div>
@@ -94,7 +94,8 @@ export function CockpitCards({ data }: CockpitCardsProps) {
           </TooltipTrigger>
           <TooltipContent className="max-w-[250px] p-3 rounded-2xl border-border shadow-xl">
             <p className="text-xs leading-relaxed">
-              <strong>Composição da Liquidez:</strong> Soma dos saldos em Contas Correntes, Poupança, Reserva e Renda Fixa. Representa o capital que você pode resgatar ou utilizar imediatamente.
+              <strong>O que é:</strong> Soma de todo dinheiro disponível em contas correntes, poupança, reserva e aplicações de fácil resgate.<br/><br/>
+              <strong>Para que serve:</strong> Mostra quanto você tem de dinheiro acessível para usar quando precisar.
             </p>
           </TooltipContent>
         </Tooltip>
@@ -106,11 +107,11 @@ export function CockpitCards({ data }: CockpitCardsProps) {
               <div className="flex flex-col h-full justify-between z-10">
                 <div>
                   <div className="flex items-center gap-1.5 mb-1">
-                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Compromissos</p>
+                    <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Contas do Mês</p>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
                   </div>
                   <p className="font-display font-bold text-3xl text-foreground">R$ {formatCompact(data.compromissosMes)}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Provisionado no mês</p>
+                  <p className="text-xs text-muted-foreground mt-1">Valor comprometido</p>
                 </div>
                 <div className="flex items-center gap-2 mt-auto">
                   <span className={cn(
@@ -124,7 +125,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                     data.compromissosPercent <= 70 ? "text-green-600" : "text-red-600"
                   )}>
                     {data.totalAtivos === 0 ? "Sem movimentação" :
-                    data.compromissosPercent <= 70 ? "Saúde: Estável" : "Saúde: Alerta"}
+                    data.compromissosPercent <= 70 ? "Situação: OK" : "Situação: Atenção"}
                   </span>
                 </div>
               </div>
@@ -158,7 +159,8 @@ export function CockpitCards({ data }: CockpitCardsProps) {
           </TooltipTrigger>
           <TooltipContent className="max-w-[250px] p-3 rounded-2xl border-border shadow-xl">
             <p className="text-xs leading-relaxed">
-              <strong>Compromissos:</strong> Soma de todas as despesas pendentes do mês (Contas a Pagar) mais o saldo devedor atual de todos os seus Cartões de Crédito.
+              <strong>O que é:</strong> Total de saídas do período, incluindo contas pagas, faturas de cartão e parcelas.<br/><br/>
+              <strong>Para que serve:</strong> Mostra quanto você está gastando ou comprometendo da sua renda.
             </p>
           </TooltipContent>
         </Tooltip>

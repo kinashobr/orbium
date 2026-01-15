@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { FixedBillSelectorModal } from "@/components/bills/FixedBillSelectorModal";
 import { BillsTrackerList } from "@/components/bills/BillsTrackerList";
 import { BillsSidebarKPIs } from "@/components/bills/BillsSidebarKPIs";
@@ -70,7 +71,8 @@ export default function BillsTracker() {
   }, [setBillsTracker, contasMovimento, categoriasV2]);
 
   return (
-    <div className="container mx-auto p-3 md:p-6 space-y-4 md:space-y-6">
+    <MainLayout>
+    <div className="space-y-4 md:space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl md:text-3xl font-bold">Contas a Pagar</h1>
@@ -90,7 +92,7 @@ export default function BillsTracker() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-1 space-y-6 p-6 rounded-2xl bg-card dark:bg-[hsl(24_8%_10%)] border border-border/40 dark:border-white/5">
           <BillsSidebarKPIs 
             currentDate={currentDate}
             totalPendingBills={combinedBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)}
@@ -99,7 +101,7 @@ export default function BillsTracker() {
         </div>
 
         <div className="lg:col-span-3 space-y-4">
-          <div className="flex items-center justify-center gap-4 bg-card p-4 rounded-xl border">
+          <div className="flex items-center justify-center gap-4 bg-card dark:bg-[hsl(24_8%_14%)] p-4 rounded-xl border dark:border-white/5">
             <Button variant="ghost" size="icon" onClick={() => setCurrentDate(prev => subMonths(prev, 1))}>
               <ChevronLeft className="w-5 h-5" />
             </Button>
@@ -146,5 +148,6 @@ export default function BillsTracker() {
         currentDate={currentDate}
       />
     </div>
+    </MainLayout>
   );
 }

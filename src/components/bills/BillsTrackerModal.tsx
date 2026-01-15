@@ -402,38 +402,38 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             minWidth={1000}
             minHeight={700}
             hideCloseButton={true}
-            className="rounded-[3rem] bg-background border-none shadow-2xl p-0 overflow-hidden"
+            className="rounded-[3rem] bg-card border-none shadow-2xl p-0 overflow-hidden"
           >
             <div className="modal-viewport">
-              <DialogHeader className="px-10 pt-10 pb-6 bg-background shrink-0">
+              <DialogHeader className="px-10 pt-10 pb-6 bg-card shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-5">
-                    <div className="w-16 h-16 rounded-[1.5rem] bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
+                    <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
                       <CalendarCheck className="w-8 h-8" />
                     </div>
                     <div>
                       <DialogTitle className="text-3xl font-black tracking-tighter">Contas a Pagar</DialogTitle>
                       <p className="text-sm font-bold text-muted-foreground flex items-center gap-2 mt-1 uppercase tracking-wider">
-                        <Zap className="w-4 h-4 text-accent" />
+                        <Zap className="w-4 h-4 text-primary" />
                         Planejamento e Execução de Fluxo
                       </p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-black/5 transition-colors" onClick={() => onOpenChange(false)}>
+                  <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-muted transition-colors" onClick={() => onOpenChange(false)}>
                     <X className="w-6 h-6" />
                   </Button>
                 </div>
               </DialogHeader>
 
               <div className="flex flex-1 overflow-hidden">
-                <div className="w-[280px] shrink-0 border-r border-border/40 bg-surface-light dark:bg-surface-dark p-8">
+                <div className="w-[280px] shrink-0 border-r border-border/40 bg-muted/50 p-8">
                   <BillsSidebarKPIs
                     currentDate={currentDate}
                     totalPendingBills={totalUnpaidBills}
                     totalPaidBills={totalPaidBills}
                   />
                 </div>
-                <div className="flex-1 p-8 overflow-hidden bg-background">
+                <div className="flex-1 p-8 overflow-hidden bg-card">
                   {renderDesktopContent()}
                 </div>
               </div>

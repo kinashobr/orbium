@@ -27,10 +27,13 @@ import {
   PotentialFixedBill,
   ExternalPaidBill,
   BillDisplayItem,
-  Imovel, // Importado
-  Terreno, // Importado
-  generateImovelId, // Importado
-  generateTerrenoId, // Importado
+  Imovel,
+  Terreno,
+  generateImovelId,
+  generateTerrenoId,
+  MetaPersonalizada,
+  MetaProgresso,
+  generateMetaId,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
@@ -387,6 +390,13 @@ interface FinanceContextType {
   calculateTotalInvestmentBalanceAtDate: (date: Date | undefined) => number;
   calculatePaidInstallmentsUpToDate: (loanId: number, targetDate: Date) => number; 
 
+  // Metas Personalizadas
+  metasPersonalizadas: MetaPersonalizada[];
+  addMetaPersonalizada: (meta: MetaPersonalizada) => void;
+  updateMetaPersonalizada: (id: string, updates: Partial<MetaPersonalizada>) => void;
+  deleteMetaPersonalizada: (id: string) => void;
+  calcularProgressoMeta: (meta: MetaPersonalizada) => MetaProgresso;
+
   // Exportação e Importação
   exportData: () => void;
   importData: (file: File) => Promise<{ success: boolean; message: string }>;
@@ -408,8 +418,9 @@ const STORAGE_KEYS = {
   DATE_RANGES: "fin_date_ranges_v1",
   ALERT_START_DATE: "fin_alert_start_date_v1",
   REVENUE_FORECASTS: "fin_revenue_forecasts_v1",
-  IMOVEIS: "neon_finance_imoveis", // NOVO
-  TERRENOS: "neon_finance_terrenos", // NOVO
+  IMOVEIS: "neon_finance_imoveis",
+  TERRENOS: "neon_finance_terrenos",
+  METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
 };
 
 const initialEmprestimos: Emprestimo[] = [];
@@ -419,8 +430,9 @@ const initialObjetivos: ObjetivoFinanceiro[] = [];
 const initialBillsTracker: BillTracker[] = [];
 const initialStandardizationRules: StandardizationRule[] = [];
 const initialImportedStatements: ImportedStatement[] = [];
-const initialImoveis: Imovel[] = []; // NOVO
-const initialTerrenos: Terreno[] = []; // NOVO
+const initialImoveis: Imovel[] = [];
+const initialTerrenos: Terreno[] = [];
+const initialMetasPersonalizadas: MetaPersonalizada[] = [];
 
 const defaultAlertStartDate = subMonths(new Date(), 6).toISOString().split('T')[0];
 
@@ -478,11 +490,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(() => loadFromStorage(STORAGE_KEYS.DATE_RANGES, DEFAULT_RANGES));
   const [alertStartDate, setAlertStartDate] = useState<string>(() => loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate));
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
+  const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
 
   useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); }, [imoveis]); // NOVO
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); }, [terrenos]); // NOVO
+  useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); }, [imoveis]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); }, [terrenos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); }, [billsTracker]);
@@ -494,6 +507,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); }, [metasPersonalizadas]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -1050,11 +1064,92 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setBillsTracker(prev => prev.filter(b => b.id !== id));
   }, []);
 
+  // Metas Personalizadas CRUD
+  const addMetaPersonalizada = useCallback((meta: MetaPersonalizada) => {
+    setMetasPersonalizadas(prev => [...prev, meta]);
+  }, []);
+
+  const updateMetaPersonalizada = useCallback((id: string, updates: Partial<MetaPersonalizada>) => {
+    setMetasPersonalizadas(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+  }, []);
+
+  const deleteMetaPersonalizada = useCallback((id: string) => {
+    setMetasPersonalizadas(prev => prev.filter(m => m.id !== id));
+  }, []);
+
+  const calcularProgressoMeta = useCallback((meta: MetaPersonalizada): MetaProgresso => {
+    const now = new Date();
+    let valorAtual = 0;
+    
+    // Determinar período de análise
+    let txsPeriodo = transacoesV2;
+    if (meta.periodoAvaliacao === 'mensal') {
+      txsPeriodo = transacoesV2.filter(t => isSameMonth(parseDateLocal(t.date), now));
+    } else if (meta.periodoAvaliacao === 'trimestral') {
+      const threeMonthsAgo = subMonths(now, 3);
+      txsPeriodo = transacoesV2.filter(t => {
+        const txDate = parseDateLocal(t.date);
+        return txDate >= threeMonthsAgo && txDate <= now;
+      });
+    } else if (meta.periodoAvaliacao === 'anual') {
+      txsPeriodo = transacoesV2.filter(t => isSameYear(parseDateLocal(t.date), now));
+    }
+
+    // Calcular valor atual baseado na métrica
+    switch (meta.metrica) {
+      case 'receita':
+        valorAtual = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
+        break;
+      case 'despesa':
+        valorAtual = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0);
+        break;
+      case 'investimento':
+        valorAtual = txsPeriodo.filter(t => t.operationType === 'aplicacao').reduce((a, t) => a + t.amount, 0);
+        break;
+      case 'saldo':
+        valorAtual = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva'].includes(c.accountType)).reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0);
+        break;
+      case 'patrimonio':
+        valorAtual = getAtivosTotal(now) - getPassivosTotal(now);
+        break;
+      case 'categoria_especifica':
+        if (meta.categoriaId) {
+          valorAtual = txsPeriodo.filter(t => t.categoryId === meta.categoriaId).reduce((a, t) => a + t.amount, 0);
+        }
+        break;
+    }
+
+    // Para economia, calcular percentual
+    if (meta.tipo === 'economia') {
+      const receitas = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
+      const despesas = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0);
+      valorAtual = receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0;
+    }
+
+    // Calcular percentual de progresso
+    let percentual = meta.valorAlvo > 0 ? (valorAtual / meta.valorAlvo) * 100 : 0;
+    percentual = Math.min(percentual, 200); // Cap at 200%
+
+    // Determinar status
+    let status: 'sucesso' | 'alerta' | 'perigo' | 'neutro' = 'neutro';
+    if (meta.logica === 'maior_melhor') {
+      if (percentual >= 100) status = 'sucesso';
+      else if (percentual >= 70) status = 'alerta';
+      else status = 'perigo';
+    } else { // menor_melhor
+      if (percentual <= 80) status = 'sucesso';
+      else if (percentual <= 100) status = 'alerta';
+      else status = 'perigo';
+    }
+
+    return { valorAtual, percentual, status };
+  }, [transacoesV2, contasMovimento, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal]);
+
   const value = {
     emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo: (id: number) => setEmprestimos(p => p.filter(e => e.id !== id)), getPendingLoans: () => emprestimos.filter(e => e.status === 'pendente_config'), markLoanParcelPaid, unmarkLoanParcelPaid, calculateLoanSchedule, calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths,
     veiculos, addVeiculo, updateVeiculo: (id: number, u: any) => setVeiculos(p => p.map(v => v.id === id ? { ...v, ...u } : v)), deleteVeiculo: (id: number) => setVeiculos(p => p.filter(v => v.id !== id)), getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro'),
-    imoveis, addImovel, updateImovel, deleteImovel, // NOVO
-    terrenos, addTerreno, updateTerreno, deleteTerreno, // NOVO
+    imoveis, addImovel, updateImovel, deleteImovel,
+    terrenos, addTerreno, updateTerreno, deleteTerreno,
     segurosVeiculo, addSeguroVeiculo: (s: any) => setSegurosVeiculo(p => [...p, { ...s, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), markSeguroParcelPaid, unmarkSeguroParcelPaid,
     objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
     billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth,
@@ -1068,7 +1163,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getTotalDividas: () => emprestimos.reduce((a, e) => a + e.valorTotal, 0), getCustoVeiculos: () => veiculos.filter(v => v.status !== 'vendido').reduce((a, v) => a + v.valorSeguro, 0), getSaldoAtual: () => contasMovimento.reduce((a, c) => a + calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento), 0),
     getValorFipeTotal, getValorImoveisTerrenos, getSaldoDevedor: (d?: Date) => getLoanPrincipalRemaining(d) + getCreditCardDebt(d), getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais, getDespesasFixas,
     getPatrimonioLiquido: (d?: Date) => getAtivosTotal(d) - getPassivosTotal(d), getAtivosTotal, getPassivosTotal, getSegurosAApropriar, getSegurosAPagar,
-    calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate, exportData, importData,
+    calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate,
+    metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
+    exportData, importData,
   };
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

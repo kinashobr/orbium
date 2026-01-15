@@ -52,7 +52,7 @@ export function TransacoesRecentes({ transacoes, limit = 8 }: TransacoesRecentes
     <TooltipProvider>
       <div className="glass-card p-5 animate-fade-in-up">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">Transações Recentes</h3>
+          <h3 className="text-lg font-semibold text-foreground">Últimos Lançamentos</h3>
           <Button 
             variant="ghost" 
             size="sm" 

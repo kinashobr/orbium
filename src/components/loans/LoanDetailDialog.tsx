@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import {
   Dialog,
+  DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -60,6 +62,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
   const colors = useChartColors(); 
+  const isMobile = useMediaQuery("(max-width: 768px)");
   
   const targetDate = dateRanges.range1.to;
 
@@ -151,18 +154,24 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
     setIsEditing(false);
   };
 
+  // Renderiza DialogContent padrão no mobile, ResizableDialogContent no desktop
+  const ContentWrapper = isMobile ? DialogContent : ResizableDialogContent;
+  const contentProps = isMobile 
+    ? { className: "max-w-[min(95vw,100%)] max-h-[95vh] bg-card border-border overflow-hidden flex flex-col p-0" }
+    : {
+        storageKey: "loan_detail_modal",
+        initialWidth: 1100,
+        initialHeight: 850,
+        minWidth: 800,
+        minHeight: 600,
+        hideCloseButton: true,
+        className: "bg-card border-border overflow-hidden flex flex-col p-0"
+      };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <ResizableDialogContent 
-        storageKey="loan_detail_modal"
-        initialWidth={1100}
-        initialHeight={850}
-        minWidth={800}
-        minHeight={600}
-        hideCloseButton={true}
-        className="bg-card border-border overflow-hidden flex flex-col p-0"
-      >
-        <DialogHeader className="p-6 pb-4 border-b bg-muted/20">
+      <ContentWrapper {...contentProps}>
+        <DialogHeader className="p-4 sm:p-6 pb-4 border-b bg-muted/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-2xl bg-primary/10 text-primary shadow-inner">
@@ -447,7 +456,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
             </div>
           </Tabs>
         )}
-      </ResizableDialogContent>
+      </ContentWrapper>
     </Dialog>
   );
 }

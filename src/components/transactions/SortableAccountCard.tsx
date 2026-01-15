@@ -43,7 +43,8 @@ export function SortableAccountCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "shrink-0 transition-transform duration-300 ease-out", 
+        "shrink-0 transition-all duration-300 ease-out",
+        "animate-fade-in",
         isDragging && "scale-[1.05] shadow-2xl"
       )}
       {...attributes}

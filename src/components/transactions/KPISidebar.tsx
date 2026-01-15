@@ -41,11 +41,11 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
           <div className="p-2 rounded-xl bg-primary/10 text-primary">
             <BarChart3 className="w-4 h-4" />
           </div>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Visão Período</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Resumo do Período</p>
         </div>
         
         <div className="space-y-1">
-          <h4 className="text-sm font-bold text-muted-foreground">Saldo do Fluxo</h4>
+          <h4 className="text-sm font-bold text-muted-foreground">Resultado do Período</h4>
           <p className={cn(
             "text-4xl font-black tabular-nums tracking-tight",
             isPositive ? "text-green-600" : "text-red-600"
@@ -58,14 +58,14 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
           <div className="p-3 rounded-2xl bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/20">
             <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-1">
               <ArrowUpRight className="w-3 h-3" />
-              <span className="text-[10px] font-bold uppercase">Entradas</span>
+              <span className="text-[10px] font-bold uppercase">Receitas</span>
             </div>
             <p className="font-bold text-sm tabular-nums">{formatCurrency(totalReceitas)}</p>
           </div>
           <div className="p-3 rounded-2xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20">
             <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-1">
               <ArrowDownRight className="w-3 h-3" />
-              <span className="text-[10px] font-bold uppercase">Saídas</span>
+              <span className="text-[10px] font-bold uppercase">Despesas</span>
             </div>
             <p className="font-bold text-sm tabular-nums">{formatCurrency(totalDespesas)}</p>
           </div>
@@ -77,7 +77,7 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PiggyBank className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">Poupança</span>
+            <span className="text-sm font-bold text-foreground">Taxa de Economia</span>
           </div>
           <Badge className={cn(
             "text-[10px] font-black border-none px-2 py-0.5 rounded-lg",
@@ -95,7 +95,7 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
       {/* Top Categorias - Estilo Dashboard */}
       <div className="space-y-4 pt-4 border-t border-border/40">
         <h5 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-          <TrendingDown className="w-3.5 h-3.5" /> Maiores Gastos
+          <TrendingDown className="w-3.5 h-3.5" /> Principais Gastos
         </h5>
         <div className="space-y-3">
           {topDespesas.map((cat, idx) => (

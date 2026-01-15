@@ -92,7 +92,7 @@
 
   .dark,
   .theme-dark-neon {
-    /* Dark theme - Warm dark */
+    /* Dark theme - Warm dark com hierarquia visual aprimorada */
     --md-sys-color-primary: 26 72% 42%; /* #C07638 - Warm Mocha (mantido) */
     --md-sys-color-on-primary: 0 0% 100%;
     --md-sys-color-primary-container: 26 40% 22%;
@@ -103,13 +103,15 @@
     --md-sys-color-secondary-container: 26 28% 20%;
     --md-sys-color-on-secondary-container: 32 30% 92%;
 
-    --md-sys-color-surface: 24 11% 9%;  /* #1C1917 - Warm dark background */
+    /* Superfícies com hierarquia clara para dark mode */
+    --md-sys-color-surface: 24 11% 8%;  /* #151311 - Background mais escuro */
     --md-sys-color-on-surface: 30 9% 90%; /* #E7E5E4 - Light text */
-    --md-sys-color-surface-variant: 24 9% 18%; /* #292524 - Surface dark */
+    --md-sys-color-surface-variant: 24 9% 14%; /* #252220 - Cards intermediários */
+    --md-sys-color-surface-elevated: 24 8% 16%; /* #2A2724 - Modais destacados */
     --md-sys-color-on-surface-variant: 27 9% 70%;
 
     --md-sys-color-outline: 24 8% 35%;
-    --md-sys-color-outline-variant: 24 11% 25%; /* Neutral surface dark */
+    --md-sys-color-outline-variant: 24 11% 22%; /* Neutral surface dark */
 
     --md-sys-color-error: 0 91% 71%;
     --md-sys-color-on-error: 0 0% 0%;
@@ -122,10 +124,11 @@
     --background: var(--md-sys-color-surface);
     --foreground: var(--md-sys-color-on-surface);
 
-    --card: var(--md-sys-color-surface-variant); /* Dark surface for cards */
+    /* Card mais claro que background para criar contraste */
+    --card: 24 9% 14%; /* Levemente mais claro que surface */
     --card-foreground: var(--md-sys-color-on-surface);
 
-    --popover: var(--md-sys-color-surface);
+    --popover: var(--md-sys-color-surface-elevated);
     --popover-foreground: var(--md-sys-color-on-surface);
 
     --primary: var(--md-sys-color-primary);
@@ -134,7 +137,8 @@
     --secondary: var(--md-sys-color-secondary);
     --secondary-foreground: var(--md-sys-color-on-secondary);
 
-    --muted: var(--md-sys-color-surface-variant);
+    /* Muted mais escuro para criar contraste com card */
+    --muted: 24 10% 11%; /* Mais escuro que card */
     --muted-foreground: var(--md-sys-color-on-surface-variant);
 
     --accent: var(--md-sys-color-secondary);
@@ -208,12 +212,11 @@
   }
 
   .glass-card {
-    /* Novo estilo de card Expressivo */
-    @apply bg-card/90 backdrop-blur-2xl border border-border/40 rounded-[var(--radius)];
+    /* Novo estilo de card Expressivo - cores sólidas para evitar problemas de mistura */
+    @apply bg-card border border-border/40 rounded-[var(--radius)];
     box-shadow:
-      0 12px 40px -12px hsl(var(--primary) / 0.15),
-      0 4px 12px -4px hsl(var(--foreground) / 0.05),
-      inset 0 1px 0 hsl(var(--card) / 0.6);
+      0 12px 40px -12px hsl(var(--foreground) / 0.08),
+      0 4px 12px -4px hsl(var(--foreground) / 0.04);
   }
 
   .stat-card-positive { border-left: 1px solid hsl(var(--success)); }
@@ -242,9 +245,52 @@
   .sidebar-collapse-btn { color: hsl(var(--sidebar-muted)); background-color: hsl(var(--sidebar-accent) / 0.5); }
   .sidebar-collapse-btn:hover { color: hsl(var(--sidebar-foreground)); background-color: hsl(var(--sidebar-accent)); }
   .sidebar-tooltip { background-color: hsl(var(--popover)); color: hsl(var(--popover-foreground)); border: 1px solid hsl(var(--border)); }
+
+  /* ==================== CARD UTILITIES - DESIGN SYSTEM ==================== */
+  .card-surface {
+    @apply bg-card rounded-card p-6 shadow-soft border border-border/40;
+  }
+
+  .card-hero {
+    @apply bg-card rounded-card-lg p-8 shadow-soft-lg border border-white/60 dark:border-white/5;
+  }
+
+  .card-interactive {
+    @apply bg-card rounded-card p-6 shadow-soft border border-border/40 
+           hover:-translate-y-1 hover:shadow-soft-lg transition-all duration-300 cursor-pointer;
+  }
+
+  .card-glass {
+    @apply bg-card rounded-card border border-border/40 shadow-soft;
+  }
 }
 
 @layer utilities {
+  /* Material Expressive 3 Scrollbar */
+  .scrollbar-material {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.4) hsl(var(--muted) / 0.4);
+  }
+  .scrollbar-material::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-material::-webkit-scrollbar-track {
+    background: hsl(var(--muted) / 0.3);
+    border-radius: 9999px;
+  }
+  .scrollbar-material::-webkit-scrollbar-thumb {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.5), hsl(var(--primary) / 0.3));
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    transition: background 0.2s ease;
+  }
+  .scrollbar-material::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.7), hsl(var(--primary) / 0.5));
+    background-clip: padding-box;
+  }
+
   .scrollbar-thin { scrollbar-width: thin; scrollbar-color: hsl(var(--muted)) transparent; }
   .scrollbar-thin::-webkit-scrollbar { width: 6px; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 3px; }
