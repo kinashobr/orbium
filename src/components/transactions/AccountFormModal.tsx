@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, X, Sparkles, ArrowLeft } from "lucide-react";
+import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, X, Sparkles, ArrowLeft, Trash2 } from "lucide-react";
 import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId, formatCurrency } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -113,7 +113,7 @@ export function AccountFormModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={cn(
-        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col z-[130]",
+        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
         isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[34rem] max-h-[90vh] rounded-[3rem]"
       )}>
         <DialogHeader className={cn(
@@ -178,7 +178,7 @@ export function AccountFormModal({
                   <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl sm:rounded-2xl bg-card font-bold">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[150]">
                     {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => {
                       const itemConfig = ACCOUNT_TYPE_CONFIG[type];
                       const ItemIcon = itemConfig.icon;
@@ -241,7 +241,7 @@ export function AccountFormModal({
         </ScrollArea>
 
         <DialogFooter className={cn(
-          "p-6 sm:p-8 bg-muted/10 border-t flex flex-col-reverse sm:flex-row gap-3 shrink-0",
+          "p-6 sm:p-8 bg-muted/10 border-t flex flex-col sm:flex-row gap-3 shrink-0",
           isMobile && "fixed bottom-0 left-0 right-0"
         )}>
           {isEditing && onDelete && (
@@ -249,15 +249,15 @@ export function AccountFormModal({
               variant="ghost" 
               onClick={() => { if (confirm("Excluir conta?")) { onDelete(account.id); onOpenChange(false); } }}
               disabled={hasTransactions}
-              className="sm:mr-auto rounded-full h-12 px-6 font-bold text-destructive hover:bg-destructive/10 w-full sm:w-auto"
+              className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-destructive hover:bg-destructive/10 sm:mr-auto w-full sm:w-auto"
             >
-              Excluir
+              <Trash2 className="w-4 h-4 mr-2" /> Excluir
             </Button>
           )}
           <Button 
             variant="ghost" 
             onClick={() => onOpenChange(false)} 
-            className="rounded-full h-12 px-6 font-bold text-muted-foreground w-full sm:w-auto"
+            className="rounded-full h-12 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:bg-muted w-full sm:w-auto"
           >
             Cancelar
           </Button>
@@ -266,7 +266,7 @@ export function AccountFormModal({
             className="flex-1 rounded-full h-12 sm:h-14 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <Check className="w-5 h-5" />
-            {isEditing ? "SALVAR ALTERAÇÕES" : "CRIAR CONTA MOVIMENTO"}
+            {isEditing ? "SALVAR ALTERAÇÕES" : "CRIAR CONTA"}
           </Button>
         </DialogFooter>
       </DialogContent>
