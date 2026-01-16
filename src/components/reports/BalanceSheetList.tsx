@@ -9,6 +9,7 @@ import {
   ArrowRight, 
   PieChart,
   LayoutGrid,
+  ChevronRight
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -70,91 +71,93 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
       <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent pointer-events-none" />
         
-        <div className="space-y-12 relative z-10">
+        <div className="space-y-14 relative z-10">
           {items.map((section, idx) => {
             const isPL = section.type === 'patrimonio';
             
             return (
-              <div key={idx} className="space-y-6">
-                {/* Subtotal da Seção - AGORA COM MÁXIMA EXPRESSÃO */}
+              <div key={idx} className="space-y-8">
+                {/* Subtotal da Seção - MÁXIMA EXPRESSÃO */}
                 {!isPL && (
-                  <div className="flex items-center justify-between px-2 mb-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
-                        <LayoutGrid size={20} />
+                  <div className="flex items-center justify-between px-2">
+                    <div className="flex items-center gap-5">
+                      <div className="w-14 h-14 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5 ring-4 ring-primary/5">
+                        <LayoutGrid size={28} />
                       </div>
                       <div>
-                        <h4 className="font-display font-black text-xl sm:text-2xl text-foreground tracking-tight uppercase">
+                        <h4 className="font-display font-black text-2xl sm:text-3xl text-foreground tracking-tighter uppercase leading-none">
                           {section.label}
                         </h4>
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
-                          Subtotal do Grupo
-                        </p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant="outline" className="rounded-lg border-none bg-primary/10 text-primary font-black text-[10px] px-2 py-0.5 uppercase tracking-widest">
+                            {section.percent.toFixed(1)}% do total
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-black text-xl sm:text-2xl text-foreground tabular-nums leading-none">
+                      <p className="font-black text-2xl sm:text-3xl text-foreground tabular-nums tracking-tighter leading-none">
                         {formatCurrency(section.value)}
                       </p>
-                      <Badge variant="outline" className="mt-1 rounded-lg border-none bg-primary/10 text-primary font-black text-[10px] px-2 py-0.5">
-                        {section.percent.toFixed(1)}% do total
-                      </Badge>
                     </div>
                   </div>
                 )}
 
-                {/* Lista de Itens (Cards Compactos) */}
-                <div className="grid grid-cols-1 gap-2 pl-2 sm:pl-4">
+                {/* Lista de Itens (Encapsulados em Balões) */}
+                <div className="grid grid-cols-1 gap-2.5 pl-2 sm:pl-6">
                   {section.details?.map((detail) => (
                     <div 
                       key={detail.id}
-                      className="flex items-center justify-between p-3 sm:p-4 rounded-2xl bg-card/50 border border-border/30 hover:border-primary/20 hover:bg-card transition-all duration-300 group/item cursor-default"
+                      className="flex items-center justify-between p-3.5 sm:p-4 rounded-[1.75rem] bg-card/40 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card hover:shadow-md transition-all duration-300 group/item cursor-default"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground group-hover/item:text-primary transition-all">
-                          <detail.icon size={18} />
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-10 h-10 rounded-2xl bg-muted/40 flex items-center justify-center text-muted-foreground group-hover/item:scale-110 group-hover/item:bg-primary/10 group-hover/item:text-primary transition-all duration-500">
+                          <detail.icon size={20} />
                         </div>
                         <div className="min-w-0">
                           <p className="font-bold text-xs sm:text-sm text-foreground truncate leading-tight">
                             {detail.name}
                           </p>
-                          <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5 opacity-50">
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1 opacity-50">
                             {detail.typeLabel}
                           </p>
                         </div>
                       </div>
                       
                       <div className="text-right shrink-0">
-                        <p className="font-bold text-sm sm:text-base text-foreground tabular-nums leading-none">
+                        <p className="font-black text-sm sm:text-base text-foreground tabular-nums leading-none">
                           {formatCurrency(detail.value)}
                         </p>
-                        <p className="text-[9px] font-black text-muted-foreground/40 uppercase mt-1">
+                        <p className="text-[9px] font-black text-primary/60 uppercase mt-1.5 tracking-tighter">
                           {detail.percent.toFixed(1)}%
                         </p>
                       </div>
                     </div>
                   ))}
 
-                  {/* Caso seja Patrimônio Líquido (Destaque Especial Mantido) */}
+                  {/* Caso seja Patrimônio Líquido (Destaque Especial) */}
                   {isPL && (
-                    <div className="p-6 sm:p-8 rounded-[2.5rem] bg-primary text-white shadow-xl shadow-primary/20 relative overflow-hidden group/pl">
-                      <div className="absolute right-0 top-0 p-8 opacity-10 rotate-12 group-hover/pl:scale-125 transition-transform duration-1000">
-                        <TrendingUp size={120} />
+                    <div className="p-8 sm:p-10 rounded-[3rem] bg-primary text-white shadow-2xl shadow-primary/30 relative overflow-hidden group/pl mt-4">
+                      <div className="absolute right-0 top-0 p-10 opacity-10 rotate-12 group-hover/pl:scale-125 group-hover/pl:rotate-0 transition-transform duration-1000">
+                        <TrendingUp size={160} />
                       </div>
-                      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                        <div className="space-y-2">
-                          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Capital Próprio Acumulado</p>
-                          <h4 className="text-3xl sm:text-4xl font-black tracking-tighter tabular-nums leading-none">
+                      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-8">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-white/60">Capital Próprio Acumulado</p>
+                          </div>
+                          <h4 className="text-4xl sm:text-5xl font-black tracking-tighter tabular-nums leading-none">
                             {formatCurrency(section.value)}
                           </h4>
                         </div>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-6">
                           <div className="text-right">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60">Participação</p>
-                            <p className="text-xl font-black">{section.percent.toFixed(1)}%</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">Participação</p>
+                            <p className="text-2xl font-black">{section.percent.toFixed(1)}%</p>
                           </div>
-                          <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center">
-                            <ArrowRight size={24} />
+                          <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-inner">
+                            <ArrowRight size={32} />
                           </div>
                         </div>
                       </div>
@@ -167,20 +170,23 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
         </div>
 
         {/* Indicador de Fechamento (Total do Lado) */}
-        <div className="mt-12 pt-8 border-t border-border/40 flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
+        <div className="mt-16 pt-10 border-t border-border/40 flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-4">
             <div className={cn(
-              "w-10 h-10 rounded-full flex items-center justify-center",
+              "w-12 h-12 rounded-full flex items-center justify-center shadow-inner",
               isAsset ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
             )}>
-              {isAsset ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+              {isAsset ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
             </div>
-            <span className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">
-              {isAsset ? "Total do Ativo" : "Total do Passivo"}
-            </span>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground block mb-1">
+                {isAsset ? "Total do Ativo" : "Total do Passivo"}
+              </span>
+              <p className="text-[9px] font-bold text-muted-foreground/40 uppercase tracking-widest">Consolidado Final</p>
+            </div>
           </div>
           <p className={cn(
-            "text-xl sm:text-2xl font-black tabular-nums",
+            "text-2xl sm:text-4xl font-black tabular-nums tracking-tighter",
             isAsset ? "text-success" : "text-destructive"
           )}>
             {formatCurrency(isAsset ? totalValue : totalPassivo)}
