@@ -5,17 +5,18 @@ import {
   TrendingUp, TrendingDown, Scale, Building2, Car, 
   Banknote, Shield, History, CreditCard, ArrowUpRight, 
   Info, LineChart, PieChart, LayoutGrid, Sparkles,
-  Zap, Target, Gauge, Activity
+  Zap, Target, Gauge, Activity, ShieldCheck, Wallet, Landmark
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS, ComparisonDateRanges, formatCurrency } from "@/types/finance";
 import { subMonths, endOfMonth, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { IndicatorRadialCard } from "./IndicatorRadialCard";
+import { IndicatorCard } from "./IndicatorCard";
 import { BalanceSheetList } from "./BalanceSheetList";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, PieChart as RePieChart, Pie, Cell } from "recharts";
+import { useChartColors } from "@/hooks/useChartColors";
 
 const getIconForType = (type: string): React.ElementType => {
     switch (type) {
@@ -52,6 +53,7 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
     getCreditCardDebt, getPatrimonioLiquido
   } = useFinance();
 
+  const colors = useChartColors();
   const finalDate = dateRanges.range1.to || new Date();
   const prevDate = dateRanges.range2.to || subMonths(finalDate, 1);
 
@@ -104,6 +106,12 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
     return result;
   }, [getPatrimonioLiquido]);
 
+  const compositionData = useMemo(() => [
+    { name: 'Circulante', value: b1.ativoCirculante, color: colors.success },
+    { name: 'Imobilizado', value: b1.imobilizadoFipe, color: colors.primary },
+    { name: 'Investimentos', value: b1.investimentosNaoCirculantes, color: colors.accent }
+  ].filter(d => d.value > 0), [b1, colors]);
+
   const ativoItems = useMemo(() => {
     const total = b1.totalAtivos;
     const circulanteDetails = b1.contasCirculantes.filter(c => c.saldo > 0).map(c => ({ id: c.id, name: c.name, typeLabel: ACCOUNT_TYPE_LABELS[c.accountType], value: c.saldo, percent: total > 0 ? (c.saldo / total) * 100 : 0, icon: getIconForType(c.accountType) }));
@@ -144,12 +152,54 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
           </div>
         </div>
         <div className="col-span-12 xl:col-span-6 grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <IndicatorRadialCard title="Participação Própria" value={indicadores.equityRatio} label="Particip." status={indicadores.equityRatio >= 40 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Índice de Solvência" value={indicadores.liqGeral} label="Solvência" unit="x" status={indicadores.liqGeral >= 1.5 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Liquidez CP" value={indicadores.liqCorrente} label="Liquidez" unit="x" status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Endividamento" value={indicadores.endividamento} label="Dívidas" status={indicadores.endividamento <= 30 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Cobertura Patrimonial" value={indicadores.assetCoverage} label="Cobert." unit="x" status={indicadores.assetCoverage >= 2 ? "success" : "warning"} />
-          <IndicatorRadialCard title="Imobilização" value={indicadores.fixedAssetEquity} label="Imobiliz." status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"} />
+          <IndicatorCard 
+            title="Participação Própria" 
+            value={`${indicadores.equityRatio.toFixed(1)}%`} 
+            status={indicadores.equityRatio >= 40 ? "success" : "warning"} 
+            icon={ShieldCheck}
+            description="Percentual do patrimônio total que é financiado por capital próprio."
+            formula="PL ÷ Ativos Totais × 100"
+          />
+          <IndicatorCard 
+            title="Índice de Solvência" 
+            value={`${indicadores.liqGeral.toFixed(2)}x`} 
+            status={indicadores.liqGeral >= 1.5 ? "success" : "warning"} 
+            icon={Scale}
+            description="Capacidade de pagar todas as dívidas com os bens atuais."
+            formula="Ativos ÷ Passivos"
+          />
+          <IndicatorCard 
+            title="Liquidez CP" 
+            value={`${indicadores.liqCorrente.toFixed(2)}x`} 
+            status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"} 
+            icon={Wallet}
+            description="Capacidade de pagar dívidas de curto prazo com dinheiro disponível."
+            formula="Ativo Circulante ÷ Passivo Circulante"
+          />
+          <IndicatorCard 
+            title="Endividamento" 
+            value={`${indicadores.endividamento.toFixed(1)}%`} 
+            status={indicadores.endividamento <= 30 ? "success" : "warning"} 
+            icon={TrendingDown}
+            description="Quanto do seu patrimônio está comprometido com dívidas."
+            formula="Passivos ÷ Ativos × 100"
+          />
+          <IndicatorCard 
+            title="Cobertura Patrimonial" 
+            value={`${indicadores.assetCoverage.toFixed(2)}x`} 
+            status={indicadores.assetCoverage >= 2 ? "success" : "warning"} 
+            icon={Activity}
+            description="Quantas vezes seu capital próprio cobre suas dívidas."
+            formula="PL ÷ Passivos"
+          />
+          <IndicatorCard 
+            title="Imobilização" 
+            value={`${indicadores.fixedAssetEquity.toFixed(1)}%`} 
+            status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"} 
+            icon={Landmark}
+            description="Quanto do seu capital próprio está 'preso' em bens físicos."
+            formula="Imobilizado ÷ PL × 100"
+          />
         </div>
       </div>
 
@@ -172,10 +222,69 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
             <div className="flex items-center gap-3 mb-8 px-2"><div className="p-2 bg-primary/10 rounded-xl text-primary"><LineChart className="w-5 h-5" /></div><h4 className="font-display font-black text-xl text-foreground uppercase tracking-tight">Evolução Patrimonial</h4></div>
             <div className="h-[250px] sm:h-[300px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={evolutionData}><defs><linearGradient id="plGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/><stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.3} /><XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 'bold'}} /><YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} tickFormatter={v => `R$ ${v/1000}k`} /><Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}} formatter={(v: number) => [formatCurrency(v), 'PL']} /><Area type="monotone" dataKey="valor" stroke="hsl(var(--primary))" strokeWidth={4} fillOpacity={1} fill="url(#plGradient)" /></AreaChart></ResponsiveContainer></div>
          </div>
+         
          <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-6 lg:p-8 border border-white/60 dark:border-white/5 shadow-soft flex flex-col">
-            <div className="flex items-center gap-3 mb-8 px-2"><div className="p-2 bg-accent/10 rounded-xl text-accent"><PieChart className="w-5 h-5" /></div><h4 className="font-display font-black text-xl text-foreground uppercase tracking-tight">Composição</h4></div>
-            <div className="flex-1 min-h-[240px]"><ResponsiveContainer width="100%" height="100%"><RePieChart><Pie data={[ { name: 'Circulante', value: b1.ativoCirculante }, { name: 'Imobilizado', value: b1.imobilizadoFipe }, { name: 'Investimentos', value: b1.investimentosNaoCirculantes } ]} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={8} dataKey="value" stroke="none"><Cell fill="hsl(var(--success))" /><Cell fill="hsl(var(--primary))" /><Cell fill="hsl(var(--accent))" /></Pie><Tooltip /></RePieChart></ResponsiveContainer></div>
-            <div className="grid grid-cols-3 gap-2 mt-4">{['Circ.', 'Imob.', 'Inv.'].map((l, i) => (<div key={l} className="text-center"><p className="text-[9px] font-black text-muted-foreground uppercase">{l}</p><div className={cn("h-1 rounded-full mt-1", i === 0 ? "bg-success" : i === 1 ? "bg-primary" : "bg-accent")} /></div>))}</div>
+            <div className="flex items-center gap-3 mb-8 px-2">
+              <div className="p-2 bg-accent/10 rounded-xl text-accent"><PieChart className="w-5 h-5" /></div>
+              <h4 className="font-display font-black text-xl text-foreground uppercase tracking-tight">Composição Patrimonial</h4>
+            </div>
+            
+            <div className="flex-1 min-h-[280px] relative flex flex-col items-center justify-center">
+              <div className="w-full h-[240px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RePieChart>
+                    <Pie 
+                      data={compositionData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius="72%" 
+                      outerRadius="95%" 
+                      paddingAngle={6} 
+                      dataKey="value" 
+                      stroke="none"
+                      cornerRadius={12}
+                    >
+                      {compositionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        border: 'none', 
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)' 
+                      }}
+                      formatter={(v: number) => [formatCurrency(v), "Valor"]}
+                    />
+                  </RePieChart>
+                </ResponsiveContainer>
+
+                {/* Valor Centralizado */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Total Ativos</span>
+                  <p className="text-2xl font-black text-foreground tracking-tighter">
+                    {formatCurrency(b1.totalAtivos)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Legenda customizada em Badges */}
+              <div className="mt-6 flex flex-wrap justify-center gap-2">
+                {compositionData.map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border/40 shadow-sm"
+                  >
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-[10px] font-bold text-foreground">{item.name}</span>
+                    <span className="text-[9px] font-black text-muted-foreground">
+                      {((item.value / b1.totalAtivos) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
          </div>
       </div>
     </div>
