@@ -39,14 +39,26 @@ export function useGoogleDrive() {
         return;
       }
 
-      const metadata = {
+      // Prepara os metadados base
+      const metadata: any = {
         name: FILE_NAME,
-        parents: ["appDataFolder"],
         appProperties: {
-          lastModified: jsonData.lastModified, // Salva o timestamp local como propriedade
+          lastModified: jsonData.lastModified,
           schemaVersion: jsonData.schemaVersion,
         }
       };
+
+      let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+      let method = "POST";
+
+      if (fileId) {
+        // Se o arquivo já existe, usamos PATCH e NÃO incluímos o campo 'parents'
+        url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,appProperties`;
+        method = "PATCH";
+      } else {
+        // Se é um arquivo novo (POST), incluímos o campo 'parents'
+        metadata.parents = ["appDataFolder"];
+      }
 
       const formData = new FormData();
       formData.append(
@@ -57,14 +69,6 @@ export function useGoogleDrive() {
         "file",
         new Blob([JSON.stringify(jsonData)], { type: "application/json" })
       );
-
-      let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
-      let method = "POST";
-
-      if (fileId) {
-        url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,appProperties`;
-        method = "PATCH";
-      }
 
       const response = await fetch(url, {
         method,
@@ -78,7 +82,11 @@ export function useGoogleDrive() {
         return;
       }
 
-      if (!response.ok) throw new Error("Erro ao salvar no Drive");
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("[GoogleDrive] Erro na requisição:", errorData);
+        throw new Error("Erro ao salvar no Drive");
+      }
 
       const now = new Date().toISOString();
       setLastSync(now);
