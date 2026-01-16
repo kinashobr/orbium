@@ -17,6 +17,11 @@ import {
   Sparkles,
   LineChart,
   Info,
+  ArrowUpRight,
+  Zap,
+  Trophy,
+  ShieldCheck,
+  Activity
 } from "lucide-react";
 import { format, startOfDay, endOfDay, isWithinInterval, subMonths, endOfMonth } from "date-fns";
 import { parseDateLocal, cn } from "@/lib/utils";
@@ -155,11 +160,11 @@ const Index = () => {
   }, [saude, fluxo, metricasPatrimoniais, contasMovimento]);
 
   const scoreInfo = useMemo(() => {
-    if (contasMovimento.length === 0) return { label: "Iniciante", status: "Crítico" };
-    if (scoreOrbium >= 800) return { label: "Excelente", status: "Premium" };
-    if (scoreOrbium >= 600) return { label: "Bom", status: "Prêmio" };
-    if (scoreOrbium >= 400) return { label: "Regular", status: "Padrão" };
-    return { label: "Atenção", status: "Básico" };
+    if (contasMovimento.length === 0) return { label: "Iniciante", status: "Crítico", color: "text-muted-foreground" };
+    if (scoreOrbium >= 800) return { label: "Excelente", status: "Premium", color: "text-success" };
+    if (scoreOrbium >= 600) return { label: "Bom", status: "Prêmio", color: "text-primary" };
+    if (scoreOrbium >= 400) return { label: "Regular", status: "Padrão", color: "text-warning" };
+    return { label: "Atenção", status: "Básico", color: "text-destructive" };
   }, [scoreOrbium, contasMovimento]);
 
   const formatCurrency = (value: number) => {
@@ -256,9 +261,14 @@ const Index = () => {
             <div className="col-span-12 xl:col-span-8">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 group min-h-[280px] sm:h-[320px] lg:h-[350px] flex flex-col justify-between cursor-help transition-all">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-50"></div>
+                  <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 group min-h-[280px] sm:h-[320px] lg:h-[350px] flex flex-col justify-between cursor-help transition-all hover:shadow-soft-lg">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
                     
+                    {/* Elementos decorativos premium */}
+                    <div className="absolute top-0 right-0 p-10 opacity-[0.03] dark:opacity-[0.07] group-hover:scale-110 transition-transform duration-1000">
+                      <ShieldCheck className="w-64 h-64 text-primary" />
+                    </div>
+
                     <div className="absolute bottom-0 left-0 right-0 h-[180px] sm:h-[220px] pointer-events-none">
                       <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 800 250">
                         <defs>
@@ -267,35 +277,46 @@ const Index = () => {
                             <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0"></stop>
                           </linearGradient>
                         </defs>
-                        <path className="transition-all duration-700 ease-in-out" d={dynamicPlPaths.area} fill="url(#chartFill)"></path>
-                        <path d={dynamicPlPaths.line} fill="none" stroke="hsl(var(--primary))" strokeLinecap="round" strokeWidth="4" vectorEffect="non-scaling-stroke" className="transition-all duration-700 ease-in-out"></path>
+                        <path className="transition-all duration-1000 ease-in-out" d={dynamicPlPaths.area} fill="url(#chartFill)"></path>
+                        <path d={dynamicPlPaths.line} fill="none" stroke="hsl(var(--primary))" strokeLinecap="round" strokeWidth="5" vectorEffect="non-scaling-stroke" className="transition-all duration-1000 ease-in-out drop-shadow-lg"></path>
                       </svg>
                     </div>
 
                     <div className="relative z-10 flex justify-between items-start">
-                      <div>
+                      <div className="space-y-1">
                         <div className="flex items-center gap-3 mb-1">
-                          <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-xl text-primary">
-                            <LineChart className="w-4 h-4" />
+                          <div className="p-2.5 bg-primary/10 rounded-2xl text-primary shadow-sm ring-1 ring-primary/20">
+                            <LineChart className="w-5 h-5" />
                           </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Patrimônio Líquido</span>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] opacity-70">Consolidado</span>
+                            <p className="text-xs font-bold text-primary uppercase tracking-widest">Patrimônio Líquido</p>
                           </div>
                         </div>
-                        <h2 className="font-display font-extrabold text-3xl sm:text-4xl lg:text-5xl text-foreground tracking-tight leading-none mt-2 tabular-nums">
+                        <h2 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl text-foreground tracking-tighter leading-none mt-4 tabular-nums">
                           {formatCurrency(metricasPatrimoniais.plAtual)}
                         </h2>
-                        <div className="flex items-center gap-2 mt-3">
-                          <p className="text-xs sm:text-sm text-muted-foreground font-medium tabular-nums">
+                        <div className="flex items-center gap-3 mt-4">
+                          <p className="text-xs sm:text-sm text-muted-foreground font-bold tabular-nums">
                             {metricasPatrimoniais.variacaoAbs >= 0 ? "+" : "-"} {formatCurrency(Math.abs(metricasPatrimoniais.variacaoAbs))}
                           </p>
                           <Badge variant="outline" className={cn(
-                            "text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-lg border-none",
-                            metricasPatrimoniais.variacaoAbs >= 0 ? "bg-green-100 text-green-700 dark:bg-green-900/30" : "bg-red-100 text-red-700 dark:bg-green-900/30"
+                            "text-[10px] font-black px-2 py-1 rounded-xl border-none shadow-sm",
+                            metricasPatrimoniais.variacaoAbs >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
                           )}>
-                            {metricasPatrimoniais.variacaoAbs >= 0 ? <TrendingUp className="w-2.5 h-2.5 mr-1 inline" /> : <TrendingDown className="w-2.5 h-2.5 mr-1 inline" />}
+                            {metricasPatrimoniais.variacaoAbs >= 0 ? <TrendingUp className="w-3 h-3 mr-1 inline" /> : <TrendingDown className="w-3 h-3 mr-1 inline" />}
                             {Math.abs(metricasPatrimoniais.variacaoPerc).toFixed(1)}%
                           </Badge>
+                        </div>
+                      </div>
+                      
+                      <div className="hidden sm:flex flex-col items-end gap-2">
+                        <Badge className="bg-primary text-white border-none font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-primary/20">
+                          Premium Account
+                        </Badge>
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                          <Sparkles className="w-3 h-3 text-accent" />
+                          Atualizado agora
                         </div>
                       </div>
                     </div>
@@ -304,7 +325,7 @@ const Index = () => {
                 <TooltipContent className="max-w-[280px] p-4 rounded-2xl border-border shadow-2xl">
                   <div className="space-y-2">
                     <p className="text-xs font-bold text-foreground">Como é calculado?</p>
-                    <p className="text-[11px] leading-relaxed text-muted-foreground"><strong>Ativos - Passivos</strong>.</p>
+                    <p className="text-[11px] leading-relaxed text-muted-foreground"><strong>Ativos - Passivos</strong>. Representa sua riqueza real acumulada.</p>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -325,47 +346,60 @@ const Index = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 animate-fade-in-up">
             <div className="col-span-1">
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-5 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-center min-h-[120px] hover:-translate-y-1 transition-transform">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-700 dark:text-green-400">
-                    <TrendingUp className="w-4 h-4" />
-                  </div>
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-5 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-center min-h-[120px] hover:-translate-y-1 transition-all group relative overflow-hidden">
+                <div className="absolute -right-2 -bottom-2 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+                  <TrendingUp className="w-20 h-20 text-success" />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Saldo Operacional</p>
+                <div className="flex items-start justify-between mb-2 relative z-10">
+                  <div className="w-9 h-9 rounded-xl bg-green-100 dark:bg-green-900/20 flex items-center justify-center text-green-700 dark:text-green-400 shadow-sm group-hover:scale-110 transition-transform">
+                    <ArrowUpRight className="w-5 h-5" />
+                  </div>
+                  <Badge variant="outline" className="bg-green-50 text-green-600 border-none text-[8px] font-black uppercase px-1.5">Operacional</Badge>
+                </div>
+                <div className="relative z-10">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Saldo Operacional</p>
                   <p className="font-display font-bold text-lg sm:text-xl text-foreground tabular-nums">{formatCurrency(fluxo.p1.saldo)}</p>
                 </div>
               </div>
             </div>
             
             <div className="col-span-1">
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-5 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-center min-h-[120px] hover:-translate-y-1 transition-transform">
-                <div className="flex items-start justify-between mb-2">
-                  <div className="w-8 h-8 rounded-full bg-orange-100 dark:bg-orange-900/20 flex items-center justify-center text-primary">
-                    <Sparkles className="w-4 h-4" />
-                  </div>
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-5 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-center min-h-[120px] hover:-translate-y-1 transition-all group relative overflow-hidden">
+                <div className="absolute -right-2 -bottom-2 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+                  <TrendingDown className="w-20 h-20 text-destructive" />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">Despesas Totais</p>
+                <div className="flex items-start justify-between mb-2 relative z-10">
+                  <div className="w-9 h-9 rounded-xl bg-red-100 dark:bg-red-900/20 flex items-center justify-center text-destructive shadow-sm group-hover:scale-110 transition-transform">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <Badge variant="outline" className="bg-red-50 text-red-600 border-none text-[8px] font-black uppercase px-1.5">Mensal</Badge>
+                </div>
+                <div className="relative z-10">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Despesas Totais</p>
                   <p className="font-display font-bold text-lg sm:text-xl text-foreground tabular-nums">{formatCurrency(fluxo.p1.des)}</p>
                 </div>
               </div>
             </div>
 
             <div className="col-span-1 sm:col-span-2">
-              <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] p-5 shadow-lg flex items-center justify-between relative overflow-hidden min-h-[120px]">
-                <div className="absolute right-0 bottom-0 opacity-10 translate-x-5 translate-y-5"><Sparkles className="w-24 h-24 sm:w-32 sm:h-32" /></div>
+              <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] p-5 shadow-lg flex items-center justify-between relative overflow-hidden min-h-[120px] group hover:shadow-soft-lg transition-all">
+                <div className="absolute right-0 bottom-0 opacity-10 translate-x-5 translate-y-5 group-hover:scale-110 transition-transform duration-1000"><Trophy className="w-24 h-24 sm:w-32 sm:h-32" /></div>
                 <div className="z-10">
-                  <h3 className="font-display font-bold text-lg sm:text-xl mb-1">Score Orbium</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Activity className="w-4 h-4 text-primary" />
+                    <h3 className="font-display font-bold text-lg sm:text-xl">Score Orbium</h3>
+                  </div>
                   <div className="flex gap-2">
-                    <span className="px-2 py-0.5 bg-white/10 rounded-full text-[8px] font-bold uppercase backdrop-blur-md border border-white/10">{scoreInfo.label}</span>
+                    <span className={cn("px-2 py-0.5 bg-white/10 rounded-full text-[8px] font-black uppercase backdrop-blur-md border border-white/10", scoreInfo.color)}>{scoreInfo.label}</span>
+                    <span className="px-2 py-0.5 bg-white/5 rounded-full text-[8px] font-bold uppercase text-white/40">{scoreInfo.status}</span>
                   </div>
                 </div>
                 <div className="z-10 text-right">
-                  <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full border-4 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm relative">
+                  <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full border-4 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm relative group-hover:scale-105 transition-transform">
                     <span className="font-display font-bold text-lg">{scoreOrbium}</span>
                     <svg className="absolute inset-0 w-full h-full -rotate-90">
-                      <circle cx="50%" cy="50%" r="44%" fill="transparent" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="276.46" strokeDashoffset={276.46 - (276.46 * (scoreOrbium / 1000))} strokeLinecap="round" />
+                      <circle cx="50%" cy="50%" r="44%" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-white/10" />
+                      <circle cx="50%" cy="50%" r="44%" fill="transparent" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="276.46" strokeDashoffset={276.46 - (276.46 * (scoreOrbium / 1000))} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
                     </svg>
                   </div>
                 </div>
