@@ -79,31 +79,47 @@ export function SaudeFinanceira({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex justify-between items-center px-1">
-        <h3 className="font-display font-bold text-base text-foreground">Indicadores de Saúde</h3>
-        <span className="text-[9px] font-bold text-primary bg-orange-100 dark:bg-orange-900/30 px-2 py-1 rounded-full uppercase">Status</span>
+        <div className="flex items-center gap-2">
+           <Activity className="w-4 h-4 text-primary" />
+           <h3 className="font-display font-black text-lg text-foreground uppercase tracking-tight">Indicadores de Saúde</h3>
+        </div>
+        <Badge variant="outline" className="text-[9px] font-black text-primary bg-primary/5 border-primary/20 px-3 py-1 rounded-full uppercase tracking-widest">Diagnóstico</Badge>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4">
-        {indicadoresConfig.map((config) => {
+      <div className="grid grid-cols-2 gap-4 sm:gap-6">
+        {indicadoresConfig.map((config, index) => {
           const value = valores[config.id as keyof typeof valores];
           const status = config.getStatus(value);
 
           return (
-            <div key={config.id} className={cn("rounded-2xl p-4 border transition-all hover:bg-white/50 dark:hover:bg-white/5 group relative overflow-hidden cursor-help", status.bg, status.border)}>
-              <div className="flex justify-between items-start mb-3">
-                <div className="w-8 h-8 rounded-lg bg-white dark:bg-black/20 flex items-center justify-center shadow-sm">
-                  <config.icon className={cn("w-4 h-4", status.color)} />
+            <div 
+              key={config.id} 
+              className={cn(
+                "rounded-[2.5rem] p-5 sm:p-6 border-2 transition-all duration-500 hover:shadow-soft-lg hover:-translate-y-1 group relative overflow-hidden cursor-help animate-fade-in-up", 
+                status.bg, 
+                status.border
+              )}
+              style={{ animationDelay: `${(index + 3) * 100}ms` }}
+            >
+              {/* Ícone Decorativo de Fundo */}
+              <config.icon className={cn("absolute -right-4 -bottom-4 w-24 h-24 opacity-[0.05] transition-transform duration-700 group-hover:scale-125 group-hover:rotate-6", status.color)} />
+
+              <div className="flex justify-between items-start mb-6 relative z-10">
+                <div className="w-10 h-10 rounded-xl bg-white dark:bg-black/20 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                  <config.icon className={cn("w-5 h-5", status.color)} />
                 </div>
-                <span className={cn("text-[8px] font-black px-1.5 py-0.5 rounded-md border border-black/5 dark:border-white/5", status.badgeClass)}>
+                <span className={cn("text-[9px] font-black px-2 py-0.5 rounded-lg border border-black/5 dark:border-white/5 uppercase tracking-widest", status.badgeClass)}>
                   {status.label}
                 </span>
               </div>
-              <p className={cn("text-xl sm:text-2xl font-display font-black tabular-nums leading-none", status.color)}>
-                {config.format === 'decimal' ? `${value.toFixed(1)}x` : `${value.toFixed(0)}%`}
-              </p>
-              <p className="text-[9px] font-bold uppercase tracking-tight opacity-60 mt-1">{config.label}</p>
+              <div className="relative z-10">
+                <p className={cn("text-3xl sm:text-4xl font-display font-black tabular-nums leading-none tracking-tighter", status.color)}>
+                  {config.format === 'decimal' ? `${value.toFixed(1)}x` : `${value.toFixed(0)}%`}
+                </p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">{config.label}</p>
+              </div>
             </div>
           );
         })}

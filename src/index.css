@@ -66,7 +66,6 @@
     --input: var(--md-sys-color-outline-variant);
     --ring: var(--md-sys-color-primary);
 
-    /* Reduzido de 1.75rem para 1.25rem para desktop, mantendo arredondado mas eficiente */
     --radius: 1.25rem;
 
     --neon-cyan: 174 72% 56%;
@@ -217,6 +216,41 @@
   .scrollbar-material::-webkit-scrollbar-thumb {
     background: hsl(var(--primary) / 0.3);
     border-radius: 9999px;
+  }
+
+  /* Animações Customizadas */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes zoomIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.5s ease-out forwards;
+  }
+
+  .animate-zoom-in {
+    animation: zoomIn 0.4s ease-out forwards;
+  }
+
+  .shadow-soft-lg {
+    box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.1);
   }
 }
 

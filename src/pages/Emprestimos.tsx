@@ -197,7 +197,7 @@ const Emprestimos = () => {
             </div>
 
             <div className="col-span-12 xl:col-span-4 grid grid-cols-2 xl:flex xl:flex-col gap-6">
-              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] xl:h-[200px] hover:-translate-y-1 transition-transform cursor-help">
+              <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] xl:h-[200px] hover:shadow-soft-lg hover:-translate-y-1 transition-all cursor-help animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                 <div className="flex items-start justify-between">
                   <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
                     <Wallet className="w-5 h-5" />
@@ -212,7 +212,7 @@ const Emprestimos = () => {
 
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] xl:h-[194px] hover:-translate-y-1 transition-transform cursor-help">
+                  <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[140px] xl:h-[194px] hover:shadow-soft-lg hover:-translate-y-1 transition-all cursor-help animate-fade-in-up" style={{ animationDelay: '200ms' }}>
                     <div className="flex items-start justify-between">
                       <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 shadow-sm">
                         <TrendingUp className="w-5 h-5" />
@@ -284,12 +284,19 @@ const Emprestimos = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 sm:gap-10">
-              {emprestimos.map((loan) => {
+              {emprestimos.map((loan, index) => {
                 const paidCount = calculatePaidInstallmentsUpToDate(loan.id, dateRanges.range1.to || new Date());
                 const progress = (paidCount / loan.meses) * 100;
                 return (
-                  <div key={loan.id} onClick={() => { setSelectedLoan(loan); setDetailDialogOpen(true); }} className="bg-card hover:bg-muted/20 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/40 shadow-sm hover:shadow-2xl hover:-translate-y-2 group cursor-pointer relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:scale-125 group-hover:rotate-12 transition-transform duration-700"><Building2 className="w-32 h-32" /></div>
+                  <div 
+                    key={loan.id} 
+                    onClick={() => { setSelectedLoan(loan); setDetailDialogOpen(true); }} 
+                    className="bg-card hover:bg-muted/20 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/40 shadow-sm hover:shadow-soft-lg hover:-translate-y-2 group cursor-pointer relative overflow-hidden animate-fade-in-up"
+                    style={{ animationDelay: `${(index + 5) * 100}ms` }}
+                  >
+                    {/* Ícone Decorativo de Fundo */}
+                    <Building2 className="absolute -right-6 -bottom-6 w-32 h-32 text-primary opacity-[0.03] dark:opacity-[0.05] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
+                    
                     <div className="flex items-start justify-between mb-8 relative z-10">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-[1rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500"><Building2 className="w-6 h-6" /></div>
