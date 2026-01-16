@@ -152,14 +152,37 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
     <div className="space-y-12 lg:space-y-16 animate-fade-in-up pb-20">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 sm:gap-10">
         <div className="col-span-12 xl:col-span-6">
-          <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[40px] p-6 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[350px] sm:h-[400px] flex flex-col justify-center group transition-all">
-             <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] to-transparent"></div>
+          <div className="bg-gradient-to-br from-neutral-800 to-neutral-900 text-white rounded-[40px] p-8 lg:p-10 shadow-soft relative overflow-hidden border border-white/5 h-[400px] flex flex-col justify-center group transition-all">
+             <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.05] to-transparent"></div>
+             <div className="absolute right-0 top-0 opacity-10 scale-150 translate-x-10 -translate-y-10 group-hover:rotate-6 transition-transform duration-1000">
+                <Activity className="w-[300px] h-[300px] text-primary" />
+             </div>
+             
              <div className="relative z-10 flex flex-col sm:flex-row items-center gap-8 sm:gap-12">
-                <div className="shrink-0 scale-90 sm:scale-100">{scorePatrimonial !== null ? (<RadialGauge value={scorePatrimonial} label="Score" status={scorePatrimonial >= 70 ? "success" : scorePatrimonial >= 40 ? "warning" : "danger"} size={180} />) : (<div className="w-[180px] h-[180px] rounded-full border-4 border-dashed border-muted-foreground/20 flex items-center justify-center"><Activity className="w-8 h-8 text-muted-foreground/30" /></div>)}</div>
+                <div className="shrink-0 scale-90 sm:scale-100">
+                  {scorePatrimonial !== null ? (
+                    <RadialGauge 
+                      value={scorePatrimonial} 
+                      label="Score" 
+                      status={scorePatrimonial >= 70 ? "success" : scorePatrimonial >= 40 ? "warning" : "danger"} 
+                      size={180} 
+                    />
+                  ) : (
+                    <div className="w-[180px] h-[180px] rounded-full border-4 border-dashed border-white/10 flex items-center justify-center">
+                      <Activity className="w-8 h-8 text-white/20" />
+                    </div>
+                  )}
+                </div>
                 <div className="flex-1 text-center sm:text-left space-y-4">
-                  <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-4 py-1.5 rounded-full uppercase tracking-[0.2em]">Saúde Patrimonial</Badge>
-                  <h2 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em]">Score Consolidado</h2>
-                  <h3 className="font-display font-extrabold text-2xl sm:text-4xl text-foreground tracking-tighter leading-tight">{scorePatrimonial === null ? "Aguardando Dados" : scorePatrimonial >= 70 ? "Patrimônio Blindado" : scorePatrimonial >= 40 ? "Ajuste Recomendado" : "Alerta Estrutural"}</h3>
+                  <Badge className="bg-primary/20 text-primary-foreground border-none font-black text-[10px] px-4 py-1.5 rounded-full uppercase tracking-[0.2em]">Saúde Patrimonial</Badge>
+                  <h2 className="text-[11px] font-black text-neutral-400 uppercase tracking-[0.2em]">Score Consolidado</h2>
+                  <h3 className="font-display font-extrabold text-2xl sm:text-4xl text-white tracking-tighter leading-tight">
+                    {scorePatrimonial === null ? "Aguardando Dados" : scorePatrimonial >= 70 ? "Patrimônio Blindado" : scorePatrimonial >= 40 ? "Ajuste Recomendado" : "Alerta Estrutural"}
+                  </h3>
+                  <div className="flex items-center justify-center sm:justify-start gap-2 pt-2">
+                    <Sparkles className="w-4 h-4 text-accent" />
+                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Análise de Risco Orbium</span>
+                  </div>
                 </div>
              </div>
           </div>
