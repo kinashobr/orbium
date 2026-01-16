@@ -36,7 +36,8 @@ export default function AuthCallback() {
       hasExchanged.current = true;
 
       try {
-        const currentRedirectUri = `${window.location.origin}/oauth/callback`;
+        // Garantindo que a URI seja idêntica à do initiateGoogleAuth
+        const redirectUri = window.location.origin + '/oauth/callback';
 
         const response = await fetch("/api/auth/google", {
           method: "POST",
@@ -46,10 +47,11 @@ export default function AuthCallback() {
           body: JSON.stringify({
             code,
             code_verifier: verifier,
-            redirect_uri: currentRedirectUri,
+            redirect_uri: redirectUri,
           }),
         });
 
+        // Corrigido para extrair do objeto response local
         const data = await response.json();
 
         if (!response.ok) {

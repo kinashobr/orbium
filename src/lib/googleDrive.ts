@@ -29,8 +29,8 @@ export async function initiateGoogleAuth() {
   localStorage.setItem("google_code_verifier", verifier);
 
   const challenge = await generateCodeChallenge(verifier);
-  // URI dinâmica baseada no ambiente atual (localhost, preview ou produção)
-  const redirectUri = `${window.location.origin}/oauth/callback`;
+  // URI exata conforme solicitado
+  const redirectUri = window.location.origin + '/oauth/callback';
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);

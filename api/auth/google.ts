@@ -1,28 +1,38 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+export const config = {
+  runtime: 'edge',
+};
 
-export default async function handler(
-  request: VercelRequest,
-  response: VercelResponse
-) {
+export default async function handler(request: Request) {
   if (request.method !== 'POST') {
-    return response.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const { code, code_verifier, redirect_uri } = request.body;
-
-  if (!code || !code_verifier || !redirect_uri) {
-    return response.status(400).json({ error: 'Missing required parameters' });
-  }
-
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    console.error('Environment variables GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET are not set');
-    return response.status(500).json({ error: 'Server configuration error' });
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   try {
+    const body = await request.json();
+    const { code, code_verifier, redirect_uri } = body;
+
+    if (!code || !code_verifier || !redirect_uri) {
+      return new Response(JSON.stringify({ error: 'Missing required parameters' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    // Nota: GOOGLE_CLIENT_ID deve ser o mesmo usado no frontend (...ojc3p)
+    if (!clientId || !clientSecret) {
+      console.error('Environment variables GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET are not set');
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     const params = new URLSearchParams();
     params.append('client_id', clientId);
     params.append('client_secret', clientSecret);
@@ -41,14 +51,15 @@ export default async function handler(
 
     const data = await googleResponse.json();
 
-    if (!googleResponse.ok) {
-      console.error('Google OAuth error:', data);
-      return response.status(googleResponse.status).json(data);
-    }
-
-    return response.status(200).json(data);
+    return new Response(JSON.stringify(data), {
+      status: googleResponse.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     console.error('Auth Proxy Error:', error);
-    return response.status(500).json({ error: 'Internal server error' });
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
