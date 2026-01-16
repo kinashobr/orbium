@@ -120,10 +120,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   };
 
   const handleTogglePaid = useCallback((bill: BillDisplayItem, isChecked: boolean) => {
-    if (!isBillTracker(bill)) {
-      toast.error("Não é possível alterar o status de pagamento de transações do extrato.");
-      return;
-    }
+    if (!isBillTracker(bill)) return;
     const trackerBill = bill as BillTracker;
     if (isChecked) {
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
@@ -197,12 +194,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   };
 
   // ============================================
-  // RENDERIZAÇÃO MOBILE (FULL SCREEN)
+  // RENDERIZAÇÃO MOBILE (FULL SCREEN ABSOLUTO)
   // ============================================
   if (isMobile && open) {
     return (
-      <div className="fixed inset-0 z-50 bg-card flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
-        {/* Header Fixo */}
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col overflow-hidden">
+        {/* Header Fixo com Safe Area */}
         <header 
           className="shrink-0 bg-card border-b px-6 pb-4" 
           style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}
@@ -225,7 +222,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
         {/* Conteúdo Rolável */}
         <main className="flex-1 p-6 overflow-y-auto">
-          <div className="flex flex-col h-full space-y-6">
+          <div className="flex flex-col space-y-6">
             <div className="flex items-center justify-between bg-muted/30 p-2 rounded-[2rem] border border-border/40">
               <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full" onClick={() => handleMonthChange("prev")}>
                 <ChevronLeft className="w-6 h-6" />
@@ -252,14 +249,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               </div>
             </div>
 
-            <div className="flex-1 overflow-hidden">
+            <div className="pb-24">
               <BillsTrackerMobileList 
-                bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill}
-                onAddBill={(b) => setBillsTracker(prev => [...prev, { ...b, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }])}
-                onTogglePaid={handleTogglePaid} currentDate={currentDate}
+                bills={combinedBills} onTogglePaid={handleTogglePaid}
               />
             </div>
 
+            {/* Floating Action Buttons */}
             <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[60]">
               <Button 
                 size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-accent text-accent-foreground"
@@ -277,9 +273,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </div>
         </main>
 
-        {/* Footer Fixo */}
+        {/* Footer Fixo com Safe Area */}
         <footer 
-          className="shrink-0 bg-muted/10 border-t p-4" 
+          className="shrink-0 bg-card border-t p-4" 
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
         >
           <Button 
@@ -291,7 +287,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </Button>
         </footer>
 
-        {/* Modais auxiliares */}
+        {/* Modais auxiliares (Estes podem ser Dialogs pois são sub-telas) */}
         <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
         <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
         <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
@@ -319,6 +315,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   // ============================================
   // RENDERIZAÇÃO DESKTOP (DIALOG)
   // ============================================
+  if (!open) return null;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -417,7 +415,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </div>
           </div>
           <DialogFooter className="p-6 bg-muted/10 border-t flex flex-col sm:flex-row gap-3">
-            <Button variant="ghost" onClick={() => setShowNewBillModal(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
+            <Button variant="ghost" onClick={() => setShowNewBillModal(false)} className="rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
             <Button className="flex-1 h-12 rounded-xl font-black order-1 sm:order-2" onClick={handleAddAdHocBill}>ADICIONAR CONTA</Button>
           </DialogFooter>
         </DialogContent>
