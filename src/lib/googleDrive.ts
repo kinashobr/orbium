@@ -1,6 +1,6 @@
 "use client";
 
-export const GOOGLE_CLIENT_ID = "1009498436542-fj9ur8kjpvilgsevph7224s93u9iou7g.apps.googleusercontent.com";
+export const GOOGLE_CLIENT_ID = "1009498436542-3k2h3d5d7mmcrr5kftfmueu5sdt5oqnr.apps.googleusercontent.com";
 export const DRIVE_SCOPES = "https://www.googleapis.com/auth/drive.appdata";
 export const FILE_NAME = "orbium_data.json";
 
@@ -26,10 +26,11 @@ export async function generateCodeChallenge(verifier: string) {
 
 export async function initiateGoogleAuth() {
   const verifier = generateCodeVerifier();
+  // Salvando no localStorage conforme solicitado anteriormente
   localStorage.setItem("google_code_verifier", verifier);
 
   const challenge = await generateCodeChallenge(verifier);
-  const redirectUri = `${window.location.origin}/oauth/callback`;
+  const redirectUri = "https://orbiumfinance.vercel.app/oauth/callback";
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.searchParams.set("client_id", GOOGLE_CLIENT_ID);
