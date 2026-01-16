@@ -20,40 +20,33 @@ export default function AuthCallback() {
       const code = searchParams.get("code");
       const verifier = localStorage.getItem("google_code_verifier");
 
-      // Verificação estrita do code_verifier (sem ele o Google exige secret)
       if (!verifier) {
-        console.error("[AuthCallback] ERRO: code_verifier não encontrado no localStorage.");
-        toast.error("Segurança: code_verifier ausente. Reinicie o login.");
+        console.error("[AuthCallback] ERRO: code_verifier não encontrado.");
+        toast.error("Segurança: Verificador ausente. Reinicie o login.");
         setStatus("error");
         return;
       }
 
       if (!code) {
-        console.error("[AuthCallback] ERRO: Código de autorização ausente na URL.");
+        console.error("[AuthCallback] ERRO: Código de autorização ausente.");
         setStatus("error");
         return;
       }
 
       hasExchanged.current = true;
 
-      // 1. Uso de URLSearchParams para o corpo
       const params = new URLSearchParams();
-      params.append("client_id", "1009498436542-3k2h3d5d7mmcrr5kftfmueu5sdt5oqnr.apps.googleusercontent.com");
+      params.append("client_id", GOOGLE_CLIENT_ID);
       params.append("code", code);
       params.append("code_verifier", verifier);
       params.append("grant_type", "authorization_code");
       params.append("redirect_uri", "https://orbiumfinance.vercel.app/oauth/callback");
 
-      // 4. Log para conferência dos campos enviados
-      console.log("Corpo enviado:", Object.fromEntries(params));
-
       try {
         const response = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: {
-            // 3. Header estrito
             "Content-Type": "application/x-www-form-urlencoded",
-            // 2. Omitindo 'Authorization' propositalmente para cliente público
           },
           body: params.toString(),
         });
@@ -61,16 +54,14 @@ export default function AuthCallback() {
         const responseText = await response.text();
 
         if (!response.ok) {
-          console.error(`[AuthCallback] Resposta de erro do Google (${response.status}):`, responseText);
-          toast.error("Erro na validação com o Google. Verifique o console.");
+          console.error(`[AuthCallback] Erro Google (${response.status}):`, responseText);
+          toast.error("Erro na validação. Verifique as configurações de Redirect URI.");
           setStatus("error");
           return;
         }
 
         const data = JSON.parse(responseText);
         saveGoogleToken(data);
-        
-        // Limpeza
         localStorage.removeItem("google_code_verifier");
         
         toast.success("Nuvem conectada!");
@@ -92,7 +83,7 @@ export default function AuthCallback() {
         </div>
         <h2 className="text-xl font-bold">Conexão Interrompida</h2>
         <p className="text-muted-foreground text-sm max-w-sm">
-          Não foi possível trocar as chaves de segurança com o Google. Certifique-se de que o Client ID está configurado como <strong>"App da Web"</strong> ou <strong>"Android/iOS"</strong> e que as origens e URIs de redirecionamento no Google Console batem com este domínio.
+          Se o erro persistir, pode haver uma divergência na <strong>Redirect URI</strong> configurada no Google Console para este novo Client ID.
         </p>
         <Button variant="outline" onClick={() => navigate("/")} className="mt-4 rounded-full">
           Voltar para Home
@@ -106,10 +97,10 @@ export default function AuthCallback() {
       <Loader2 className="w-10 h-10 animate-spin text-primary" />
       <div className="space-y-1 text-center">
         <p className="text-sm font-bold uppercase tracking-widest text-foreground animate-pulse">
-          Troca de Chaves PKCE...
+          Sincronizando com o Google...
         </p>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          Finalizando autenticação segura
+          Finalizando autenticação PKCE
         </p>
       </div>
     </div>

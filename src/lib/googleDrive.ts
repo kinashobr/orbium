@@ -1,6 +1,6 @@
 "use client";
 
-export const GOOGLE_CLIENT_ID = "1009498436542-3k2h3d5d7mmcrr5kftfmueu5sdt5oqnr.apps.googleusercontent.com";
+export const GOOGLE_CLIENT_ID = "1009498436542-lickcmuvdtoq7srkhnmn1nvaf64ojc3p.apps.googleusercontent.com";
 export const DRIVE_SCOPES = "https://www.googleapis.com/auth/drive.appdata";
 export const FILE_NAME = "orbium_data.json";
 
@@ -26,7 +26,6 @@ export async function generateCodeChallenge(verifier: string) {
 
 export async function initiateGoogleAuth() {
   const verifier = generateCodeVerifier();
-  // Salvando no localStorage conforme solicitado anteriormente
   localStorage.setItem("google_code_verifier", verifier);
 
   const challenge = await generateCodeChallenge(verifier);
