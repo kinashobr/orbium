@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
@@ -78,6 +78,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     amount: "",
     dueDate: format(new Date(), "yyyy-MM-dd"),
   });
+
+  // --- FIX: Body Scroll Lock for Mobile Fullscreen Modal ---
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    // Cleanup function to ensure scroll is restored when component unmounts or dependencies change
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
+  // --------------------------------------------------------
 
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
