@@ -4,30 +4,45 @@ import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { initiateGoogleAuth, logoutGoogleDrive } from "@/lib/googleDrive";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Button } from "@/components/ui/button";
-import { Cloud, CloudOff, RefreshCw, LogOut } from "lucide-react";
+import { Cloud, CloudOff, RefreshCw, LogOut, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { toast } from "sonner";
 
 export function GoogleDriveSync() {
-  const { isConnected, isSyncing, lastSync, saveToDrive } = useGoogleDrive();
+  const { isConnected, isSyncing, lastSync, saveToDrive, loadFromDrive } = useGoogleDrive();
   const finance = useFinance();
 
   const handleSync = () => {
     // Coleta todos os dados do contexto para salvar
     const dataToSave = {
-      accounts: finance.contasMovimento,
-      categories: finance.categoriasV2,
-      transactions: finance.transacoesV2,
-      emprestimos: finance.emprestimos,
-      veiculos: finance.veiculos,
-      segurosVeiculo: finance.segurosVeiculo,
-      objetivos: finance.objetivos,
-      billsTracker: finance.billsTracker,
-      imoveis: finance.imoveis,
-      terrenos: finance.terrenos,
+      schemaVersion: "2.0", 
+      exportedAt: new Date().toISOString(), 
+      data: { 
+        accounts: finance.contasMovimento, 
+        categories: finance.categoriasV2, 
+        transactions: finance.transacoesV2, 
+        emprestimos: finance.emprestimos, 
+        veiculos: finance.veiculos, 
+        segurosVeiculo: finance.segurosVeiculo, 
+        objetivos: finance.objetivos, 
+        billsTracker: finance.billsTracker, 
+        standardizationRules: finance.standardizationRules, 
+        importedStatements: finance.importedStatements, 
+        revenueForecasts: finance.revenueForecasts, 
+        alertStartDate: finance.alertStartDate, 
+        imoveis: finance.imoveis, 
+        terrenos: finance.terrenos,
+        metasPersonalizadas: finance.metasPersonalizadas,
+      },
+      lastModified: finance.lastModified, // Incluindo o timestamp local
     };
     saveToDrive(dataToSave);
+  };
+  
+  const handleLoad = async () => {
+    await loadFromDrive();
   };
 
   if (!isConnected) {
@@ -71,6 +86,16 @@ export function GoogleDriveSync() {
           </div>
         </Button>
         <Button
+          variant="outline"
+          size="icon"
+          onClick={handleLoad}
+          disabled={isSyncing}
+          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-primary hover:bg-primary/5"
+          title="Puxar dados da nuvem"
+        >
+          <Download className="w-5 h-5" />
+        </Button>
+        <Button
           variant="ghost"
           size="icon"
           onClick={() => {
@@ -80,6 +105,7 @@ export function GoogleDriveSync() {
             }
           }}
           className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+          title="Desconectar"
         >
           <LogOut className="w-5 h-5" />
         </Button>

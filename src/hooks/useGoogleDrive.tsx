@@ -3,18 +3,20 @@
 import { useState, useCallback } from "react";
 import { getGoogleToken, FILE_NAME, logoutGoogleDrive } from "@/lib/googleDrive";
 import { toast } from "sonner";
+import { useFinance } from "@/contexts/FinanceContext";
 
 export function useGoogleDrive() {
+  const { lastModified, importData } = useFinance();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem("google_last_sync"));
 
   const findAppDataFile = async (token: string) => {
     const response = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}'&spaces=appDataFolder`,
+      `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}'&spaces=appDataFolder&fields=files(id,appProperties)`,
       { headers: { Authorization: `Bearer ${token}` } }
     );
     const data = await response.json();
-    return data.files && data.files.length > 0 ? data.files[0].id : null;
+    return data.files && data.files.length > 0 ? data.files[0] : null;
   };
 
   const saveToDrive = useCallback(async (jsonData: any) => {
@@ -23,10 +25,27 @@ export function useGoogleDrive() {
 
     setIsSyncing(true);
     try {
-      const fileId = await findAppDataFile(token);
+      const fileInfo = await findAppDataFile(token);
+      const fileId = fileInfo?.id;
+      const cloudLastModified = fileInfo?.appProperties?.lastModified || new Date(0).toISOString();
+      
+      const localLastModifiedDate = new Date(jsonData.lastModified);
+      const cloudLastModifiedDate = new Date(cloudLastModified);
+
+      // 1. Checagem de Conflito: Não salvar se a nuvem for mais recente
+      if (localLastModifiedDate <= cloudLastModifiedDate) {
+        toast.info("Sincronização cancelada: A versão na nuvem é mais recente ou igual à local.");
+        setIsSyncing(false);
+        return;
+      }
+
       const metadata = {
         name: FILE_NAME,
         parents: ["appDataFolder"],
+        appProperties: {
+          lastModified: jsonData.lastModified, // Salva o timestamp local como propriedade
+          schemaVersion: jsonData.schemaVersion,
+        }
       };
 
       const formData = new FormData();
@@ -43,7 +62,7 @@ export function useGoogleDrive() {
       let method = "POST";
 
       if (fileId) {
-        url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`;
+        url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,appProperties`;
         method = "PATCH";
       }
 
@@ -71,7 +90,7 @@ export function useGoogleDrive() {
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [lastModified]);
 
   const loadFromDrive = useCallback(async () => {
     const token = getGoogleToken();
@@ -79,8 +98,23 @@ export function useGoogleDrive() {
 
     setIsSyncing(true);
     try {
-      const fileId = await findAppDataFile(token);
-      if (!fileId) return null;
+      const fileInfo = await findAppDataFile(token);
+      const fileId = fileInfo?.id;
+      const cloudLastModified = fileInfo?.appProperties?.lastModified || new Date(0).toISOString();
+      
+      if (!fileId) {
+        toast.info("Nenhum backup encontrado na nuvem.");
+        return null;
+      }
+      
+      const localLastModifiedDate = new Date(lastModified);
+      const cloudLastModifiedDate = new Date(cloudLastModified);
+
+      // 2. Checagem de Conflito: Não carregar se a versão local for mais recente
+      if (localLastModifiedDate >= cloudLastModifiedDate) {
+        toast.info("Sincronização cancelada: A versão local é mais recente ou igual à da nuvem.");
+        return null;
+      }
 
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
@@ -89,7 +123,19 @@ export function useGoogleDrive() {
 
       if (!response.ok) throw new Error("Erro ao baixar dados");
 
-      return await response.json();
+      const data = await response.json();
+      
+      // Simula a importação de um arquivo para usar a lógica de importData do FinanceContext
+      const tempFile = new File([JSON.stringify(data)], FILE_NAME, { type: 'application/json' });
+      const importResult = await importData(tempFile);
+
+      if (importResult.success) {
+        toast.success("Dados restaurados da nuvem!");
+      } else {
+        toast.error(`Restauração falhou: ${importResult.message}`);
+      }
+      
+      return data;
     } catch (error) {
       console.error(error);
       toast.error("Erro ao carregar dados da nuvem.");
@@ -97,7 +143,7 @@ export function useGoogleDrive() {
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [lastModified, importData]);
 
   return {
     isSyncing,

@@ -33,7 +33,6 @@ import {
   generateTerrenoId,
   MetaPersonalizada,
   MetaProgresso,
-  generateMetaId,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
@@ -397,6 +396,9 @@ interface FinanceContextType {
   deleteMetaPersonalizada: (id: string) => void;
   calcularProgressoMeta: (meta: MetaPersonalizada) => MetaProgresso;
 
+  // Controle de Versão
+  lastModified: string;
+  
   // Exportação e Importação
   exportData: () => void;
   importData: (file: File) => Promise<{ success: boolean; message: string }>;
@@ -421,6 +423,7 @@ const STORAGE_KEYS = {
   IMOVEIS: "neon_finance_imoveis",
   TERRENOS: "neon_finance_terrenos",
   METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
+  LAST_MODIFIED: "fin_last_modified_v1", // NOVO
 };
 
 const initialEmprestimos: Emprestimo[] = [];
@@ -433,6 +436,7 @@ const initialImportedStatements: ImportedStatement[] = [];
 const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
 const initialMetasPersonalizadas: MetaPersonalizada[] = [];
+const initialLastModified = new Date(0).toISOString(); // Ponto de partida
 
 const defaultAlertStartDate = subMonths(new Date(), 6).toISOString().split('T')[0];
 
@@ -491,23 +495,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [alertStartDate, setAlertStartDate] = useState<string>(() => loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate));
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
   const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
+  const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified)); // NOVO
 
-  useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); }, [emprestimos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); }, [veiculos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); }, [imoveis]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); }, [terrenos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); }, [segurosVeiculo]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); }, [objetivos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); }, [billsTracker]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.STANDARDIZATION_RULES, standardizationRules); }, [standardizationRules]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); }, [importedStatements]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.REVENUE_FORECASTS, revenueForecasts); }, [revenueForecasts]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); }, [contasMovimento]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); }, [categoriasV2]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); }, [transacoesV2]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); }, [metasPersonalizadas]);
+  // Função para atualizar o timestamp de última modificação
+  const updateLastModified = useCallback(() => {
+    const now = new Date().toISOString();
+    setLastModified(now);
+    saveToStorage(STORAGE_KEYS.LAST_MODIFIED, now);
+  }, []);
+
+  // Efeitos para persistência e atualização do timestamp
+  useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); updateLastModified(); }, [emprestimos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); updateLastModified(); }, [veiculos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); updateLastModified(); }, [imoveis]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); updateLastModified(); }, [terrenos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); updateLastModified(); }, [segurosVeiculo]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); updateLastModified(); }, [objetivos]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); updateLastModified(); }, [billsTracker]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.STANDARDIZATION_RULES, standardizationRules); updateLastModified(); }, [standardizationRules]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); updateLastModified(); }, [importedStatements]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]); // Não altera o lastModified
+  useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]); // Não altera o lastModified
+  useEffect(() => { saveToStorage(STORAGE_KEYS.REVENUE_FORECASTS, revenueForecasts); }, [revenueForecasts]); // Não altera o lastModified
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); updateLastModified(); }, [contasMovimento]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); updateLastModified(); }, [categoriasV2]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -932,7 +945,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
 
   const exportData = () => {
-    const data = { schemaVersion: "2.0", exportedAt: new Date().toISOString(), data: { accounts: contasMovimento, categories: categoriasV2, transactions: transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos } };
+    const data = { 
+      schemaVersion: "2.0", 
+      exportedAt: new Date().toISOString(), 
+      data: { 
+        accounts: contasMovimento, 
+        categories: categoriasV2, 
+        transactions: transacoesV2, 
+        emprestimos, 
+        veiculos, 
+        segurosVeiculo, 
+        objetivos, 
+        billsTracker, 
+        standardizationRules, 
+        importedStatements, 
+        revenueForecasts, 
+        alertStartDate, 
+        imoveis, 
+        terrenos,
+        metasPersonalizadas,
+      },
+      lastModified: lastModified, // Incluindo o timestamp local
+    };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
@@ -940,26 +974,45 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const importData = async (file: File) => {
     try {
-      const data = JSON.parse(await file.text());
-      if (data.schemaVersion === '2.0') {
-        if (data.data.accounts) setContasMovimento(data.data.accounts);
-        if (data.data.categories) setCategoriasV2(data.data.categories);
-        if (data.data.transactions) setTransacoesV2(data.data.transactions);
-        if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
-        if (data.data.veiculos) setVeiculos(data.data.veiculos);
-        if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
-        if (data.data.objetivos) setObjetivos(data.data.objetivos);
-        if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
-        if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
-        if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
-        if (data.data.revenueForecasts) setRevenueForecasts(data.data.revenueForecasts);
-        if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
-        if (data.data.imoveis) setImoveis(data.data.imoveis); // NOVO
-        if (data.data.terrenos) setTerrenos(data.data.terrenos); // NOVO
-        return { success: true, message: "Dados importados!" };
+      const content = await file.text();
+      const data = JSON.parse(content);
+      
+      if (data.schemaVersion !== '2.0') {
+        return { success: false, message: "Schema incompatível." };
       }
-      return { success: false, message: "Schema incompatível." };
-    } catch { return { success: false, message: "Erro ao importar." }; }
+      
+      const importedLastModified = data.lastModified ? new Date(data.lastModified) : new Date(0);
+      const currentLastModified = new Date(lastModified);
+
+      if (importedLastModified <= currentLastModified) {
+          return { success: false, message: "O backup é mais antigo ou igual à versão local. Importação cancelada." };
+      }
+
+      if (data.data.accounts) setContasMovimento(data.data.accounts);
+      if (data.data.categories) setCategoriasV2(data.data.categories);
+      if (data.data.transactions) setTransacoesV2(data.data.transactions);
+      if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
+      if (data.data.veiculos) setVeiculos(data.data.veiculos);
+      if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
+      if (data.data.objetivos) setObjetivos(data.data.objetivos);
+      if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
+      if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
+      if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
+      if (data.data.revenueForecasts) setRevenueForecasts(data.data.revenueForecasts);
+      if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
+      if (data.data.imoveis) setImoveis(data.data.imoveis);
+      if (data.data.terrenos) setTerrenos(data.data.terrenos);
+      if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
+      
+      // Atualiza o lastModified local para o valor importado
+      setLastModified(data.lastModified);
+      saveToStorage(STORAGE_KEYS.LAST_MODIFIED, data.lastModified);
+
+      return { success: true, message: "Dados importados com sucesso! Versão mais recente aplicada." };
+    } catch (e) { 
+      console.error("Erro durante a importação:", e);
+      return { success: false, message: "Erro ao importar. Verifique se o arquivo está no formato correto." }; 
+    }
   };
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
@@ -1165,6 +1218,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPatrimonioLiquido: (d?: Date) => getAtivosTotal(d) - getPassivosTotal(d), getAtivosTotal, getPassivosTotal, getSegurosAApropriar, getSegurosAPagar,
     calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate,
     metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
+    lastModified,
     exportData, importData,
   };
 
