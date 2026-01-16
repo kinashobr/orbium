@@ -9,7 +9,6 @@ import {
   ArrowRight, 
   PieChart,
   LayoutGrid,
-  ChevronRight
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -71,12 +70,12 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
       <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent pointer-events-none" />
         
-        <div className="space-y-14 relative z-10">
+        <div className="space-y-12 relative z-10">
           {items.map((section, idx) => {
             const isPL = section.type === 'patrimonio';
             
             return (
-              <div key={idx} className="space-y-8">
+              <div key={idx} className="space-y-6">
                 {/* Subtotal da Seção - MÁXIMA EXPRESSÃO */}
                 {!isPL && (
                   <div className="flex items-center justify-between px-2">
@@ -103,32 +102,32 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
                   </div>
                 )}
 
-                {/* Lista de Itens (Encapsulados em Balões) */}
-                <div className="grid grid-cols-1 gap-2.5 pl-2 sm:pl-6">
+                {/* Lista de Itens (Encapsulados em Balões Compactos) */}
+                <div className="grid grid-cols-1 gap-1.5 pl-2 sm:pl-6">
                   {section.details?.map((detail) => (
                     <div 
                       key={detail.id}
-                      className="flex items-center justify-between p-3.5 sm:p-4 rounded-[1.75rem] bg-card/40 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card hover:shadow-md transition-all duration-300 group/item cursor-default"
+                      className="flex items-center justify-between py-2 px-4 rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card transition-all duration-300 group/item cursor-default"
                     >
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-10 h-10 rounded-2xl bg-muted/40 flex items-center justify-center text-muted-foreground group-hover/item:scale-110 group-hover/item:bg-primary/10 group-hover/item:text-primary transition-all duration-500">
-                          <detail.icon size={20} />
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-muted/40 flex items-center justify-center text-muted-foreground group-hover/item:text-primary transition-all duration-500">
+                          <detail.icon size={16} />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-xs sm:text-sm text-foreground truncate leading-tight">
+                          <p className="font-bold text-xs text-foreground truncate leading-tight">
                             {detail.name}
                           </p>
-                          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1 opacity-50">
+                          <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest opacity-50">
                             {detail.typeLabel}
                           </p>
                         </div>
                       </div>
                       
                       <div className="text-right shrink-0">
-                        <p className="font-black text-sm sm:text-base text-foreground tabular-nums leading-none">
+                        <p className="font-black text-xs sm:text-sm text-foreground tabular-nums leading-none">
                           {formatCurrency(detail.value)}
                         </p>
-                        <p className="text-[9px] font-black text-primary/60 uppercase mt-1.5 tracking-tighter">
+                        <p className="text-[8px] font-black text-primary/60 uppercase mt-1 tracking-tighter">
                           {detail.percent.toFixed(1)}%
                         </p>
                       </div>
