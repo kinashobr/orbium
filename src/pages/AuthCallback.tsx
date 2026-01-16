@@ -50,7 +50,7 @@ export default function AuthCallback() {
           }),
         });
 
-        const data = await googleResponse.json();
+        const data = await response.json();
 
         if (!response.ok) {
           console.error("[AuthCallback] Erro no Proxy de Autenticação:", data);
