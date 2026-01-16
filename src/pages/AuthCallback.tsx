@@ -36,8 +36,7 @@ export default function AuthCallback() {
       hasExchanged.current = true;
 
       try {
-        // Usamos a URI fixa de produção para bater com o que foi solicitado no login
-        const productionRedirectUri = "https://orbiumfinance.vercel.app/oauth/callback";
+        const currentRedirectUri = `${window.location.origin}/oauth/callback`;
 
         const response = await fetch("/api/auth/google", {
           method: "POST",
@@ -47,15 +46,15 @@ export default function AuthCallback() {
           body: JSON.stringify({
             code,
             code_verifier: verifier,
-            redirect_uri: productionRedirectUri,
+            redirect_uri: currentRedirectUri,
           }),
         });
 
-        const data = await response.json();
+        const data = await googleResponse.json();
 
         if (!response.ok) {
           console.error("[AuthCallback] Erro no Proxy de Autenticação:", data);
-          toast.error("Erro na validação. Verifique as configurações no Google Console.");
+          toast.error("Erro na validação do token.");
           setStatus("error");
           return;
         }
@@ -75,6 +74,7 @@ export default function AuthCallback() {
   }, [searchParams, navigate]);
 
   if (status === "error") {
+    const currentOrigin = window.location.origin;
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-6 text-center">
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-2">
@@ -82,8 +82,11 @@ export default function AuthCallback() {
         </div>
         <h2 className="text-xl font-bold">Conexão Interrompida</h2>
         <p className="text-muted-foreground text-sm max-w-sm">
-          Não foi possível completar a conexão. Verifique se a URL <strong>https://orbiumfinance.vercel.app/oauth/callback</strong> está cadastrada em "URIs de redirecionamento autorizados" no Google Cloud Console.
+          Certifique-se de que a URL abaixo está cadastrada no seu Google Cloud Console:
         </p>
+        <code className="bg-muted px-4 py-2 rounded-lg text-xs font-mono break-all max-w-md">
+          {currentOrigin}/oauth/callback
+        </code>
         <Button variant="outline" onClick={() => navigate("/")} className="mt-4 rounded-full">
           Voltar para Home
         </Button>
