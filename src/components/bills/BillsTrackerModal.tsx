@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { useFinance } from "@/contexts/FinanceContext";
+import { BillsTrackerList } from "./BillsTrackerList";
+import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
+import { BillsSidebarKPIs } from "./BillsSidebarKPIs";
+import { FixedBillSelectorModal } from "./FixedBillSelectorModal";
+import { AddPurchaseInstallmentDialog } from "./AddPurchaseInstallmentDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,7 +22,6 @@ import {
   Settings,
   Zap,
 } from "lucide-react";
-import { useFinance } from "@/contexts/FinanceContext";
 import { 
   BillTracker, 
   PotentialFixedBill, 
@@ -27,17 +31,13 @@ import {
   OperationType, 
   BillDisplayItem 
 } from "@/types/finance";
-import { BillsTrackerList } from "./BillsTrackerList";
-import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
-import { BillsSidebarKPIs } from "./BillsSidebarKPIs";
-import { FixedBillSelectorModal } from "./FixedBillSelectorModal";
-import { AddPurchaseInstallmentDialog } from "./AddPurchaseInstallmentDialog";
 import { format, startOfMonth, subMonths, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === 'tracker';
 
@@ -192,6 +192,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setShowNewBillModal(false);
     toast.success("Adicionado!");
   };
+  
+  const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => {
+    setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);
+  }, [setBillsTracker]);
 
   // ============================================
   // RENDERIZAÇÃO MOBILE (FULL SCREEN ABSOLUTO)
@@ -251,7 +255,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
             <div className="pb-24">
               <BillsTrackerMobileList 
-                bills={combinedBills} onTogglePaid={handleTogglePaid}
+                bills={combinedBills} 
+                onTogglePaid={handleTogglePaid}
+                onUpdateBill={updateBill}
+                onDeleteBill={deleteBill}
+                onAddBill={handleAddBill}
+                currentDate={currentDate}
               />
             </div>
 
@@ -291,7 +300,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
         <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
         <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
-          <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
+          <DialogContent 
+            hideCloseButton
+            className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]"
+          >
             <DialogHeader className="p-6 bg-muted/50 border-b">
               <DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle>
             </DialogHeader>
@@ -303,7 +315,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               </div>
             </div>
             <DialogFooter className="p-6 bg-muted/10 border-t flex flex-col sm:flex-row gap-3">
-              <Button variant="ghost" onClick={() => setShowNewBillModal(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
+              <Button variant="ghost" onClick={() => setShowNewBillModal(false)} className="rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
               <Button className="flex-1 h-12 rounded-xl font-black order-1 sm:order-2" onClick={handleAddAdHocBill}>ADICIONAR CONTA</Button>
             </DialogFooter>
           </DialogContent>
@@ -376,7 +388,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 <div className="flex-1 overflow-hidden bg-card rounded-[2.5rem] border border-border/40 shadow-sm mb-6">
                   <BillsTrackerList 
                     bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
-                    onAddBill={(b) => setBillsTracker(prev => [...prev, { ...b, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }])} 
+                    onAddBill={handleAddBill} 
                     onTogglePaid={handleTogglePaid} currentDate={currentDate} 
                   />
                 </div>
