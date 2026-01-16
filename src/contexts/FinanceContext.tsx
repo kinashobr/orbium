@@ -98,7 +98,7 @@ const normalizeAmount = (amountStr: string): number => {
         cleaned = cleaned.substring(1);
     }
     
-    cleaned = cleaned.replace(/[^\d.,]/g, '');
+    cleaned = cleaned.replace(/[^\d,]/g, '');
 
     if (cleaned.includes(',') && cleaned.includes('.')) {
         cleaned = cleaned.replace(/\./g, '').replace(',', '.');
@@ -981,12 +981,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         return { success: false, message: "Schema incompatível." };
       }
       
-      const importedLastModified = data.lastModified ? new Date(data.lastModified) : new Date(0);
-      const currentLastModified = new Date(lastModified);
-
-      if (importedLastModified <= currentLastModified) {
-          return { success: false, message: "O backup é mais antigo ou igual à versão local. Importação cancelada." };
-      }
+      // Removida a checagem restritiva de timestamp para permitir a restauração manual
 
       if (data.data.accounts) setContasMovimento(data.data.accounts);
       if (data.data.categories) setCategoriasV2(data.data.categories);
@@ -1004,11 +999,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.terrenos) setTerrenos(data.data.terrenos);
       if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
       
-      // Atualiza o lastModified local para o valor importado
-      setLastModified(data.lastModified);
-      saveToStorage(STORAGE_KEYS.LAST_MODIFIED, data.lastModified);
+      // Atualiza o lastModified local para o valor importado ou agora
+      const newTimestamp = data.lastModified || new Date().toISOString();
+      setLastModified(newTimestamp);
+      saveToStorage(STORAGE_KEYS.LAST_MODIFIED, newTimestamp);
 
-      return { success: true, message: "Dados importados com sucesso! Versão mais recente aplicada." };
+      return { success: true, message: "Dados importados com sucesso!" };
     } catch (e) { 
       console.error("Erro durante a importação:", e);
       return { success: false, message: "Erro ao importar. Verifique se o arquivo está no formato correto." }; 

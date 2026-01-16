@@ -108,21 +108,14 @@ export function useGoogleDrive() {
     try {
       const fileInfo = await findAppDataFile(token);
       const fileId = fileInfo?.id;
-      const cloudLastModified = fileInfo?.appProperties?.lastModified || new Date(0).toISOString();
       
       if (!fileId) {
         toast.info("Nenhum backup encontrado na nuvem.");
         return null;
       }
-      
-      const localLastModifiedDate = new Date(lastModified);
-      const cloudLastModifiedDate = new Date(cloudLastModified);
 
-      // 2. Checagem de Conflito: Não carregar se a versão local for mais recente
-      if (localLastModifiedDate >= cloudLastModifiedDate) {
-        toast.info("Sincronização cancelada: A versão local é mais recente ou igual à da nuvem.");
-        return null;
-      }
+      // Removida a checagem que bloqueava a restauração baseada no timestamp local
+      // O usuário clicou no botão de download, então ele quer restaurar independente da data local
 
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
