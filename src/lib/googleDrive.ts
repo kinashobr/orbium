@@ -29,6 +29,7 @@ export async function initiateGoogleAuth() {
   localStorage.setItem("google_code_verifier", verifier);
 
   const challenge = await generateCodeChallenge(verifier);
+  // URL Fixa de produção para evitar mismatch
   const redirectUri = "https://orbiumfinance.vercel.app/oauth/callback";
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
