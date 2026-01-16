@@ -29,6 +29,8 @@ import {
   Map,
   Plus,
   Info,
+  LineChart,
+  Building2
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -39,27 +41,15 @@ import { VehicleDetailDialog } from "@/components/vehicles/VehicleDetailDialog";
 import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
 import { formatCurrency, Veiculo, SeguroVeiculo, Imovel, Terreno } from "@/types/finance";
 import { 
-  PieChart as RePieChart, 
-  Pie, 
-  Cell, 
+  AreaChart, 
+  Area, 
   ResponsiveContainer, 
   Tooltip, 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid 
 } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
-import { format, differenceInDays } from "date-fns"; 
+import { format, subMonths, endOfMonth } from "date-fns"; 
 import { ptBR } from "date-fns/locale"; 
 import { toast } from "sonner";
-
-interface VehicleInsight {
-  tipo: 'info' | 'alerta' | 'sucesso';
-  mensagem: string;
-  icone: 'depreciation' | 'insurance' | 'payment';
-}
 
 const BensImobilizados = () => {
   const { 
@@ -93,20 +83,19 @@ const BensImobilizados = () => {
   const [showVehicleDetail, setShowVehicleDetail] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Veiculo | null>(null);
 
-  const pendingVehicles = getPendingVehicles();
   const totalFipe = getValorFipeTotal(dateRanges.range1.to);
   const totalImoveisTerrenos = getValorImoveisTerrenos(dateRanges.range1.to);
   const patrimonioImobilizadoTotal = totalFipe + totalImoveisTerrenos;
 
-  const distributionData = useMemo(() => {
-    const data = [
-      { name: 'Veículos', value: totalFipe, color: colors.primary },
-      { name: 'Imóveis', value: imoveis.reduce((acc, i) => acc + i.valorAvaliacao, 0), color: colors.success },
-      { name: 'Terrenos', value: terrenos.reduce((acc, t) => acc + t.valorAvaliacao, 0), color: colors.accent },
-    ].filter(d => d.value > 0);
-    
-    return data;
-  }, [totalFipe, imoveis, terrenos, colors]);
+  const evolutionData = useMemo(() => {
+    const result = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = endOfMonth(subMonths(new Date(), i));
+      const val = getValorFipeTotal(date) + getValorImoveisTerrenos(date);
+      result.push({ mes: format(date, 'MMM', { locale: ptBR }).toUpperCase(), valor: val });
+    }
+    return result;
+  }, [getValorFipeTotal, getValorImoveisTerrenos]);
 
   const insuranceTimeline = useMemo(() => {
     return segurosVeiculo.flatMap(s => 
@@ -127,30 +116,6 @@ const BensImobilizados = () => {
     setSelectedVehicle(veiculo);
     setShowVehicleDetail(true);
   };
-  
-  const getVehicleInsights = useMemo((): VehicleInsight[] => {
-    const insights: VehicleInsight[] = [];
-    const hoje = new Date();
-    const veiculosAtivos = veiculos.filter(v => v.status === 'ativo');
-    const veiculosSemSeguro = veiculosAtivos.filter(v => !segurosVeiculo.some(s => s.veiculoId === v.id));
-    
-    if (veiculosSemSeguro.length > 0) {
-      insights.push({ tipo: 'alerta', mensagem: `${veiculosSemSeguro.length} veículo(s) sem seguro cadastrado.`, icone: 'insurance' });
-    } else if (veiculosAtivos.length > 0) {
-      insights.push({ tipo: 'sucesso', mensagem: 'Todos os veículos possuem seguro cadastrado.', icone: 'insurance' });
-    }
-    
-    return insights;
-  }, [veiculos, segurosVeiculo]);
-  
-  const getImovelInsights = useMemo((): VehicleInsight[] => {
-    const insights: VehicleInsight[] = [];
-    const imoveisAtivos = imoveis.filter(i => i.status === 'ativo');
-    if (imoveisAtivos.length > 0) {
-      insights.push({ tipo: 'sucesso', mensagem: `Patrimônio imobiliário saudável e em valorização.`, icone: 'depreciation' });
-    }
-    return insights;
-  }, [imoveis]);
   
   const handleOpenImovelModal = (type: 'imovel' | 'terreno', asset?: Imovel | Terreno) => {
     setImovelModalType(type);
@@ -175,7 +140,7 @@ const BensImobilizados = () => {
         <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 px-1 animate-fade-in">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white shadow-xl shadow-blue-500/20 ring-4 ring-blue-500/10">
-              <Home className="w-7 h-7" />
+              <Building2 className="w-7 h-7" />
             </div>
             <div>
               <h1 className="font-display font-bold text-3xl leading-none tracking-tight">Bens Imobilizados</h1>
@@ -192,71 +157,101 @@ const BensImobilizados = () => {
         </header>
 
         {/* Hero Section: Valor da Frota */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-8 animate-fade-in-up">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 animate-fade-in-up">
           <div className="col-span-12 lg:col-span-8">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[40px] p-5 sm:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[280px] sm:h-[400px] flex flex-col justify-between group transition-all">
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/[0.03] to-transparent opacity-50"></div>
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[40px] p-6 sm:p-8 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 min-h-[350px] sm:h-[420px] flex flex-col justify-between group transition-all hover:shadow-soft-lg">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent opacity-50"></div>
               
+              <div className="absolute top-0 right-0 p-10 opacity-[0.03] dark:opacity-[0.07] group-hover:scale-110 transition-transform duration-1000">
+                <Home className="w-64 h-64 text-blue-600" />
+              </div>
+
+              <div className="absolute bottom-0 left-0 right-0 h-[150px] sm:h-[180px] pointer-events-none">
+                <svg className="w-full h-full" preserveAspectRatio="none" viewBox="0 0 800 250">
+                  <defs>
+                    <linearGradient id="colorBens" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity="0.4"/>
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <AreaChart data={evolutionData}>
+                    <Area type="monotone" dataKey="valor" stroke="hsl(var(--primary))" strokeWidth={5} fillOpacity={1} fill="url(#colorBens)" />
+                  </AreaChart>
+                </svg>
+              </div>
+
               <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-2xl text-blue-600 shadow-sm">
-                    <DollarSign className="w-6 h-6" />
+                  <div className="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-2xl text-blue-600 shadow-sm ring-1 ring-blue-500/20">
+                    <LineChart className="w-6 h-6" />
                   </div>
-                  <div>
-                    <span className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-70">Avaliação Total Imobilizada</span>
-                    <p className="text-[10px] font-bold text-blue-500/60 uppercase tracking-widest mt-0.5">Veículos, Imóveis e Terrenos</p>
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] opacity-70">Avaliação Total</span>
+                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest mt-0.5">Ativos Imobilizados</p>
                   </div>
                 </div>
                 
-                <h2 className="font-display font-extrabold text-4xl sm:text-6xl md:text-7xl text-foreground tracking-tighter leading-none tabular-nums">
+                <h2 className="font-display font-extrabold text-4xl sm:text-6xl md:text-7xl text-foreground tracking-tighter leading-none mt-4 tabular-nums">
                   {formatCurrency(patrimonioImobilizadoTotal)}
                 </h2>
                 
-                <div className="flex flex-wrap items-center gap-2 sm:gap-4 mt-4 sm:mt-8">
-                  <Badge variant="outline" className="bg-success/10 text-success border-none px-3 sm:px-4 py-1 sm:py-1.5 rounded-xl font-black text-[10px] sm:text-xs">
+                <div className="flex flex-wrap items-center gap-4 mt-8">
+                  <Badge variant="outline" className="bg-success/10 text-success border-none px-4 py-1.5 rounded-xl font-black text-xs shadow-sm">
                     <TrendingUp className="w-3 h-3 mr-1" /> PATRIMÔNIO ATIVO
                   </Badge>
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                    <Sparkles className="w-3.5 h-3.5 text-accent" />
+                    Atualizado via FIPE
+                  </div>
                 </div>
               </div>
 
               <div className="relative z-10 flex justify-end">
-                 <div className="p-4 rounded-3xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-white/40 dark:border-white/5 flex items-center gap-4">
+                 <div className="p-4 rounded-3xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-white/40 dark:border-white/5 flex items-center gap-4 group/card hover:scale-105 transition-transform">
                     <div className="text-right">
                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">Veículos / Imóveis</p>
                        <p className="font-black text-lg text-foreground leading-none">{veiculos.length} / {imoveis.length + terrenos.length} Ativos</p>
                     </div>
-                    <div className="w-10 h-10 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600">
-                       <LayoutGrid className="w-5 h-5" />
+                    <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shadow-sm group-hover/card:bg-blue-600 group-hover/card:text-white transition-all">
+                       <LayoutGrid className="w-6 h-6" />
                     </div>
                  </div>
               </div>
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-4 grid grid-cols-2 lg:flex lg:flex-col gap-3 sm:gap-6">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[130px] sm:h-[190px] hover:shadow-soft-lg hover:-translate-y-1 transition-transform cursor-help animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-              <div className="flex items-start justify-between">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm">
+          <div className="col-span-12 lg:col-span-4 grid grid-cols-2 lg:flex lg:flex-col gap-6">
+            {/* Card Manutenção */}
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[160px] xl:h-[200px] hover:shadow-soft-lg hover:-translate-y-1 transition-all group relative overflow-hidden animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+              <div className="absolute -right-4 -bottom-4 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+                <Zap className="w-32 h-32 text-orange-600" />
+              </div>
+              <div className="flex items-start justify-between relative z-10">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-primary shadow-sm group-hover:scale-110 transition-transform">
                   <Zap className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <Badge className="bg-warning/10 text-warning border-none font-black text-[8px] sm:text-[10px] px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg uppercase">Manutenção</Badge>
+                <Badge className="bg-warning/10 text-warning border-none font-black text-[8px] sm:text-[10px] px-2 py-0.5 rounded-lg uppercase tracking-widest">Manutenção</Badge>
               </div>
-              <div>
+              <div className="relative z-10">
                 <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Custo Mensal Médio</p>
-                <p className="font-display font-black text-xl sm:text-3xl text-foreground tabular-nums">R$ 850,00</p>
+                <p className="font-display font-black text-xl lg:text-3xl text-foreground tabular-nums">R$ 850,00</p>
               </div>
             </div>
 
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[20px] sm:rounded-[32px] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[130px] sm:h-[184px] hover:shadow-soft-lg hover:-translate-y-1 transition-transform cursor-help animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-               <div className="flex items-start justify-between">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-green-100 dark:bg-orange-900/30 flex items-center justify-center text-success shadow-sm">
+            {/* Card Proteção */}
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[160px] xl:h-[194px] hover:shadow-soft-lg hover:-translate-y-1 transition-all group relative overflow-hidden animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+               <div className="absolute -right-4 -bottom-4 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+                <ShieldCheck className="w-32 h-32 text-green-600" />
+              </div>
+              <div className="flex items-start justify-between relative z-10">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-success shadow-sm group-hover:scale-110 transition-transform">
                   <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <Badge className="bg-success/10 text-success border-none font-black text-[8px] sm:text-[10px] px-2 sm:px-3 py-0.5 sm:py-1 rounded-lg uppercase">Proteção</Badge>
+                <Badge className="bg-success/10 text-success border-none font-black text-[8px] sm:text-[10px] px-2 py-0.5 rounded-lg uppercase tracking-widest">Proteção</Badge>
               </div>
-              <div>
+              <div className="relative z-10">
                 <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Cobertura Total</p>
-                <p className="font-display font-black text-xl sm:text-3xl text-foreground tabular-nums">100% Frota</p>
+                <p className="font-display font-black text-xl lg:text-3xl text-foreground tabular-nums">100% Frota</p>
               </div>
             </div>
           </div>
@@ -295,7 +290,7 @@ const BensImobilizados = () => {
 
                   <div className="flex items-start justify-between mb-10 relative z-10">
                     <div className="flex items-center gap-5">
-                      <div className="w-14 h-14 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500">
+                      <div className={cn("w-14 h-14 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500")}>
                         {v.tipo === 'moto' ? <MotorcycleIcon className="w-7 h-7" /> : <Car className="w-7 h-7" />}
                       </div>
                       <div className="space-y-1">

@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -154,7 +155,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                   ))}
                 </div>
 
-                {/* Banner de Quitação Expressivo */}
+                {/* Banner de Quitação */}
                 <div className="p-8 sm:p-10 rounded-[3rem] bg-success/[0.03] border-4 border-success/10 flex flex-col sm:flex-row items-center justify-between gap-8 relative overflow-hidden group">
                   <div className="absolute right-0 top-0 opacity-5 scale-150 translate-x-10 -translate-y-10 group-hover:rotate-6 transition-transform duration-1000">
                     <Zap className="w-[200px] h-[200px] text-success" />
@@ -254,7 +255,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {isMobile ? (
-        <DialogContent className="fixed inset-0 max-w-full h-full rounded-none p-0 overflow-hidden flex flex-col bg-background z-[150] animate-in slide-in-from-bottom duration-300">
+        <DialogContent hideCloseButton className="fixed inset-0 max-w-full h-full rounded-none p-0 overflow-hidden flex flex-col bg-background z-[150] animate-in slide-in-from-bottom duration-300">
           <header className="px-6 pt-6 pb-4 border-b shrink-0 bg-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -276,12 +277,23 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
           <main className="flex-1 overflow-hidden">
             {renderContent()}
           </main>
+          {!showConfigForm && (
+            <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
+              <Button 
+                variant="ghost" 
+                onClick={() => onOpenChange(false)}
+                className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+              >
+                FECHAR
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       ) : (
         <ResizableDialogContent
           storageKey="loan_detail_modal_v4"
           initialWidth={1000} initialHeight={850} minWidth={900} minHeight={700} hideCloseButton={true}
-          className="bg-background border-none shadow-2xl p-0 overflow-hidden flex flex-col rounded-[3rem]"
+          className="bg-background shadow-2xl p-0 overflow-hidden flex flex-col rounded-[2rem]"
         >
           <div className="modal-viewport">
             <DialogHeader className="p-8 sm:p-10 shrink-0 bg-surface-light dark:bg-surface-dark border-b relative">
@@ -308,9 +320,6 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                       <Edit className="w-4 h-4" /> Editar Termos
                     </Button>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="h-11 w-11 rounded-full hover:bg-black/5 transition-colors">
-                    <X className="w-6 h-6" />
-                  </Button>
                 </div>
               </div>
             </DialogHeader>
@@ -318,6 +327,18 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background">
               {renderContent()}
             </div>
+
+            {!showConfigForm && (
+              <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => onOpenChange(false)}
+                  className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                >
+                  FECHAR
+                </Button>
+              </DialogFooter>
+            )}
           </div>
         </ResizableDialogContent>
       )}

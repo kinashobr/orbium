@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CheckCircle2, Clock, X, DollarSign, Shield, ListChecks, Car, Building2 } from "lucide-react";
@@ -19,7 +19,6 @@ interface AllInstallmentsReviewModalProps {
   onToggleInstallment: (potentialBill: PotentialFixedBill, isChecked: boolean) => void;
 }
 
-// Componente auxiliar para renderizar a tabela de parcelas
 const InstallmentTable = ({
     installments,
     referenceDate,
@@ -31,7 +30,6 @@ const InstallmentTable = ({
     onToggle: (bill: PotentialFixedBill) => void;
     type: 'loan' | 'insurance';
 }) => {
-    const totalValue = installments.reduce((acc, bill) => acc + bill.expectedAmount, 0);
     const paidCount = installments.filter(b => b.isPaid).length;
     const pendingCount = installments.filter(b => !b.isPaid).length;
     
@@ -83,35 +81,34 @@ const InstallmentTable = ({
                                         <TableCell>
                                             {format(dueDate, 'dd/MM/yyyy')}
                                         </TableCell>
-                                        <TableCell className="text-sm">{bill.description}</TableCell>
-                                        <TableCell className="text-right font-medium text-sm">
+                                        <TableCell className="text-sm font-medium">{bill.description}</TableCell>
+                                        <TableCell className="text-right font-black text-sm tabular-nums">
                                             {formatCurrency(bill.expectedAmount)}
                                         </TableCell>
-                                        <TableCell className="text-center text-sm">
+                                        <TableCell className="text-center text-[10px] font-black uppercase">
                                             {bill.isPaid ? (
-                                                <span className="text-success font-medium flex items-center justify-center gap-1">
-                                                    <CheckCircle2 className="w-4 h-4" /> Paga
+                                                <span className="text-success flex items-center justify-center gap-1">
+                                                    <CheckCircle2 className="w-3.5 h-3.5" /> PAGA
                                                 </span>
                                             ) : (
-                                                <span className={cn("font-medium", isFuture ? "text-muted-foreground" : "text-destructive")}>
-                                                    <Clock className="w-4 h-4 inline mr-1" /> {isFuture ? 'Futura' : 'Vencendo'}
+                                                <span className={cn(isFuture ? "text-muted-foreground" : "text-destructive")}>
+                                                    {isFuture ? 'FUTURA' : 'VENCENDO'}
                                                 </span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-center">
                                             {bill.isPaid ? (
-                                                <Button variant="ghost" size="sm" disabled className="h-8 text-success text-xs">
-                                                    Paga
+                                                <Button variant="ghost" size="sm" disabled className="h-8 text-success text-[10px] font-black uppercase">
+                                                    PAGO
                                                 </Button>
                                             ) : (
                                                 <Button 
                                                     variant={bill.isIncluded ? "destructive" : "default"} 
                                                     size="sm"
                                                     onClick={() => onToggle(bill)}
-                                                    className="h-8 text-xs"
+                                                    className="h-8 text-[10px] font-black uppercase rounded-lg px-3"
                                                 >
-                                                    {bill.isIncluded ? <X className="w-4 h-4 mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
-                                                    {bill.isIncluded ? 'Excluir' : 'Incluir'}
+                                                    {bill.isIncluded ? 'EXCLUIR' : 'INCLUIR'}
                                                 </Button>
                                             )}
                                         </TableCell>
@@ -120,8 +117,8 @@ const InstallmentTable = ({
                             })}
                             {installments.length === 0 && (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                                        Nenhuma parcela {type === 'loan' ? 'de empréstimo' : 'de seguro'} ativa encontrada.
+                                    <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
+                                        Nenhuma parcela ativa encontrada.
                                     </TableCell>
                                 </TableRow>
                             )}
@@ -144,90 +141,73 @@ export function AllInstallmentsReviewModal({
   const { getPotentialFixedBillsForMonth, getFutureFixedBills } = useFinance();
   const [activeTab, setActiveTab] = useState('loan');
 
-  // Combina as parcelas potenciais do mês atual e as futuras
   const allFixedInstallments = useMemo(() => {
     const currentMonthBills = getPotentialFixedBillsForMonth(referenceDate, localBills);
     const futureBills = getFutureFixedBills(referenceDate, localBills);
-    
-    // Usa um Map para garantir a unicidade baseada na chave
     const combinedMap = new Map<string, PotentialFixedBill>();
-    
-    [...currentMonthBills, ...futureBills].forEach(bill => {
-        combinedMap.set(bill.key, bill);
-    });
-    
-    return Array.from(combinedMap.values()).sort((a, b) => 
-        parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime()
-    );
+    [...currentMonthBills, ...futureBills].forEach(bill => combinedMap.set(bill.key, bill));
+    return Array.from(combinedMap.values()).sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
   }, [referenceDate, localBills, getPotentialFixedBillsForMonth, getFutureFixedBills]);
   
-  const loanInstallments = useMemo(() => 
-    allFixedInstallments.filter(b => b.sourceType === 'loan_installment'),
-    [allFixedInstallments]
-  );
-  
-  const insuranceInstallments = useMemo(() => 
-    allFixedInstallments.filter(b => b.sourceType === 'insurance_installment'),
-    [allFixedInstallments]
-  );
+  const loanInstallments = useMemo(() => allFixedInstallments.filter(b => b.sourceType === 'loan_installment'), [allFixedInstallments]);
+  const insuranceInstallments = useMemo(() => allFixedInstallments.filter(b => b.sourceType === 'insurance_installment'), [allFixedInstallments]);
 
   const handleToggle = useCallback((bill: PotentialFixedBill) => {
     if (bill.isPaid) {
-        toast.info("Parcelas pagas não podem ser removidas ou adicionadas aqui. Use a lista principal para estornar.");
+        toast.info("Parcelas pagas não podem ser alteradas aqui.");
         return;
     }
-    // Toggle inclusion status
     onToggleInstallment(bill, !bill.isIncluded);
   }, [onToggleInstallment]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,64rem)] h-[min(90vh,900px)] flex flex-col p-4 sm:p-6">
-        <DialogHeader className="shrink-0">
-          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg">
-            <ListChecks className="w-5 h-5 text-primary" />
-            Revisão de Parcelas Fixas
+      <DialogContent 
+        hideCloseButton
+        className="max-w-[min(95vw,64rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col rounded-[2.5rem] shadow-2xl bg-card"
+      >
+        <DialogHeader className="px-8 pt-10 pb-6 border-b shrink-0 bg-muted/50">
+          <DialogTitle className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <ListChecks className="w-5 h-5" />
+            </div>
+            <span className="text-xl font-black tracking-tight">Revisão de Parcelas Fixas</span>
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-            <TabsList className="bg-muted/50 shrink-0 h-auto p-1 flex-wrap">
-                <TabsTrigger value="loan" className="gap-1 sm:gap-2 text-xs sm:text-sm h-10 px-3 sm:px-4">
-                    <Building2 className="w-4 h-4" />
-                    <span className="hidden sm:inline">Empréstimos</span>
-                    <span className="sm:hidden">Empr.</span>
-                    ({loanInstallments.length})
-                </TabsTrigger>
-                <TabsTrigger value="insurance" className="gap-1 sm:gap-2 text-xs sm:text-sm h-10 px-3 sm:px-4">
-                    <Shield className="w-4 h-4" />
-                    <span className="hidden sm:inline">Seguros</span>
-                    <span className="sm:hidden">Seg.</span>
-                    ({insuranceInstallments.length})
-                </TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="loan" className="flex-1 pt-4 min-h-0 overflow-hidden">
-                <div className="h-full overflow-x-auto">
-                    <InstallmentTable 
-                        installments={loanInstallments}
-                        referenceDate={referenceDate}
-                        onToggle={handleToggle}
-                        type="loan"
-                    />
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-6 sm:p-8">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+                <TabsList className="bg-muted/50 shrink-0 h-auto p-1.5 rounded-2xl border mb-6">
+                    <TabsTrigger value="loan" className="flex-1 gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest h-10 data-[state=active]:bg-card">
+                        <Building2 className="w-4 h-4" />
+                        Empréstimos ({loanInstallments.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="insurance" className="flex-1 gap-2 rounded-xl text-[10px] font-black uppercase tracking-widest h-10 data-[state=active]:bg-card">
+                        <Shield className="w-4 h-4" />
+                        Seguros ({insuranceInstallments.length})
+                    </TabsTrigger>
+                </TabsList>
+                
+                <div className="flex-1 min-h-0 overflow-hidden">
+                    <TabsContent value="loan" className="h-full mt-0 focus-visible:outline-none">
+                        <InstallmentTable installments={loanInstallments} referenceDate={referenceDate} onToggle={handleToggle} type="loan" />
+                    </TabsContent>
+                    <TabsContent value="insurance" className="h-full mt-0 focus-visible:outline-none">
+                        <InstallmentTable installments={insuranceInstallments} referenceDate={referenceDate} onToggle={handleToggle} type="insurance" />
+                    </TabsContent>
                 </div>
-            </TabsContent>
-            
-            <TabsContent value="insurance" className="flex-1 pt-4 min-h-0 overflow-hidden">
-                <div className="h-full overflow-x-auto">
-                    <InstallmentTable 
-                        installments={insuranceInstallments}
-                        referenceDate={referenceDate}
-                        onToggle={handleToggle}
-                        type="insurance"
-                    />
-                </div>
-            </TabsContent>
-        </Tabs>
+            </Tabs>
+        </div>
+
+        <DialogFooter className="p-6 bg-muted/10 border-t">
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)}
+            className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+          >
+            FECHAR
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

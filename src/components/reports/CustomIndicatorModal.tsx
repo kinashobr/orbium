@@ -39,7 +39,7 @@ export function CustomIndicatorModal({ open, onOpenChange, onSave }: CustomIndic
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,32rem)] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)]">
+      <DialogContent hideCloseButton className="max-w-[min(95vw,32rem)] p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)]">
         <DialogHeader className="px-8 pt-8 pb-6 bg-muted/50 dark:bg-black/30 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
@@ -141,11 +141,15 @@ export function CustomIndicatorModal({ open, onOpenChange, onSave }: CustomIndic
           </div>
         </div>
 
-        <DialogFooter className="p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground">
-            Cancelar
+        <DialogFooter className="p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex flex-col sm:flex-row gap-3">
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)} 
+            className="rounded-full h-12 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1 w-full sm:w-auto"
+          >
+            FECHAR
           </Button>
-          <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20">
+          <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 order-1 sm:order-2 w-full sm:w-auto">
             <Check className="w-5 h-5" />
             CRIAR INDICADOR
           </Button>

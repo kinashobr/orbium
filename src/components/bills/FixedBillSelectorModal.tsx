@@ -1,13 +1,12 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Plus, Check, Building2, Shield, ShoppingCart, Calendar, X } from "lucide-react";
+import { Settings, Plus, Check, Building2, Shield, ShoppingCart, Calendar } from "lucide-react";
 import { PotentialFixedBill, formatCurrency } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useMediaQuery } from "@/hooks/useMediaQuery"; // Import useMediaQuery
 
 export interface FixedBillSelectorModalProps {
   open: boolean;
@@ -27,11 +26,10 @@ export function FixedBillSelectorModal({
 }: FixedBillSelectorModalProps) {
   const isCurrent = mode === 'current';
   const Icon = isCurrent ? Settings : Plus;
-  const isMobile = useMediaQuery("(max-width: 768px)"); // Use the hook
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,52rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2rem] sm:rounded-[3rem] border-none shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]">
+      <DialogContent hideCloseButton className="max-w-[min(95vw,52rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2rem] shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]">
         <DialogHeader className={cn(
           "px-6 sm:px-8 pt-8 sm:pt-10 pb-6 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5",
           isCurrent ? "bg-primary/5" : "bg-accent/5"
@@ -52,16 +50,6 @@ export function FixedBillSelectorModal({
               </DialogDescription>
             </div>
           </div>
-          {!isMobile && ( // Only show on mobile
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute right-4 top-4 rounded-full"
-              onClick={() => onOpenChange(false)}
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          )}
         </DialogHeader>
 
         <ScrollArea className="flex-1 p-4 sm:p-8">
@@ -74,7 +62,6 @@ export function FixedBillSelectorModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {potentialFixedBills.map((bill) => {
                 const isLoan = bill.sourceType === 'loan_installment';
-                const isInsurance = bill.sourceType === 'insurance_installment';
                 
                 return (
                   <button
@@ -93,7 +80,7 @@ export function FixedBillSelectorModal({
                         bill.isIncluded ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                       )}>
                         {isLoan ? <Building2 className="w-5 h-5 sm:w-6 sm:h-6" /> :
-                         isInsurance ? <Shield className="w-5 h-5 sm:w-6 sm:h-6" /> :
+                         bill.sourceType === 'insurance_installment' ? <Shield className="w-5 h-5 sm:w-6 sm:h-6" /> :
                          <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />}
                       </div>
                       {bill.isIncluded && (
@@ -134,14 +121,15 @@ export function FixedBillSelectorModal({
           )}
         </ScrollArea>
 
-        <div className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0">
+        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0">
           <Button 
             onClick={() => onOpenChange(false)}
-            className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-sm sm:text-base shadow-xl shadow-primary/10"
+            className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            variant="ghost"
           >
-            CONCLUIR SELEÇÃO
+            FECHAR
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

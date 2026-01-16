@@ -1,30 +1,24 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import React, { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, ArrowLeft, X } from "lucide-react";
-import { ContaCorrente, Categoria, AccountType, generateTransactionId, generateTransferGroupId, OperationType, TransacaoCompleta, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, SeguroVeiculo, Veiculo, OPERATION_TYPE_LABELS } from "@/types/finance";
+import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, Sparkles } from "lucide-react";
+import { ContaCorrente, Categoria, generateTransactionId, generateTransferGroupId, OperationType, TransacaoCompleta, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, OPERATION_TYPE_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface LoanInfo {
   id: string;
   institution: string;
   numeroContrato?: string;
-  parcelas: {
-    numero: number;
-    vencimento: string;
-    valor: number;
-    paga: boolean;
-    transactionId?: string;
-  }[];
+  parcelas: { numero: number; vencimento: string; valor: number; paga: boolean; }[];
   valorParcela: number;
-  totalParcelas: number;
 }
 
 interface MovimentarContaModalProps {
@@ -34,14 +28,14 @@ interface MovimentarContaModalProps {
   categories: Categoria[];
   investments: InvestmentInfo[];
   loans: LoanInfo[];
-  segurosVeiculo: SeguroVeiculo[];
-  veiculos: Veiculo[];
+  segurosVeiculo: any[];
+  veiculos: any[];
   selectedAccountId?: string;
   onSubmit: (transaction: TransacaoCompleta, transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string }) => void;
   editingTransaction?: TransacaoCompleta;
 }
 
-const OPERATION_OPTIONS: { value: OperationType; label: string; icon: React.ElementType; color: string; bgColor: string }[] = [
+const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color: string; bgColor: string }[] = [
   { value: 'receita', label: 'Receita', icon: Plus, color: 'text-success', bgColor: 'bg-success/10' },
   { value: 'despesa', label: 'Despesa', icon: Minus, color: 'text-destructive', bgColor: 'bg-destructive/10' },
   { value: 'transferencia', label: 'Transferência', icon: ArrowLeftRight, color: 'text-primary', bgColor: 'bg-primary/10' },
@@ -53,43 +47,13 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; icon: React.Elem
   { value: 'rendimento', label: 'Rendimento', icon: Coins, color: 'text-primary', bgColor: 'bg-primary/10' },
 ];
 
-const getAvailableOperationTypes = (accountType: AccountType): OperationType[] => {
-  switch (accountType) {
-    case 'corrente':
-      return ['receita', 'despesa', 'transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'rendimento'];
-    case 'cartao_credito':
-      return ['despesa', 'transferencia'];
-    case 'renda_fixa':
-    case 'poupanca':
-    case 'reserva':
-    case 'objetivo':
-    case 'cripto':
-      return ['aplicacao', 'resgate', 'rendimento'];
-    default:
-      return ['receita', 'despesa'];
-  }
-};
-
-const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const parseFromBR = (value: string): number => {
-    const cleaned = value.replace(/[^\d,]/g, '');
+const parseFromBR = (v: string): number => {
+    const cleaned = v.replace(/[^\d,]/g, '');
     const parsed = parseFloat(cleaned.replace(',', '.'));
     return isNaN(parsed) ? 0 : parsed;
 };
 
-export function MovimentarContaModal({
-  open,
-  onOpenChange,
-  accounts,
-  categories,
-  investments,
-  loans,
-  segurosVeiculo,
-  veiculos,
-  selectedAccountId,
-  onSubmit,
-  editingTransaction,
-}: MovimentarContaModalProps) {
+export function MovimentarContaModal({ open, onOpenChange, accounts, categories, investments, loans, selectedAccountId, onSubmit, editingTransaction }: MovimentarContaModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState("");
@@ -97,317 +61,122 @@ export function MovimentarContaModal({
   const [operationType, setOperationType] = useState<OperationType | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
-  
   const [destinationAccountId, setDestinationAccountId] = useState<string | null>(null);
-  const [tempInvestmentId, setTempInvestmentId] = useState<string | null>(null);
-  const [tempLoanId, setTempLoanId] = useState<string | null>(null);
-  const [tempParcelaId, setTempParcelaId] = useState<string | null>(null);
-  const [tempVehicleOperation, setTempVehicleOperation] = useState<'compra' | 'venda' | null>(null);
-  const [tempSeguroId, setTempSeguroId] = useState<string | null>(null);
-  const [tempSeguroParcelaId, setTempSeguroParcelaId] = useState<string | null>(null);
 
   const isEditing = !!editingTransaction;
-  const selectedAccount = accounts.find(a => a.id === accountId);
-  const availableOperations = selectedAccount ? getAvailableOperationTypes(selectedAccount.accountType) : [];
-  
-  const isTransfer = operationType === 'transferencia';
-  const isInvestmentFlow = operationType === 'aplicacao' || operationType === 'resgate';
-  const isLoanPayment = operationType === 'pagamento_emprestimo';
-  const isVehicleOp = operationType === 'veiculo';
-  
-  const isInsurancePayment = useMemo(() => {
-    if (operationType !== 'despesa') return false;
-    const cat = categories.find(c => c.id === categoryId);
-    return cat?.label.toLowerCase().includes('seguro');
-  }, [operationType, categoryId, categories]);
-
-  const availableCategories = useMemo(() => {
-    if (!operationType || isTransfer) return [];
-    const isIncome = ['receita', 'rendimento', 'liberacao_emprestimo'].includes(operationType);
-    return categories.filter(c => (isIncome && c.nature === 'receita') || (!isIncome && c.nature !== 'receita'));
-  }, [operationType, categories, isTransfer]);
 
   useEffect(() => {
     if (open) {
       if (editingTransaction) {
-        setAccountId(editingTransaction.accountId);
-        setDate(editingTransaction.date);
-        setAmount(formatToBR(editingTransaction.amount));
-        setOperationType(editingTransaction.operationType);
-        setCategoryId(editingTransaction.categoryId);
-        setDescription(editingTransaction.description);
-        setTempInvestmentId(editingTransaction.links?.investmentId || null);
-        setTempLoanId(editingTransaction.links?.loanId || null);
-        setTempParcelaId(editingTransaction.links?.parcelaId || null);
-        setTempVehicleOperation(editingTransaction.meta?.vehicleOperation || null);
+        setAccountId(editingTransaction.accountId); setDate(editingTransaction.date); setAmount(editingTransaction.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
+        setOperationType(editingTransaction.operationType); setCategoryId(editingTransaction.categoryId); setDescription(editingTransaction.description);
       } else {
-        setAccountId(selectedAccountId || accounts[0]?.id || '');
-        setDate(new Date().toISOString().split('T')[0]);
-        setAmount("");
-        setOperationType(availableOperations[0] || null);
-        setCategoryId(null);
-        setDescription("");
-        setDestinationAccountId(null);
-        setTempInvestmentId(null);
-        setTempLoanId(null);
-        setTempParcelaId(null);
-        setTempVehicleOperation(null);
-        setTempSeguroId(null);
-        setTempSeguroParcelaId(null);
+        setAccountId(selectedAccountId || accounts[0]?.id || ''); setDate(new Date().toISOString().split('T')[0]); setAmount("");
+        setOperationType('despesa'); setCategoryId(null); setDescription(""); setDestinationAccountId(null);
       }
     }
-  }, [open, editingTransaction, selectedAccountId, accounts, availableOperations]);
+  }, [open, editingTransaction, selectedAccountId, accounts]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedAmount = parseFromBR(amount);
-    if (!accountId || !date || parsedAmount <= 0 || !operationType) {
-      toast.error("Preencha todos os campos obrigatórios.");
-      return;
-    }
-
-    if (isTransfer && !destinationAccountId) {
-      toast.error("Selecione a conta de destino.");
-      return;
-    }
-
+    if (!accountId || !date || parsedAmount <= 0 || !operationType) { toast.error("Preencha os campos obrigatórios"); return; }
+    
     const baseTx: TransacaoCompleta = {
-      id: editingTransaction?.id || generateTransactionId(),
-      date,
-      accountId,
-      flow: getFlowTypeFromOperation(operationType, tempVehicleOperation || undefined),
-      operationType,
-      domain: getDomainFromOperation(operationType),
-      amount: parsedAmount,
-      categoryId,
-      description: description.trim() || OPERATION_TYPE_LABELS[operationType],
-      links: {
-        investmentId: isInvestmentFlow ? tempInvestmentId : null,
-        loanId: isLoanPayment ? tempLoanId : null,
-        transferGroupId: editingTransaction?.links?.transferGroupId || null,
-        parcelaId: isLoanPayment ? tempParcelaId : null,
-        vehicleTransactionId: isInsurancePayment && tempSeguroId && tempSeguroParcelaId ? `${tempSeguroId}_${tempSeguroParcelaId}` : null,
-      } as any,
-      conciliated: false,
-      attachments: [],
-      meta: { 
-        createdBy: 'user', 
-        source: 'manual', 
-        createdAt: new Date().toISOString(),
-        vehicleOperation: isVehicleOp ? tempVehicleOperation || undefined : undefined
-      }
+      id: editingTransaction?.id || generateTransactionId(), date, accountId, flow: getFlowTypeFromOperation(operationType), operationType, domain: getDomainFromOperation(operationType), amount: parsedAmount, categoryId, description: description.trim() || OPERATION_TYPE_LABELS[operationType], links: { investmentId: null, loanId: null, transferGroupId: editingTransaction?.links?.transferGroupId || null, parcelaId: null, vehicleTransactionId: null }, conciliated: false, attachments: [], meta: { createdBy: 'user', source: 'manual', createdAt: new Date().toISOString() }
     };
 
     let transferGroup;
-    if (isTransfer && destinationAccountId) {
-      transferGroup = {
-        id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(),
-        fromAccountId: accountId,
-        toAccountId: destinationAccountId,
-        amount: parsedAmount,
-        date,
-        description: baseTx.description
-      };
+    if (operationType === 'transferencia' && destinationAccountId) {
+      transferGroup = { id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(), fromAccountId: accountId, toAccountId: destinationAccountId, amount: parsedAmount, date, description: baseTx.description };
     }
     
     onSubmit(baseTx, transferGroup);
     onOpenChange(false);
   };
 
-  const selectedOpConfig = OPERATION_OPTIONS.find(op => op.value === operationType);
-  const headerBg = selectedOpConfig?.bgColor || "bg-muted";
-  const headerIconColor = selectedOpConfig?.color || "text-foreground";
-  const HeaderIcon = selectedOpConfig?.icon || DollarSign;
-
-  const selectedLoan = loans.find(l => l.id === tempLoanId);
-  const availableLoanInstallments = selectedLoan ? selectedLoan.parcelas.filter(p => !p.paga) : [];
-  
-  const selectedSeguro = segurosVeiculo.find(s => String(s.id) === tempSeguroId);
-  const availableSeguroParcelas = selectedSeguro ? selectedSeguro.parcelas.filter(p => !p.paga) : [];
+  const op = OPERATION_OPTIONS.find(o => o.value === operationType);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
-        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] max-h-[90vh] rounded-[2.5rem]"
-      )}>
-        <DialogHeader className={cn(
-          "px-6 sm:px-8 pt-6 sm:pt-10 pb-6 shrink-0 transition-colors duration-500 relative",
-          headerBg
-        )}>
-          {isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => onOpenChange(false)}
-              className="absolute left-4 top-4 rounded-full h-10 w-10"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </Button>
-          )}
-          
-          <div className={cn("flex items-center gap-4 sm:gap-5", isMobile && "pl-12")}>
-            <div className={cn("w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-[1.5rem] flex items-center justify-center shadow-lg bg-card", headerIconColor)}>
-              <HeaderIcon className="w-6 h-6 sm:w-8 sm:h-8" />
+      <DialogContent hideCloseButton className={cn("p-0 shadow-2xl bg-card flex flex-col", isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[34rem] max-h-[90vh] rounded-[2.5rem]")}>
+        <DialogHeader className={cn("px-8 pt-10 pb-8 shrink-0 relative transition-colors duration-500", op?.bgColor || "bg-muted/30")}>
+          <div className="flex items-center gap-5">
+            <div className={cn("w-16 h-16 rounded-[1.5rem] bg-card flex items-center justify-center shadow-xl transition-transform duration-500", op?.color)}>
+              {op ? <op.icon size={32} /> : <DollarSign size={32} />}
             </div>
             <div>
-              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
-                {isEditing ? "Editar Registro" : "Nova Movimentação"}
-              </DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-                {selectedAccount?.name || "Registro Financeiro"}
-              </DialogDescription>
+              <DialogTitle className="text-2xl font-black tracking-tighter">{isEditing ? "Editar Registro" : "Novo Lançamento"}</DialogTitle>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 mt-1"><Sparkles className="w-3.5 h-3.5 text-primary" /> Inteligência Orbium</p>
             </div>
           </div>
-
-          {!isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => onOpenChange(false)}
-              className="absolute right-4 top-4 rounded-full"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          )}
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 scrollbar-thin">
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 gap-6">
-                <div className="space-y-2 text-center sm:text-left">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor do Lançamento</Label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-muted-foreground/30">R$</span>
-                    <Input
-                      type="text"
-                      inputMode="decimal"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value.replace(/[^\d,]/g, ''))}
-                      className="h-16 sm:h-20 pl-12 text-3xl sm:text-4xl font-black border-2 rounded-3xl bg-muted/20"
-                      placeholder="0,00"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Tipo de Operação</Label>
-                    <Select value={operationType || ''} onValueChange={(v) => setOperationType(v as OperationType)}>
-                      <SelectTrigger className="h-12 border-2 rounded-2xl bg-card hover:border-primary/30 transition-all font-bold">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableOperations.map(op => {
-                          const opt = OPERATION_OPTIONS.find(o => o.value === op);
-                          return opt && (
-                            <SelectItem key={op} value={op} className="font-bold">
-                              <span className={cn("flex items-center gap-2", opt.color)}>{opt.label}</span>
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Data</Label>
-                    <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-12 border-2 rounded-2xl bg-card font-bold" />
-                  </div>
-                </div>
-
-                {isTransfer ? (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Conta de Destino</Label>
-                    <Select value={destinationAccountId || ''} onValueChange={setDestinationAccountId}>
-                      <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold">
-                        <SelectValue placeholder="Selecione a conta..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {accounts.filter(a => a.id !== accountId && !a.hidden).map(a => (
-                          <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : isInvestmentFlow ? (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Ativo Financeiro</Label>
-                    <Select value={tempInvestmentId || ''} onValueChange={setTempInvestmentId}>
-                      <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold">
-                        <SelectValue placeholder="Selecione o ativo..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {investments.map(i => (
-                          <SelectItem key={i.id} value={i.id} className="font-bold">{i.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Categoria</Label>
-                    <Select value={categoryId || ''} onValueChange={setCategoryId}>
-                      <SelectTrigger className="h-12 border-2 rounded-2xl bg-card hover:border-primary/30 font-bold">
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-64">
-                        {availableCategories.map(c => (
-                          <SelectItem key={c.id} value={c.id} className="font-bold">
-                            {c.icon} {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+        <ScrollArea className="flex-1 px-8">
+          <div className="py-8 space-y-10 pb-32">
+            <div className="text-center space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Valor do Lançamento</Label>
+              <div className="relative max-w-[280px] mx-auto group">
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-3xl font-black text-muted-foreground/20">R$</span>
+                <Input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d,]/g, ''))} className="h-20 text-5xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" placeholder="0,00" />
+                <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
               </div>
+            </div>
 
-              {isLoanPayment && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-5 rounded-[2rem] bg-warning/5 border-2 border-dashed border-warning/20">
-                   <div className="space-y-2">
-                      <Label className="text-[10px] font-black text-warning-foreground uppercase tracking-widest">Contrato</Label>
-                      <Select value={tempLoanId || ''} onValueChange={v => { setTempLoanId(v); setTempParcelaId(null); }}>
-                        <SelectTrigger className="h-10 border-2 rounded-xl bg-card"><SelectValue placeholder="Escolha..." /></SelectTrigger>
-                        <SelectContent>{loans.map(l => <SelectItem key={l.id} value={l.id}>{l.institution}</SelectItem>)}</SelectContent>
-                      </Select>
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="text-[10px] font-black text-warning-foreground uppercase tracking-widest">Parcela</Label>
-                      <Select value={tempParcelaId || ''} onValueChange={setTempParcelaId} disabled={!tempLoanId}>
-                        <SelectTrigger className="h-10 border-2 rounded-xl bg-card"><SelectValue placeholder="P..." /></SelectTrigger>
-                        <SelectContent>{availableLoanInstallments.map(p => <SelectItem key={p.numero} value={String(p.numero)}>Parcela {p.numero}</SelectItem>)}</SelectContent>
-                      </Select>
-                   </div>
-                </div>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+               <div className="space-y-3">
+                 <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Operação</Label>
+                 <Select value={operationType || ''} onValueChange={(v) => setOperationType(v as OperationType)}>
+                   <SelectTrigger className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
+                   <SelectContent className="rounded-2xl shadow-2xl border-none p-2">
+                     {OPERATION_OPTIONS.map(o => (
+                       <SelectItem key={o.value} value={o.value} className="rounded-xl font-bold py-3"><div className="flex items-center gap-3"><div className={cn("p-1.5 rounded-lg", o.bgColor)}>{React.createElement(o.icon, { size: 16, className: o.color })}</div>{o.label}</div></SelectItem>
+                     ))}
+                   </SelectContent>
+                 </Select>
+               </div>
+               <div className="space-y-3">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Data</Label>
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner" />
+               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição</Label>
-                <div className="relative">
-                    <FileText className="absolute left-4 top-4 w-4 h-4 text-muted-foreground" />
-                    <textarea
-                        value={description}
-                        onChange={(e) => setDescription(e.target.value)}
-                        className="w-full h-24 p-4 pl-12 border-2 rounded-[1.5rem] bg-card focus:border-primary/50 transition-all resize-none font-medium text-sm"
-                        placeholder="Descreva este lançamento..."
-                    />
-                </div>
+            <div className="space-y-3">
+               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Conta de Origem</Label>
+               <Select value={accountId} onValueChange={setAccountId}>
+                 <SelectTrigger className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
+                 <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {accounts.map(a => <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>)}
+                 </SelectContent>
+               </Select>
+            </div>
+
+            {operationType === 'transferencia' && (
+              <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary px-1">Conta de Destino</Label>
+                <Select value={destinationAccountId || ''} onValueChange={setDestinationAccountId}>
+                  <SelectTrigger className="h-12 rounded-2xl border-2 border-primary/20 bg-primary/5 font-bold"><SelectValue placeholder="Selecione o destino..." /></SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                     {accounts.filter(a => a.id !== accountId).map(a => <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Descrição</Label>
+              <div className="relative">
+                <FileText className="absolute left-4 top-4 w-4 h-4 text-muted-foreground" />
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full h-24 p-4 pl-12 rounded-[1.5rem] border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm" placeholder="Opcional..." />
               </div>
             </div>
           </div>
+        </ScrollArea>
 
-          <DialogFooter className={cn(
-            "p-6 sm:p-8 bg-muted/10 border-t shrink-0",
-            isMobile && "pb-12"
-          )}>
-            <Button onClick={handleSubmit} className="w-full h-14 sm:h-16 rounded-2xl sm:rounded-3xl bg-primary text-primary-foreground font-black text-base sm:text-lg gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
-              <Check className="w-5 h-5 sm:w-6 sm:h-6" />
-              {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter className={cn("p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-4", isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card")}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
+          <Button onClick={handleSubmit} className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

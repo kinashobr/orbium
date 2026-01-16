@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -78,7 +78,7 @@ export function AccountStatementDialog({
     const totalOut = accountSummary.totalOut;
 
     return {
-      initialBalance: accountSummary.initialBalance, // Mantemos o inicial da conta ou poderíamos calcular retroativo
+      initialBalance: accountSummary.initialBalance, 
       finalBalance: accountSummary.currentBalance,
       totalIn,
       totalOut,
@@ -92,10 +92,10 @@ export function AccountStatementDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "max-w-[min(95vw,80rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col rounded-[3rem] border-none shadow-2xl bg-card",
-        "[&>button]:hidden" // Esconde o botão de fechar padrão do DialogContent
-      )}>
+      <DialogContent 
+        hideCloseButton
+        className="max-w-[min(95vw,80rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col rounded-[2rem] shadow-2xl bg-card"
+      >
         <DialogHeader className="px-8 pt-10 pb-6 border-b shrink-0 bg-muted/50">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-4">
@@ -119,16 +119,13 @@ export function AccountStatementDialog({
                 <Download className="w-3.5 h-3.5" />
                 Exportar
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="h-9 w-9 rounded-full hover:bg-black/5 transition-colors">
-                <X className="w-5 h-5" />
-              </Button>
             </div>
           </div>
         </DialogHeader>
 
         <ScrollArea className="flex-1 hide-scrollbar-mobile">
           <div className="p-6 space-y-6">
-            {/* Barra de Status e Filtro Unificada (Ocupa menos espaço vertical) */}
+            {/* Barra de Status e Filtro Unificada */}
             <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between bg-card p-4 rounded-[2rem] border border-border/40 shadow-sm">
               <div className="flex items-center gap-4 px-2">
                 <div className={cn("flex items-center gap-2", statusColor)}>
@@ -212,6 +209,16 @@ export function AccountStatementDialog({
             </div>
           </div>
         </ScrollArea>
+
+        <DialogFooter className="p-6 bg-muted/10 border-t">
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)}
+            className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+          >
+            FECHAR
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

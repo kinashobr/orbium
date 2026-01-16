@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, Car, TrendingUp, TrendingDown, Minus, AlertCircle, Sparkles, Check, X } from "lucide-react";
+import { Loader2, Search, AlertCircle, Sparkles, Check } from "lucide-react";
 import { 
   buscarMarcas, 
   buscarModelos, 
@@ -17,7 +16,6 @@ import {
   FipeResult 
 } from "@/services/fipeService";
 import { Veiculo } from "@/types/finance";
-import { cn } from "@/lib/utils";
 
 interface FipeConsultaDialogProps {
   open: boolean;
@@ -151,7 +149,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,32rem)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)]">
+      <DialogContent hideCloseButton className="max-w-[min(95vw,32rem)] p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)]">
         <DialogHeader className="px-8 pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
@@ -238,7 +236,9 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
         </div>
 
         <DialogFooter className="p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground">Cancelar</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+            FECHAR
+          </Button>
           {step === 'select' ? (
             <Button onClick={consultarFipe} disabled={loading || !selectedAno} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20">
               {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}

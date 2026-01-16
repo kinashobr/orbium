@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Dialog, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileText, Check, Loader2, X, Sparkles, Filter, ChevronLeft, LayoutGrid } from "lucide-react";
 import { 
@@ -307,7 +307,22 @@ export function ConsolidatedReviewDialog({
                 onContabilize={handleContabilize} onClose={() => onOpenChange(false)} onManageRules={() => setShowRuleManagerModal(true)}
               />
             </div>
-          ) : renderContent()}
+          ) : (
+            <>
+              <div className="flex-1 overflow-hidden relative">
+                {renderContent()}
+              </div>
+              <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => onOpenChange(false)}
+                  className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                >
+                  FECHAR
+                </Button>
+              </DialogFooter>
+            </>
+          )}
         </div>
       ) : (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -331,13 +346,22 @@ export function ConsolidatedReviewDialog({
                       </DialogDescription>
                     </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full hover:bg-black/5 transition-colors" onClick={() => onOpenChange(false)}>
-                    <X className="w-6 h-6" />
-                  </Button>
                 </div>
               </DialogHeader>
 
-              {renderContent()}
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                {renderContent()}
+              </div>
+
+              <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
+                <Button 
+                  variant="ghost" 
+                  onClick={() => onOpenChange(false)}
+                  className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                >
+                  FECHAR
+                </Button>
+              </DialogFooter>
             </div>
           </ResizableDialogContent>
         </Dialog>
@@ -356,13 +380,13 @@ export function ConsolidatedReviewDialog({
         onOpenChange={(openState) => {
           setShowRuleManagerModal(openState);
           if (!openState && isMobile) {
-            setMobileView('list'); // Volta para a lista de transações ao fechar o gerenciador de regras no mobile
+            setMobileView('list'); 
           }
         }} 
         rules={standardizationRules} 
         onDeleteRule={deleteStandardizationRule} 
         categories={categories} 
-        onCloseAndReturn={() => setMobileView('list')} // Garante que volta para a lista
+        onCloseAndReturn={() => setMobileView('list')} 
       />
     </>
   );

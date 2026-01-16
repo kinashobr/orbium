@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Building2, Calculator } from "lucide-react";
+import { Plus, Building2, Calculator, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -126,7 +127,6 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
     const n = Number(formData.meses);
 
     if (valor > 0 && taxa > 0 && n > 0) {
-      // Fórmula PRICE: PMT = P * [ i / (1 - (1 + i)^-n) ]
       const parcela = (valor * taxa * Math.pow(1 + taxa, n)) / (Math.pow(1 + taxa, n) - 1);
       setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
     }
@@ -170,189 +170,157 @@ export function LoanForm({ onSubmit, contasCorrentes = [], className }: LoanForm
           Novo Empréstimo
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-[min(95vw,600px)] bg-card border-border max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Building2 className="w-5 h-5 text-primary" />
-            Cadastrar Novo Empréstimo
+      <DialogContent 
+        hideCloseButton
+        className="max-w-[min(95vw,600px)] p-0 overflow-hidden flex flex-col rounded-[2.5rem] bg-card border-border"
+      >
+        <DialogHeader className="px-8 pt-10 pb-6 border-b shrink-0 bg-muted/50">
+          <DialogTitle className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <Building2 className="w-5 h-5" />
+            </div>
+            <span className="text-xl font-black tracking-tight">Novo Empréstimo</span>
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          {/* Conta Corrente e Contrato */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 sm:p-8 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Banco / Instituição *</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Banco / Instituição *</Label>
               <Select
                 value={formData.contaCorrenteId}
                 onValueChange={(v) => setFormData(prev => ({ ...prev, contaCorrenteId: v }))}
               >
-                <SelectTrigger className="mt-1.5 bg-muted border-border h-12 sm:h-10">
+                <SelectTrigger className="h-12 border-2 rounded-xl bg-card font-bold">
                   <SelectValue placeholder="Selecione a conta" />
                 </SelectTrigger>
-                <SelectContent className="bg-popover border-border">
+                <SelectContent>
                   {contasCorrentes.map((conta) => (
-                    <SelectItem key={conta.id} value={conta.id}>
+                    <SelectItem key={conta.id} value={conta.id} className="font-medium">
                       {conta.institution || conta.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Conta onde as parcelas serão debitadas
-              </p>
             </div>
-            <div>
-              <Label>Nome do Contrato *</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome do Contrato *</Label>
               <Input
                 value={formData.contrato}
                 onChange={(e) => setFormData(prev => ({ ...prev, contrato: e.target.value }))}
-                placeholder="Ex: Pessoal, Veículo, Consignado"
-                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
+                placeholder="Ex: Pessoal, Veículo"
+                className="h-12 border-2 rounded-xl font-bold"
               />
             </div>
           </div>
 
-          {/* Valor e Parcela */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Valor Total (R$) *</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor Total (R$) *</Label>
               <Input
                 type="number"
                 step="0.01"
                 value={formData.valorTotal}
                 onChange={(e) => setFormData(prev => ({ ...prev, valorTotal: e.target.value }))}
-                placeholder="50000.00"
-                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
+                placeholder="0.00"
+                className="h-12 border-2 rounded-xl font-black text-lg"
               />
             </div>
-            <div>
-              <Label>Valor da Parcela (R$) *</Label>
-              <div className="flex gap-2 mt-1.5">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor da Parcela (R$) *</Label>
+              <div className="flex gap-2">
                 <Input
                   type="number"
                   step="0.01"
                   value={formData.parcela}
                   onChange={(e) => setFormData(prev => ({ ...prev, parcela: e.target.value }))}
-                  placeholder="1250.00"
-                  className="bg-muted border-border h-12 sm:h-10"
+                  placeholder="0.00"
+                  className="h-12 border-2 rounded-xl font-black text-lg"
                 />
                 <Button 
                   type="button" 
                   variant="outline" 
                   size="icon"
                   onClick={calcularParcela}
-                  title="Calcular parcela (Price)"
-                  className="shrink-0 h-12 w-12 sm:h-10 sm:w-10"
+                  className="shrink-0 h-12 w-12 rounded-xl border-2 hover:bg-primary/10 text-primary"
                 >
-                  <Calculator className="w-4 h-4" />
+                  <Calculator className="w-5 h-5" />
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* Taxa e Meses */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <Label>Taxa Mensal (%) *</Label>
-              <div className="flex gap-2 mt-1.5">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Taxa Mensal (%) *</Label>
+              <div className="flex gap-2">
                 <Input
                   type="number"
                   step="0.01"
                   value={formData.taxaMensal}
                   onChange={(e) => setFormData(prev => ({ ...prev, taxaMensal: e.target.value }))}
-                  placeholder="1.89"
-                  className="bg-muted border-border h-12 sm:h-10"
+                  placeholder="0.00"
+                  className="h-12 border-2 rounded-xl font-bold"
                 />
                 <Button 
                   type="button" 
                   variant="outline" 
                   size="icon"
                   onClick={calcularTaxa}
-                  title="Calcular taxa (Price)"
-                  className="shrink-0 h-12 w-12 sm:h-10 sm:w-10"
+                  className="shrink-0 h-12 w-12 rounded-xl border-2 hover:bg-primary/10 text-primary"
                 >
-                  <Calculator className="w-4 h-4" />
+                  <Calculator className="w-5 h-5" />
                 </Button>
               </div>
             </div>
-            <div>
-              <Label>Qtd. Parcelas *</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Qtd. Parcelas *</Label>
               <Input
                 type="number"
                 value={formData.meses}
                 onChange={(e) => setFormData(prev => ({ ...prev, meses: e.target.value }))}
                 placeholder="48"
-                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
+                className="h-12 border-2 rounded-xl font-black text-lg"
               />
             </div>
-            <div>
-              <Label>Data de Início</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Data Início</Label>
               <Input
                 type="date"
                 value={formData.dataInicio}
                 onChange={(e) => setFormData(prev => ({ ...prev, dataInicio: e.target.value }))}
-                className="mt-1.5 bg-muted border-border h-12 sm:h-10"
+                className="h-12 border-2 rounded-xl font-bold"
               />
             </div>
           </div>
 
-          {/* Método de Amortização */}
-          <div>
-            <Label>Método de Amortização</Label>
-            <Select
-              value={formData.metodoAmortizacao}
-              onValueChange={(v) => setFormData(prev => ({ ...prev, metodoAmortizacao: v }))}
-            >
-              <SelectTrigger className="mt-1.5 bg-muted border-border">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-popover border-border">
-                <SelectItem value="price">Price (Parcelas Fixas)</SelectItem>
-                <SelectItem value="sac">SAC (Amortização Constante)</SelectItem>
-                <SelectItem value="americano">Americano</SelectItem>
-                <SelectItem value="outro">Outro</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Observações */}
-          <div>
-            <Label>Observações</Label>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Notas Adicionais</Label>
             <Textarea
               value={formData.observacoes}
               onChange={(e) => setFormData(prev => ({ ...prev, observacoes: e.target.value }))}
-              placeholder="Notas adicionais..."
-              className="mt-1.5 bg-muted border-border h-[88px] resize-none"
+              placeholder="..."
+              className="h-24 border-2 rounded-xl resize-none font-medium"
             />
           </div>
-
-          {/* Cálculos automáticos preview */}
-          {formData.valorTotal && formData.parcela && formData.meses && (
-            <div className="p-3 rounded-lg bg-muted/50 border border-border space-y-1">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Prévia dos cálculos:</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total a pagar:</span>
-                  <span className="font-medium">
-                    R$ {(Number(formData.parcela) * Number(formData.meses)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Juros totais:</span>
-                  <span className="font-medium text-warning">
-                    R$ {((Number(formData.parcela) * Number(formData.meses)) - Number(formData.valorTotal)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <Button type="submit" className="w-full bg-neon-gradient hover:opacity-90 h-12">
-            <Plus className="w-4 h-4 mr-2" />
-            Adicionar Empréstimo
-          </Button>
         </form>
+
+        <DialogFooter className="p-6 bg-muted/10 border-t flex flex-col sm:flex-row gap-3">
+          <Button 
+            variant="ghost" 
+            onClick={() => setOpen(false)}
+            className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1"
+          >
+            FECHAR
+          </Button>
+          <Button 
+            type="submit" 
+            onClick={handleSubmit}
+            className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 order-1 sm:order-2"
+          >
+            <Check className="w-5 h-5" /> CADASTRAR CONTRATO
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

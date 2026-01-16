@@ -105,10 +105,13 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className={cn(
-          "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] h-[85vh] rounded-[3rem]"
-        )}>
+        <DialogContent 
+          hideCloseButton
+          className={cn(
+            "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
+            isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] h-[85vh] rounded-[2rem]"
+          )}
+        >
           <DialogHeader className="px-6 sm:px-8 pt-6 sm:pt-10 pb-4 bg-muted/30 shrink-0 border-b relative">
             {isMobile && (
               <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-4 top-4 rounded-full h-10 w-10">
@@ -136,10 +139,6 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-
-            {!isMobile && (
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute right-4 top-4 rounded-full"><X className="h-5 w-5" /></Button>
-            )}
           </DialogHeader>
 
           <ScrollArea className="flex-1 px-6 sm:px-8">
@@ -248,10 +247,17 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
           </ScrollArea>
 
           <DialogFooter className={cn(
-            "p-6 sm:p-8 bg-muted/10 border-t",
+            "p-6 sm:p-8 bg-muted/10 border-t shrink-0 flex flex-col sm:flex-row gap-3",
             isMobile && "fixed bottom-0 left-0 right-0"
           )}>
-            <Button onClick={handleSave} className="w-full h-14 rounded-2xl bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all">
+            <Button 
+              variant="ghost" 
+              onClick={() => onOpenChange(false)}
+              className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1"
+            >
+              FECHAR
+            </Button>
+            <Button onClick={handleSave} className="flex-1 h-14 rounded-2xl bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2">
               <Save className="w-5 h-5" /> SALVAR CONFIGURAÇÕES
             </Button>
           </DialogFooter>

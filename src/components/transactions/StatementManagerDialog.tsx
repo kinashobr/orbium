@@ -1,16 +1,15 @@
 import { useState, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, FileText, Check, X, Loader2, Pin, Eye, Trash2, Sparkles, Building2, Calendar } from "lucide-react";
-import { ContaCorrente, ImportedStatement, ACCOUNT_TYPE_LABELS } from "@/types/finance";
+import { Upload, FileText, Check, Loader2, Pin, Eye, Trash2, Sparkles, Building2, Calendar } from "lucide-react";
+import { ImportedStatement } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 
@@ -35,7 +34,6 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   
-  // Escolha da conta dentro do modal
   const [selectedAccountId, setSelectedAccountId] = useState(initialAccountId || '');
 
   const corrienteAccounts = useMemo(() => 
@@ -84,7 +82,7 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[95vw] max-w-[52rem] max-h-[90vh] p-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col">
+      <DialogContent hideCloseButton className="w-[95vw] max-w-[52rem] max-h-[90vh] p-0 overflow-hidden rounded-[1.5rem] sm:rounded-[2.5rem] flex flex-col">
         <DialogHeader className="shrink-0 px-4 sm:px-8 pt-4 sm:pt-8 pb-4 sm:pb-6 bg-surface-light dark:bg-surface-dark">
           <div className="flex items-center gap-4 mb-4">
             <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent shadow-lg shadow-accent/5">
@@ -120,7 +118,6 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
         </DialogHeader>
         
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 pb-4 sm:pb-8 space-y-6 sm:space-y-8">
-            {/* Dropzone */}
             <div 
               className={cn(
                   "p-8 border-3 border-dashed rounded-[2rem] text-center space-y-4 transition-all",
@@ -151,7 +148,6 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
               )}
             </div>
             
-            {/* Lista de Arquivos Pendentes na Conta */}
             {selectedAccountId && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
@@ -197,9 +193,10 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
             )}
         </div>
         
-        {/* Footer Expressivo */}
-        <div className="p-4 sm:p-6 bg-surface-light dark:bg-surface-dark border-t flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-bold text-muted-foreground order-2 sm:order-1">Cancelar</Button>
+        <DialogFooter className="p-4 sm:p-6 bg-surface-light dark:bg-surface-dark border-t flex flex-col sm:flex-row gap-2 sm:gap-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">
+            FECHAR
+          </Button>
           <Button 
             disabled={statementsForAccount.length === 0 || !selectedAccountId}
             onClick={() => { onOpenChange(false); onStartConsolidatedReview(selectedAccountId); }}
@@ -207,7 +204,7 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
           >
             <Eye className="w-4 h-4" /> Revisar Transações
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

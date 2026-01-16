@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tags, TrendingUp, TrendingDown, Repeat, Check, Sparkles, ArrowLeft, X } from "lucide-react";
-import { Categoria, CategoryNature, CATEGORY_NATURE_LABELS, generateCategoryId, getCategoryTypeFromNature } from "@/types/finance";
+import { TrendingUp, TrendingDown, Repeat, Check, Sparkles, ArrowLeft } from "lucide-react";
+import { Categoria, CategoryNature, generateCategoryId, getCategoryTypeFromNature } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -73,10 +73,13 @@ export function CategoryFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
-        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[28rem] max-h-[90vh] rounded-[3rem]"
-      )}>
+      <DialogContent 
+        hideCloseButton
+        className={cn(
+          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
+          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[28rem] max-h-[90vh] rounded-[2rem]"
+        )}
+      >
         <DialogHeader className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative">
           {isMobile && (
             <Button 
@@ -102,17 +105,6 @@ export function CategoryFormModal({
               </DialogDescription>
             </div>
           </div>
-
-          {!isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => onOpenChange(false)}
-              className="absolute right-4 top-4 rounded-full"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          )}
         </DialogHeader>
 
         <ScrollArea className="flex-1">
@@ -176,8 +168,8 @@ export function CategoryFormModal({
           "p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 shrink-0 flex flex-col-reverse sm:flex-row gap-3",
           isMobile && "pb-12"
         )}>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground w-full sm:w-auto">
-            Cancelar
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
+            FECHAR
           </Button>
           <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
             <Check className="w-5 h-5" />

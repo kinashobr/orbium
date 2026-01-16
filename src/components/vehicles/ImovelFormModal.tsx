@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Home, Map, Check, Trash2, DollarSign, Calendar } from "lucide-react";
-import { Imovel, Terreno, formatCurrency } from "@/types/finance";
+import { Imovel, Terreno } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -123,7 +123,7 @@ export function ImovelFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[min(95vw,36rem)] p-0 overflow-hidden rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] z-[130]">
+      <DialogContent hideCloseButton className="max-w-[min(95vw,36rem)] p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] z-[130]">
         <DialogHeader className="px-8 pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
@@ -141,7 +141,6 @@ export function ImovelFormModal({
         </DialogHeader>
 
         <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
-          {/* Descrição e Endereço */}
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição / Nome</Label>
             <Input
@@ -161,7 +160,6 @@ export function ImovelFormModal({
             />
           </div>
 
-          {/* Tipo (Apenas Imóvel) */}
           {isImovel && (
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Tipo de Imóvel</Label>
@@ -178,7 +176,6 @@ export function ImovelFormModal({
             </div>
           )}
 
-          {/* Data de Aquisição */}
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
               <Calendar className="w-3 h-3" /> Data de Aquisição
@@ -191,7 +188,6 @@ export function ImovelFormModal({
             />
           </div>
 
-          {/* Valores */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
@@ -222,14 +218,14 @@ export function ImovelFormModal({
           </div>
         </div>
 
-        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3">
+        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3">
           {isEditing && onDelete && (
             <Button variant="destructive" onClick={handleDelete} className="rounded-full h-12 px-6 font-bold text-sm sm:mr-auto w-full sm:w-auto">
               <Trash2 className="w-4 h-4 mr-2" /> Excluir
             </Button>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-bold text-muted-foreground w-full sm:w-auto">
-            Cancelar
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
+            FECHAR
           </Button>
           <Button onClick={handleSubmit} className="rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 w-full sm:w-auto">
             <Check className="w-5 h-5" />

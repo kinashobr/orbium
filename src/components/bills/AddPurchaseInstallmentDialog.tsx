@@ -4,14 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Calendar, DollarSign, Check, ArrowRight, X } from "lucide-react";
+import { ShoppingCart, Calendar, ArrowRight } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency } from "@/types/finance";
-import { cn, getDueDate } from "@/lib/utils";
+import { getDueDate } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useMediaQuery } from "@/hooks/useMediaQuery"; // Import useMediaQuery
 
 interface AddPurchaseInstallmentDialogProps {
   open: boolean;
@@ -25,7 +24,6 @@ export function AddPurchaseInstallmentDialog({
   currentDate,
 }: AddPurchaseInstallmentDialogProps) {
   const { contasMovimento, categoriasV2, addPurchaseInstallments } = useFinance();
-  const isMobile = useMediaQuery("(max-width: 768px)"); // Use the hook
   
   const [formData, setFormData] = useState({
     description: "",
@@ -92,7 +90,7 @@ export function AddPurchaseInstallmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2rem] sm:rounded-[3rem] border-none shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] z-[140]">
+      <DialogContent hideCloseButton className="max-w-2xl p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] z-[140]">
         <DialogHeader className="px-6 sm:px-8 pt-8 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 dark:border-b dark:border-white/5 relative">
           <div className="flex items-center gap-4 sm:gap-5">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
@@ -100,21 +98,11 @@ export function AddPurchaseInstallmentDialog({
             </div>
             <div>
               <DialogTitle className="text-xl sm:text-3xl font-black tracking-tighter">Compra Parcelada</DialogTitle>
-              <DialogDescription className="text-xs sm:text-sm font-bold text-muted-foreground uppercase tracking-widest mt-1">
+              <DialogDescription className="text-xs sm:sm font-bold text-muted-foreground uppercase tracking-widest mt-1">
                 Provisionamento Automático
               </DialogDescription>
             </div>
           </div>
-          {!isMobile && ( // Only show on mobile
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="absolute right-4 top-4 rounded-full"
-              onClick={() => onOpenChange(false)}
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          )}
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 sm:space-y-8 max-h-[70vh] overflow-y-auto">
@@ -224,11 +212,14 @@ export function AddPurchaseInstallmentDialog({
           )}
         </form>
 
-        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5">
+        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 flex flex-col sm:flex-row gap-3">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 sm:h-16 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">
+            FECHAR
+          </Button>
           <Button 
             type="submit"
             onClick={handleSubmit}
-            className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-base sm:text-lg shadow-2xl shadow-primary/20 gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="flex-1 h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-base sm:text-lg shadow-2xl shadow-primary/20 gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all order-1 sm:order-2"
           >
             GERAR {formData.installments} PARCELAS <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </Button>

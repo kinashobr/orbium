@@ -15,7 +15,7 @@ interface StandardizationRuleFormModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialTransaction?: ImportedTransaction | null;
-  initialRule?: StandardizationRule | null; // Adicionado para edição
+  initialRule?: StandardizationRule | null; 
   categories: Categoria[];
   onSave: (rule: Omit<StandardizationRule, "id">, ruleId?: string) => void;
 }
@@ -108,7 +108,10 @@ export function StandardizationRuleFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden rounded-[2.5rem] z-[110]"> {/* Adicionado z-[110] */}
+      <DialogContent 
+        hideCloseButton
+        className="max-w-lg p-0 overflow-hidden rounded-[2.5rem] z-[150]"
+      >
         <DialogHeader className="px-6 pt-6 pb-4 bg-primary/10">
           <div className="flex items-start gap-3">
             <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
@@ -195,11 +198,15 @@ export function StandardizationRuleFormModal({
           </div>
         </div>
 
-        <DialogFooter className="p-6 bg-muted/20 border-t flex gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-bold">
-            Cancelar
+        <DialogFooter className="p-6 bg-muted/20 border-t flex flex-col sm:flex-row gap-3">
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)} 
+            className="rounded-full h-11 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1"
+          >
+            FECHAR
           </Button>
-          <Button onClick={handleSubmit} className="rounded-full h-11 px-8 font-bold gap-2">
+          <Button onClick={handleSubmit} className="flex-1 rounded-full h-11 px-8 font-bold gap-2 order-1 sm:order-2">
             <Check className="w-4 h-4" />
             {initialRule ? 'Atualizar Regra' : 'Salvar Regra'}
           </Button>

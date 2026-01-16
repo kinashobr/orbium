@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Pin, Trash2, Pencil, Search, Sparkles, X, Plus } from "lucide-react";
+import { Pin, Trash2, Pencil, Search, Sparkles, Plus } from "lucide-react";
 import { StandardizationRule, Categoria } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -10,7 +10,6 @@ import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Badge } from "@/components/ui/badge";
 import { STANDARDIZABLE_OPERATIONS } from "./StandardizationRuleFormModal";
-import { useMediaQuery } from "@/hooks/useMediaQuery"; // Import useMediaQuery
 
 interface StandardizationRuleManagerModalProps {
   open: boolean;
@@ -18,7 +17,7 @@ interface StandardizationRuleManagerModalProps {
   rules: StandardizationRule[];
   onDeleteRule: (id: string) => void;
   categories: Categoria[];
-  onCloseAndReturn?: () => void; // Novo prop para retornar à tela anterior no mobile
+  onCloseAndReturn?: () => void;
 }
 
 export function StandardizationRuleManagerModal({
@@ -33,7 +32,6 @@ export function StandardizationRuleManagerModal({
   const [searchTerm, setSearchTerm] = useState("");
   const [editingRule, setEditingRule] = useState<StandardizationRule | null>(null);
   const [showFormModal, setShowFormModal] = useState(false);
-  const isMobile = useMediaQuery("(max-width: 768px)"); // Use the hook
   
   const categoriesMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
 
@@ -72,7 +70,6 @@ export function StandardizationRuleManagerModal({
     setShowFormModal(true);
   };
 
-  // Função para truncar o texto
   const truncateText = (text: string, maxLength: number) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + "...";
@@ -81,7 +78,7 @@ export function StandardizationRuleManagerModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-[min(95vw,56rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2.5rem] overflow-x-hidden z-[110]"> {/* Adicionado z-[110] */}
+        <DialogContent hideCloseButton className="max-w-[min(95vw,56rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2.5rem] overflow-x-hidden z-[110]">
           <DialogHeader className="px-4 sm:px-8 pt-8 pb-6 bg-surface-light dark:bg-surface-dark shrink-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-4">
@@ -184,8 +181,8 @@ export function StandardizationRuleManagerModal({
           </ScrollArea>
 
           <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
-             <Button variant="ghost" onClick={() => { onOpenChange(false); onCloseAndReturn?.(); }} className="rounded-full px-6 font-bold gap-2 w-full sm:w-auto">
-                <X className="w-4 h-4" /> Fechar
+             <Button variant="ghost" onClick={() => { onOpenChange(false); onCloseAndReturn?.(); }} className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+                FECHAR
              </Button>
           </DialogFooter>
         </DialogContent>

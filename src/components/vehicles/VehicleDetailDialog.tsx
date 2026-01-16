@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,6 @@ import {
   AlertTriangle,
   History,
   FileText,
-  X,
   ArrowLeft
 } from "lucide-react";
 import { formatCurrency, Veiculo, SeguroVeiculo } from "@/types/finance";
@@ -90,10 +90,13 @@ export function VehicleDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn(
-        "p-0 overflow-hidden border-none shadow-2xl bg-card flex flex-col",
-        isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] max-h-[85vh] rounded-[3rem]"
-      )}>
+      <DialogContent 
+        hideCloseButton
+        className={cn(
+          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
+          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] max-h-[85vh] rounded-[2rem]"
+        )}
+      >
         <DialogHeader className="p-6 sm:p-8 shrink-0 bg-muted/20 border-b relative">
           {isMobile && (
             <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-4 top-4 rounded-full h-10 w-10">
@@ -119,11 +122,6 @@ export function VehicleDetailDialog({
               {onEdit && (
                 <Button variant="ghost" size="icon" onClick={() => onEdit(veiculo)} className="rounded-full hover:bg-primary/10 text-primary">
                   <Edit className="w-5 h-5" />
-                </Button>
-              )}
-              {!isMobile && (
-                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full">
-                  <X className="w-5 h-5" />
                 </Button>
               )}
             </div>
@@ -233,6 +231,12 @@ export function VehicleDetailDialog({
               </TabsContent>
             </div>
           </ScrollArea>
+
+          <DialogFooter className="p-6 sm:p-8 bg-muted/10 border-t shrink-0">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              FECHAR
+            </Button>
+          </DialogFooter>
         </Tabs>
       </DialogContent>
     </Dialog>
