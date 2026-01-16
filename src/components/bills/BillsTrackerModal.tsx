@@ -198,15 +198,15 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   }, [setBillsTracker]);
 
   // ============================================
-  // RENDERIZAÇÃO MOBILE (FULL SCREEN ABSOLUTO)
+  // RENDERIZAÇÃO MOBILE (ABSOLUTA 100%)
   // ============================================
   if (isMobile && open) {
     return (
-      <div className="fixed inset-0 z-[100] bg-background flex flex-col overflow-hidden">
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
         {/* Header Fixo com Safe Area */}
         <header 
-          className="shrink-0 bg-card border-b px-6 pb-4" 
-          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1.5rem)' }}
+          className="shrink-0 bg-card border-b px-6 pb-4 shadow-sm" 
+          style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -225,14 +225,15 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </header>
 
         {/* Conteúdo Rolável */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto hide-scrollbar-mobile">
           <div className="flex flex-col space-y-6">
+            {/* Seletor de Mês */}
             <div className="flex items-center justify-between bg-muted/30 p-2 rounded-[2rem] border border-border/40">
               <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full" onClick={() => handleMonthChange("prev")}>
                 <ChevronLeft className="w-6 h-6" />
               </Button>
               <div className="text-center">
-                <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Período</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Período</p>
                 <p className="text-lg font-black text-foreground capitalize">
                   {format(currentDate, "MMMM yyyy", { locale: ptBR })}
                 </p>
@@ -242,18 +243,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               </Button>
             </div>
 
+            {/* KPIs Rápidos */}
             <div className="grid grid-cols-2 gap-4">
               <div className="p-5 rounded-[2rem] bg-destructive/5 border border-destructive/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-destructive/60 mb-1">A Pagar</p>
-                <p className="text-xl font-black text-destructive">{formatCurrency(totalUnpaidBills)}</p>
+                <p className="text-xl font-black text-destructive tabular-nums">{formatCurrency(totalUnpaidBills)}</p>
               </div>
               <div className="p-5 rounded-[2rem] bg-success/5 border border-success/10">
                 <p className="text-[10px] font-black uppercase tracking-widest text-success/60 mb-1">Pago</p>
-                <p className="text-xl font-black text-success">{formatCurrency(totalPaidBills)}</p>
+                <p className="text-xl font-black text-success tabular-nums">{formatCurrency(totalPaidBills)}</p>
               </div>
             </div>
 
-            <div className="pb-24">
+            {/* Lista de Contas */}
+            <div className="pb-32">
               <BillsTrackerMobileList 
                 bills={combinedBills} 
                 onTogglePaid={handleTogglePaid}
@@ -264,16 +267,16 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               />
             </div>
 
-            {/* Floating Action Buttons */}
+            {/* Floating Action Buttons (FABs) */}
             <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[60]">
               <Button 
-                size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-accent text-accent-foreground"
+                size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-accent text-accent-foreground hover:scale-105 active:scale-95 transition-all"
                 onClick={() => setShowAddPurchaseDialog(true)}
               >
                 <ShoppingCart className="w-5 h-5" />
               </Button>
               <Button 
-                size="icon" className="h-14 w-14 rounded-[1.25rem] shadow-2xl bg-primary text-primary-foreground"
+                size="icon" className="h-14 w-14 rounded-[1.25rem] shadow-2xl bg-primary text-primary-foreground hover:scale-105 active:scale-95 transition-all"
                 onClick={() => setShowNewBillModal(true)}
               >
                 <Plus className="w-7 h-7" />
@@ -285,7 +288,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         {/* Footer Fixo com Safe Area */}
         <footer 
           className="shrink-0 bg-card border-t p-4" 
-          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1.5rem)' }}
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
         >
           <Button 
             variant="ghost" 
@@ -296,14 +299,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </Button>
         </footer>
 
-        {/* Modais auxiliares (Estes podem ser Dialogs pois são sub-telas) */}
+        {/* Modais auxiliares */}
         <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
         <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
+        
         <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
-          <DialogContent 
-            hideCloseButton
-            className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]"
-          >
+          <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
             <DialogHeader className="p-6 bg-muted/50 border-b">
               <DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle>
             </DialogHeader>
