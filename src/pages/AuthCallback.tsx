@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { GOOGLE_CLIENT_ID, saveGoogleToken } from "@/lib/googleDrive";
+import { saveGoogleToken } from "@/lib/googleDrive";
 import { toast } from "sonner";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,39 +35,36 @@ export default function AuthCallback() {
 
       hasExchanged.current = true;
 
-      const params = new URLSearchParams();
-      params.append("client_id", GOOGLE_CLIENT_ID);
-      params.append("code", code);
-      params.append("code_verifier", verifier);
-      params.append("grant_type", "authorization_code");
-      params.append("redirect_uri", "https://orbiumfinance.vercel.app/oauth/callback");
-
       try {
-        const response = await fetch("https://oauth2.googleapis.com/token", {
+        // Chamada para o nosso backend proxy em vez de chamar o Google diretamente
+        const response = await fetch("/api/auth/google", {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/json",
           },
-          body: params.toString(),
+          body: JSON.stringify({
+            code,
+            code_verifier: verifier,
+            redirect_uri: window.location.origin + "/oauth/callback",
+          }),
         });
 
-        const responseText = await response.text();
+        const data = await response.json();
 
         if (!response.ok) {
-          console.error(`[AuthCallback] Erro Google (${response.status}):`, responseText);
-          toast.error("Erro na validação. Verifique as configurações de Redirect URI.");
+          console.error("[AuthCallback] Erro no Proxy de Autenticação:", data);
+          toast.error("Erro na validação. Verifique as variáveis de ambiente no Vercel.");
           setStatus("error");
           return;
         }
 
-        const data = JSON.parse(responseText);
         saveGoogleToken(data);
         localStorage.removeItem("google_code_verifier");
         
         toast.success("Nuvem conectada!");
         navigate("/");
       } catch (error) {
-        console.error("[AuthCallback] Erro na requisição:", error);
+        console.error("[AuthCallback] Erro na requisição ao proxy:", error);
         setStatus("error");
       }
     };
@@ -83,7 +80,7 @@ export default function AuthCallback() {
         </div>
         <h2 className="text-xl font-bold">Conexão Interrompida</h2>
         <p className="text-muted-foreground text-sm max-w-sm">
-          Se o erro persistir, pode haver uma divergência na <strong>Redirect URI</strong> configurada no Google Console para este novo Client ID.
+          Não foi possível completar a conexão com o Google Drive. Verifique se o <strong>GOOGLE_CLIENT_SECRET</strong> está configurado corretamente no Vercel.
         </p>
         <Button variant="outline" onClick={() => navigate("/")} className="mt-4 rounded-full">
           Voltar para Home
@@ -100,7 +97,7 @@ export default function AuthCallback() {
           Sincronizando com o Google...
         </p>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          Finalizando autenticação PKCE
+          Processando token via proxy seguro
         </p>
       </div>
     </div>
