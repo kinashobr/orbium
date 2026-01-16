@@ -9,7 +9,6 @@ import {
   ArrowRight, 
   PieChart,
   LayoutGrid,
-  ChevronRight
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -36,7 +35,7 @@ interface BalanceSheetListProps {
 
 export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }: BalanceSheetListProps) {
   const totalPassivo = items.filter(i => i.type !== 'patrimonio').reduce((acc, i) => acc + i.value, 0);
-  const totalGeral = isAsset ? totalValue : (totalValue); // Ativo ou Passivo + PL
+  const totalGeral = isAsset ? totalValue : (totalValue);
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -71,67 +70,72 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
       <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-4 sm:p-8 shadow-soft border border-white/60 dark:border-white/5 relative overflow-hidden group">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.02] to-transparent pointer-events-none" />
         
-        <div className="space-y-10 relative z-10">
+        <div className="space-y-12 relative z-10">
           {items.map((section, idx) => {
             const isPL = section.type === 'patrimonio';
             
             return (
-              <div key={idx} className="space-y-5">
-                {/* Label da Categoria */}
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "w-8 h-8 rounded-xl flex items-center justify-center shadow-sm",
-                      isPL ? "bg-primary text-white" : "bg-muted/50 text-muted-foreground"
-                    )}>
-                      {isPL ? <PieChart size={16} /> : <LayoutGrid size={16} />}
+              <div key={idx} className="space-y-6">
+                {/* Subtotal da Seção - AGORA COM MÁXIMA EXPRESSÃO */}
+                {!isPL && (
+                  <div className="flex items-center justify-between px-2 mb-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-sm">
+                        <LayoutGrid size={20} />
+                      </div>
+                      <div>
+                        <h4 className="font-display font-black text-xl sm:text-2xl text-foreground tracking-tight uppercase">
+                          {section.label}
+                        </h4>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
+                          Subtotal do Grupo
+                        </p>
+                      </div>
                     </div>
-                    <span className={cn(
-                      "text-[10px] font-black uppercase tracking-[0.2em]",
-                      isPL ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {section.label}
-                    </span>
+                    <div className="text-right">
+                      <p className="font-black text-xl sm:text-2xl text-foreground tabular-nums leading-none">
+                        {formatCurrency(section.value)}
+                      </p>
+                      <Badge variant="outline" className="mt-1 rounded-lg border-none bg-primary/10 text-primary font-black text-[10px] px-2 py-0.5">
+                        {section.percent.toFixed(1)}% do total
+                      </Badge>
+                    </div>
                   </div>
-                  <Badge variant="outline" className="rounded-lg border-none bg-muted/30 font-black text-[10px] px-2 py-0.5">
-                    {section.percent.toFixed(1)}%
-                  </Badge>
-                </div>
+                )}
 
-                {/* Lista de Itens (Cards Táteis) */}
-                <div className="grid grid-cols-1 gap-3">
+                {/* Lista de Itens (Cards Compactos) */}
+                <div className="grid grid-cols-1 gap-2 pl-2 sm:pl-4">
                   {section.details?.map((detail) => (
                     <div 
                       key={detail.id}
-                      className="flex items-center justify-between p-4 sm:p-5 rounded-[2rem] bg-card border border-border/40 hover:border-primary/30 hover:shadow-soft transition-all duration-300 group/item cursor-default"
+                      className="flex items-center justify-between p-3 sm:p-4 rounded-2xl bg-card/50 border border-border/30 hover:border-primary/20 hover:bg-card transition-all duration-300 group/item cursor-default"
                     >
-                      <div className="flex items-center gap-4 min-w-0">
-                        <div className="w-12 h-12 rounded-2xl bg-muted/30 flex items-center justify-center text-muted-foreground group-hover/item:scale-110 group-hover/item:bg-primary/10 group-hover/item:text-primary transition-all duration-500">
-                          <detail.icon size={22} />
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-muted/30 flex items-center justify-center text-muted-foreground group-hover/item:text-primary transition-all">
+                          <detail.icon size={18} />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-sm sm:text-base text-foreground truncate leading-tight">
+                          <p className="font-bold text-xs sm:text-sm text-foreground truncate leading-tight">
                             {detail.name}
                           </p>
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1 opacity-60">
+                          <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider mt-0.5 opacity-50">
                             {detail.typeLabel}
                           </p>
                         </div>
                       </div>
                       
                       <div className="text-right shrink-0">
-                        <p className="font-black text-sm sm:text-lg text-foreground tabular-nums leading-none">
+                        <p className="font-bold text-sm sm:text-base text-foreground tabular-nums leading-none">
                           {formatCurrency(detail.value)}
                         </p>
-                        <div className="flex items-center justify-end gap-1.5 mt-1.5">
-                          <span className="text-[10px] font-bold text-muted-foreground/50 uppercase tracking-tighter">Peso:</span>
-                          <span className="text-[10px] font-black text-primary">{detail.percent.toFixed(1)}%</span>
-                        </div>
+                        <p className="text-[9px] font-black text-muted-foreground/40 uppercase mt-1">
+                          {detail.percent.toFixed(1)}%
+                        </p>
                       </div>
                     </div>
                   ))}
 
-                  {/* Caso seja Patrimônio Líquido (Destaque Especial) */}
+                  {/* Caso seja Patrimônio Líquido (Destaque Especial Mantido) */}
                   {isPL && (
                     <div className="p-6 sm:p-8 rounded-[2.5rem] bg-primary text-white shadow-xl shadow-primary/20 relative overflow-hidden group/pl">
                       <div className="absolute right-0 top-0 p-8 opacity-10 rotate-12 group-hover/pl:scale-125 transition-transform duration-1000">
@@ -157,18 +161,6 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
                     </div>
                   )}
                 </div>
-
-                {/* Subtotal da Seção (Visual de Rodapé) */}
-                {!isPL && (
-                  <div className="flex items-center justify-between px-6 py-3 rounded-2xl bg-muted/20 border border-dashed border-border/60">
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
-                      Subtotal {section.label.split(' ')[1]}
-                    </span>
-                    <span className="font-black text-sm text-foreground tabular-nums">
-                      {formatCurrency(section.value)}
-                    </span>
-                  </div>
-                )}
               </div>
             );
           })}
