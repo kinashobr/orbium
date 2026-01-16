@@ -289,10 +289,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     </div>
   );
 
-  // Mobile Full Screen View
+  // Mobile Full Screen View - Renderizado fora do Dialog para evitar conflitos de portal/overlay
   if (isMobile && open) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col w-full h-full rounded-none overflow-hidden">
+      <div className="fixed inset-0 z-[100] bg-background flex flex-col w-full h-full rounded-none overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
         {/* Header Fixo com Safe Area */}
         <header className="shrink-0 bg-card border-b px-6 pb-4" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 16px)' }}>
           <div className="flex items-center justify-between">
@@ -327,7 +327,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </Button>
         </footer>
 
-        {/* Modais auxiliares */}
+        {/* Modais auxiliares renderizados fora para garantir z-index */}
         <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
         <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
         <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
