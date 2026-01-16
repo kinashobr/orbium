@@ -13,20 +13,26 @@ export default function AuthCallback() {
   const [status, setStatus] = useState<"loading" | "error">("loading");
 
   useEffect(() => {
-    // Evita execução dupla em modo de desenvolvimento (React StrictMode)
+    // Evita execução dupla em modo de desenvolvimento
     if (hasExchanged.current) return;
 
     const exchangeCodeForToken = async () => {
       const code = searchParams.get("code");
+      
+      // Garantindo o uso de localStorage (conforme solicitado) para evitar perda no redirecionamento
       const verifier = localStorage.getItem("google_code_verifier");
 
-      console.log("[AuthCallback] Iniciando troca de código...", { hasCode: !!code, hasVerifier: !!verifier });
+      console.log("[AuthCallback] Iniciando troca de código...", { 
+        hasCode: !!code, 
+        hasVerifier: !!verifier,
+        origin: window.location.origin 
+      });
 
       if (!code || !verifier) {
-        console.error("[AuthCallback] Código ou Verifier ausentes.");
+        console.error("[AuthCallback] ERRO CRÍTICO: Código (URL) ou Verifier (localStorage) ausentes.");
         toast.error("Falha na autenticação: Parâmetros de segurança não encontrados.");
         setStatus("error");
-        setTimeout(() => navigate("/"), 3000);
+        setTimeout(() => navigate("/"), 4000);
         return;
       }
 
@@ -46,23 +52,34 @@ export default function AuthCallback() {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          console.error("[AuthCallback] Erro na API do Google:", errorData);
-          throw new Error(errorData.error_description || "Erro na troca do token");
+          // Lendo o corpo da resposta de erro detalhadamente conforme solicitado
+          const errorBody = await response.text();
+          console.error(`[AuthCallback] Falha na API do Google (Status ${response.status}):`, errorBody);
+          
+          let parsedError;
+          try {
+            parsedError = JSON.parse(errorBody);
+          } catch (e) {
+            parsedError = { error: "Unknown", error_description: errorBody };
+          }
+
+          toast.error(`Erro do Google: ${parsedError.error_description || parsedError.error}`);
+          throw new Error(`Google API Error: ${parsedError.error}`);
         }
 
         const data = await response.json();
         saveGoogleToken(data);
+        
+        // Limpa o segredo apenas após o sucesso
         localStorage.removeItem("google_code_verifier");
         
         console.log("[AuthCallback] Token obtido com sucesso!");
         toast.success("Google Drive conectado com sucesso!");
         navigate("/");
       } catch (error) {
-        console.error("[AuthCallback] Falha catastrófica:", error);
-        toast.error("Erro ao conectar com o Google Drive.");
+        console.error("[AuthCallback] Erro durante a troca de token:", error);
         setStatus("error");
-        setTimeout(() => navigate("/"), 3000);
+        setTimeout(() => navigate("/"), 4000);
       }
     };
 
@@ -75,10 +92,13 @@ export default function AuthCallback() {
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-2">
           <AlertCircle size={32} />
         </div>
-        <h2 className="text-xl font-bold">Algo deu errado</h2>
+        <h2 className="text-xl font-bold">Falha na Autenticação</h2>
         <p className="text-muted-foreground text-sm max-w-xs">
-          Não conseguimos completar a conexão com o Google Drive. Você será redirecionado para a página inicial.
+          Houve um problema ao validar sua conexão com o Google Drive. Verifique os detalhes no console do navegador (F12).
         </p>
+        <Button variant="outline" onClick={() => navigate("/")} className="mt-4 rounded-full">
+          Voltar para Home
+        </Button>
       </div>
     );
   }
@@ -88,12 +108,14 @@ export default function AuthCallback() {
       <Loader2 className="w-10 h-10 animate-spin text-primary" />
       <div className="space-y-1 text-center">
         <p className="text-sm font-bold uppercase tracking-widest text-foreground animate-pulse">
-          Finalizando conexão...
+          Validando Acesso...
         </p>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-          Autenticando com Google Drive
+          Orbium Cloud Sync
         </p>
       </div>
     </div>
   );
 }
+
+import { Button } from "@/components/ui/button";
