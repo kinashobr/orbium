@@ -4,7 +4,7 @@ import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { initiateGoogleAuth, logoutGoogleDrive } from "@/lib/googleDrive";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Button } from "@/components/ui/button";
-import { Cloud, CloudOff, CloudSync, RefreshCw, LogOut } from "lucide-react";
+import { Cloud, CloudOff, RefreshCw, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -61,7 +61,7 @@ export function GoogleDriveSync() {
             "p-2.5 rounded-xl transition-colors",
             isSyncing ? "bg-accent/20 text-accent" : "bg-success/10 text-success"
           )}>
-            {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <CloudSync className="w-5 h-5" />}
+            {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Cloud className="w-5 h-5" />}
           </div>
           <div className="text-left min-w-0">
             <p className="text-sm font-bold truncate">Sincronizado</p>
