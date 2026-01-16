@@ -3,7 +3,7 @@
 import React, { useMemo, useCallback } from "react";
 import { 
   TrendingUp, TrendingDown, DollarSign, Calculator, Minus, Plus, 
-  Sparkles, Receipt, Zap, PieChart, BarChart3, LineChart, Activity, Gauge, ArrowUpRight, ArrowDownRight
+  Sparkles, Receipt, Zap, PieChart, BarChart3, LineChart, Activity, Gauge, ArrowUpRight, ArrowDownRight, Target, PiggyBank
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Legend } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
 import { ptBR } from "date-fns/locale";
-import { IndicatorRadialCard } from "./IndicatorRadialCard";
+import { IndicatorCard } from "./IndicatorCard";
 import { BalanceSheetList } from "./BalanceSheetList";
 
 interface DREData {
@@ -185,6 +185,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     return filtered.map((d, i) => ({ ...d, color: palette[i % palette.length] }));
   }, [dre1, colors]);
 
+  const totalGastos = useMemo(() => dre1.fix + dre1.var + dre1.juros, [dre1]);
+
   return (
     <div className="space-y-10 animate-fade-in-up">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -221,59 +223,53 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
           </div>
         </div>
         <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <IndicatorRadialCard 
+          <IndicatorCard 
             title="Taxa de Sobra" 
-            value={indicadores.margemLiquida} 
-            label="Sobra" 
+            value={`${indicadores.margemLiquida.toFixed(1)}%`} 
             status={indicadores.margemLiquida >= 20 ? "success" : "warning"}
+            icon={DollarSign}
             description="Quanto sobra da sua renda após pagar todas as contas."
             formula="Resultado ÷ Renda × 100"
-            idealRange="Acima de 20%"
           />
-          <IndicatorRadialCard 
+          <IndicatorCard 
             title="Eficiência Operacional" 
-            value={indicadores.eficienciaOp} 
-            label="Eficiência" 
+            value={`${indicadores.eficienciaOp.toFixed(1)}%`} 
             status={indicadores.eficienciaOp >= 70 ? "success" : "warning"}
+            icon={Zap}
             description="Quanto da sua renda está livre após custos fixos."
             formula="(Renda - Fixos) ÷ Renda × 100"
-            idealRange="Acima de 70%"
           />
-          <IndicatorRadialCard 
+          <IndicatorCard 
             title="Peso dos Fixos" 
-            value={indicadores.pesoFixos} 
-            label="Fixos" 
+            value={`${indicadores.pesoFixos.toFixed(1)}%`} 
             status={indicadores.pesoFixos <= 40 ? "success" : "warning"}
+            icon={Target}
             description="Quanto dos seus gastos são fixos e difíceis de cortar."
             formula="Fixos ÷ Total Gastos × 100"
-            idealRange="Abaixo de 40%"
           />
-          <IndicatorRadialCard 
+          <IndicatorCard 
             title="Taxa de Economia" 
-            value={indicadores.savingsRate} 
-            label="Economia" 
+            value={`${indicadores.savingsRate.toFixed(1)}%`} 
             status={indicadores.savingsRate >= 15 ? "success" : "warning"}
+            icon={PiggyBank}
             description="Quanto você consegue guardar da sua renda."
             formula="Sobra ÷ Renda × 100"
-            idealRange="Acima de 15%"
           />
-          <IndicatorRadialCard 
+          <IndicatorCard 
             title="Custo das Dívidas" 
-            value={indicadores.impactoFinanceiro} 
-            label="Juros" 
+            value={`${indicadores.impactoFinanceiro.toFixed(1)}%`} 
             status={indicadores.impactoFinanceiro <= 5 ? "success" : "warning"}
+            icon={Gauge}
             description="Impacto dos juros de empréstimos na sua renda."
             formula="Juros ÷ Renda × 100"
-            idealRange="Abaixo de 5%"
           />
-          <IndicatorRadialCard 
+          <IndicatorCard 
             title="Balanço Fixo/Variável" 
-            value={indicadores.pontoEquilibrio} 
-            label="Mix" 
+            value={`${indicadores.pontoEquilibrio.toFixed(1)}%`} 
             status={indicadores.pontoEquilibrio <= 50 ? "success" : "warning"}
+            icon={Activity}
             description="Proporção entre gastos fixos e variáveis."
             formula="Fixos ÷ (Fixos + Variáveis) × 100"
-            idealRange="Abaixo de 50%"
           />
         </div>
       </div>
@@ -341,46 +337,63 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
                <div className="p-2 bg-accent/10 rounded-xl text-accent"><PieChart className="w-5 h-5" /></div>
                <h4 className="font-display font-black text-xl text-foreground uppercase tracking-tight">Top Gastos por Categoria</h4>
             </div>
-            <div className="flex-1 min-h-[300px] w-full">
-               {compositionData.length > 0 ? (
-                 <ResponsiveContainer width="100%" height={300}>
-                    <RePieChart>
-                       <Pie 
-                          data={compositionData} 
-                          cx="50%" 
-                          cy="50%" 
-                          innerRadius={70} 
-                          outerRadius={100} 
-                          paddingAngle={4} 
-                          dataKey="value" 
-                          nameKey="name"
-                          stroke="none"
-                       >
-                          {compositionData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                       </Pie>
-                       <Tooltip 
-                          contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)', backgroundColor: 'hsl(var(--card))'}}
-                          formatter={(value: number, name: string) => [formatCurrency(value), name]}
-                       />
-                    </RePieChart>
-                 </ResponsiveContainer>
-               ) : (
-                 <div className="flex flex-col items-center justify-center h-full opacity-30 py-10">
-                    <PieChart className="w-12 h-12 mb-2" />
-                    <p className="text-xs font-black uppercase tracking-widest">Sem dados no período</p>
-                 </div>
-               )}
-            </div>
-            {compositionData.length > 0 && (
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-6">
-                 {compositionData.map((d) => (
-                    <div key={d.name} className="flex items-center gap-2">
-                       <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                       <span className="text-[10px] font-bold text-foreground truncate uppercase tracking-tight">{d.name}</span>
-                    </div>
-                 ))}
+            
+            <div className="flex-1 min-h-[320px] relative flex flex-col items-center justify-center">
+              <div className="w-full h-[280px] relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RePieChart>
+                    <Pie 
+                      data={compositionData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius="72%" 
+                      outerRadius="95%" 
+                      paddingAngle={6} 
+                      dataKey="value" 
+                      stroke="none"
+                      cornerRadius={12}
+                    >
+                      {compositionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        border: 'none', 
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)' 
+                      }}
+                      formatter={(v: number) => [formatCurrency(v), "Valor"]}
+                    />
+                  </RePieChart>
+                </ResponsiveContainer>
+
+                {/* Valor Centralizado */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Total Gastos</span>
+                  <p className="text-2xl font-black text-foreground tracking-tighter">
+                    {formatCurrency(totalGastos)}
+                  </p>
+                </div>
               </div>
-            )}
+
+              {/* Legenda customizada em Badges */}
+              <div className="mt-8 flex flex-wrap justify-center gap-2">
+                {compositionData.map((item, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border/40 shadow-sm"
+                  >
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-[10px] font-bold text-foreground truncate max-w-[100px]">{item.name}</span>
+                    <span className="text-[9px] font-black text-muted-foreground">
+                      {((item.value / totalGastos) * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
