@@ -19,7 +19,6 @@ import {
   Info,
   ArrowUpRight,
   Zap,
-  Trophy,
   ShieldCheck,
   Activity
 } from "lucide-react";
@@ -129,44 +128,6 @@ const Index = () => {
     };
   }, [metricasPatrimoniais, contasMovimento]);
 
-  const scoreOrbium = useMemo(() => {
-    if (contasMovimento.length === 0) return 0;
-    
-    let score = 0;
-    const liqRatio = saude.liquidez;
-    if (liqRatio >= 2) score += 250;
-    else if (liqRatio >= 1.2) score += 150;
-    else if (liqRatio > 0) score += 50;
-
-    const endRatio = saude.endividamento;
-    if (metricasPatrimoniais.ativosAtuais > 0) {
-      if (endRatio <= 25) score += 250;
-      else if (endRatio <= 45) score += 150;
-      else score += 50;
-    }
-
-    const savingsRate = fluxo.p1.rec > 0 ? (fluxo.p1.saldo / fluxo.p1.rec) * 100 : 0;
-    if (fluxo.p1.rec > 0) {
-      if (savingsRate >= 20) score += 250;
-      else if (savingsRate >= 10) score += 150;
-      else score += 50;
-    }
-
-    if (metricasPatrimoniais.variacaoAbs > 0) score += 250;
-    else if (metricasPatrimoniais.variacaoAbs === 0 && metricasPatrimoniais.plAtual > 0) score += 125;
-    else if (metricasPatrimoniais.variacaoAbs < 0) score += 25;
-
-    return score;
-  }, [saude, fluxo, metricasPatrimoniais, contasMovimento]);
-
-  const scoreInfo = useMemo(() => {
-    if (contasMovimento.length === 0) return { label: "Iniciante", status: "Crítico", color: "text-muted-foreground" };
-    if (scoreOrbium >= 800) return { label: "Excelente", status: "Premium", color: "text-success" };
-    if (scoreOrbium >= 600) return { label: "Bom", status: "Prêmio", color: "text-primary" };
-    if (scoreOrbium >= 400) return { label: "Regular", status: "Padrão", color: "text-warning" };
-    return { label: "Atenção", status: "Básico", color: "text-destructive" };
-  }, [scoreOrbium, contasMovimento]);
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -264,7 +225,6 @@ const Index = () => {
                   <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 lg:p-10 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 group min-h-[280px] sm:h-[320px] lg:h-[350px] flex flex-col justify-between cursor-help transition-all hover:shadow-soft-lg">
                     <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-transparent opacity-50"></div>
                     
-                    {/* Elementos decorativos premium */}
                     <div className="absolute top-0 right-0 p-10 opacity-[0.03] dark:opacity-[0.07] group-hover:scale-110 transition-transform duration-1000">
                       <ShieldCheck className="w-64 h-64 text-primary" />
                     </div>
@@ -344,7 +304,7 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-6 animate-fade-in-up">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 animate-fade-in-up">
             <div className="col-span-1">
               <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] p-5 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-center min-h-[120px] hover:-translate-y-1 transition-all group relative overflow-hidden">
                 <div className="absolute -right-2 -bottom-2 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
@@ -377,31 +337,6 @@ const Index = () => {
                 <div className="relative z-10">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Despesas Totais</p>
                   <p className="font-display font-bold text-lg sm:text-xl text-foreground tabular-nums">{formatCurrency(fluxo.p1.des)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-1 sm:col-span-2">
-              <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] p-5 shadow-lg flex items-center justify-between relative overflow-hidden min-h-[120px] group hover:shadow-soft-lg transition-all">
-                <div className="absolute right-0 bottom-0 opacity-10 translate-x-5 translate-y-5 group-hover:scale-110 transition-transform duration-1000"><Trophy className="w-24 h-24 sm:w-32 sm:h-32" /></div>
-                <div className="z-10">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Activity className="w-4 h-4 text-primary" />
-                    <h3 className="font-display font-bold text-lg sm:text-xl">Score Orbium</h3>
-                  </div>
-                  <div className="flex gap-2">
-                    <span className={cn("px-2 py-0.5 bg-white/10 rounded-full text-[8px] font-black uppercase backdrop-blur-md border border-white/10", scoreInfo.color)}>{scoreInfo.label}</span>
-                    <span className="px-2 py-0.5 bg-white/5 rounded-full text-[8px] font-bold uppercase text-white/40">{scoreInfo.status}</span>
-                  </div>
-                </div>
-                <div className="z-10 text-right">
-                  <div className="w-16 h-16 sm:w-18 sm:h-18 rounded-full border-4 border-white/10 flex items-center justify-center bg-white/5 backdrop-blur-sm relative group-hover:scale-105 transition-transform">
-                    <span className="font-display font-bold text-lg">{scoreOrbium}</span>
-                    <svg className="absolute inset-0 w-full h-full -rotate-90">
-                      <circle cx="50%" cy="50%" r="44%" fill="transparent" stroke="currentColor" strokeWidth="3" className="text-white/10" />
-                      <circle cx="50%" cy="50%" r="44%" fill="transparent" stroke="hsl(var(--primary))" strokeWidth="3" strokeDasharray="276.46" strokeDashoffset={276.46 - (276.46 * (scoreOrbium / 1000))} strokeLinecap="round" className="transition-all duration-1000 ease-out" />
-                    </svg>
-                  </div>
                 </div>
               </div>
             </div>
