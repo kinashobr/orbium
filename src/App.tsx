@@ -12,7 +12,7 @@ import Veiculos from "./pages/Veiculos";
 import Relatorios from "./pages/Relatorios";
 import Investimentos from "./pages/Investimentos";
 import BillsTracker from "./pages/BillsTracker";
-import AuthCallback from "./pages/AuthCallback"; // NOVO
+import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -26,6 +26,10 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
+              {/* Rota de Autenticação */}
+              <Route path="/oauth/callback" element={<AuthCallback />} />
+              
+              {/* Rotas Principais */}
               <Route path="/" element={<Index />} />
               <Route path="/receitas-despesas" element={<ReceitasDespesas />} />
               <Route path="/emprestimos" element={<Emprestimos />} />
@@ -33,7 +37,8 @@ const App = () => (
               <Route path="/investimentos" element={<Investimentos />} />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/contas-pagar" element={<BillsTracker />} />
-              <Route path="/oauth/callback" element={<AuthCallback />} />
+              
+              {/* Fallback */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
