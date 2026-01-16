@@ -36,7 +36,9 @@ export default function AuthCallback() {
       hasExchanged.current = true;
 
       try {
-        // Chamada para o nosso backend proxy em vez de chamar o Google diretamente
+        // Usamos a URI fixa de produção para bater com o que foi solicitado no login
+        const productionRedirectUri = "https://orbiumfinance.vercel.app/oauth/callback";
+
         const response = await fetch("/api/auth/google", {
           method: "POST",
           headers: {
@@ -45,7 +47,7 @@ export default function AuthCallback() {
           body: JSON.stringify({
             code,
             code_verifier: verifier,
-            redirect_uri: window.location.origin + "/oauth/callback",
+            redirect_uri: productionRedirectUri,
           }),
         });
 
@@ -53,7 +55,7 @@ export default function AuthCallback() {
 
         if (!response.ok) {
           console.error("[AuthCallback] Erro no Proxy de Autenticação:", data);
-          toast.error("Erro na validação. Verifique as variáveis de ambiente no Vercel.");
+          toast.error("Erro na validação. Verifique as configurações no Google Console.");
           setStatus("error");
           return;
         }
@@ -80,7 +82,7 @@ export default function AuthCallback() {
         </div>
         <h2 className="text-xl font-bold">Conexão Interrompida</h2>
         <p className="text-muted-foreground text-sm max-w-sm">
-          Não foi possível completar a conexão com o Google Drive. Verifique se o <strong>GOOGLE_CLIENT_SECRET</strong> está configurado corretamente no Vercel.
+          Não foi possível completar a conexão. Verifique se a URL <strong>https://orbiumfinance.vercel.app/oauth/callback</strong> está cadastrada em "URIs de redirecionamento autorizados" no Google Cloud Console.
         </p>
         <Button variant="outline" onClick={() => navigate("/")} className="mt-4 rounded-full">
           Voltar para Home
