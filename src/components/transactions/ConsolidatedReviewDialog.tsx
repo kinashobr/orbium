@@ -17,7 +17,7 @@ import { TransactionReviewTable } from "./TransactionReviewTable";
 import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal";
 import { ReviewContextSidebar } from "./ReviewContextSidebar";
 import { StandardizationRuleManagerModal } from "./StandardizationRuleManagerModal";
-import { ResizableSidebar } from "./ResizableSidebar";
+import { ResizableSidebar } from "../ResizableSidebar";
 import { startOfMonth, endOfMonth, format, startOfDay, endOfDay } from "date-fns";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 import { Badge } from "@/components/ui/badge";
@@ -366,8 +366,8 @@ export function ConsolidatedReviewDialog({
               </DialogFooter>
             </div>
           </ResizableDialogContent>
-        </Dialog>
-      )}
+        )}
+      </Dialog>
       
       <StandardizationRuleFormModal 
         open={showRuleModal} 

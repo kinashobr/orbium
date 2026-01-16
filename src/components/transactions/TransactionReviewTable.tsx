@@ -17,6 +17,7 @@ import { ContaCorrente, Categoria, ImportedTransaction, OperationType, CATEGORY_
 import { cn, parseDateLocal } from "@/lib/utils";
 import { EditableCell } from "../EditableCell";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { Label } from "@/components/ui/label"; // <-- Added Label import
 
 interface LoanInfo {
   id: string;
