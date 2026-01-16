@@ -38,7 +38,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header da Seção - Reduzido em ~30% */}
+      {/* Header da Seção - Escala Refinada */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-2">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
@@ -75,7 +75,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
             
             return (
               <div key={idx} className="space-y-4">
-                {/* Subtotal da Seção - Reduzido em ~30% */}
+                {/* Subtotal da Seção - Escala Refinada */}
                 {!isPL && (
                   <div className="flex items-center justify-between px-1">
                     <div className="flex items-center gap-3">
@@ -101,39 +101,39 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
                   </div>
                 )}
 
-                {/* Lista de Itens (Compactos) */}
-                <div className="grid grid-cols-1 gap-1.5 pl-1 sm:pl-4">
+                {/* Lista de Itens - Restaurado tamanho original para legibilidade */}
+                <div className="grid grid-cols-1 gap-2 pl-2 sm:pl-6">
                   {section.details?.map((detail) => (
                     <div 
                       key={detail.id}
-                      className="flex items-center justify-between py-1.5 px-3 rounded-xl bg-card/40 backdrop-blur-sm border border-border/20 hover:border-primary/30 hover:bg-card transition-all duration-300 group/item cursor-default"
+                      className="flex items-center justify-between p-3 sm:p-4 rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card transition-all duration-300 group/item cursor-default"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="w-7 h-7 rounded-lg bg-muted/40 flex items-center justify-center text-muted-foreground group-hover/item:text-primary transition-all">
-                          <detail.icon size={14} />
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-muted/40 flex items-center justify-center text-muted-foreground group-hover/item:text-primary transition-all">
+                          <detail.icon size={18} />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-[11px] text-foreground truncate leading-tight">
+                          <p className="font-bold text-sm text-foreground truncate leading-tight">
                             {detail.name}
                           </p>
-                          <p className="text-[7px] font-bold text-muted-foreground uppercase tracking-widest opacity-50">
+                          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1 opacity-50">
                             {detail.typeLabel}
                           </p>
                         </div>
                       </div>
                       
                       <div className="text-right shrink-0">
-                        <p className="font-black text-[11px] text-foreground tabular-nums leading-none">
+                        <p className="font-black text-sm sm:text-base text-foreground tabular-nums leading-none">
                           {formatCurrency(detail.value)}
                         </p>
-                        <p className="text-[7px] font-black text-primary/60 uppercase mt-0.5 tracking-tighter">
+                        <p className="text-[9px] font-black text-primary/60 uppercase mt-1 tracking-tighter">
                           {detail.percent.toFixed(1)}%
                         </p>
                       </div>
                     </div>
                   ))}
 
-                  {/* Patrimônio Líquido - Reduzido em ~30% */}
+                  {/* Patrimônio Líquido - Escala Refinada */}
                   {isPL && (
                     <div className="p-6 sm:p-8 rounded-[2rem] bg-primary text-white shadow-xl shadow-primary/20 relative overflow-hidden group/pl mt-2">
                       <div className="absolute right-0 top-0 p-6 opacity-10 rotate-12 group-hover/pl:scale-110 transition-transform duration-1000">
@@ -167,7 +167,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }:
           })}
         </div>
 
-        {/* Indicador de Fechamento - Reduzido em ~30% */}
+        {/* Indicador de Fechamento - Escala Refinada */}
         <div className="mt-12 pt-6 border-t border-border/30 flex items-center justify-between relative z-10">
           <div className="flex items-center gap-3">
             <div className={cn(
