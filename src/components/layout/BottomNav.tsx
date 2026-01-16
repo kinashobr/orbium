@@ -11,7 +11,8 @@ import {
   Menu,
   Bell,
   Settings2,
-  Palette
+  Palette,
+  Cloud
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -27,6 +28,7 @@ import {
 } from "@/components/ui/drawer";
 import { SidebarAlertas, DEFAULT_ALERTS, DEFAULT_METAS } from "@/components/dashboard/SidebarAlertas";
 import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "@/components/dashboard/AlertasConfigDialog";
+import { GoogleDriveSync } from "./GoogleDriveSync";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
@@ -143,7 +145,7 @@ export function BottomNav() {
                 </span>
               </button>
             </DrawerTrigger>
-            <DrawerContent className="rounded-t-[3rem] border-t-border bg-card max-h-[85vh]">
+            <DrawerContent className="rounded-t-[3rem] border-t-border bg-card max-h-[90vh]">
               <div className="mx-auto w-12 h-1.5 bg-muted/50 rounded-full mt-4 mb-2" />
               
               <DrawerHeader className="px-8 pb-4">
@@ -185,7 +187,15 @@ export function BottomNav() {
                 <Separator className="opacity-40" />
 
                 <div className="space-y-4">
-                  <p className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.15em]">Gestão de Dados</p>
+                  <div className="flex items-center gap-2">
+                    <Cloud className="w-4 h-4 text-muted-foreground" />
+                    <p className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.15em]">Sincronização na Nuvem</p>
+                  </div>
+                  <GoogleDriveSync />
+                </div>
+
+                <div className="space-y-4">
+                  <p className="text-[11px] font-black uppercase text-muted-foreground tracking-[0.15em]">Backup Local</p>
                   <div className="grid grid-cols-1 gap-3">
                     <Button 
                       variant="outline" 
@@ -196,8 +206,8 @@ export function BottomNav() {
                         <Download className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-bold">Exportar Backup</p>
-                        <p className="text-[10px] text-muted-foreground">Baixar arquivo .json atualizado</p>
+                        <p className="text-sm font-bold">Exportar .json</p>
+                        <p className="text-[10px] text-muted-foreground">Baixar arquivo de segurança</p>
                       </div>
                     </Button>
                     <Button 
@@ -209,8 +219,8 @@ export function BottomNav() {
                         <Upload className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <p className="text-sm font-bold">Importar Dados</p>
-                        <p className="text-[10px] text-muted-foreground">Restaurar de um arquivo externo</p>
+                        <p className="text-sm font-bold">Importar .json</p>
+                        <p className="text-[10px] text-muted-foreground">Restaurar dados antigos</p>
                       </div>
                     </Button>
                   </div>

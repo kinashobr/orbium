@@ -12,6 +12,7 @@ import Veiculos from "./pages/Veiculos";
 import Relatorios from "./pages/Relatorios";
 import Investimentos from "./pages/Investimentos";
 import BillsTracker from "./pages/BillsTracker";
+import AuthCallback from "./pages/AuthCallback"; // NOVO
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
               <Route path="/investimentos" element={<Investimentos />} />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/contas-pagar" element={<BillsTracker />} />
+              <Route path="/oauth/callback" element={<AuthCallback />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -28,6 +28,7 @@ import { toast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SidebarAlertas, DEFAULT_ALERTS, DEFAULT_METAS } from "@/components/dashboard/SidebarAlertas";
 import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "@/components/dashboard/AlertasConfigDialog";
+import { GoogleDriveSync } from "./GoogleDriveSync";
 import { 
   Popover, 
   PopoverContent, 
@@ -311,11 +312,16 @@ export function Sidebar() {
 
               <Separator className="opacity-40" />
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Database className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Dados & Backup</p>
+                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sincronização & Backup</p>
                 </div>
+                
+                <div className="px-1">
+                  <GoogleDriveSync />
+                </div>
+
                 <div className="flex flex-col gap-1.5">
                   <Button 
                     variant="outline" 
@@ -326,7 +332,7 @@ export function Sidebar() {
                       <Download size={14} />
                     </div>
                     <div className="text-left">
-                      <p className="text-[11px] font-bold">Gerar Backup</p>
+                      <p className="text-[11px] font-bold">Backup Local (.json)</p>
                     </div>
                   </Button>
                   
