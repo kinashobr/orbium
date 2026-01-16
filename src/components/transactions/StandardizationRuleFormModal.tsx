@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Pin, Save, AlertCircle, Check, X } from "lucide-react";
+import { Pin, Save, AlertCircle, Check, X, ArrowLeft } from "lucide-react";
 import { StandardizationRule, ImportedTransaction, Categoria, OperationType, CATEGORY_NATURE_LABELS } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface StandardizationRuleFormModalProps {
   open: boolean;
@@ -40,6 +42,7 @@ export function StandardizationRuleFormModal({
   categories,
   onSave,
 }: StandardizationRuleFormModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const [pattern, setPattern] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [operationType, setOperationType] = useState<OperationType | ''>('');
@@ -110,95 +113,106 @@ export function StandardizationRuleFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
-        className="max-w-lg p-0 overflow-hidden rounded-[2.5rem] z-[150]"
+        className={cn(
+          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col z-[150]",
+          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-lg rounded-[2.5rem]"
+        )}
       >
-        <DialogHeader className="px-6 pt-6 pb-4 bg-primary/10">
-          <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+        <DialogHeader className="px-6 pt-10 pb-6 bg-primary/10 shrink-0 relative">
+          {isMobile && (
+            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full h-10 w-10" onClick={() => onOpenChange(false)}>
+              <ArrowLeft className="h-6 w-6" />
+            </Button>
+          )}
+          
+          <div className={cn("flex items-start gap-3", isMobile && "pl-12")}>
+            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
               <Pin className="w-6 h-6 text-primary" />
             </div>
             <div className="flex-1">
               <DialogTitle className="text-xl font-bold">
-                {initialRule ? 'Editar Regra' : 'Nova Regra de Padronização'}
+                {initialRule ? 'Editar Regra' : 'Nova Regra'}
               </DialogTitle>
               <DialogDescription className="text-sm text-muted-foreground mt-1">
-                Automatize a categorização de transações importadas.
+                Automatize a categorização inteligente.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6">
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Padrão de Busca *</Label>
-            <Input
-              value={pattern}
-              onChange={(e) => setPattern(e.target.value)}
-              placeholder="Ex: PAGAMENTO CARTAO"
-              className="h-12 border-2 rounded-xl text-sm"
-            />
-            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Busca parcial na descrição original do extrato.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ScrollArea className="flex-1">
+          <div className="p-6 space-y-6 pb-32 sm:pb-6">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Operação *</Label>
-              <Select
-                value={operationType}
-                onValueChange={(v) => {
-                    setOperationType(v as OperationType);
-                    if (NON_CATEGORY_OPERATIONS.includes(v as OperationType)) setCategoryId(null);
-                }}
-              >
-                <SelectTrigger className="h-12 border-2 rounded-xl">
-                  <SelectValue placeholder="Selecione..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {STANDARDIZABLE_OPERATIONS.map(op => (
-                    <SelectItem key={op.value} value={op.value}>
-                      <span className={cn("flex items-center gap-2", op.color)}>{op.label}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Padrão de Busca *</Label>
+              <Input
+                value={pattern}
+                onChange={(e) => setPattern(e.target.value)}
+                placeholder="Ex: PAGAMENTO CARTAO"
+                className="h-12 border-2 rounded-xl text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />
+                  Busca parcial na descrição original.
+              </p>
             </div>
-            
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Operação *</Label>
+                <Select
+                  value={operationType}
+                  onValueChange={(v) => {
+                      setOperationType(v as OperationType);
+                      if (NON_CATEGORY_OPERATIONS.includes(v as OperationType)) setCategoryId(null);
+                  }}
+                >
+                  <SelectTrigger className="h-12 border-2 rounded-xl">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STANDARDIZABLE_OPERATIONS.map(op => (
+                      <SelectItem key={op.value} value={op.value}>
+                        <span className={cn("flex items-center gap-2", op.color)}>{op.label}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Categoria {categoryRequired ? '*' : ''}</Label>
+                <Select
+                  value={categoryId || ''}
+                  onValueChange={setCategoryId}
+                  disabled={!categoryRequired}
+                >
+                  <SelectTrigger className="h-12 border-2 rounded-xl">
+                    <SelectValue placeholder={categoryRequired ? "Selecione..." : "Não aplicável"} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {getCategoryOptions.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
+                        {cat.icon} {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Categoria {categoryRequired ? '*' : ''}</Label>
-              <Select
-                value={categoryId || ''}
-                onValueChange={setCategoryId}
-                disabled={!categoryRequired}
-              >
-                <SelectTrigger className="h-12 border-2 rounded-xl">
-                  <SelectValue placeholder={categoryRequired ? "Selecione..." : "Não aplicável"} />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {getCategoryOptions.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
-                      {cat.icon} {cat.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Descrição Padronizada *</Label>
+              <Input
+                value={descriptionTemplate}
+                onChange={(e) => setDescriptionTemplate(e.target.value)}
+                placeholder="Ex: Pagamento Fatura Cartão"
+                className="h-12 border-2 rounded-xl text-sm"
+              />
             </div>
           </div>
+        </ScrollArea>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Descrição Padronizada *</Label>
-            <Input
-              value={descriptionTemplate}
-              onChange={(e) => setDescriptionTemplate(e.target.value)}
-              placeholder="Ex: Pagamento Fatura Cartão"
-              className="h-12 border-2 rounded-xl text-sm"
-            />
-          </div>
-        </div>
-
-        <DialogFooter className="p-6 bg-muted/20 border-t flex flex-col sm:flex-row gap-3">
+        <DialogFooter className="p-6 bg-muted/20 border-t flex flex-col sm:flex-row gap-3 shrink-0">
           <Button 
             variant="ghost" 
             onClick={() => onOpenChange(false)} 

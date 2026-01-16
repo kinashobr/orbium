@@ -16,6 +16,7 @@ import { Pin, ArrowLeftRight, TrendingUp, TrendingDown, AlertCircle, Check, Pigg
 import { ContaCorrente, Categoria, ImportedTransaction, OperationType, CATEGORY_NATURE_LABELS } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { EditableCell } from "../EditableCell";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface LoanInfo {
   id: string;
@@ -70,7 +71,7 @@ export function TransactionReviewTable({
   onUpdateTransaction,
   onCreateRule,
 }: TransactionReviewTableProps) {
-  
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const categoriesMap = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories]);
   
   const getCategoryOptions = (operationType: OperationType | null) => {
@@ -130,7 +131,7 @@ export function TransactionReviewTable({
       const availableInstallments = selectedLoan ? selectedLoan.parcelas.filter(p => !p.paga) : [];
 
       return (
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <Select
             value={tx.tempLoanId || ''}
             onValueChange={(v) => onUpdateTransaction(tx.id, { tempLoanId: v, tempParcelaId: null })}
@@ -151,7 +152,7 @@ export function TransactionReviewTable({
             onValueChange={(v) => onUpdateTransaction(tx.id, { tempParcelaId: v })}
             disabled={isDisabled || !tx.tempLoanId}
           >
-            <SelectTrigger className="h-9 rounded-xl border-none bg-muted/50 text-xs font-bold w-24">
+            <SelectTrigger className="h-9 rounded-xl border-none bg-muted/50 text-xs font-bold w-full sm:w-24">
               <SelectValue placeholder="P..." />
             </SelectTrigger>
             <SelectContent>
@@ -166,6 +167,89 @@ export function TransactionReviewTable({
     
     return <span className="text-muted-foreground/40 text-[10px] font-black uppercase tracking-widest">—</span>;
   };
+
+  if (isMobile) {
+    return (
+      <div className="space-y-4 p-4">
+        {transactions.map((tx) => {
+          const isIncome = ['receita', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType || '') || (tx.operationType === 'veiculo' && tx.amount > 0);
+          const opConfig = OPERATION_OPTIONS.find(o => o.value === tx.operationType);
+          const isCategorized = 
+                (tx.operationType === 'transferencia' && !!tx.destinationAccountId) ||
+                ((tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && !!tx.tempInvestmentId) ||
+                (tx.operationType === 'pagamento_emprestimo' && !!tx.tempLoanId && !!tx.tempParcelaId) ||
+                (tx.operationType === 'veiculo' && !!tx.tempVehicleOperation) ||
+                (!!tx.categoryId) ||
+                tx.operationType === 'liberacao_emprestimo';
+
+          return (
+            <div 
+              key={tx.id} 
+              className={cn(
+                "p-5 rounded-[2rem] border-2 transition-all space-y-4",
+                !isCategorized && !tx.isPotentialDuplicate ? "bg-warning/[0.03] border-warning/20" : "bg-card border-border/40",
+                tx.isPotentialDuplicate && "bg-success/[0.03] border-success/20"
+              )}
+            >
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-[10px] font-black text-muted-foreground uppercase">
+                    <Calendar className="w-3 h-3" />
+                    {parseDateLocal(tx.date).toLocaleDateString("pt-BR")}
+                  </div>
+                  <p className={cn("text-xl font-black tabular-nums", isIncome ? "text-success" : "text-destructive")}>
+                    {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
+                  </p>
+                </div>
+                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => onCreateRule(tx)} disabled={!isCategorized || tx.isPotentialDuplicate}>
+                  <Sparkles className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Original</p>
+                <p className="text-xs font-bold text-foreground line-clamp-1">{tx.originalDescription}</p>
+                {tx.isPotentialDuplicate && (
+                  <Badge className="bg-success/10 text-success border-none text-[9px] font-black">DUPLICATA</Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Operação</Label>
+                  <Select value={tx.operationType || ''} onValueChange={(v) => onUpdateTransaction(tx.id, { operationType: v as OperationType, categoryId: null })}>
+                    <SelectTrigger className={cn("h-9 rounded-xl border-none text-[10px] font-black uppercase", opConfig?.bgColor || "bg-muted", opConfig?.color || "text-muted-foreground")}>
+                      <SelectValue placeholder="TIPO" />
+                    </SelectTrigger>
+                    <SelectContent>{OPERATION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Categoria</Label>
+                  <Select value={tx.categoryId || ''} onValueChange={(v) => onUpdateTransaction(tx.id, { categoryId: v })} disabled={['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo'].includes(tx.operationType || '')}>
+                    <SelectTrigger className="h-9 rounded-xl border-none bg-muted/50 text-[10px] font-bold"><SelectValue placeholder="CAT" /></SelectTrigger>
+                    <SelectContent>{getCategoryOptions(tx.operationType).map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-medium">{c.icon} {c.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo'].includes(tx.operationType || '') && (
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Vínculo</Label>
+                  {renderVincularSelector(tx)}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição Final</Label>
+                <EditableCell value={tx.description} onSave={(v) => onUpdateTransaction(tx.id, { description: String(v) })} className="text-xs font-bold h-10 bg-muted/30 rounded-xl px-3 w-full" />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -203,7 +287,6 @@ export function TransactionReviewTable({
                   tx.isPotentialDuplicate && "bg-success/[0.02]"
                 )}
               >
-                {/* Data & Valor */}
                 <TableCell className="pl-6">
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-tighter">
@@ -219,7 +302,6 @@ export function TransactionReviewTable({
                   </div>
                 </TableCell>
 
-                {/* Descrição Original */}
                 <TableCell className="max-w-[200px]">
                   <div className="space-y-1">
                     <p className="text-xs font-bold text-foreground truncate" title={tx.originalDescription}>
@@ -233,7 +315,6 @@ export function TransactionReviewTable({
                   </div>
                 </TableCell>
 
-                {/* Classificação (Tipo + Categoria) */}
                 <TableCell>
                   <div className="flex flex-col gap-2 w-[180px]">
                     <Select
@@ -284,12 +365,10 @@ export function TransactionReviewTable({
                   </div>
                 </TableCell>
 
-                {/* Vínculo */}
                 <TableCell className="w-[220px]">
                   {renderVincularSelector(tx)}
                 </TableCell>
 
-                {/* Descrição Final */}
                 <TableCell>
                   <EditableCell
                     value={tx.description}
@@ -299,7 +378,6 @@ export function TransactionReviewTable({
                   />
                 </TableCell>
 
-                {/* Ações */}
                 <TableCell className="text-center pr-6">
                   <Button
                     variant="ghost"

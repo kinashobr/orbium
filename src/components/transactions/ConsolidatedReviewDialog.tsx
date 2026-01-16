@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FileText, Check, Loader2, X, Sparkles, Filter, ChevronLeft, LayoutGrid } from "lucide-react";
 import { 
@@ -91,7 +91,6 @@ export function ConsolidatedReviewDialog({
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'filters'>('list');
 
-  // Bloquear scroll do fundo no mobile
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -275,57 +274,60 @@ export function ConsolidatedReviewDialog({
 
   return (
     <>
-      {isMobile && open ? (
-        <div className="fixed inset-0 z-[100] bg-background dark:bg-[hsl(24_8%_10%)] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <header className="px-6 pt-6 pb-4 border-b dark:border-white/5 shrink-0 bg-card dark:bg-[hsl(24_8%_14%)]">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" className="rounded-full h-12 w-12" onClick={() => onOpenChange(false)}>
-                  <ChevronLeft className="w-8 h-8" />
-                </Button>
-                <div>
-                  <h2 className="text-xl font-black tracking-tight">Revisão</h2>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{account?.name}</p>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        {isMobile ? (
+          <DialogContent 
+            hideCloseButton
+            className="fixed inset-0 max-w-full h-full rounded-none p-0 overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 z-[100]"
+          >
+            <header className="px-6 pt-6 pb-4 border-b dark:border-white/5 shrink-0 bg-card dark:bg-[hsl(24_8%_14%)]">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Button variant="ghost" size="icon" className="rounded-full h-12 w-12" onClick={() => onOpenChange(false)}>
+                    <ChevronLeft className="w-8 h-8" />
+                  </Button>
+                  <div>
+                    <h2 className="text-xl font-black tracking-tight">Revisão</h2>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{account?.name}</p>
+                  </div>
                 </div>
-              </div>
-              <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-primary/10 text-primary" onClick={() => setShowRuleManagerModal(true)}>
-                <Sparkles className="w-6 h-6" />
-              </Button>
-            </div>
-          </header>
-
-          {mobileView === 'filters' ? (
-            <div className="flex-1 p-6 bg-background dark:bg-[hsl(24_8%_10%)] overflow-y-auto">
-              <div className="flex items-center justify-between mb-8">
-                <h3 className="font-black uppercase tracking-widest text-sm">Ajustes de Período</h3>
-                <Button variant="ghost" size="sm" className="font-bold" onClick={() => setMobileView('list')}>Voltar</Button>
-              </div>
-              <ReviewContextSidebar
-                accountId={accountId} statements={importedStatements.filter(s => s.accountId === accountId)}
-                pendingCount={pendingCount} readyToContabilizeCount={readyCount} totalCount={transactionsToReview.length}
-                reviewRange={reviewRange} onPeriodChange={r => setReviewRange(r.range1)} onApplyFilter={() => { loadTransactions(); setMobileView('list'); }}
-                onContabilize={handleContabilize} onClose={() => onOpenChange(false)} onManageRules={() => setShowRuleManagerModal(true)}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="flex-1 overflow-hidden relative">
-                {renderContent()}
-              </div>
-              <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => onOpenChange(false)}
-                  className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-                >
-                  FECHAR
+                <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-primary/10 text-primary" onClick={() => setShowRuleManagerModal(true)}>
+                  <Sparkles className="w-6 h-6" />
                 </Button>
-              </DialogFooter>
-            </>
-          )}
-        </div>
-      ) : (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+              </div>
+            </header>
+
+            {mobileView === 'filters' ? (
+              <div className="flex-1 p-6 bg-background dark:bg-[hsl(24_8%_10%)] overflow-y-auto">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="font-black uppercase tracking-widest text-sm">Ajustes de Período</h3>
+                  <Button variant="ghost" size="sm" className="font-bold" onClick={() => setMobileView('list')}>Voltar</Button>
+                </div>
+                <ReviewContextSidebar
+                  accountId={accountId} statements={importedStatements.filter(s => s.accountId === accountId)}
+                  pendingCount={pendingCount} readyToContabilizeCount={readyCount} totalCount={transactionsToReview.length}
+                  reviewRange={reviewRange} onPeriodChange={r => setReviewRange(r.range1)} onApplyFilter={() => { loadTransactions(); setMobileView('list'); }}
+                  onContabilize={handleContabilize} onClose={() => onOpenChange(false)} onManageRules={() => setShowRuleManagerModal(true)}
+                />
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-hidden relative">
+                  {renderContent()}
+                </div>
+                <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => onOpenChange(false)}
+                    className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                  >
+                    FECHAR
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
+          </DialogContent>
+        ) : (
           <ResizableDialogContent 
             storageKey="consolidated_review_modal"
             initialWidth={1400} initialHeight={900} minWidth={1000} minHeight={700} hideCloseButton={true}
@@ -367,7 +369,6 @@ export function ConsolidatedReviewDialog({
         </Dialog>
       )}
       
-      {/* Modais de Regras renderizados fora para evitar travamentos e garantir z-index */}
       <StandardizationRuleFormModal 
         open={showRuleModal} 
         onOpenChange={setShowRuleModal} 

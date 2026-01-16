@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Pin, Trash2, Pencil, Search, Sparkles, Plus } from "lucide-react";
+import { Pin, Trash2, Pencil, Search, Sparkles, Plus, ArrowLeft } from "lucide-react";
 import { StandardizationRule, Categoria } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import { StandardizationRuleFormModal } from "./StandardizationRuleFormModal";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Badge } from "@/components/ui/badge";
 import { STANDARDIZABLE_OPERATIONS } from "./StandardizationRuleFormModal";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface StandardizationRuleManagerModalProps {
   open: boolean;
@@ -28,6 +29,7 @@ export function StandardizationRuleManagerModal({
   categories,
   onCloseAndReturn,
 }: StandardizationRuleManagerModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const { addStandardizationRule, updateStandardizationRule } = useFinance();
   const [searchTerm, setSearchTerm] = useState("");
   const [editingRule, setEditingRule] = useState<StandardizationRule | null>(null);
@@ -78,9 +80,21 @@ export function StandardizationRuleManagerModal({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent hideCloseButton className="max-w-[min(95vw,56rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2.5rem] overflow-x-hidden z-[110]">
-          <DialogHeader className="px-4 sm:px-8 pt-8 pb-6 bg-surface-light dark:bg-surface-dark shrink-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <DialogContent 
+          hideCloseButton 
+          className={cn(
+            "p-0 overflow-hidden shadow-2xl bg-card flex flex-col z-[110]",
+            isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[min(95vw,56rem)] h-[min(90vh,800px)] rounded-[2.5rem]"
+          )}
+        >
+          <DialogHeader className="px-4 sm:px-8 pt-8 pb-6 bg-surface-light dark:bg-surface-dark shrink-0 relative">
+            {isMobile && (
+              <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full h-10 w-10" onClick={() => onOpenChange(false)}>
+                <ArrowLeft className="h-6 w-6" />
+              </Button>
+            )}
+            
+            <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6", isMobile && "pl-12")}>
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5 flex-shrink-0">
                   <Pin className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -91,7 +105,7 @@ export function StandardizationRuleManagerModal({
                   </DialogTitle>
                   <DialogDescription className="text-sm font-medium text-muted-foreground flex items-center gap-1.5 mt-1">
                     <Sparkles className="w-3.5 h-3.5 text-accent flex-shrink-0" />
-                    Automação inteligente de extratos
+                    Automação inteligente
                   </DialogDescription>
                 </div>
               </div>
@@ -100,19 +114,19 @@ export function StandardizationRuleManagerModal({
               </Button>
             </div>
 
-            <div className="relative group px-4 sm:px-8">
-              <Search className="absolute left-6 sm:left-12 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <div className="relative group px-4 sm:px-0">
+              <Search className="absolute left-8 sm:left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Pesquisar por padrão ou descrição final..."
-                className="w-full h-12 pl-10 sm:pl-12 pr-4 bg-muted/50 border-2 border-transparent focus:border-primary/30 rounded-2xl text-sm font-medium transition-all outline-none"
+                placeholder="Pesquisar padrão..."
+                className="w-full h-12 pl-12 pr-4 bg-muted/50 border-2 border-transparent focus:border-primary/30 rounded-2xl text-sm font-medium transition-all outline-none"
               />
             </div>
           </DialogHeader>
 
           <ScrollArea className="flex-1 px-4 sm:px-8 pb-8 overflow-x-hidden">
-            <div className="space-y-3 max-w-full">
+            <div className="space-y-3 max-w-full py-4">
               {filteredRules.map((rule) => {
                 const category = rule.categoryId ? categoriesMap.get(rule.categoryId) : null;
                 const operationConfig = STANDARDIZABLE_OPERATIONS.find(op => op.value === rule.operationType);
