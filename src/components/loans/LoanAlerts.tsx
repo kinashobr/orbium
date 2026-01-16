@@ -125,7 +125,10 @@ export function LoanAlerts({ emprestimos, className, onOpenPendingConfig }: Loan
                 style.border
               )}
             >
-              <div className="flex justify-between items-start mb-6">
+              {/* Ícone Decorativo de Fundo */}
+              <alert.icon className={cn("absolute -right-4 -bottom-4 w-32 h-32 opacity-[0.03] transition-transform duration-700 group-hover:scale-110 group-hover:rotate-6", style.color)} />
+
+              <div className="flex justify-between items-start mb-6 relative z-10">
                 <div className="w-12 h-12 rounded-full bg-white dark:bg-black/20 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-500">
                   <alert.icon className={cn("w-6 h-6", style.color)} />
                 </div>
@@ -134,7 +137,7 @@ export function LoanAlerts({ emprestimos, className, onOpenPendingConfig }: Loan
                 </Badge>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 relative z-10">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">{alert.title}</p>
                 {alert.value ? (
                   <div className="space-y-1">
@@ -151,7 +154,7 @@ export function LoanAlerts({ emprestimos, className, onOpenPendingConfig }: Loan
                   variant="ghost" 
                   size="sm" 
                   onClick={alert.action}
-                  className={cn("mt-8 w-full justify-between rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] h-12 bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 border border-black/5", style.color)}
+                  className={cn("mt-8 w-full justify-between rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] h-12 bg-white/50 dark:bg-black/20 hover:bg-white dark:hover:bg-black/40 border border-black/5 relative z-10", style.color)}
                 >
                   Configurar Agora
                   <ArrowRight className="w-5 h-5" />
