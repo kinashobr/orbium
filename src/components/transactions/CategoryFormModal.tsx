@@ -41,6 +41,18 @@ export function CategoryFormModal({
 
   const isEditing = !!category;
 
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
+
   useEffect(() => {
     if (open && category) {
       setLabel(category.label);
@@ -75,26 +87,30 @@ export function CategoryFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
+        fullscreen={isMobile}
         className={cn(
-          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[28rem] max-h-[90vh] rounded-[2rem]"
+          "p-0 shadow-2xl bg-card flex flex-col",
+          !isMobile && "max-w-[28rem] max-h-[90vh] rounded-[2rem]"
         )}
       >
-        <DialogHeader className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative">
-          {isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => onOpenChange(false)}
-              className="absolute left-4 top-4 rounded-full h-10 w-10"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </Button>
-          )}
+        <DialogHeader 
+          className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative"
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+        >
+          <div className="flex items-center gap-4">
+            {isMobile && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => onOpenChange(false)}
+                className="rounded-full h-10 w-10 shrink-0"
+              >
+                <ArrowLeft className="h-6 w-6" />
+              </Button>
+            )}
 
-          <div className={cn("flex items-center gap-4", isMobile && "pl-12")}>
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
-              <Sparkles className="w-7 h-7" />
+              <Sparkles className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
               <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
@@ -164,10 +180,13 @@ export function CategoryFormModal({
           </div>
         </ScrollArea>
 
-        <DialogFooter className={cn(
-          "p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 shrink-0 flex flex-col-reverse sm:flex-row gap-3",
-          isMobile && "pb-12"
-        )}>
+        <DialogFooter 
+          className={cn(
+            "p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 shrink-0 flex flex-col-reverse sm:flex-row gap-3",
+            isMobile && "fixed bottom-0 left-0 right-0 bg-card"
+          )}
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+        >
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
             FECHAR
           </Button>

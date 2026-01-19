@@ -39,7 +39,7 @@ export function CustomIndicatorModal({ open, onOpenChange, onSave }: CustomIndic
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-[min(95vw,32rem)] p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)]">
+      <DialogContent hideCloseButton className="max-w-[min(95vw,32rem)] p-0 rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] flex flex-col">
         <DialogHeader className="px-8 pt-8 pb-6 bg-muted/50 dark:bg-black/30 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">

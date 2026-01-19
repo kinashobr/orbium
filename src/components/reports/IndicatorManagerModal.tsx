@@ -96,7 +96,7 @@ export function IndicatorManagerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-[min(95vw,36rem)] p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)]">
+      <DialogContent hideCloseButton className="max-w-[min(95vw,36rem)] p-0 rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] flex flex-col">
         <DialogHeader className="px-8 pt-8 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

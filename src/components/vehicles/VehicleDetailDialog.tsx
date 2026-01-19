@@ -92,14 +92,18 @@ export function VehicleDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
+        fullscreen={isMobile}
         className={cn(
-          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[32rem] max-h-[85vh] rounded-[2rem]"
+          "p-0 shadow-2xl bg-card flex flex-col",
+          !isMobile && "max-w-[32rem] max-h-[85vh] rounded-[2rem]"
         )}
       >
-        <DialogHeader className="p-6 sm:p-8 shrink-0 bg-muted/20 border-b relative">
+        <DialogHeader 
+          className="p-6 sm:p-8 shrink-0 bg-muted/20 border-b relative"
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+        >
           {isMobile && (
-            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-4 top-4 rounded-full h-10 w-10">
+            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-4 top-4 rounded-full h-10 w-10" style={isMobile ? { top: 'calc(env(safe-area-inset-top) + 0.5rem)' } : undefined}>
               <ArrowLeft className="h-6 w-6" />
             </Button>
           )}

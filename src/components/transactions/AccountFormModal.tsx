@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, Sparkles, Trash2 } from "lucide-react";
+import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, Sparkles, Trash2, ArrowLeft } from "lucide-react";
 import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -50,6 +50,18 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
 
   const isEditing = !!account;
 
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
+
   useEffect(() => {
     if (open && account) {
       setName(account.name);
@@ -90,21 +102,27 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
+        fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[34rem] max-h-[85vh] rounded-[2.5rem]"
+          !isMobile && "max-w-[34rem] max-h-[85vh] rounded-[2.5rem]"
         )}
       >
-        <DialogHeader className={cn(
-          "px-8 pt-10 pb-8 bg-muted/30 shrink-0 relative",
-          isMobile && "pt-14"
-        )}>
-          <div className="flex items-center gap-5">
-            <div className={cn("w-16 h-16 rounded-[1.5rem] flex items-center justify-center shadow-xl transition-all duration-500", config.bg, config.color)}>
-              <Icon size={32} />
+        <DialogHeader 
+          className={cn("px-6 sm:px-8 pt-6 sm:pt-10 pb-6 sm:pb-8 bg-muted/30 shrink-0 relative")}
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+        >
+          <div className="flex items-center gap-4 sm:gap-5">
+            {isMobile && (
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 shrink-0" onClick={() => onOpenChange(false)}>
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
+            <div className={cn("w-14 h-14 sm:w-16 sm:h-16 rounded-[1.5rem] flex items-center justify-center shadow-xl transition-all duration-500", config.bg, config.color)}>
+              <Icon size={28} />
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black tracking-tighter">
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
                 {isEditing ? "Editar Conta" : "Nova Conta"}
               </DialogTitle>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 mt-1">
@@ -155,10 +173,13 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
           </div>
         </ScrollArea>
 
-        <DialogFooter className={cn(
-          "p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-4",
-          isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card"
-        )}>
+        <DialogFooter 
+          className={cn(
+            "p-6 sm:p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-4",
+            isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card"
+          )}
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+        >
           {isEditing && onDelete && (
             <Button variant="ghost" onClick={() => { if (confirm("Excluir conta?")) { onDelete(account.id); onOpenChange(false); } }} disabled={hasTransactions} className="rounded-full h-14 px-8 font-black text-[10px] uppercase tracking-widest text-destructive hover:bg-destructive/10 sm:mr-auto"><Trash2 size={18} className="mr-2" /> Excluir</Button>
           )}

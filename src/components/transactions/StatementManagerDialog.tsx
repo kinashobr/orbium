@@ -86,9 +86,10 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton 
+        fullscreen={isMobile}
         className={cn(
-          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[52rem] max-h-[90vh] rounded-[2.5rem]"
+          "p-0 shadow-2xl bg-card flex flex-col",
+          !isMobile && "max-w-[52rem] max-h-[90vh] rounded-[2.5rem]"
         )}
       >
         <DialogHeader className="shrink-0 px-4 sm:px-8 pt-4 sm:pt-8 pb-4 sm:pb-6 bg-surface-light dark:bg-surface-dark relative">

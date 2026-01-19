@@ -164,7 +164,7 @@ export function AllInstallmentsReviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
-        className="max-w-[min(95vw,64rem)] h-[min(90vh,900px)] p-0 overflow-hidden flex flex-col rounded-[2.5rem] shadow-2xl bg-card"
+        className="max-w-[min(95vw,64rem)] h-[min(90vh,900px)] p-0 flex flex-col rounded-[2.5rem] shadow-2xl bg-card"
       >
         <DialogHeader className="px-8 pt-10 pb-6 border-b shrink-0 bg-muted/50">
           <DialogTitle className="flex items-center gap-3">

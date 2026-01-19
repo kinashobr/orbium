@@ -219,7 +219,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent 
           hideCloseButton
-          className="fixed inset-0 max-w-full h-full rounded-none p-0 overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300"
+          fullscreen
+          className="p-0 flex flex-col"
         >
           {/* Header Fixo com Safe Area */}
           <header 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,18 @@ export function CategoryListModal({
 }: CategoryListModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
+  
   const groupedCategories = {
     receita: categories.filter(c => c.nature === 'receita'),
     despesa_fixa: categories.filter(c => c.nature === 'despesa_fixa'),
@@ -61,24 +73,28 @@ export function CategoryListModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
+        fullscreen={isMobile}
         className={cn(
-          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[26rem] h-[80vh] rounded-[2rem]"
+          "p-0 shadow-2xl bg-card flex flex-col",
+          !isMobile && "max-w-[26rem] h-[80vh] rounded-[2rem]"
         )}
       >
-        <DialogHeader className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative">
-          {isMobile && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => onOpenChange(false)}
-              className="absolute left-4 top-4 rounded-full h-10 w-10"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </Button>
-          )}
+        <DialogHeader 
+          className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative"
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+        >
+          <div className="flex items-center gap-4">
+            {isMobile && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => onOpenChange(false)}
+                className="rounded-full h-10 w-10 shrink-0"
+              >
+                <ArrowLeft className="h-6 w-6" />
+              </Button>
+            )}
 
-          <div className={cn("flex items-center gap-4", isMobile && "pl-12")}>
             <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl">
               <Tags className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
@@ -132,10 +148,13 @@ export function CategoryListModal({
           </div>
         </ScrollArea>
 
-        <DialogFooter className={cn(
-          "p-6 sm:p-8 bg-muted/10 border-t flex flex-col sm:flex-row gap-3",
-          isMobile && "fixed bottom-0 left-0 right-0"
-        )}>
+        <DialogFooter 
+          className={cn(
+            "p-6 sm:p-8 bg-muted/10 border-t flex flex-col sm:flex-row gap-3",
+            isMobile && "fixed bottom-0 left-0 right-0 bg-card"
+          )}
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+        >
           <Button 
             variant="ghost" 
             onClick={() => onOpenChange(false)}

@@ -1,12 +1,14 @@
+import { useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Settings, Plus, Check, Building2, Shield, ShoppingCart, Calendar } from "lucide-react";
+import { Settings, Plus, Check, Building2, Shield, ShoppingCart, Calendar, ArrowLeft } from "lucide-react";
 import { PotentialFixedBill, formatCurrency } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export interface FixedBillSelectorModalProps {
   open: boolean;
@@ -24,17 +26,45 @@ export function FixedBillSelectorModal({
   potentialFixedBills,
   onToggleFixedBill,
 }: FixedBillSelectorModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const isCurrent = mode === 'current';
   const Icon = isCurrent ? Settings : Plus;
 
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-[min(95vw,52rem)] h-[min(90vh,800px)] p-0 overflow-hidden rounded-[2rem] shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]">
-        <DialogHeader className={cn(
-          "px-6 sm:px-8 pt-8 sm:pt-10 pb-6 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5",
-          isCurrent ? "bg-primary/5" : "bg-accent/5"
-        )}>
+      <DialogContent 
+        hideCloseButton 
+        fullscreen={isMobile}
+        className={cn(
+          "p-0 shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]",
+          !isMobile && "max-w-[min(95vw,52rem)] h-[min(90vh,800px)] rounded-[2rem]"
+        )}
+      >
+        <DialogHeader 
+          className={cn(
+            "px-6 sm:px-8 pt-6 sm:pt-10 pb-6 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5",
+            isCurrent ? "bg-primary/5" : "bg-accent/5"
+          )}
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+        >
           <div className="flex items-center gap-4 sm:gap-5">
+            {isMobile && (
+              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
             <div className={cn(
               "w-12 h-12 sm:w-16 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] flex items-center justify-center shadow-lg",
               isCurrent ? "bg-primary/10 text-primary shadow-primary/5" : "bg-accent/10 text-accent shadow-accent/5"
@@ -59,7 +89,7 @@ export function FixedBillSelectorModal({
               <p className="font-black uppercase tracking-widest text-[10px] sm:text-xs">Nenhuma parcela encontrada</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 pb-32 sm:pb-0">
               {potentialFixedBills.map((bill) => {
                 const isLoan = bill.sourceType === 'loan_installment';
                 
@@ -121,7 +151,13 @@ export function FixedBillSelectorModal({
           )}
         </ScrollArea>
 
-        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0">
+        <DialogFooter 
+          className={cn(
+            "p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0",
+            isMobile && "fixed bottom-0 left-0 right-0 bg-card"
+          )}
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+        >
           <Button 
             onClick={() => onOpenChange(false)}
             className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"

@@ -255,7 +255,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {isMobile ? (
-        <DialogContent hideCloseButton className="fixed inset-0 max-w-full h-full rounded-none p-0 overflow-hidden flex flex-col bg-background z-[150] animate-in slide-in-from-bottom duration-300">
+        <DialogContent hideCloseButton fullscreen className="p-0 flex flex-col bg-background z-[150]">
           <header className="px-6 pt-6 pb-4 border-b shrink-0 bg-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">

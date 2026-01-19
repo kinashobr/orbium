@@ -278,7 +278,8 @@ export function ConsolidatedReviewDialog({
         {isMobile ? (
           <DialogContent 
             hideCloseButton
-            className="fixed inset-0 max-w-full h-full rounded-none p-0 overflow-hidden flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 z-[100]"
+            fullscreen
+            className="p-0 flex flex-col z-[100]"
           >
             <header className="px-6 pt-6 pb-4 border-b dark:border-white/5 shrink-0 bg-card dark:bg-[hsl(24_8%_14%)]">
               <div className="flex items-center justify-between">

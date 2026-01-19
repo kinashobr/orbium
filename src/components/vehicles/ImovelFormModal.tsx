@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Home, Map, Check, Trash2, DollarSign, Calendar } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Home, Map, Check, Trash2, DollarSign, Calendar, ArrowLeft } from "lucide-react";
 import { Imovel, Terreno } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface ImovelFormModalProps {
   open: boolean;
@@ -37,6 +39,7 @@ export function ImovelFormModal({
   onSubmit,
   onDelete,
 }: ImovelFormModalProps) {
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const isEditing = !!editingAsset;
   const isImovel = type === 'imovel';
 
@@ -46,6 +49,18 @@ export function ImovelFormModal({
   const [valorAquisicaoInput, setValorAquisicaoInput] = useState("");
   const [valorAvaliacaoInput, setValorAvaliacaoInput] = useState("");
   const [imovelTipo, setImovelTipo] = useState<'casa' | 'apartamento' | 'comercial'>('casa');
+
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
 
   useEffect(() => {
     if (open) {
@@ -123,14 +138,29 @@ export function ImovelFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className="max-w-[min(95vw,36rem)] p-0 overflow-hidden rounded-[2rem] shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] z-[130]">
-        <DialogHeader className="px-8 pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5">
+      <DialogContent 
+        hideCloseButton 
+        fullscreen={isMobile}
+        className={cn(
+          "p-0 shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] flex flex-col z-[130]",
+          !isMobile && "max-w-[min(95vw,36rem)] rounded-[2rem]"
+        )}
+      >
+        <DialogHeader 
+          className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 dark:border-white/5"
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+        >
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
-              <Icon className="w-7 h-7" />
+            {isMobile && (
+              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
+              <Icon className="w-6 h-6 sm:w-7 sm:h-7" />
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black tracking-tight">
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight">
                 {isEditing ? `Editar ${title}` : `Novo ${title}`}
               </DialogTitle>
               <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
@@ -140,85 +170,93 @@ export function ImovelFormModal({
           </div>
         </DialogHeader>
 
-        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar">
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição / Nome</Label>
-            <Input
-              placeholder={`Ex: ${title} de Férias`}
-              className="h-12 border-2 rounded-2xl font-bold"
-              value={descricao}
-              onChange={e => setDescricao(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Endereço / Localização</Label>
-            <Textarea
-              placeholder="Rua, Bairro, Cidade..."
-              className="min-h-[80px] border-2 rounded-2xl text-sm"
-              value={endereco}
-              onChange={e => setEndereco(e.target.value)}
-            />
-          </div>
-
-          {isImovel && (
+        <ScrollArea className="flex-1">
+          <div className="p-6 sm:p-8 space-y-6 pb-32 sm:pb-8">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Tipo de Imóvel</Label>
-              <Select value={imovelTipo} onValueChange={(v) => setImovelTipo(v as 'casa' | 'apartamento' | 'comercial')}>
-                <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="casa">Casa</SelectItem>
-                  <SelectItem value="apartamento">Apartamento</SelectItem>
-                  <SelectItem value="comercial">Comercial</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição / Nome</Label>
+              <Input
+                placeholder={`Ex: ${title} de Férias`}
+                className="h-12 border-2 rounded-2xl font-bold"
+                value={descricao}
+                onChange={e => setDescricao(e.target.value)}
+              />
             </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Endereço / Localização</Label>
+              <Textarea
+                placeholder="Rua, Bairro, Cidade..."
+                className="min-h-[80px] border-2 rounded-2xl text-sm"
+                value={endereco}
+                onChange={e => setEndereco(e.target.value)}
+              />
+            </div>
+
+            {isImovel && (
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Tipo de Imóvel</Label>
+                <Select value={imovelTipo} onValueChange={(v) => setImovelTipo(v as 'casa' | 'apartamento' | 'comercial')}>
+                  <SelectTrigger className="h-12 border-2 rounded-2xl bg-card font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="casa">Casa</SelectItem>
+                    <SelectItem value="apartamento">Apartamento</SelectItem>
+                    <SelectItem value="comercial">Comercial</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
+                <Calendar className="w-3 h-3" /> Data de Aquisição
+              </Label>
+              <Input
+                type="date"
+                className="h-12 border-2 rounded-2xl font-bold"
+                value={dataAquisicao}
+                onChange={e => setDataAquisicao(e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
+                  <DollarSign className="w-3 h-3" /> Valor de Aquisição
+                </Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className="h-12 border-2 rounded-2xl font-black text-lg"
+                  value={valorAquisicaoInput}
+                  onChange={e => handleValueChange(setValorAquisicaoInput, e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
+                  <DollarSign className="w-3 h-3" /> Valor de Avaliação Atual
+                </Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className="h-12 border-2 rounded-2xl font-black text-lg"
+                  value={valorAvaliacaoInput}
+                  onChange={e => handleValueChange(setValorAvaliacaoInput, e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+        </ScrollArea>
+
+        <DialogFooter 
+          className={cn(
+            "p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3",
+            isMobile && "fixed bottom-0 left-0 right-0 bg-card"
           )}
-
-          <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
-              <Calendar className="w-3 h-3" /> Data de Aquisição
-            </Label>
-            <Input
-              type="date"
-              className="h-12 border-2 rounded-2xl font-bold"
-              value={dataAquisicao}
-              onChange={e => setDataAquisicao(e.target.value)}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
-                <DollarSign className="w-3 h-3" /> Valor de Aquisição
-              </Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                className="h-12 border-2 rounded-2xl font-black text-lg"
-                value={valorAquisicaoInput}
-                onChange={e => handleValueChange(setValorAquisicaoInput, e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1 flex items-center gap-2">
-                <DollarSign className="w-3 h-3" /> Valor de Avaliação Atual
-              </Label>
-              <Input
-                type="text"
-                inputMode="decimal"
-                placeholder="0,00"
-                className="h-12 border-2 rounded-2xl font-black text-lg"
-                value={valorAvaliacaoInput}
-                onChange={e => handleValueChange(setValorAvaliacaoInput, e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 flex flex-col-reverse sm:flex-row gap-3">
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+        >
           {isEditing && onDelete && (
             <Button variant="destructive" onClick={handleDelete} className="rounded-full h-12 px-6 font-bold text-sm sm:mr-auto w-full sm:w-auto">
               <Trash2 className="w-4 h-4 mr-2" /> Excluir

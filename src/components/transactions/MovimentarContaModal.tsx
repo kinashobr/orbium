@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, Sparkles } from "lucide-react";
+import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, Sparkles, ArrowLeft } from "lucide-react";
 import { ContaCorrente, Categoria, generateTransactionId, generateTransferGroupId, OperationType, TransacaoCompleta, getFlowTypeFromOperation, getDomainFromOperation, InvestmentInfo, OPERATION_TYPE_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,18 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
 
   const isEditing = !!editingTransaction;
 
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
+
   useEffect(() => {
     if (open) {
       if (editingTransaction) {
@@ -99,31 +111,47 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideCloseButton className={cn("p-0 shadow-2xl bg-card flex flex-col", isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-[34rem] max-h-[90vh] rounded-[2.5rem]")}>
-        <DialogHeader className={cn("px-8 pt-10 pb-8 shrink-0 relative transition-colors duration-500", op?.bgColor || "bg-muted/30")}>
-          <div className="flex items-center gap-5">
-            <div className={cn("w-16 h-16 rounded-[1.5rem] bg-card flex items-center justify-center shadow-xl transition-transform duration-500", op?.color)}>
-              {op ? <op.icon size={32} /> : <DollarSign size={32} />}
+      <DialogContent 
+        hideCloseButton 
+        fullscreen={isMobile}
+        className={cn(
+          "p-0 shadow-2xl bg-card flex flex-col",
+          !isMobile && "max-w-[34rem] max-h-[90vh] rounded-[2.5rem]"
+        )}
+      >
+        <DialogHeader className={cn(
+          "px-6 sm:px-8 pt-6 sm:pt-10 pb-6 sm:pb-8 shrink-0 relative transition-colors duration-500", 
+          op?.bgColor || "bg-muted/30",
+          isMobile && "pt-4"
+        )} style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}>
+          <div className="flex items-center gap-4 sm:gap-5">
+            {isMobile && (
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 shrink-0" onClick={() => onOpenChange(false)}>
+                <ArrowLeft className="w-6 h-6" />
+              </Button>
+            )}
+            <div className={cn("w-14 h-14 sm:w-16 sm:h-16 rounded-[1.5rem] bg-card flex items-center justify-center shadow-xl transition-transform duration-500", op?.color)}>
+              {op ? <op.icon size={28} /> : <DollarSign size={28} />}
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black tracking-tighter">{isEditing ? "Editar Registro" : "Novo Lançamento"}</DialogTitle>
+              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">{isEditing ? "Editar Registro" : "Novo Lançamento"}</DialogTitle>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 mt-1"><Sparkles className="w-3.5 h-3.5 text-primary" /> Inteligência Orbium</p>
             </div>
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-8">
-          <div className="py-8 space-y-10 pb-32">
+        <ScrollArea className="flex-1 px-6 sm:px-8">
+          <div className="py-6 sm:py-8 space-y-8 sm:space-y-10 pb-32 sm:pb-8">
             <div className="text-center space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Valor do Lançamento</Label>
               <div className="relative max-w-[280px] mx-auto group">
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-3xl font-black text-muted-foreground/20">R$</span>
-                <Input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d,]/g, ''))} className="h-20 text-5xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" placeholder="0,00" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-2xl sm:text-3xl font-black text-muted-foreground/20">R$</span>
+                <Input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d,]/g, ''))} className="h-16 sm:h-20 text-4xl sm:text-5xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" placeholder="0,00" />
                 <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                <div className="space-y-3">
                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Operação</Label>
                  <Select value={operationType || ''} onValueChange={(v) => setOperationType(v as OperationType)}>
@@ -173,7 +201,13 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
           </div>
         </ScrollArea>
 
-        <DialogFooter className={cn("p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-4", isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card")}>
+        <DialogFooter 
+          className={cn(
+            "p-6 sm:p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-4",
+            isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card"
+          )}
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+        >
           <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
           <Button onClick={handleSubmit} className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}</Button>
         </DialogFooter>

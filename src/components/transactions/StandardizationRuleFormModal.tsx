@@ -113,9 +113,10 @@ export function StandardizationRuleFormModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
         hideCloseButton
+        fullscreen={isMobile}
         className={cn(
-          "p-0 overflow-hidden shadow-2xl bg-card flex flex-col z-[150]",
-          isMobile ? "fixed inset-0 max-w-full h-full rounded-none" : "max-w-lg rounded-[2.5rem]"
+          "p-0 shadow-2xl bg-card flex flex-col z-[150]",
+          !isMobile && "max-w-lg rounded-[2.5rem]"
         )}
       >
         <DialogHeader className="px-6 pt-10 pb-6 bg-primary/10 shrink-0 relative">
