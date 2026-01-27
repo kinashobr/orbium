@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { Dialog, DialogHeader, DialogTitle, DialogFooter, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Check, Loader2, X, Sparkles, ChevronLeft, Settings2 } from "lucide-react";
+import { FileText, Check, Loader2, Sparkles, ChevronLeft, Settings2 } from "lucide-react";
 import { 
   ContaCorrente, Categoria, ImportedTransaction, StandardizationRule, 
   TransacaoCompleta, generateTransactionId, generateTransferGroupId, 
@@ -199,7 +199,7 @@ export function ConsolidatedReviewDialog({
         >
           <div className="modal-viewport flex flex-col h-full overflow-hidden">
             <DialogHeader className={cn(
-              "px-8 py-5 bg-card shrink-0 border-b border-border/40",
+              "px-8 py-5 bg-card shrink-0 border-b border-border/40 relative z-20",
               isMobile && "pt-6 px-6"
             )}>
               <div className="flex items-center justify-between">
@@ -239,12 +239,11 @@ export function ConsolidatedReviewDialog({
                       <Settings2 className="w-5 h-5" />
                     </Button>
                   )}
-                  {/* Botão X removido no desktop */}
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden bg-muted/20">
               {!isMobile && (
                 <ResizableSidebar initialWidth={280} minWidth={240} maxWidth={350} storageKey="review_sidebar_width_v3">
                   <ReviewContextSidebar
@@ -256,40 +255,40 @@ export function ConsolidatedReviewDialog({
                 </ResizableSidebar>
               )}
 
-              <div className="flex-1 flex flex-col min-w-0 bg-muted/20 overflow-hidden">
+              <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
                 {isMobile && mobileView === 'filters' ? (
-                  <ReviewContextSidebar
-                    accountId={accountId} 
-                    pendingCount={pendingCount} readyToContabilizeCount={readyCount} totalCount={transactionsToReview.length}
-                    reviewRange={reviewRange} onPeriodChange={r => setReviewRange(r.range1)} onApplyFilter={() => { loadTransactions(); setMobileView('list'); }}
-                    onContabilize={handleContabilize} onClose={() => onOpenChange(false)} onManageRules={() => setShowRuleManagerModal(true)}
-                  />
+                  <div className="flex-1 bg-card">
+                    <ReviewContextSidebar
+                      accountId={accountId} 
+                      pendingCount={pendingCount} readyToContabilizeCount={readyCount} totalCount={transactionsToReview.length}
+                      reviewRange={reviewRange} onPeriodChange={r => setReviewRange(r.range1)} onApplyFilter={() => { loadTransactions(); setMobileView('list'); }}
+                      onContabilize={handleContabilize} onClose={() => onOpenChange(false)} onManageRules={() => setShowRuleManagerModal(true)}
+                    />
+                  </div>
                 ) : (
-                  <div className="flex-1 flex flex-col p-0 overflow-hidden">
-                    <div className="flex-1 bg-card rounded-none sm:rounded-tl-[2.5rem] border-t-0 sm:border-t border-border/40 shadow-sm overflow-hidden flex flex-col">
-                      {loading ? (
-                        <div className="flex-1 flex flex-col items-center justify-center opacity-50">
-                          <Loader2 className="w-10 h-10 animate-spin mb-4 text-primary" />
-                          <p className="font-black uppercase tracking-widest text-[10px]">Filtrando dados...</p>
+                  <div className="flex-1 bg-card sm:rounded-tl-[2.5rem] border-l border-border/40 shadow-sm overflow-hidden flex flex-col">
+                    {loading ? (
+                      <div className="flex-1 flex flex-col items-center justify-center opacity-50">
+                        <Loader2 className="w-10 h-10 animate-spin mb-4 text-primary" />
+                        <p className="font-black uppercase tracking-widest text-[10px]">Filtrando dados...</p>
+                      </div>
+                    ) : (
+                      <ScrollArea className="flex-1">
+                        <div className="p-4 sm:p-6 min-w-full">
+                          <TransactionReviewTable
+                            transactions={transactionsToReview} accounts={accounts} categories={categories}
+                            investments={investments} loans={loans} onUpdateTransaction={handleUpdateTransaction} onCreateRule={handleCreateRule}
+                          />
                         </div>
-                      ) : (
-                        <ScrollArea className="flex-1">
-                          <div className="p-4 sm:p-6 min-w-full">
-                            <TransactionReviewTable
-                              transactions={transactionsToReview} accounts={accounts} categories={categories}
-                              investments={investments} loans={loans} onUpdateTransaction={handleUpdateTransaction} onCreateRule={handleCreateRule}
-                            />
-                          </div>
-                        </ScrollArea>
-                      )}
-                    </div>
+                      </ScrollArea>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
             {!isMobile && (
-              <DialogFooter className="px-10 py-5 bg-card border-t border-border/40 shrink-0">
+              <DialogFooter className="px-10 py-5 bg-card border-t border-border/40 shrink-0 relative z-20">
                 <div className="flex items-center justify-between w-full">
                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
                     A listagem reflete as regras de automação aplicadas
@@ -305,7 +304,7 @@ export function ConsolidatedReviewDialog({
             )}
             
             {isMobile && mobileView === 'list' && transactionsToReview.length > 0 && (
-              <div className="p-4 bg-card border-t border-border/40 safe-area-bottom">
+              <div className="p-4 bg-card border-t border-border/40 safe-area-bottom relative z-20">
                 <Button onClick={handleContabilize} disabled={readyCount === 0 || loading} className="w-full h-14 rounded-2xl font-black shadow-xl shadow-primary/20 gap-2">
                   <Check className="w-5 h-5" /> CONTABILIZAR ({readyCount})
                 </Button>

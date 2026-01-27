@@ -37,15 +37,15 @@ const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'typ
 type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
-  pay: 40,
-  due: 90,
-  paymentDate: 90,
-  description: 200,
-  account: 120,
-  type: 70,
-  category: 160,
-  amount: 100,
-  actions: 50,
+  pay: 50,
+  due: 110,
+  paymentDate: 110,
+  description: 250,
+  account: 140,
+  type: 80,
+  category: 180,
+  amount: 130,
+  actions: 60,
 };
 
 const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right' }[] = [
@@ -134,31 +134,31 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      <div className="glass-card p-2 shrink-0 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-xl">
-        <div className="grid grid-cols-[1fr_100px_110px_40px] gap-2 items-end">
-          <div className="space-y-0.5">
-            <Label className="cq-text-xs text-muted-foreground opacity-70">Nova Conta</Label>
-            <Input value={newBillData.description} onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} placeholder="Descrição..." className="h-8 cq-text-xs rounded-lg" />
+      <div className="glass-card p-4 shrink-0 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-2xl mx-4 mt-4">
+        <div className="grid grid-cols-[1fr_120px_140px_50px] gap-4 items-end">
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Nova Conta</Label>
+            <Input value={newBillData.description} onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} placeholder="Descrição do lançamento..." className="h-10 text-sm font-bold rounded-xl" />
           </div>
-          <div className="space-y-0.5">
-            <Label className="cq-text-xs text-muted-foreground opacity-70">Valor</Label>
-            <Input type="text" inputMode="decimal" value={newBillData.amount} onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} placeholder="0,00" className="h-8 cq-text-xs rounded-lg" />
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Valor</Label>
+            <Input type="text" inputMode="decimal" value={newBillData.amount} onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} placeholder="0,00" className="h-10 text-sm font-black rounded-xl" />
           </div>
-          <div className="space-y-0.5">
-            <Label className="cq-text-xs text-muted-foreground opacity-70">Vencimento</Label>
-            <Input type="date" value={newBillData.dueDate} onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} className="h-8 cq-text-xs rounded-lg" />
+          <div className="space-y-1.5">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Vencimento</Label>
+            <Input type="date" value={newBillData.dueDate} onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} className="h-10 text-sm font-bold rounded-xl" />
           </div>
-          <Button onClick={handleAddAdHocBill} className="h-8 w-full p-0" disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}><Plus className="w-4 h-4" /></Button>
+          <Button onClick={handleAddAdHocBill} className="h-10 w-full p-0 rounded-xl" disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}><Plus className="w-5 h-5" /></Button>
         </div>
       </div>
 
-      <div className="glass-card flex-1 flex flex-col min-h-0 border border-border/40 dark:border-white/5 rounded-xl bg-card dark:bg-[hsl(24_8%_14%)]">
-        <div className="rounded-lg overflow-y-auto flex-1 scrollbar-thin">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
+        <div className="flex-1 overflow-y-auto overflow-x-auto scrollbar-material border border-border/40 rounded-[1.5rem] bg-card/50">
           <Table style={{ minWidth: `${totalWidth}px` }}>
             <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10">
-              <TableRow className="border-border hover:bg-transparent h-10">
+              <TableRow className="border-border hover:bg-transparent h-12">
                 {columnHeaders.map((h) => (
-                  <TableHead key={h.key} className={cn("text-muted-foreground p-2 cq-text-xs font-bold uppercase tracking-tight relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
+                  <TableHead key={h.key} className={cn("text-muted-foreground p-3 text-[10px] font-black uppercase tracking-widest relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
                     {h.label}
                     {h.key !== 'actions' && <div className="absolute right-0 top-0 h-full w-2 cursor-col-resize" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
                   </TableHead>
@@ -175,36 +175,36 @@ export function BillsTrackerList({
                 const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                 
                 return (
-                  <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-10 border-b border-border/50", isExt && "opacity-60", isOver && "bg-destructive/5", isPaid && !isExt && "bg-success/5")}>
-                    <TableCell className="text-center p-1" style={{ width: columnWidths.pay }}>
-                      {isExt ? <CheckCircle2 className="w-4 h-4 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-4 w-4" />}
+                  <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-14 border-b border-border/20", isExt && "opacity-60", isOver && "bg-destructive/[0.03]", isPaid && !isExt && "bg-success/[0.03]")}>
+                    <TableCell className="text-center p-2" style={{ width: columnWidths.pay }}>
+                      {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}
                     </TableCell>
-                    <TableCell className={cn("cq-text-xs font-medium p-2", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
-                        {isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="cq-text-xs h-7" />}
+                    <TableCell className={cn("text-xs font-bold p-3", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
+                        {isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}
                     </TableCell>
-                    <TableCell className="cq-text-xs p-2" style={{ width: columnWidths.paymentDate }}>
-                        {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="cq-text-xs text-success h-7" />) : <span className="opacity-30">—</span>}
+                    <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>
+                        {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}
                     </TableCell>
-                    <TableCell className="cq-text-xs max-w-[200px] truncate p-2 font-medium" style={{ width: columnWidths.description }}>{bill.description}</TableCell>
-                    <TableCell className="p-2" style={{ width: columnWidths.account }}>
-                      {isExt || isPaid ? <span className="cq-text-xs opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : 
-                      <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-7 cq-text-xs px-2"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="cq-text-xs">{o.label}</SelectItem>)}</SelectContent></Select>}
+                    <TableCell className="text-xs max-w-[250px] truncate p-3 font-black text-foreground" style={{ width: columnWidths.description }}>{bill.description}</TableCell>
+                    <TableCell className="p-3" style={{ width: columnWidths.account }}>
+                      {isExt || isPaid ? <span className="text-xs font-bold opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : 
+                      <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent></Select>}
                     </TableCell>
-                    <TableCell className="p-1" style={{ width: columnWidths.type }}>
-                      <Badge variant="outline" className={cn("px-1.5 py-0 cq-text-xs border-0", cfg.color)} title={cfg.label}><Icon className="w-3.5 h-3.5" /></Badge>
+                    <TableCell className="p-2 text-center" style={{ width: columnWidths.type }}>
+                      <Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)} title={cfg.label}><Icon className="w-4 h-4 mr-1.5" /> {cfg.label.substring(0, 4)}</Badge>
                     </TableCell>
-                    <TableCell className="p-2" style={{ width: columnWidths.category }}>
-                        {isExt || isPaid ? <span className="cq-text-xs opacity-70">{cat?.icon} {cat?.label || '—'}</span> : 
-                        <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-7 cq-text-xs px-2"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-48">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="cq-text-xs">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}
+                    <TableCell className="p-3" style={{ width: columnWidths.category }}>
+                        {isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : 
+                        <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}
                     </TableCell>
-                    <TableCell className={cn("text-right font-bold cq-text-xs p-2", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
+                    <TableCell className={cn("text-right font-black text-sm p-3 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
                       {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? 
-                      <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-7 cq-text-xs text-right" /> : 
+                      <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-9 text-xs text-right font-black bg-muted/20" /> : 
                       formatCurrency(bill.expectedAmount)}
                     </TableCell>
-                    <TableCell className="text-center p-1" style={{ width: columnWidths.actions }}>
+                    <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>
                       {!isExt && !isPaid && (
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-3.5 h-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
                       )}
                     </TableCell>
                   </TableRow>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Calendar, Check, Clock, Pin, RefreshCw, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Calendar, Clock, Pin, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PeriodSelector } from "../dashboard/PeriodSelector";
 import { DateRange, ComparisonDateRanges } from "@/types/finance";
@@ -28,7 +28,6 @@ export function ReviewContextSidebar({
   reviewRange,
   onPeriodChange,
   onApplyFilter,
-  onContabilize,
   onManageRules,
 }: ReviewContextSidebarProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -42,19 +41,30 @@ export function ReviewContextSidebar({
     <div className="flex flex-col h-full bg-card">
       <div className={cn("flex flex-col flex-1 p-6 space-y-8", isMobile && "pb-32")}>
         
-        {/* 1. Pendentes / Prontos (Compactado) */}
+        {/* 1. Status da Revisão (Design Consistente Orbium) */}
         <div className="space-y-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Status da Revisão</p>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col items-center justify-center p-3 rounded-[1.25rem] bg-warning/5 border border-warning/10">
-              <Clock className="w-4 h-4 text-warning mb-1" />
-              <p className="text-lg font-black text-warning tabular-nums leading-none">{pendingCount}</p>
-              <p className="text-[8px] font-black uppercase tracking-widest text-warning/60 mt-0.5">Pendentes</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1 opacity-60">Status da Revisão</p>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Card Pendentes */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-warning/[0.03] border border-warning/20 transition-all hover:bg-warning/[0.08] group cursor-default">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
+                  <Clock className="w-3.5 h-3.5 text-warning" />
+                </div>
+                <span className="text-sm font-black text-warning tabular-nums leading-none">{pendingCount}</span>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-wider text-warning/60 leading-none">PEND.</span>
             </div>
-            <div className="flex flex-col items-center justify-center p-3 rounded-[1.25rem] bg-success/5 border border-success/10">
-              <CheckCircle2 className="w-4 h-4 text-success mb-1" />
-              <p className="text-lg font-black text-success tabular-nums leading-none">{readyToContabilizeCount}</p>
-              <p className="text-[8px] font-black uppercase tracking-widest text-success/60 mt-0.5">Prontos</p>
+
+            {/* Card Prontos */}
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-success/[0.03] border border-success/20 transition-all hover:bg-success/[0.08] group cursor-default">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center shrink-0 transition-transform group-hover:scale-110">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                </div>
+                <span className="text-sm font-black text-success tabular-nums leading-none">{readyToContabilizeCount}</span>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-wider text-success/60 leading-none">OK</span>
             </div>
           </div>
         </div>
@@ -64,13 +74,13 @@ export function ReviewContextSidebar({
             {/* 2. Ajustar Período */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 px-1">
-                <Calendar className="w-4 h-4 text-primary" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Ajustar Período</p>
+                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-foreground">Período de Análise</p>
               </div>
               <PeriodSelector 
                 initialRanges={dummyRanges}
                 onDateRangeChange={onPeriodChange}
-                className="w-full h-10 rounded-xl bg-muted/40 border-none font-bold"
+                className="w-full h-11 rounded-2xl bg-muted/30 border-border/40 hover:bg-muted/50 transition-all font-bold"
               />
             </div>
 
@@ -79,33 +89,31 @@ export function ReviewContextSidebar({
               <Button 
                 onClick={onApplyFilter} 
                 variant="outline" 
-                className="w-full h-11 rounded-2xl font-black text-[10px] uppercase tracking-[0.15em] gap-2 border-primary/20 text-primary hover:bg-primary/5 shadow-sm"
+                className="w-full h-12 rounded-2xl font-black text-[10px] uppercase tracking-[0.15em] gap-3 border-border/60 text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all shadow-sm"
               >
-                <RefreshCw className="w-4 h-4" /> Atualizar Lista
+                <RefreshCw className="w-4 h-4" /> Atualizar Filtros
               </Button>
             </div>
 
             {/* 4. Regras de Padronização */}
-            <div className="space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Automação</p>
+            <div className="space-y-3 pt-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1 opacity-60">Configurações</p>
               <Button 
                 variant="outline" 
-                className="w-full h-14 justify-start rounded-[1.5rem] border-dashed border-2 border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                className="w-full h-16 justify-start rounded-[1.75rem] border-dashed border-2 border-border/40 hover:border-primary/40 hover:bg-primary/5 transition-all group px-4"
                 onClick={onManageRules}
               >
-                <div className="p-2 rounded-xl bg-muted group-hover:bg-primary/10 transition-colors mr-3">
-                  <Pin className="w-4 h-4 text-muted-foreground group-hover:text-primary" />
+                <div className="w-10 h-10 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors mr-3 shrink-0">
+                  <Pin className="w-4.5 h-4.5 text-muted-foreground group-hover:text-primary" />
                 </div>
-                <div className="text-left">
-                  <p className="text-[11px] font-black uppercase tracking-tighter">Regras de Padronização</p>
-                  <p className="text-[9px] text-muted-foreground font-bold uppercase">Gerenciar Automações</p>
+                <div className="text-left min-w-0">
+                  <p className="text-[11px] font-black uppercase tracking-tight text-foreground truncate">Regras Ativas</p>
+                  <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-wide">Gerenciar IA</p>
                 </div>
               </Button>
             </div>
           </div>
         </ScrollArea>
-
-        {/* Botão Contabilizar removido daqui, será mantido apenas no DialogFooter */}
       </div>
     </div>
   );
