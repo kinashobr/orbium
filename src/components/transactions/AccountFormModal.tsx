@@ -183,7 +183,9 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
           {isEditing && onDelete && (
             <Button variant="ghost" onClick={() => { if (confirm("Excluir conta?")) { onDelete(account.id); onOpenChange(false); } }} disabled={hasTransactions} className="rounded-full h-14 px-8 font-black text-[10px] uppercase tracking-widest text-destructive hover:bg-destructive/10 sm:mr-auto"><Trash2 size={18} className="mr-2" /> Excluir</Button>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button>
+          {!isMobile && (
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
+          )}
           <Button onClick={handleSubmit} className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CRIAR CONTA"}</Button>
         </DialogFooter>
       </DialogContent>

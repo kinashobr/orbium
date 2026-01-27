@@ -187,9 +187,11 @@ export function CategoryFormModal({
           )}
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
+              FECHAR
+            </Button>
+          )}
           <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
             <Check className="w-5 h-5" />
             {isEditing ? "SALVAR ALTERAÇÕES" : "CRIAR CATEGORIA"}

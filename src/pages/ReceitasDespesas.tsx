@@ -39,7 +39,7 @@ const ReceitasDespesas = () => {
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
   const [showBillsTrackerModal, setShowBillsTrackerModal] = useState(false);
-  const [showStatementManagerModal, setShowStatementManagerModal] = useState(false);
+  const [showStatementManagerDialog, setShowStatementManagerDialog] = useState(false);
   const [showConsolidatedReview, setShowConsolidatedReview] = useState(false);
   const [accountForConsolidatedReview, setAccountForConsolidatedReview] = useState<string | null>(null);
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
@@ -108,7 +108,7 @@ const ReceitasDespesas = () => {
   }, [setTransacoesV2]);
   
   const handleManageRules = useCallback(() => {
-    setShowStatementManagerModal(false);
+    setShowStatementManagerDialog(false);
     setShowRuleManagerModal(true);
   }, []);
 
@@ -192,16 +192,7 @@ const ReceitasDespesas = () => {
         </header>
 
         <section className="flex flex-wrap gap-2 px-1 animate-fade-in-up">
-          <Button 
-            variant="ghost" 
-            onClick={() => { setEditingTransaction(undefined); setShowMovimentarModal(true); }} 
-            className="h-10 rounded-full gap-2 px-4 sm:px-5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/10 flex-1 sm:flex-none justify-center"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="font-bold text-sm whitespace-nowrap">
-              {isMobile ? "Lançamento" : "Novo Lançamento"}
-            </span>
-          </Button>
+          {/* Removed "Novo Lançamento" button */}
           <Button variant="outline" onClick={() => setShowBillsTrackerModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm hidden sm:inline">Contas a Pagar</span><span className="font-bold text-sm sm:hidden">Contas</span></Button>
           <Button variant="outline" onClick={() => setShowCategoryListModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Tags className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Categorias</span></Button>
         </section>
@@ -213,7 +204,7 @@ const ReceitasDespesas = () => {
                 <div><h3 className="font-display font-bold text-lg text-foreground">Contas Correntes</h3><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Saldos e Disponibilidade</p></div>
                 <Button variant="ghost" size="sm" onClick={() => { setEditingAccount(undefined); setShowAccountModal(true); }} className="w-10 h-10 rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-5 w-5" /></Button>
               </div>
-              <AccountsCarousel accounts={accountSummaries} onMovimentar={id => { setSelectedAccountForModal(id); setShowMovimentarModal(true); }} onViewHistory={id => { setViewingAccountId(id); setShowStatementDialog(true); }} onAddAccount={() => setShowAccountModal(true)} onEditAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { const tx = transactions.find(t => t.accountId === id && t.operationType === 'initial_balance'); setEditingAccount({ ...a, initialBalanceValue: tx ? (tx.flow === 'in' ? tx.amount : -tx.amount) : 0 } as any); setShowAccountModal(true); } }} onImportAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { setAccountForConsolidatedReview(null); setViewingAccountId(id); setShowStatementManagerModal(true); } }} showHeader={false} />
+              <AccountsCarousel accounts={accountSummaries} onMovimentar={id => { setSelectedAccountForModal(id); setShowMovimentarModal(true); }} onViewHistory={id => { setViewingAccountId(id); setShowStatementDialog(true); }} onAddAccount={() => setShowAccountModal(true)} onEditAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { const tx = transactions.find(t => t.accountId === id && t.operationType === 'initial_balance'); setEditingAccount({ ...a, initialBalanceValue: tx ? (tx.flow === 'in' ? tx.amount : -tx.amount) : 0 } as any); setShowAccountModal(true); } }} onImportAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { setAccountForConsolidatedReview(null); setViewingAccountId(id); setShowStatementManagerDialog(true); } }} showHeader={false} />
             </div>
 
             <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
@@ -223,7 +214,7 @@ const ReceitasDespesas = () => {
                 <h3 className="font-display font-bold text-xl sm:text-2xl mb-2">Conciliação Inteligente</h3>
                 <p className="text-neutral-400 text-xs sm:text-sm max-w-sm">Diga adeus ao trabalho manual. Importe múltiplos arquivos e deixe o Orbium reconhecer padrões e sugerir categorias automaticamente.</p>
                 <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6">
-                  <Button className="bg-primary text-primary-foreground rounded-full px-4 sm:px-8 font-black h-10 sm:h-11 hover:scale-105 transition-transform shadow-xl shadow-primary/20 text-sm" onClick={() => setShowStatementManagerModal(true)}>
+                  <Button className="bg-primary text-primary-foreground rounded-full px-4 sm:px-8 font-black h-10 sm:h-11 hover:scale-105 transition-transform shadow-xl shadow-primary/20 text-sm" onClick={() => setShowStatementManagerDialog(true)}>
                     <FileText className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">IMPORTAR EXTRATOS</span><span className="sm:hidden">IMPORTAR</span>
                   </Button>
                   <Button variant="ghost" className="text-white hover:bg-white/10 rounded-full px-4 sm:px-6 font-bold" onClick={() => setShowRuleManagerModal(true)}>
@@ -244,7 +235,7 @@ const ReceitasDespesas = () => {
       <CategoryListModal open={showCategoryListModal} onOpenChange={setShowCategoryListModal} categories={categories} onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }} onEditCategory={c => { setEditingCategory(c); setShowCategoryModal(true); }} onDeleteCategory={id => setCategoriasV2(p => p.filter(x => x.id !== id))} transactionCountByCategory={transactionCountByCategory} />
       {viewingAccount && viewingSummary && <AccountStatementDialog open={showStatementDialog} onOpenChange={setShowStatementDialog} account={viewingAccount} accountSummary={viewingSummary} transactions={transactions.filter(t => t.accountId === viewingAccountId)} categories={categories} onEditTransaction={handleEditTransaction} onDeleteTransaction={handleDeleteTransaction} onToggleConciliated={handleToggleConciliated} onReconcileAll={() => setTransacoesV2(p => p.map(t => t.accountId === viewingAccountId ? { ...t, conciliated: true } : t))} />}
       <BillsTrackerModal open={showBillsTrackerModal} onOpenChange={setShowBillsTrackerModal} />
-      <StatementManagerDialog open={showStatementManagerModal} onOpenChange={setShowStatementManagerModal} initialAccountId={viewingAccountId || undefined} onStartConsolidatedReview={id => { setAccountForConsolidatedReview(id); setShowConsolidatedReview(true); }} onManageRules={handleManageRules} />
+      <StatementManagerDialog open={showStatementManagerDialog} onOpenChange={setShowStatementManagerDialog} initialAccountId={viewingAccountId || undefined} onStartConsolidatedReview={id => { setAccountForConsolidatedReview(id); setShowConsolidatedReview(true); }} onManageRules={handleManageRules} />
       {accountForConsolidatedReview && <ConsolidatedReviewDialog open={showConsolidatedReview} onOpenChange={setShowConsolidatedReview} accountId={accountForConsolidatedReview} accounts={contasMovimento} categories={categories} investments={contasMovimento.filter(c => ['renda_fixa', 'poupanca', 'reserva', 'objetivo'].includes(c.accountType)).map(i => ({ id: i.id, name: i.name }))} loans={emprestimos.map(e => ({ id: `loan_${e.id}`, institution: e.contrato, numeroContrato: e.contrato, parcelas: [], valorParcela: e.parcela, totalParcelas: e.meses }))} />}
       <StandardizationRuleManagerModal open={showRuleManagerModal} onOpenChange={setShowRuleManagerModal} rules={standardizationRules} onDeleteRule={deleteStandardizationRule} categories={categories} />
     </MainLayout>

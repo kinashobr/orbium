@@ -252,9 +252,11 @@ export function AddPurchaseInstallmentDialog({
           )}
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 sm:h-16 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 sm:h-16 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              FECHAR
+            </Button>
+          )}
           <Button 
             type="submit"
             onClick={handleSubmit}

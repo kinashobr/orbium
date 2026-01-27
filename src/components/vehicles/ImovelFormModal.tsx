@@ -262,9 +262,11 @@ export function ImovelFormModal({
               <Trash2 className="w-4 h-4 mr-2" /> Excluir
             </Button>
           )}
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
+              FECHAR
+            </Button>
+          )}
           <Button onClick={handleSubmit} className="rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 w-full sm:w-auto">
             <Check className="w-5 h-5" />
             {isEditing ? "SALVAR" : "ADICIONAR"}

@@ -204,9 +204,11 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
         </div>
         
         <DialogFooter className="p-4 sm:p-6 bg-surface-light dark:bg-surface-dark border-t flex flex-col sm:flex-row gap-2 sm:gap-3">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              FECHAR
+            </Button>
+          )}
           <Button 
             disabled={statementsForAccount.length === 0 || !selectedAccountId}
             onClick={() => { onOpenChange(false); onStartConsolidatedReview(selectedAccountId); }}

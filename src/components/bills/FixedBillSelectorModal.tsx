@@ -158,13 +158,15 @@ export function FixedBillSelectorModal({
           )}
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
-          <Button 
-            onClick={() => onOpenChange(false)}
-            className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-            variant="ghost"
-          >
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button 
+              onClick={() => onOpenChange(false)}
+              className="w-full h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+              variant="ghost"
+            >
+              FECHAR
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -22,7 +22,6 @@ import {
   CreditCard,
   Calendar,
   Bell,
-  Zap,
   TrendingUp,
   TrendingDown,
   PiggyBank,
@@ -33,8 +32,7 @@ import {
   Plus,
   Pencil,
   Trash2,
-  ArrowLeft,
-  X
+  ArrowLeft
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -114,75 +112,98 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
           )}
         >
           <DialogHeader 
-            className="px-6 sm:px-8 pt-6 sm:pt-10 pb-4 bg-muted/30 shrink-0 border-b relative"
-            style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+            className={cn(
+              "px-6 sm:px-8 pt-6 sm:pt-10 pb-4 bg-muted/30 shrink-0 border-b relative",
+              isMobile && "px-4 pt-4 pb-3"
+            )}
+            style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 0.5rem)' } : undefined}
           >
             {isMobile && (
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-4 top-4 rounded-full h-10 w-10">
-                <ArrowLeft className="h-6 w-6" />
+              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="absolute left-2 top-2 rounded-full h-8 w-8">
+                <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
             
-            <div className={cn("flex items-center gap-4 sm:gap-5 mb-6", isMobile && "pl-12")}>
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary shadow-lg shrink-0">
-                <Bell className="w-6 h-6 sm:w-7 sm:h-7" />
+            <div className={cn("flex items-center gap-4 sm:gap-5 mb-3 sm:mb-6", isMobile && "pl-8 mb-4")}>
+              <div className={cn(
+                "rounded-[1rem] sm:rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary shadow-lg shrink-0",
+                isMobile ? "w-9 h-9" : "w-12 h-12 sm:w-14 sm:h-14"
+              )}>
+                <Bell className={cn(isMobile ? "w-4.5 h-4.5" : "w-6 h-6 sm:w-7 sm:h-7")} />
               </div>
               <div>
-                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight">Configurações</DialogTitle>
-                <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">Performance & Alertas</DialogDescription>
+                <DialogTitle className={cn("font-black tracking-tight", isMobile ? "text-base" : "text-xl sm:text-2xl")}>Configurações</DialogTitle>
+                <DialogDescription className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">Performance & Alertas</DialogDescription>
               </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 h-12 bg-muted/50 p-1 rounded-2xl border">
-                <TabsTrigger value="alertas" className="rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-card gap-2">
-                  <AlertTriangle className="w-4 h-4" /> RISCOS
+              <TabsList className={cn("grid w-full grid-cols-2 bg-muted/50 p-1 rounded-xl border items-center", isMobile ? "h-9" : "h-12")}>
+                <TabsTrigger value="alertas" className="h-full rounded-lg font-black text-[9px] sm:text-[10px] uppercase tracking-widest data-[state=active]:bg-card flex items-center justify-center gap-2">
+                  <AlertTriangle className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} /> RISCOS
                 </TabsTrigger>
-                <TabsTrigger value="metas" className="rounded-xl font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-card gap-2">
-                  <Trophy className="w-4 h-4" /> METAS
+                <TabsTrigger value="metas" className="h-full rounded-lg font-black text-[9px] sm:text-[10px] uppercase tracking-widest data-[state=active]:bg-card flex items-center justify-center gap-2">
+                  <Trophy className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} /> METAS
                 </TabsTrigger>
               </TabsList>
             </Tabs>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-6 sm:px-8">
-            <div className="py-6 space-y-8 pb-32 sm:pb-6">
+          <ScrollArea className={cn("flex-1", isMobile ? "px-4" : "px-6 sm:px-8")}>
+            <div className={cn("py-4 sm:py-6 space-y-6 sm:space-y-8 pb-32 sm:pb-6")}>
               <Tabs value={activeTab} className="mt-0">
-                <TabsContent value="alertas" className="space-y-6 mt-0 focus-visible:outline-none">
-                  <div className="p-5 rounded-[2rem] bg-muted/30 border flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3"><Calendar className="w-5 h-5 text-primary" /><Label className="font-black text-xs uppercase tracking-widest">Analisar desde</Label></div>
-                    <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="w-36 h-10 rounded-xl border-2 font-bold text-xs" />
+                <TabsContent value="alertas" className="space-y-4 sm:space-y-6 mt-0 focus-visible:outline-none">
+                  <div className={cn("rounded-[1.5rem] sm:rounded-[2rem] bg-muted/30 border flex items-center justify-between gap-4", isMobile ? "p-4" : "p-5")}>
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <Calendar className={cn("text-primary", isMobile ? "w-4 h-4" : "w-5 h-5")} />
+                      <Label className="font-black text-[10px] sm:text-xs uppercase tracking-widest">Analisar desde</Label>
+                    </div>
+                    <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className={cn("rounded-xl border-2 font-bold text-[10px] sm:text-xs", isMobile ? "w-32 h-8" : "w-36 h-10")} />
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="space-y-3 sm:space-y-4">
                     {localConfig.map(alerta => {
                       const info = ALERTA_INFO[alerta.id];
                       return (
-                        <div key={alerta.id} className={cn("p-4 sm:p-5 rounded-[2rem] border-2 transition-all", alerta.ativo ? "bg-card border-primary/20 shadow-md" : "bg-muted/20 border-transparent opacity-60")}>
+                        <div key={alerta.id} className={cn(
+                          "rounded-[1.5rem] sm:rounded-[2rem] border-2 transition-all", 
+                          alerta.ativo ? "bg-card border-primary/20 shadow-md" : "bg-muted/20 border-transparent opacity-60",
+                          isMobile ? "p-4" : "p-4 sm:p-5"
+                        )}>
                           <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                                {info && <info.icon className={cn("w-5 h-5", alerta.ativo ? info.color : "text-muted-foreground")} />}
+                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                              <div className={cn("rounded-xl bg-muted flex items-center justify-center shrink-0", isMobile ? "w-8 h-8" : "w-10 h-10")}>
+                                {info && <info.icon className={cn(alerta.ativo ? info.color : "text-muted-foreground", isMobile ? "w-4 h-4" : "w-5 h-5")} />}
                               </div>
                               <div className="space-y-0.5 min-w-0">
-                                <Label className="font-black text-sm truncate block">{alerta.nome}</Label>
-                                <p className="text-[10px] font-medium text-muted-foreground leading-tight line-clamp-2">{info?.descricao}</p>
+                                <Label className={cn("font-black truncate block", isMobile ? "text-[11px]" : "text-sm")}>{alerta.nome}</Label>
+                                <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground leading-tight line-clamp-2">{info?.descricao}</p>
                               </div>
                             </div>
-                            <Switch checked={alerta.ativo} onCheckedChange={() => setLocalConfig(prev => prev.map(c => c.id === alerta.id ? { ...c, ativo: !c.ativo } : c))} />
+                            <div className="shrink-0 pt-1">
+                              <Switch 
+                                checked={alerta.ativo} 
+                                onCheckedChange={() => setLocalConfig(prev => prev.map(c => c.id === alerta.id ? { ...c, ativo: !c.ativo } : c))} 
+                                className={cn(isMobile && "scale-[0.65] origin-right")}
+                              />
+                            </div>
                           </div>
                           {alerta.ativo && (
-                            <div className="mt-4 pt-4 border-t border-border/40 flex items-center justify-between">
+                            <div className={cn("mt-4 pt-4 border-t border-border/40 flex items-center justify-between gap-4")}>
                               <div className="flex items-center gap-2">
-                                <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Limite:</Label>
-                                <div className="relative w-24">
-                                  <Input type="number" value={alerta.tolerancia} onChange={e => setLocalConfig(prev => prev.map(c => c.id === alerta.id ? { ...c, tolerancia: parseFloat(e.target.value) || 0 } : c))} className="h-9 rounded-xl border-2 font-black text-xs pr-6" />
-                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-muted-foreground">{info?.unidade}</span>
+                                <Label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground">Limite:</Label>
+                                <div className="relative w-20 sm:w-28">
+                                  <Input type="number" value={alerta.tolerancia} onChange={e => setLocalConfig(prev => prev.map(c => c.id === alerta.id ? { ...c, tolerancia: parseFloat(e.target.value) || 0 } : c))} className={cn("rounded-xl border-2 font-black text-[10px] pr-7", isMobile ? "h-7" : "h-9")} />
+                                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px] sm:text-[9px] font-black text-muted-foreground">{info?.unidade}</span>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-2 bg-muted/50 px-3 py-1.5 rounded-xl">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground">Push</Label>
-                                <Switch checked={alerta.notificarDispositivo} onCheckedChange={() => setLocalConfig(prev => prev.map(c => c.id === alerta.id ? { ...c, notificarDispositivo: !c.notificarDispositivo } : c))} />
+                              <div className={cn("flex items-center gap-2 bg-muted/50 rounded-xl px-2 py-1")}>
+                                <Label className="text-[8px] sm:text-[9px] font-black uppercase text-muted-foreground">Push</Label>
+                                <Switch 
+                                  checked={alerta.notificarDispositivo} 
+                                  onCheckedChange={() => setLocalConfig(prev => prev.map(c => c.id === alerta.id ? { ...c, notificarDispositivo: !c.notificarDispositivo } : c))} 
+                                  className="scale-[0.6] origin-right" 
+                                />
                               </div>
                             </div>
                           )}
@@ -192,30 +213,40 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
                   </div>
                 </TabsContent>
 
-                <TabsContent value="metas" className="space-y-8 mt-0 focus-visible:outline-none">
-                  <div className="space-y-3">
+                <TabsContent value="metas" className="space-y-6 sm:space-y-8 mt-0 focus-visible:outline-none">
+                  <div className="space-y-3 sm:space-y-4">
                     {localMetas.map(meta => {
                       const info = META_INFO[meta.id];
                       return (
-                        <div key={meta.id} className={cn("p-4 sm:p-5 rounded-[2rem] border-2 transition-all", meta.ativo ? "bg-card border-success/20 shadow-md" : "bg-muted/20 border-transparent opacity-60")}>
+                        <div key={meta.id} className={cn(
+                          "rounded-[1.5rem] sm:rounded-[2rem] border-2 transition-all", 
+                          meta.ativo ? "bg-card border-success/20 shadow-md" : "bg-muted/20 border-transparent opacity-60",
+                          isMobile ? "p-4" : "p-4 sm:p-5"
+                        )}>
                           <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0">
-                                {info && <info.icon className={cn("w-5 h-5", meta.ativo ? info.color : "text-muted-foreground")} />}
+                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                              <div className={cn("rounded-xl bg-muted flex items-center justify-center shrink-0", isMobile ? "w-8 h-8" : "w-10 h-10")}>
+                                {info && <info.icon className={cn(meta.ativo ? info.color : "text-muted-foreground", isMobile ? "w-4 h-4" : "w-5 h-5")} />}
                               </div>
                               <div className="space-y-0.5 min-w-0">
-                                <Label className="font-black text-sm truncate block">{meta.nome}</Label>
-                                <p className="text-[10px] font-medium text-muted-foreground leading-tight">{info?.descricao}</p>
+                                <Label className={cn("font-black truncate block", isMobile ? "text-[11px]" : "text-sm")}>{meta.nome}</Label>
+                                <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground leading-tight">{info?.descricao}</p>
                               </div>
                             </div>
-                            <Switch checked={meta.ativo} onCheckedChange={() => setLocalMetas(prev => prev.map(m => m.id === meta.id ? { ...m, ativo: !m.ativo } : m))} />
+                            <div className="shrink-0 pt-1">
+                              <Switch 
+                                checked={meta.ativo} 
+                                onCheckedChange={() => setLocalMetas(prev => prev.map(m => m.id === meta.id ? { ...m, ativo: !m.ativo } : m))} 
+                                className={cn(isMobile && "scale-[0.65] origin-right")}
+                              />
+                            </div>
                           </div>
                           {meta.ativo && (
                             <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
-                                <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor Alvo (R$)</Label>
+                                <Label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor Alvo (R$)</Label>
                                 <div className="relative">
-                                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/40">R$</span>
-                                  <Input type="number" value={meta.valorAlvo} onChange={e => setLocalMetas(prev => prev.map(m => m.id === meta.id ? { ...m, valorAlvo: parseFloat(e.target.value) || 0 } : m))} className="h-11 pl-10 rounded-xl border-2 font-black text-lg" />
+                                  <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs font-black text-muted-foreground/40">R$</span>
+                                  <Input type="number" value={meta.valorAlvo} onChange={e => setLocalMetas(prev => prev.map(m => m.id === meta.id ? { ...m, valorAlvo: parseFloat(e.target.value) || 0 } : m))} className={cn("pl-8 sm:pl-10 rounded-xl border-2 font-black", isMobile ? "h-9 text-xs" : "h-11 text-lg")} />
                                 </div>
                             </div>
                           )}
@@ -224,22 +255,43 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
                     })}
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="space-y-4 sm:space-y-5">
                     <div className="flex items-center justify-between px-1">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Personalizadas</p>
-                      <Button variant="outline" size="sm" onClick={() => { setEditingMeta(null); setFormModalOpen(true); }} className="rounded-full h-8 px-4 gap-2 text-[10px] font-black"><Plus className="w-3.5 h-3.5" /> NOVA META</Button>
+                      <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">Personalizadas</p>
+                      <Button variant="outline" size="sm" onClick={() => { setEditingMeta(null); setFormModalOpen(true); }} className={cn("rounded-full px-4 gap-2 font-black text-[8px] sm:text-[10px]", isMobile ? "h-8" : "h-9")}>
+                        <Plus className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} /> NOVA META
+                      </Button>
                     </div>
                     {metasPersonalizadas.map(meta => (
-                      <div key={meta.id} className={cn("p-4 rounded-[1.75rem] border-2 transition-all", meta.ativo ? "bg-card border-primary/20 shadow-sm" : "bg-muted/20 border-transparent opacity-60")}>
+                      <div key={meta.id} className={cn(
+                        "rounded-[1.5rem] sm:rounded-[1.75rem] border-2 transition-all", 
+                        meta.ativo ? "bg-card border-primary/20 shadow-sm" : "bg-muted/20 border-transparent opacity-60",
+                        isMobile ? "p-3.5" : "p-4"
+                      )}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center text-white", COR_BG[meta.cor || 'emerald'])}><Target className="w-5 h-5" /></div>
-                            <div className="min-w-0"><p className="font-bold text-sm truncate">{meta.nome}</p><p className="text-[10px] text-muted-foreground uppercase font-black">{meta.tipo === 'percentual' ? `${meta.valorAlvo}%` : `R$ ${meta.valorAlvo.toLocaleString()}`} • {meta.periodoAvaliacao}</p></div>
+                            <div className={cn("rounded-xl flex items-center justify-center text-white shrink-0", COR_BG[meta.cor || 'emerald'], isMobile ? "w-8 h-8" : "w-10 h-10")}>
+                              <Target className={cn(isMobile ? "w-4 h-4" : "w-5 h-5")} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className={cn("font-bold truncate", isMobile ? "text-[11px]" : "text-sm")}>{meta.nome}</p>
+                              <p className="text-[8px] sm:text-[10px] text-muted-foreground uppercase font-black">{meta.tipo === 'percentual' ? `${meta.valorAlvo}%` : `R$ ${meta.valorAlvo.toLocaleString()}`} • {meta.periodoAvaliacao}</p>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => { setEditingMeta(meta); setFormModalOpen(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-destructive" onClick={() => deleteMetaPersonalizada(meta.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                            <Switch checked={meta.ativo} onCheckedChange={() => updateMetaPersonalizada(meta.id, { ativo: !meta.ativo })} />
+                          <div className="flex items-center gap-1 sm:gap-2">
+                            <Button variant="ghost" size="icon" className={cn("rounded-full", isMobile ? "h-7 w-7" : "h-9 w-9")} onClick={() => { setEditingMeta(meta); setFormModalOpen(true); }}>
+                              <Pencil className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className={cn("rounded-full text-destructive", isMobile ? "h-7 w-7" : "h-9 w-9")} onClick={() => deleteMetaPersonalizada(meta.id)}>
+                              <Trash2 className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} />
+                            </Button>
+                            <div className="ml-1">
+                              <Switch 
+                                checked={meta.ativo} 
+                                onCheckedChange={() => updateMetaPersonalizada(meta.id, { ativo: !meta.ativo })} 
+                                className={cn(isMobile && "scale-[0.65] origin-right")}
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -253,19 +305,21 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
           <DialogFooter 
             className={cn(
               "p-6 sm:p-8 bg-muted/10 border-t shrink-0 flex flex-col sm:flex-row gap-3",
-              isMobile && "fixed bottom-0 left-0 right-0 bg-card"
+              isMobile && "fixed bottom-0 left-0 right-0 bg-card p-4"
             )}
-            style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+            style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.5rem)' } : undefined}
           >
-            <Button 
-              variant="ghost" 
-              onClick={() => onOpenChange(false)}
-              className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1"
-            >
-              FECHAR
-            </Button>
-            <Button onClick={handleSave} className="flex-1 h-14 rounded-2xl bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2">
-              <Save className="w-5 h-5" /> SALVAR CONFIGURAÇÕES
+            {!isMobile && (
+              <Button 
+                variant="ghost" 
+                onClick={() => onOpenChange(false)}
+                className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+              >
+                FECHAR
+              </Button>
+            )}
+            <Button onClick={handleSave} className={cn("flex-1 rounded-2xl bg-primary text-primary-foreground font-black gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2", isMobile ? "h-12 text-[10px]" : "h-14 text-sm")}>
+              <Save className={cn(isMobile ? "w-4 h-4" : "w-5 h-5")} /> SALVAR CONFIGURAÇÕES
             </Button>
           </DialogFooter>
         </DialogContent>

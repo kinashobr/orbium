@@ -88,40 +88,47 @@ export function StandardizationRuleManagerModal({
             !isMobile && "max-w-[min(95vw,56rem)] h-[min(90vh,800px)] rounded-[2.5rem]"
           )}
         >
-          <DialogHeader className="px-4 sm:px-8 pt-8 pb-6 bg-surface-light dark:bg-surface-dark shrink-0 relative">
+          <DialogHeader className={cn(
+            "px-4 sm:px-8 pt-6 sm:pt-8 pb-4 sm:pb-6 bg-surface-light dark:bg-surface-dark shrink-0 relative",
+            isMobile && "pt-4"
+          )}>
             {isMobile && (
-              <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full h-10 w-10" onClick={() => onOpenChange(false)}>
+              <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full h-10 w-10 z-10" onClick={() => onOpenChange(false)}>
                 <ArrowLeft className="h-6 w-6" />
               </Button>
             )}
             
-            <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6", isMobile && "pl-12")}>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5 flex-shrink-0">
-                  <Pin className="w-6 h-6 sm:w-7 sm:h-7" />
+            <div className={cn(
+              "flex flex-col gap-4",
+              isMobile && "pl-12"
+            )}>
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-lg shadow-primary/5 flex-shrink-0">
+                  <Pin className="w-5 h-5 sm:w-7 sm:h-7" />
                 </div>
-                <div className="min-w-0">
-                  <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight break-words">
+                <div className="min-w-0 flex-1">
+                  <DialogTitle className="text-lg sm:text-2xl font-black tracking-tight break-words">
                     Regras de Padronização
                   </DialogTitle>
-                  <DialogDescription className="text-sm font-medium text-muted-foreground flex items-center gap-1.5 mt-1">
-                    <Sparkles className="w-3.5 h-3.5 text-accent flex-shrink-0" />
+                  <DialogDescription className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1.5 mt-0.5 sm:mt-1">
+                    <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-accent flex-shrink-0" />
                     Automação inteligente
                   </DialogDescription>
                 </div>
               </div>
-              <Button onClick={handleAddNew} className="rounded-full gap-2 px-4 sm:px-6 font-bold shadow-lg shadow-primary/10 w-full sm:w-auto mt-2 sm:mt-0">
+              
+              <Button onClick={handleAddNew} className="rounded-full gap-2 px-4 sm:px-6 font-bold shadow-lg shadow-primary/10 w-full sm:w-auto h-11">
                 <Plus className="w-4 h-4" /> Nova Regra
               </Button>
             </div>
 
-            <div className="relative group px-4 sm:px-0">
-              <Search className="absolute left-8 sm:left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <div className="relative group mt-4">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <input
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Pesquisar padrão..."
-                className="w-full h-12 pl-12 pr-4 bg-muted/50 border-2 border-transparent focus:border-primary/30 rounded-2xl text-sm font-medium transition-all outline-none"
+                className="w-full h-11 sm:h-12 pl-11 sm:pl-12 pr-4 bg-muted/50 border-2 border-transparent focus:border-primary/30 rounded-xl sm:rounded-2xl text-sm font-medium transition-all outline-none"
               />
             </div>
           </DialogHeader>
@@ -195,7 +202,7 @@ export function StandardizationRuleManagerModal({
             </div>
           </ScrollArea>
 
-          <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
+          <DialogFooter className={cn("p-4 bg-muted/10 border-t shrink-0", isMobile && "hidden")}>
              <Button variant="ghost" onClick={() => { onOpenChange(false); onCloseAndReturn?.(); }} className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
                 FECHAR
              </Button>

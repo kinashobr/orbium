@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +53,18 @@ export function VehicleDetailDialog({
   onEdit,
 }: VehicleDetailDialogProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
+
+  // Body scroll lock for mobile fullscreen
+  useEffect(() => {
+    if (isMobile && open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobile, open]);
   
   const mesesPropriedade = useMemo(() => {
     if (!veiculo?.dataCompra) return 0;
@@ -236,7 +248,7 @@ export function VehicleDetailDialog({
             </div>
           </ScrollArea>
 
-          <DialogFooter className="p-6 sm:p-8 bg-muted/10 border-t shrink-0">
+          <DialogFooter className={cn("p-6 sm:p-8 bg-muted/10 border-t shrink-0", isMobile && "hidden")}>
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
               FECHAR
             </Button>

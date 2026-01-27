@@ -158,13 +158,15 @@ export function MetaPersonalizadaFormModal({ open, onOpenChange, meta, onSave }:
           )}
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
-          <Button 
-            variant="ghost" 
-            onClick={() => onOpenChange(false)}
-            className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1 w-full sm:w-auto"
-          >
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button 
+              variant="ghost" 
+              onClick={() => onOpenChange(false)}
+              className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto"
+            >
+              FECHAR
+            </Button>
+          )}
           <Button onClick={handleSubmit} className="flex-1 h-14 rounded-2xl bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 order-1 sm:order-2 w-full sm:w-auto">
             <Save className="w-5 h-5" /> {meta ? 'SALVAR META' : 'CRIAR META'}
           </Button>

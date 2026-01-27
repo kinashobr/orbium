@@ -176,17 +176,17 @@ export function PeriodSelector({
         <Button
           variant="outline"
           className={cn(
-            "w-full sm:w-auto justify-start text-left h-8 sm:h-10 px-3 sm:px-4 rounded-full border-border/40 bg-card shadow-sm hover:shadow-md hover:bg-accent hover:text-accent-foreground transition-all duration-300 group mx-auto sm:mx-0",
+            "w-full sm:w-auto justify-center text-center h-12 sm:h-10 px-6 sm:px-4 rounded-full border-border/40 bg-card shadow-sm hover:shadow-md hover:bg-accent hover:text-accent-foreground transition-all duration-300 group mx-auto sm:mx-0",
             (!range.from && !range.to) && "text-muted-foreground",
             className
           )}
         >
-          <CalendarIcon className="mr-1.5 sm:mr-2.5 h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0 text-primary transition-transform group-hover:scale-110" />
-          <span className="text-[10px] sm:text-sm font-bold tracking-tight truncate flex-1 capitalize">
+          <CalendarIcon className="mr-2 sm:mr-2.5 h-4 w-4 sm:h-4 sm:w-4 shrink-0 text-primary transition-transform group-hover:scale-110" />
+          <span className="text-sm sm:text-sm font-black tracking-tight truncate capitalize">
             {displayRange}
           </span>
           <ChevronDown className={cn(
-            "ml-1.5 h-3 w-3 opacity-50 shrink-0 transition-transform duration-300",
+            "ml-2 h-4 w-4 opacity-50 shrink-0 transition-transform duration-300",
             isOpen && "rotate-180"
           )} />
         </Button>
@@ -211,7 +211,7 @@ export function PeriodSelector({
                   key={preset.id}
                   onClick={() => handleSelectPreset(preset.id)}
                   className={cn(
-                    "flex items-center w-full px-3 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl text-left text-[10px] sm:text-xs font-bold transition-all duration-200",
+                    "flex items-center w-full px-3 py-2.5 sm:py-2.5 rounded-xl sm:rounded-2xl text-left text-xs sm:text-xs font-black transition-all duration-200",
                     selectedPreset === preset.id 
                       ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]" 
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"

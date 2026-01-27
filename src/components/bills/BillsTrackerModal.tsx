@@ -304,19 +304,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </div>
           </main>
 
-          {/* Footer Fixo com Safe Area */}
-          <footer 
-            className="shrink-0 bg-card border-t p-4" 
-            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
-          >
-            <Button 
-              variant="ghost" 
-              onClick={() => onOpenChange(false)}
-              className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-            >
-              FECHAR
-            </Button>
-          </footer>
+          {/* Footer removido no mobile - ArrowLeft no header já fecha */}
 
           {/* Modais auxiliares */}
           <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />

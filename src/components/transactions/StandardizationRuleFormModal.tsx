@@ -119,22 +119,25 @@ export function StandardizationRuleFormModal({
           !isMobile && "max-w-lg rounded-[2.5rem]"
         )}
       >
-        <DialogHeader className="px-6 pt-10 pb-6 bg-primary/10 shrink-0 relative">
+        <DialogHeader className={cn(
+          "px-4 sm:px-6 pt-6 sm:pt-10 pb-4 sm:pb-6 bg-primary/10 shrink-0 relative",
+          isMobile && "pt-4"
+        )}>
           {isMobile && (
-            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full h-10 w-10" onClick={() => onOpenChange(false)}>
+            <Button variant="ghost" size="icon" className="absolute left-4 top-4 rounded-full h-10 w-10 z-10" onClick={() => onOpenChange(false)}>
               <ArrowLeft className="h-6 w-6" />
             </Button>
           )}
           
-          <div className={cn("flex items-start gap-3", isMobile && "pl-12")}>
-            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-              <Pin className="w-6 h-6 text-primary" />
+          <div className={cn("flex items-center gap-3", isMobile && "pl-12")}>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+              <Pin className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
-            <div className="flex-1">
-              <DialogTitle className="text-xl font-bold">
+            <div className="flex-1 min-w-0">
+              <DialogTitle className="text-lg sm:text-xl font-bold">
                 {initialRule ? 'Editar Regra' : 'Nova Regra'}
               </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground mt-1">
+              <DialogDescription className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
                 Automatize a categorização inteligente.
               </DialogDescription>
             </div>
@@ -214,13 +217,15 @@ export function StandardizationRuleFormModal({
         </ScrollArea>
 
         <DialogFooter className="p-6 bg-muted/20 border-t flex flex-col sm:flex-row gap-3 shrink-0">
-          <Button 
-            variant="ghost" 
-            onClick={() => onOpenChange(false)} 
-            className="rounded-full h-11 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1"
-          >
-            FECHAR
-          </Button>
+          {!isMobile && (
+            <Button 
+              variant="ghost" 
+              onClick={() => onOpenChange(false)} 
+              className="rounded-full h-11 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            >
+              FECHAR
+            </Button>
+          )}
           <Button onClick={handleSubmit} className="flex-1 rounded-full h-11 px-8 font-bold gap-2 order-1 sm:order-2">
             <Check className="w-4 h-4" />
             {initialRule ? 'Atualizar Regra' : 'Salvar Regra'}

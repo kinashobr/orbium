@@ -277,17 +277,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
           <main className="flex-1 overflow-hidden">
             {renderContent()}
           </main>
-          {!showConfigForm && (
-            <DialogFooter className="p-4 bg-muted/10 border-t shrink-0">
-              <Button 
-                variant="ghost" 
-                onClick={() => onOpenChange(false)}
-                className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-              >
-                FECHAR
-              </Button>
-            </DialogFooter>
-          )}
+          {/* Footer removido no mobile - ArrowLeft no header já fecha */}
         </DialogContent>
       ) : (
         <ResizableDialogContent
