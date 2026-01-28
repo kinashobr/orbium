@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { getGoogleToken, FILE_NAME, logoutGoogleDrive } from "@/lib/googleDrive";
+import { getGoogleToken, getGoogleRefreshToken, saveGoogleToken, FILE_NAME, logoutGoogleDrive } from "@/lib/googleDrive";
 import { toast } from "sonner";
 import { useFinance } from "@/contexts/FinanceContext";
 
@@ -19,8 +19,49 @@ export function useGoogleDrive() {
     return data.files && data.files.length > 0 ? data.files[0] : null;
   };
 
+  /**
+   * Garante que tenhamos um token válido. Se expirou, tenta renovar silenciosamente.
+   */
+  const ensureValidToken = async (): Promise<string | null> => {
+    const currentToken = getGoogleToken();
+    if (currentToken) return currentToken;
+
+    const refreshToken = getGoogleRefreshToken();
+    if (!refreshToken) {
+      console.warn("[GoogleDrive] Sem Refresh Token disponível.");
+      return null;
+    }
+
+    console.log("[GoogleDrive] Token expirado. Iniciando Silent Refresh...");
+    try {
+      const response = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken, grant_type: "refresh_token" }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        if (error.error === "invalid_grant") {
+          console.error("[GoogleDrive] Refresh Token inválido ou revogado.");
+          logoutGoogleDrive();
+          toast.error("Sua conexão com o Google expirou. Conecte novamente.");
+        }
+        return null;
+      }
+
+      const data = await response.json();
+      saveGoogleToken(data);
+      console.log("[GoogleDrive] Silent Refresh concluído com sucesso.");
+      return data.access_token;
+    } catch (error) {
+      console.error("[GoogleDrive] Erro ao tentar renovar token:", error);
+      return null;
+    }
+  };
+
   const saveToDrive = useCallback(async (jsonData: any) => {
-    const token = getGoogleToken();
+    const token = await ensureValidToken();
     if (!token) return;
 
     setIsSyncing(true);
@@ -32,14 +73,12 @@ export function useGoogleDrive() {
       const localLastModifiedDate = new Date(jsonData.lastModified);
       const cloudLastModifiedDate = new Date(cloudLastModified);
 
-      // 1. Checagem de Conflito: Não salvar se a nuvem for mais recente
       if (localLastModifiedDate <= cloudLastModifiedDate) {
         toast.info("Sincronização cancelada: A versão na nuvem é mais recente ou igual à local.");
         setIsSyncing(false);
         return;
       }
 
-      // Prepara os metadados base
       const metadata: any = {
         name: FILE_NAME,
         appProperties: {
@@ -52,11 +91,9 @@ export function useGoogleDrive() {
       let method = "POST";
 
       if (fileId) {
-        // Se o arquivo já existe, usamos PATCH e NÃO incluímos o campo 'parents'
         url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,appProperties`;
         method = "PATCH";
       } else {
-        // Se é um arquivo novo (POST), incluímos o campo 'parents'
         metadata.parents = ["appDataFolder"];
       }
 
@@ -75,12 +112,6 @@ export function useGoogleDrive() {
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-
-      if (response.status === 401) {
-        logoutGoogleDrive();
-        toast.error("Sessão expirada. Conecte o Google Drive novamente.");
-        return;
-      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -101,7 +132,7 @@ export function useGoogleDrive() {
   }, [lastModified]);
 
   const loadFromDrive = useCallback(async () => {
-    const token = getGoogleToken();
+    const token = await ensureValidToken();
     if (!token) return null;
 
     setIsSyncing(true);
@@ -114,9 +145,6 @@ export function useGoogleDrive() {
         return null;
       }
 
-      // Removida a checagem que bloqueava a restauração baseada no timestamp local
-      // O usuário clicou no botão de download, então ele quer restaurar independente da data local
-
       const response = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -125,8 +153,6 @@ export function useGoogleDrive() {
       if (!response.ok) throw new Error("Erro ao baixar dados");
 
       const data = await response.json();
-      
-      // Simula a importação de um arquivo para usar a lógica de importData do FinanceContext
       const tempFile = new File([JSON.stringify(data)], FILE_NAME, { type: 'application/json' });
       const importResult = await importData(tempFile);
 
@@ -151,6 +177,6 @@ export function useGoogleDrive() {
     lastSync,
     saveToDrive,
     loadFromDrive,
-    isConnected: !!getGoogleToken(),
+    isConnected: !!getGoogleRefreshToken(), // Agora consideramos conectado se tiver o Refresh Token
   };
 }
