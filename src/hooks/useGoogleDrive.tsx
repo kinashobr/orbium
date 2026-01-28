@@ -1,14 +1,38 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { getGoogleToken, getGoogleRefreshToken, saveGoogleToken, FILE_NAME, logoutGoogleDrive } from "@/lib/googleDrive";
 import { toast } from "sonner";
 import { useFinance } from "@/contexts/FinanceContext";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export function useGoogleDrive() {
   const { lastModified, importData } = useFinance();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem("google_last_sync"));
+
+  // Sincroniza o estado do lastSync entre diferentes abas ou componentes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setLastSync(localStorage.getItem("google_last_sync"));
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  const formattedLastSync = lastSync ? (() => {
+    try {
+      const date = new Date(lastSync);
+      // Retorna algo curto como "27/10 10:30" ou "Hoje 10:30"
+      const isToday = new Date().toDateString() === date.toDateString();
+      return isToday 
+        ? `Hoje, ${format(date, 'HH:mm')}`
+        : format(date, "dd/MM 'às' HH:mm", { locale: ptBR });
+    } catch (e) {
+      return null;
+    }
+  })() : null;
 
   const findAppDataFile = async (token: string) => {
     const response = await fetch(
@@ -19,20 +43,13 @@ export function useGoogleDrive() {
     return data.files && data.files.length > 0 ? data.files[0] : null;
   };
 
-  /**
-   * Garante que tenhamos um token válido. Se expirou, tenta renovar silenciosamente.
-   */
   const ensureValidToken = async (): Promise<string | null> => {
     const currentToken = getGoogleToken();
     if (currentToken) return currentToken;
 
     const refreshToken = getGoogleRefreshToken();
-    if (!refreshToken) {
-      console.warn("[GoogleDrive] Sem Refresh Token disponível.");
-      return null;
-    }
+    if (!refreshToken) return null;
 
-    console.log("[GoogleDrive] Token expirado. Iniciando Silent Refresh...");
     try {
       const response = await fetch("/api/auth/google", {
         method: "POST",
@@ -41,21 +58,14 @@ export function useGoogleDrive() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        if (error.error === "invalid_grant") {
-          console.error("[GoogleDrive] Refresh Token inválido ou revogado.");
-          logoutGoogleDrive();
-          toast.error("Sua conexão com o Google expirou. Conecte novamente.");
-        }
+        logoutGoogleDrive();
         return null;
       }
 
       const data = await response.json();
       saveGoogleToken(data);
-      console.log("[GoogleDrive] Silent Refresh concluído com sucesso.");
       return data.access_token;
     } catch (error) {
-      console.error("[GoogleDrive] Erro ao tentar renovar token:", error);
       return null;
     }
   };
@@ -74,7 +84,7 @@ export function useGoogleDrive() {
       const cloudLastModifiedDate = new Date(cloudLastModified);
 
       if (localLastModifiedDate <= cloudLastModifiedDate) {
-        toast.info("Sincronização cancelada: A versão na nuvem é mais recente ou igual à local.");
+        toast.info("Nuvem já está atualizada.");
         setIsSyncing(false);
         return;
       }
@@ -98,14 +108,8 @@ export function useGoogleDrive() {
       }
 
       const formData = new FormData();
-      formData.append(
-        "metadata",
-        new Blob([JSON.stringify(metadata)], { type: "application/json" })
-      );
-      formData.append(
-        "file",
-        new Blob([JSON.stringify(jsonData)], { type: "application/json" })
-      );
+      formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      formData.append("file", new Blob([JSON.stringify(jsonData)], { type: "application/json" }));
 
       const response = await fetch(url, {
         method,
@@ -113,18 +117,16 @@ export function useGoogleDrive() {
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("[GoogleDrive] Erro na requisição:", errorData);
-        throw new Error("Erro ao salvar no Drive");
-      }
+      if (!response.ok) throw new Error("Erro ao salvar no Drive");
 
       const now = new Date().toISOString();
       setLastSync(now);
       localStorage.setItem("google_last_sync", now);
-      toast.success("Dados sincronizados na nuvem!");
+      // Dispara evento manual para atualizar outros componentes na mesma aba
+      window.dispatchEvent(new Event('storage'));
+      
+      toast.success("Nuvem sincronizada!");
     } catch (error) {
-      console.error(error);
       toast.error("Erro na sincronização.");
     } finally {
       setIsSyncing(false);
@@ -141,7 +143,7 @@ export function useGoogleDrive() {
       const fileId = fileInfo?.id;
       
       if (!fileId) {
-        toast.info("Nenhum backup encontrado na nuvem.");
+        toast.info("Nenhum backup encontrado.");
         return null;
       }
 
@@ -157,26 +159,27 @@ export function useGoogleDrive() {
       const importResult = await importData(tempFile);
 
       if (importResult.success) {
-        toast.success("Dados restaurados da nuvem!");
-      } else {
-        toast.error(`Restauração falhou: ${importResult.message}`);
+        toast.success("Dados restaurados!");
+        const now = new Date().toISOString();
+        setLastSync(now);
+        localStorage.setItem("google_last_sync", now);
+        window.dispatchEvent(new Event('storage'));
       }
       
       return data;
     } catch (error) {
-      console.error(error);
-      toast.error("Erro ao carregar dados da nuvem.");
+      toast.error("Erro ao carregar da nuvem.");
       return null;
     } finally {
       setIsSyncing(false);
     }
-  }, [lastModified, importData]);
+  }, [importData]);
 
   return {
     isSyncing,
-    lastSync,
+    lastSync: formattedLastSync, // Agora retorna a data formatada
     saveToDrive,
     loadFromDrive,
-    isConnected: !!getGoogleRefreshToken(), // Agora consideramos conectado se tiver o Refresh Token
+    isConnected: !!getGoogleRefreshToken(),
   };
 }
