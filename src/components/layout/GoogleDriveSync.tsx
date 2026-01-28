@@ -4,10 +4,8 @@ import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { initiateGoogleAuth, logoutGoogleDrive } from "@/lib/googleDrive";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Button } from "@/components/ui/button";
-import { Cloud, CloudOff, RefreshCw, LogOut, Download } from "lucide-react";
+import { Cloud, RefreshCw, LogOut, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 
 export function GoogleDriveSync() {
@@ -15,7 +13,6 @@ export function GoogleDriveSync() {
   const finance = useFinance();
 
   const handleSync = () => {
-    // Coleta todos os dados do contexto para salvar
     const dataToSave = {
       schemaVersion: "2.0", 
       exportedAt: new Date().toISOString(), 
@@ -36,7 +33,7 @@ export function GoogleDriveSync() {
         terrenos: finance.terrenos,
         metasPersonalizadas: finance.metasPersonalizadas,
       },
-      lastModified: finance.lastModified, // Incluindo o timestamp local
+      lastModified: finance.lastModified,
     };
     saveToDrive(dataToSave);
   };
@@ -50,14 +47,14 @@ export function GoogleDriveSync() {
       <Button
         variant="outline"
         onClick={initiateGoogleAuth}
-        className="w-full justify-start h-14 rounded-[1.75rem] border-dashed border-2 border-border/60 gap-4 group active:scale-[0.98] transition-all"
+        className="w-full justify-start h-14 rounded-[1.75rem] border-dashed border-2 border-border/60 gap-3 group active:scale-[0.98] transition-all"
       >
-        <div className="p-2.5 rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
+        <div className="p-2.5 rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors shrink-0">
           <Cloud className="w-5 h-5" />
         </div>
-        <div className="text-left">
-          <p className="text-sm font-bold">Nuvem (Drive)</p>
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Conectar p/ backup</p>
+        <div className="text-left min-w-0">
+          <p className="text-sm font-bold truncate">Nuvem (Drive)</p>
+          <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Conectar p/ backup</p>
         </div>
       </Button>
     );
@@ -70,18 +67,18 @@ export function GoogleDriveSync() {
           variant="outline"
           onClick={handleSync}
           disabled={isSyncing}
-          className="flex-1 justify-start h-14 rounded-[1.75rem] border-border/60 gap-4 group active:scale-[0.98] transition-all overflow-hidden relative"
+          className="flex-1 justify-start h-14 rounded-[1.75rem] border-border/60 gap-3 group active:scale-[0.98] transition-all overflow-hidden"
         >
           <div className={cn(
-            "p-2.5 rounded-xl transition-colors",
+            "p-2.5 rounded-xl transition-colors shrink-0",
             isSyncing ? "bg-accent/20 text-accent" : "bg-success/10 text-success"
           )}>
             {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Cloud className="w-5 h-5" />}
           </div>
-          <div className="text-left min-w-0">
-            <p className="text-sm font-bold truncate">Sincronizado</p>
-            <p className="text-[9px] text-muted-foreground uppercase tracking-tighter truncate">
-              {lastSync ? `Última: ${format(new Date(lastSync), "HH:mm 'de' dd/MM", { locale: ptBR })}` : "Pendente"}
+          <div className="text-left min-w-0 overflow-hidden">
+            <p className="text-sm font-bold truncate">Sincronizar</p>
+            <p className="text-[9px] text-muted-foreground uppercase font-black whitespace-nowrap">
+              {lastSync ? `Última: ${lastSync}` : "Pendente"}
             </p>
           </div>
         </Button>
@@ -90,8 +87,8 @@ export function GoogleDriveSync() {
           size="icon"
           onClick={handleLoad}
           disabled={isSyncing}
-          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-primary hover:bg-primary/5"
-          title="Puxar dados da nuvem"
+          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-primary hover:bg-primary/5 shrink-0"
+          title="Baixar dados"
         >
           <Download className="w-5 h-5" />
         </Button>
@@ -104,7 +101,7 @@ export function GoogleDriveSync() {
               window.location.reload();
             }
           }}
-          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-destructive hover:bg-destructive/5"
+          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-destructive hover:bg-destructive/5 shrink-0"
           title="Desconectar"
         >
           <LogOut className="w-5 h-5" />
