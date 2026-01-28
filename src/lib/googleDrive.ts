@@ -29,7 +29,6 @@ export async function initiateGoogleAuth() {
   localStorage.setItem("google_code_verifier", verifier);
 
   const challenge = await generateCodeChallenge(verifier);
-  // URI exata conforme solicitado
   const redirectUri = window.location.origin + '/oauth/callback';
 
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
@@ -39,7 +38,10 @@ export async function initiateGoogleAuth() {
   authUrl.searchParams.set("scope", DRIVE_SCOPES);
   authUrl.searchParams.set("code_challenge", challenge);
   authUrl.searchParams.set("code_challenge_method", "S256");
-  authUrl.searchParams.set("prompt", "select_account");
+  
+  // Adicionado para obter o Refresh Token e garantir persistência
+  authUrl.searchParams.set("access_type", "offline");
+  authUrl.searchParams.set("prompt", "consent");
 
   window.location.href = authUrl.toString();
 }
@@ -49,12 +51,18 @@ export interface GoogleTokenResponse {
   expires_in: number;
   scope: string;
   token_type: string;
+  refresh_token?: string;
 }
 
 export function saveGoogleToken(tokenData: GoogleTokenResponse) {
   const expiresAt = Date.now() + tokenData.expires_in * 1000;
   localStorage.setItem("google_access_token", tokenData.access_token);
   localStorage.setItem("google_token_expires_at", expiresAt.toString());
+  
+  // Salva o refresh token apenas se ele vier na resposta (geralmente só no primeiro login)
+  if (tokenData.refresh_token) {
+    localStorage.setItem("google_refresh_token", tokenData.refresh_token);
+  }
 }
 
 export function getGoogleToken() {
@@ -62,16 +70,21 @@ export function getGoogleToken() {
   const expiresAt = localStorage.getItem("google_token_expires_at");
 
   if (!token || !expiresAt) return null;
-  if (Date.now() > parseInt(expiresAt)) {
-    localStorage.removeItem("google_access_token");
-    localStorage.removeItem("google_token_expires_at");
+  
+  // Se faltar menos de 5 minutos para expirar, consideramos expirado para forçar o refresh
+  if (Date.now() > (parseInt(expiresAt) - 300000)) {
     return null;
   }
   return token;
 }
 
+export function getGoogleRefreshToken() {
+  return localStorage.getItem("google_refresh_token");
+}
+
 export function logoutGoogleDrive() {
   localStorage.removeItem("google_access_token");
   localStorage.removeItem("google_token_expires_at");
+  localStorage.removeItem("google_refresh_token");
   localStorage.removeItem("google_last_sync");
 }
