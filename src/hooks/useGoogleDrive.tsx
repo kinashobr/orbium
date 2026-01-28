@@ -1,112 +1,185 @@
 "use client";
 
-import { useGoogleDrive } from "@/hooks/useGoogleDrive";
-import { initiateGoogleAuth, logoutGoogleDrive } from "@/lib/googleDrive";
-import { useFinance } from "@/contexts/FinanceContext";
-import { Button } from "@/components/ui/button";
-import { Cloud, RefreshCw, LogOut, Download } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useState, useCallback, useEffect } from "react";
+import { getGoogleToken, getGoogleRefreshToken, saveGoogleToken, FILE_NAME, logoutGoogleDrive } from "@/lib/googleDrive";
 import { toast } from "sonner";
+import { useFinance } from "@/contexts/FinanceContext";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
-export function GoogleDriveSync() {
-  const { isConnected, isSyncing, lastSync, saveToDrive, loadFromDrive } = useGoogleDrive();
-  const finance = useFinance();
+export function useGoogleDrive() {
+  const { lastModified, importData } = useFinance();
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem("google_last_sync"));
 
-  const handleSync = () => {
-    const dataToSave = {
-      schemaVersion: "2.0", 
-      exportedAt: new Date().toISOString(), 
-      data: { 
-        accounts: finance.contasMovimento, 
-        categories: finance.categoriasV2, 
-        transactions: finance.transacoesV2, 
-        emprestimos: finance.emprestimos, 
-        veiculos: finance.veiculos, 
-        segurosVeiculo: finance.segurosVeiculo, 
-        objetivos: finance.objetivos, 
-        billsTracker: finance.billsTracker, 
-        standardizationRules: finance.standardizationRules, 
-        importedStatements: finance.importedStatements, 
-        revenueForecasts: finance.revenueForecasts, 
-        alertStartDate: finance.alertStartDate, 
-        imoveis: finance.imoveis, 
-        terrenos: finance.terrenos,
-        metasPersonalizadas: finance.metasPersonalizadas,
-      },
-      lastModified: finance.lastModified,
+  // Sincroniza o estado do lastSync entre diferentes abas ou componentes
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setLastSync(localStorage.getItem("google_last_sync"));
     };
-    saveToDrive(dataToSave);
-  };
-  
-  const handleLoad = async () => {
-    await loadFromDrive();
-  };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
 
-  if (!isConnected) {
-    return (
-      <Button
-        variant="outline"
-        onClick={initiateGoogleAuth}
-        className="w-full justify-start h-14 rounded-[1.75rem] border-dashed border-2 border-border/60 gap-3 group active:scale-[0.98] transition-all"
-      >
-        <div className="p-2.5 rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors shrink-0">
-          <Cloud className="w-5 h-5" />
-        </div>
-        <div className="text-left min-w-0">
-          <p className="text-sm font-bold truncate">Nuvem (Drive)</p>
-          <p className="text-[9px] text-muted-foreground uppercase tracking-widest truncate">Conectar p/ backup</p>
-        </div>
-      </Button>
+  const formattedLastSync = lastSync ? (() => {
+    try {
+      const date = new Date(lastSync);
+      // Retorna algo curto como "27/10 10:30" ou "Hoje 10:30"
+      const isToday = new Date().toDateString() === date.toDateString();
+      return isToday 
+        ? `Hoje, ${format(date, 'HH:mm')}`
+        : format(date, "dd/MM 'às' HH:mm", { locale: ptBR });
+    } catch (e) {
+      return null;
+    }
+  })() : null;
+
+  const findAppDataFile = async (token: string) => {
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${FILE_NAME}'&spaces=appDataFolder&fields=files(id,appProperties)`,
+      { headers: { Authorization: `Bearer ${token}` } }
     );
-  }
+    const data = await response.json();
+    return data.files && data.files.length > 0 ? data.files[0] : null;
+  };
 
-  return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          onClick={handleSync}
-          disabled={isSyncing}
-          className="flex-1 justify-start h-14 rounded-[1.75rem] border-border/60 gap-3 group active:scale-[0.98] transition-all overflow-hidden"
-        >
-          <div className={cn(
-            "p-2.5 rounded-xl transition-colors shrink-0",
-            isSyncing ? "bg-accent/20 text-accent" : "bg-success/10 text-success"
-          )}>
-            {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Cloud className="w-5 h-5" />}
-          </div>
-          <div className="text-left min-w-0 overflow-hidden">
-            <p className="text-sm font-bold truncate">Sincronizar</p>
-            <p className="text-[9px] text-muted-foreground uppercase font-black whitespace-nowrap">
-              {lastSync ? `Última: ${lastSync}` : "Pendente"}
-            </p>
-          </div>
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={handleLoad}
-          disabled={isSyncing}
-          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-primary hover:bg-primary/5 shrink-0"
-          title="Baixar dados"
-        >
-          <Download className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (confirm("Desconectar do Google Drive?")) {
-              logoutGoogleDrive();
-              window.location.reload();
-            }
-          }}
-          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-destructive hover:bg-destructive/5 shrink-0"
-          title="Desconectar"
-        >
-          <LogOut className="w-5 h-5" />
-        </Button>
-      </div>
-    </div>
-  );
+  const ensureValidToken = async (): Promise<string | null> => {
+    const currentToken = getGoogleToken();
+    if (currentToken) return currentToken;
+
+    const refreshToken = getGoogleRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const response = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken, grant_type: "refresh_token" }),
+      });
+
+      if (!response.ok) {
+        logoutGoogleDrive();
+        return null;
+      }
+
+      const data = await response.json();
+      saveGoogleToken(data);
+      return data.access_token;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const saveToDrive = useCallback(async (jsonData: any) => {
+    const token = await ensureValidToken();
+    if (!token) return;
+
+    setIsSyncing(true);
+    try {
+      const fileInfo = await findAppDataFile(token);
+      const fileId = fileInfo?.id;
+      const cloudLastModified = fileInfo?.appProperties?.lastModified || new Date(0).toISOString();
+      
+      const localLastModifiedDate = new Date(jsonData.lastModified);
+      const cloudLastModifiedDate = new Date(cloudLastModified);
+
+      if (localLastModifiedDate <= cloudLastModifiedDate) {
+        toast.info("Nuvem já está atualizada.");
+        setIsSyncing(false);
+        return;
+      }
+
+      const metadata: any = {
+        name: FILE_NAME,
+        appProperties: {
+          lastModified: jsonData.lastModified,
+          schemaVersion: jsonData.schemaVersion,
+        }
+      };
+
+      let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+      let method = "POST";
+
+      if (fileId) {
+        url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,appProperties`;
+        method = "PATCH";
+      } else {
+        metadata.parents = ["appDataFolder"];
+      }
+
+      const formData = new FormData();
+      formData.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+      formData.append("file", new Blob([JSON.stringify(jsonData)], { type: "application/json" }));
+
+      const response = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Erro ao salvar no Drive");
+
+      const now = new Date().toISOString();
+      setLastSync(now);
+      localStorage.setItem("google_last_sync", now);
+      // Dispara evento manual para atualizar outros componentes na mesma aba
+      window.dispatchEvent(new Event('storage'));
+      
+      toast.success("Nuvem sincronizada!");
+    } catch (error) {
+      toast.error("Erro na sincronização.");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [lastModified]);
+
+  const loadFromDrive = useCallback(async () => {
+    const token = await ensureValidToken();
+    if (!token) return null;
+
+    setIsSyncing(true);
+    try {
+      const fileInfo = await findAppDataFile(token);
+      const fileId = fileInfo?.id;
+      
+      if (!fileId) {
+        toast.info("Nenhum backup encontrado.");
+        return null;
+      }
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (!response.ok) throw new Error("Erro ao baixar dados");
+
+      const data = await response.json();
+      const tempFile = new File([JSON.stringify(data)], FILE_NAME, { type: 'application/json' });
+      const importResult = await importData(tempFile);
+
+      if (importResult.success) {
+        toast.success("Dados restaurados!");
+        const now = new Date().toISOString();
+        setLastSync(now);
+        localStorage.setItem("google_last_sync", now);
+        window.dispatchEvent(new Event('storage'));
+      }
+      
+      return data;
+    } catch (error) {
+      toast.error("Erro ao carregar da nuvem.");
+      return null;
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [importData]);
+
+  return {
+    isSyncing,
+    lastSync: formattedLastSync, // Agora retorna a data formatada
+    saveToDrive,
+    loadFromDrive,
+    isConnected: !!getGoogleRefreshToken(),
+  };
 }
