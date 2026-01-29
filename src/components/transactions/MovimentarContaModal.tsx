@@ -242,9 +242,9 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
           {!isMobile && (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button> {/* Reduzido altura */}
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
           )}
-          <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}</Button> {/* Reduzido altura */}
+          <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
