@@ -12,18 +12,21 @@ import {
   ArrowUpRight, 
   CheckCircle2,
   Clock,
+  CreditCard,
+  Target
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { formatCurrency } from "@/types/finance";
-import { cn } from "@/lib/utils";
-import { startOfMonth, subDays, format } from "date-fns";
+import { formatCurrency, BillTracker, BillDisplayItem } from "@/types/finance";
+import { cn, parseDateLocal } from "@/lib/utils";
+import { startOfMonth, subDays, format, isSameMonth } from "date-fns";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface BillsSidebarKPIsProps {
   currentDate: Date;
-  totalPendingBills: number;
+  totalPendingBills: number; // Somado via combinedBills no modal
   totalPaidBills?: number;
+  combinedBills?: BillDisplayItem[]; // Adicionado para cálculos internos
 }
 
 const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -33,7 +36,7 @@ const parseFromBR = (value: string): number => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
-export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBills = 0 }: BillsSidebarKPIsProps) {
+export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSidebarKPIsProps) {
   const { 
     revenueForecasts, 
     setMonthlyRevenueForecast, 
@@ -52,27 +55,59 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
       setForecastInput(formatToBR(currentForecast));
   }, [currentForecast, monthKey]);
 
-  const highLiquidityAccountIds = useMemo(() => 
+  // Contas de Liquidez
+  const liquidityAccountIds = useMemo(() => 
     contasMovimento
       .filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType))
       .map(c => c.id)
   , [contasMovimento]);
 
-  const calculos = useMemo(() => {
+  // Contas de Cartão
+  const creditCardAccountIds = useMemo(() => 
+    new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id))
+  , [contasMovimento]);
+
+  const stats = useMemo(() => {
     const startOfCurrentMonth = startOfMonth(currentDate);
     const dayBeforeStart = subDays(startOfCurrentMonth, 1);
     
-    const initialBalance = highLiquidityAccountIds.reduce((acc, accountId) => {
+    // 1. Saldo Inicial Contas Correntes
+    const initialBalance = liquidityAccountIds.reduce((acc, accountId) => {
       const balance = calculateBalanceUpToDate(accountId, dayBeforeStart, transacoesV2, contasMovimento);
-      return acc + balance;
+      return acc + Math.max(0, balance);
     }, 0);
 
-    const totalExpensesForMonth = totalPendingBills + totalPaidBills;
-    const projecaoOperacional = currentForecast - totalExpensesForMonth;
-    const projectedBalance = initialBalance + projecaoOperacional;
+    // 2. Receita Atual (Lançamentos reais de receita no mês)
+    const realizedRevenue = transacoesV2
+        .filter(t => isSameMonth(parseDateLocal(t.date), currentDate) && (t.operationType === 'receita' || t.operationType === 'rendimento'))
+        .reduce((acc, t) => acc + t.amount, 0);
+
+    // 3. Divisão de Saídas
+    // Pendentes (não pagos e não são de cartão de crédito como fonte sugerida)
+    const pendingAmount = combinedBills
+        .filter(b => !b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
+
+    // Pagos com Cartão de Crédito
+    const paidViaCreditCard = combinedBills
+        .filter(b => b.isPaid && b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId))
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
     
-    return { initialBalance, projectedBalance, projecaoOperacional, totalExpensesForMonth };
-  }, [currentDate, highLiquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, currentForecast, totalPendingBills, totalPaidBills]);
+    // Já Pagos (Caixa/Débito)
+    const paidDirectly = combinedBills
+        .filter(b => b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
+
+    const totalExpenses = combinedBills.reduce((acc, b) => acc + b.expectedAmount, 0);
+
+    // 4. Saldo (Receita Prevista - Despesas)
+    const monthBalance = currentForecast - totalExpenses;
+
+    // 5. Projeção (Saldo Inicial + Receita Prevista - Despesas)
+    const projectedFinal = initialBalance + monthBalance;
+    
+    return { initialBalance, realizedRevenue, pendingAmount, paidViaCreditCard, paidDirectly, totalExpenses, monthBalance, projectedFinal };
+  }, [currentDate, liquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, currentForecast, combinedBills, creditCardAccountIds]);
   
   const handleBlur = () => {
     const parsed = parseFromBR(forecastInput);
@@ -90,27 +125,27 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
 
   return (
     <ScrollArea className="h-full pr-4 -mr-4 scrollbar-material">
-      <div className="flex flex-col space-y-4 pb-4">
+      <div className="flex flex-col space-y-6 pb-4">
         
-        {/* 1. Saldo Inicial do Mês */}
+        {/* 1. Saldo Inicial Contas Correntes */}
         <div className="px-1">
-          <div className="flex items-center gap-2 mb-1 opacity-60">
-            <Wallet className="w-3 h-3" />
-            <Label className="text-[9px] font-black uppercase tracking-widest">Saldo Inicial</Label>
+          <div className="flex items-center gap-2 mb-1.5 opacity-60">
+            <Wallet className="w-3.5 h-3.5" />
+            <Label className="text-[9px] font-black uppercase tracking-widest">Saldo Inicial Contas Correntes</Label>
           </div>
-          <p className="text-lg font-black text-foreground tabular-nums leading-none tracking-tight">
-            {formatCurrency(calculos.initialBalance)}
+          <p className="text-xl font-black text-foreground tabular-nums leading-none tracking-tight">
+            {formatCurrency(stats.initialBalance)}
           </p>
         </div>
 
         <Separator className="opacity-20" />
 
-        {/* 2. Previsão de Receitas */}
+        {/* 2. Receita Prevista */}
         <div className="px-1">
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between mb-1.5">
             <div className="flex items-center gap-2">
-              <TrendingUp className="w-3 h-3 text-success" />
-              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Previsão Receita</Label>
+              <Target className="w-3.5 h-3.5 text-primary" />
+              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Receita Prevista</Label>
             </div>
             <button onClick={handleSuggest} className="text-[7px] font-black text-primary hover:opacity-70 flex items-center gap-1 group">
               <RefreshCw className="w-2.5 h-2.5 group-active:rotate-180 transition-transform" /> SUGERIR
@@ -123,86 +158,107 @@ export function BillsSidebarKPIs({ currentDate, totalPendingBills, totalPaidBill
               value={forecastInput}
               onChange={(e) => setForecastInput(e.target.value)}
               onBlur={handleBlur}
-              className="h-9 pl-7 pr-2 text-xs font-black border-2 rounded-xl bg-muted/10 dark:bg-white/[0.03] border-transparent focus:border-primary/40 focus:bg-card transition-all tabular-nums"
+              className="h-10 pl-7 pr-2 text-sm font-black border-2 rounded-xl bg-muted/10 dark:bg-white/[0.03] border-transparent focus:border-primary/40 focus:bg-card transition-all tabular-nums"
             />
+          </div>
+          
+          {/* Receita Atual (Realizada) */}
+          {stats.realizedRevenue > 0 && (
+            <div className="mt-3 p-3 rounded-xl bg-success/5 border border-success/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-3 h-3 text-success" />
+                <span className="text-[9px] font-black uppercase tracking-widest text-success/70">Receita Atual</span>
+              </div>
+              <span className="text-xs font-black text-success tabular-nums">{formatCurrency(stats.realizedRevenue)}</span>
+            </div>
+          )}
+        </div>
+
+        <Separator className="opacity-20" />
+
+        {/* 3. Fluxo de Saídas Detalhado */}
+        <div className="space-y-3 px-1">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-destructive" />
+              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pendentes</Label>
+            </div>
+            <span className="text-xs font-black text-destructive tabular-nums">{formatCurrency(stats.pendingAmount)}</span>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-3.5 h-3.5 text-warning" />
+              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pagos com Cartão</Label>
+            </div>
+            <span className="text-xs font-black text-warning tabular-nums">{formatCurrency(stats.paidViaCreditCard)}</span>
+          </div>
+
+          <div className="flex items-center justify-between opacity-60">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Já Pago (Débito)</Label>
+            </div>
+            <span className="text-xs font-black text-success tabular-nums">{formatCurrency(stats.paidDirectly)}</span>
           </div>
         </div>
 
         <Separator className="opacity-20" />
 
-        {/* 3 & 4. Fluxo de Saídas (Agrupado) */}
-        <div className="space-y-2 px-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3 h-3 text-destructive" />
-              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pendentes</Label>
-            </div>
-            <span className="text-xs font-black text-destructive tabular-nums">{formatCurrency(totalPendingBills)}</span>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-3 h-3 text-success" />
-              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Já Pago</Label>
-            </div>
-            <span className="text-xs font-black text-success tabular-nums">{formatCurrency(totalPaidBills)}</span>
-          </div>
-        </div>
-
-        {/* 5. Projeção Final (Design Unificado) */}
+        {/* 4. Projeção (Design Unificado) */}
         <div className="px-1">
           <div className={cn(
-            "flex items-center justify-between p-4 rounded-2xl border transition-all",
-            calculos.projectedBalance >= 0 
+            "flex items-center justify-between p-4 rounded-2xl border transition-all shadow-sm",
+            stats.projectedFinal >= 0 
               ? "bg-success/[0.05] border-success/20" 
               : "bg-destructive/[0.05] border-destructive/20"
           )}>
             <div className="space-y-0.5">
-              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Projeção Final</Label>
+              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Projeção</Label>
               <p className={cn(
-                "text-base font-black tabular-nums leading-none",
-                calculos.projectedBalance >= 0 ? "text-success" : "text-destructive"
+                "text-lg font-black tabular-nums leading-none",
+                stats.projectedFinal >= 0 ? "text-success" : "text-destructive"
               )}>
-                {formatCurrency(calculos.projectedBalance)}
+                {formatCurrency(stats.projectedFinal)}
               </p>
             </div>
             <div className={cn(
-              "w-8 h-8 rounded-xl flex items-center justify-center shadow-sm",
-              calculos.projectedBalance >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              "w-9 h-9 rounded-xl flex items-center justify-center shadow-sm",
+              stats.projectedFinal >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
             )}>
-              <Calculator className="w-4 h-4" />
+              <Calculator className="w-5 h-5" />
             </div>
           </div>
         </div>
 
-        {/* 6. Saldo Operacional (Saldo do Mês) */}
+        {/* 5. Saldo (Saldo do Mês) */}
         <div className="px-1">
           <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 dark:bg-white/[0.05] border border-border/40">
             <div className="space-y-0.5">
-              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Saldo do Mês</Label>
+              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Saldo</Label>
               <p className={cn(
-                "text-base font-black tabular-nums leading-none",
-                calculos.projecaoOperacional >= 0 ? "text-foreground dark:text-white" : "text-warning-foreground dark:text-warning"
+                "text-lg font-black tabular-nums leading-none",
+                stats.monthBalance >= 0 ? "text-foreground" : "text-destructive"
               )}>
-                {formatCurrency(calculos.projecaoOperacional)}
+                {formatCurrency(stats.monthBalance)}
               </p>
             </div>
             <div className={cn(
-              "w-8 h-8 rounded-xl flex items-center justify-center shadow-sm",
-              calculos.projecaoOperacional >= 0 ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+              "w-9 h-9 rounded-xl flex items-center justify-center shadow-sm",
+              stats.monthBalance >= 0 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
             )}>
-              {calculos.projecaoOperacional >= 0 ? <ArrowUpRight className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+              {stats.monthBalance >= 0 ? <ArrowUpRight className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
             </div>
           </div>
         </div>
 
         {/* Alerta de Atenção */}
-        {calculos.projectedBalance < 0 && (
+        {stats.projectedFinal < 0 && (
           <div className="px-1">
             <div className="p-3 rounded-xl bg-warning/5 dark:bg-warning/10 border border-warning/20 flex gap-2 items-center">
               <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0" />
               <p className="text-[8px] leading-tight text-warning-foreground dark:text-warning font-black uppercase tracking-tighter">
-                Cuidado: Saldo final negativo projetado.
+                Cuidado: Projeção de caixa negativa.
               </p>
             </div>
           </div>

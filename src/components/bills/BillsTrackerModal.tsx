@@ -150,7 +150,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         baseLinks.parcelaId = String(trackerBill.parcelaNumber);
         const loan = emprestimos.find(e => e.id === loanId);
         description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${trackerBill.parcelaNumber}/${loan?.meses || 'N/A'}`;
-        markLoanParcelPaid(loanId, trackerBill.expectedAmount, format(new Date(), 'yyyy-MM-dd'), trackerBill.parcelaNumber);
+        markLoanParcelPaid(loanId, trackerBill.expectedAmount, trackerBill.dueDate, trackerBill.parcelaNumber);
       }
 
       if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
@@ -159,10 +159,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       }
 
       addTransacaoV2({
-        id: transactionId, date: format(new Date(), 'yyyy-MM-dd'), accountId: account.id, flow: 'out', operationType, domain, amount: trackerBill.expectedAmount, categoryId: category.id, description, links: { investmentId: null, transferGroupId: null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null }, conciliated: false, attachments: [], meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Bill ID: ${trackerBill.id}` }
+        id: transactionId, date: trackerBill.dueDate, accountId: account.id, flow: 'out', operationType, domain, amount: trackerBill.expectedAmount, categoryId: category.id, description, links: { investmentId: null, transferGroupId: null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null }, conciliated: false, attachments: [], meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Bill ID: ${trackerBill.id}` }
       });
 
-      updateBill(trackerBill.id, { isPaid: true, transactionId, paymentDate: format(new Date(), 'yyyy-MM-dd') });
+      updateBill(trackerBill.id, { isPaid: true, transactionId, paymentDate: trackerBill.dueDate });
       toast.success(`Conta paga com sucesso!`);
     } else {
       if (trackerBill.transactionId) {
@@ -298,7 +298,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
                 {/* Seletor de Mês e Botões de Ação Unificados */}
                 <div className="flex items-center flex-1 justify-center sm:justify-end gap-3">
-                  <div className="flex items-center bg-muted/40 rounded-full p-1 border border-border/20 shadow-sm">
+                  <div className="flex items-center bg-muted/40 rounded-full p-1 border border-border/40 shadow-sm">
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("prev")}>
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
@@ -342,7 +342,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
             <div className="flex-1 flex overflow-hidden">
               <div className="w-[280px] shrink-0 border-r border-border/40 bg-card p-6 flex flex-col h-full overflow-hidden">
-                <BillsSidebarKPIs currentDate={currentDate} totalPendingBills={totalUnpaidBills} totalPaidBills={totalPaidBills} />
+                <BillsSidebarKPIs currentDate={currentDate} combinedBills={combinedBills} totalPendingBills={totalUnpaidBills} totalPaidBills={totalPaidBills} />
               </div>
               <div className="flex-1 p-3 sm:p-6 overflow-hidden bg-muted/5 dark:bg-card flex flex-col">
                 <div className="flex-1 overflow-hidden bg-card rounded-[2rem] border border-border/40 shadow-sm">

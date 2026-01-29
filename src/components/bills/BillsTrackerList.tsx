@@ -71,7 +71,7 @@ export function BillsTrackerList({
   onTogglePaid,
   currentDate,
 }: BillsTrackerListProps) {
-  const { categoriasV2, contasMovimento, setBillsTracker } = useFinance();
+  const { categoriasV2, contasMovimento, setBillsTracker, setTransacoesV2 } = useFinance();
   const [newBillData, setNewBillData] = useState({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
     try { const saved = localStorage.getItem('bills_column_widths'); return saved ? JSON.parse(saved) : INITIAL_WIDTHS; } catch { return INITIAL_WIDTHS; }
@@ -103,7 +103,6 @@ export function BillsTrackerList({
   };
   
   const handleExcludeBill = (bill: BillTracker) => { if (bill.isPaid) return; onUpdateBill(bill.id, { isExcluded: true }); };
-  const handleDeletePurchaseGroup = (ref: string) => { setBillsTracker(prev => prev.filter(b => b.sourceRef !== ref || b.isPaid)); };
   const handleUpdateExpectedAmount = (b: BillTracker, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
   const handleUpdateSuggestedAccount = (b: BillTracker, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
   const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
@@ -113,7 +112,16 @@ export function BillsTrackerList({
     onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
   };
   const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
-  const handleUpdatePaymentDate = (b: BillTracker, n: string) => { if (b.isPaid) onUpdateBill(b.id, { paymentDate: n }); };
+  
+  const handleUpdatePaymentDate = (b: BillTracker, n: string) => { 
+    if (b.isPaid) {
+      onUpdateBill(b.id, { paymentDate: n });
+      // Sincroniza com a transação no extrato se existir
+      if (b.transactionId) {
+        setTransacoesV2(prev => prev.map(t => t.id === b.transactionId ? { ...t, date: n } : t));
+      }
+    } 
+  };
 
   const sortedBills = useMemo(() => {
     const tracker = bills.filter(isBillTracker).filter(b => !b.isExcluded);
@@ -123,11 +131,6 @@ export function BillsTrackerList({
     return [...pending, ...paid];
   }, [bills]);
   
-  const totalPending = useMemo(() => {
-    const creditIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
-    return sortedBills.reduce((acc, b) => (!b.isPaid || (b.suggestedAccountId && creditIds.has(b.suggestedAccountId))) ? acc + b.expectedAmount : acc, 0);
-  }, [sortedBills, contasMovimento]);
-
   const formatDate = (dateStr: string) => { const date = parseDateLocal(dateStr); return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }); };
   const accountOptions = useMemo(() => contasMovimento.filter(c => c.accountType === 'corrente' || c.accountType === 'cartao_credito').map(a => ({ value: a.id, label: a.name })), [contasMovimento]);
   const expenseCategories = useMemo(() => categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'), [categoriasV2]);
@@ -153,65 +156,68 @@ export function BillsTrackerList({
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
-        <div className="flex-1 overflow-y-auto overflow-x-auto scrollbar-material border border-border/40 rounded-[1.5rem] bg-card/50">
-          <Table style={{ minWidth: `${totalWidth}px` }}>
-            <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10">
-              <TableRow className="border-border hover:bg-transparent h-12">
-                {columnHeaders.map((h) => (
-                  <TableHead key={h.key} className={cn("text-muted-foreground p-3 text-[10px] font-black uppercase tracking-widest relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
-                    {h.label}
-                    {h.key !== 'actions' && <div className="absolute right-0 top-0 h-full w-2 cursor-col-resize" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedBills.map((bill) => {
-                const isExt = isExternalPaidBill(bill);
-                const cfg = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
-                const Icon = cfg.icon;
-                const isOver = parseDateLocal(bill.dueDate) < currentDate && !bill.isPaid;
-                const isPaid = bill.isPaid;
-                const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
-                
-                return (
-                  <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-14 border-b border-border/20", isExt && "opacity-60", isOver && "bg-destructive/[0.03]", isPaid && !isExt && "bg-success/[0.03]")}>
-                    <TableCell className="text-center p-2" style={{ width: columnWidths.pay }}>
-                      {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}
-                    </TableCell>
-                    <TableCell className={cn("text-xs font-bold p-3", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
-                        {isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}
-                    </TableCell>
-                    <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>
-                        {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[250px] truncate p-3 font-black text-foreground" style={{ width: columnWidths.description }}>{bill.description}</TableCell>
-                    <TableCell className="p-3" style={{ width: columnWidths.account }}>
-                      {isExt || isPaid ? <span className="text-xs font-bold opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : 
-                      <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent></Select>}
-                    </TableCell>
-                    <TableCell className="p-2 text-center" style={{ width: columnWidths.type }}>
-                      <Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)} title={cfg.label}><Icon className="w-4 h-4 mr-1.5" /> {cfg.label.substring(0, 4)}</Badge>
-                    </TableCell>
-                    <TableCell className="p-3" style={{ width: columnWidths.category }}>
-                        {isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : 
-                        <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}
-                    </TableCell>
-                    <TableCell className={cn("text-right font-black text-sm p-3 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
-                      {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? 
-                      <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-9 text-xs text-right font-black bg-muted/20" /> : 
-                      formatCurrency(bill.expectedAmount)}
-                    </TableCell>
-                    <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>
-                      {!isExt && !isPaid && (
-                        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        {/* Container de scroll padronizado conforme solicitado */}
+        <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
+          <div className="min-w-max p-4 pt-2">
+            <Table style={{ minWidth: `${totalWidth}px` }}>
+              <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10">
+                <TableRow className="border-border hover:bg-transparent h-12">
+                  {columnHeaders.map((h) => (
+                    <TableHead key={h.key} className={cn("text-muted-foreground p-3 text-[10px] font-black uppercase tracking-widest relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
+                      {h.label}
+                      {h.key !== 'actions' && <div className="absolute right-0 top-0 h-full w-2 cursor-col-resize" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedBills.map((bill) => {
+                  const isExt = isExternalPaidBill(bill);
+                  const cfg = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
+                  const Icon = cfg.icon;
+                  const isOver = parseDateLocal(bill.dueDate) < currentDate && !bill.isPaid;
+                  const isPaid = bill.isPaid;
+                  const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
+                  
+                  return (
+                    <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-14 border-b border-border/20", isExt && "opacity-60", isOver && "bg-destructive/[0.03]", isPaid && !isExt && "bg-success/[0.03]")}>
+                      <TableCell className="text-center p-2" style={{ width: columnWidths.pay }}>
+                        {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}
+                      </TableCell>
+                      <TableCell className={cn("text-xs font-bold p-3", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
+                          {isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}
+                      </TableCell>
+                      <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>
+                          {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[250px] truncate p-3 font-black text-foreground" style={{ width: columnWidths.description }}>{bill.description}</TableCell>
+                      <TableCell className="p-3" style={{ width: columnWidths.account }}>
+                        {isExt || isPaid ? <span className="text-xs font-bold opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : 
+                        <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent></Select>}
+                      </TableCell>
+                      <TableCell className="p-2 text-center" style={{ width: columnWidths.type }}>
+                        <Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)} title={cfg.label}><Icon className="w-4 h-4 mr-1.5" /> {cfg.label.substring(0, 4)}</Badge>
+                      </TableCell>
+                      <TableCell className="p-3" style={{ width: columnWidths.category }}>
+                          {isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : 
+                          <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}
+                      </TableCell>
+                      <TableCell className={cn("text-right font-black text-sm p-3 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
+                        {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? 
+                        <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-9 text-xs text-right font-black bg-muted/20" /> : 
+                        formatCurrency(bill.expectedAmount)}
+                      </TableCell>
+                      <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>
+                        {!isExt && !isPaid && (
+                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     </div>
