@@ -116,7 +116,6 @@ export function BillsTrackerList({
   const handleUpdatePaymentDate = (b: BillTracker, n: string) => { 
     if (b.isPaid) {
       onUpdateBill(b.id, { paymentDate: n });
-      // Sincroniza com a transação no extrato se existir
       if (b.transactionId) {
         setTransacoesV2(prev => prev.map(t => t.id === b.transactionId ? { ...t, date: n } : t));
       }
@@ -156,7 +155,6 @@ export function BillsTrackerList({
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
-        {/* Container de scroll padronizado conforme solicitado */}
         <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
           <div className="min-w-max p-4 pt-2">
             <Table style={{ minWidth: `${totalWidth}px` }}>

@@ -173,7 +173,6 @@ export function AccountStatementDialog({
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-foreground">Extrato Detalhado</h3>
                 </div>
               </div>
-              {/* O container abaixo gerencia o scroll horizontal de forma única */}
               <div className="overflow-x-auto scrollbar-material">
                 <div className="min-w-[900px] p-6 pt-2">
                   <TransactionTable
