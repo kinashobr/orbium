@@ -116,11 +116,11 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "max-w-[34rem] max-h-[90vh] rounded-[2.5rem]"
+          !isMobile && "max-w-[34rem] max-h-[85vh] rounded-[2.5rem]" // Reduzido max-h para 85vh
         )}
       >
         <DialogHeader className={cn(
-          "px-6 sm:px-8 pt-6 sm:pt-10 pb-6 sm:pb-8 shrink-0 relative transition-colors duration-500", 
+          "px-6 sm:px-8 pt-4 sm:pt-6 pb-4 sm:pb-4 shrink-0 relative transition-colors duration-500", // Reduzido paddings
           op?.bgColor || "bg-muted/30",
           isMobile && "pt-4"
         )} style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}>
@@ -130,32 +130,39 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 <ArrowLeft className="w-6 h-6" />
               </Button>
             )}
-            <div className={cn("w-14 h-14 sm:w-16 sm:h-16 rounded-[1.5rem] bg-card flex items-center justify-center shadow-xl transition-transform duration-500", op?.color)}>
-              {op ? <op.icon size={28} /> : <DollarSign size={28} />}
+            <div className={cn("w-12 h-12 sm:w-14 sm:h-14 rounded-[1.5rem] bg-card flex items-center justify-center shadow-xl transition-transform duration-500", op?.color)}> {/* Reduzido ícone para w-12 h-12 em desktop */}
+              {op ? <op.icon size={24} /> : <DollarSign size={24} />} {/* Reduzido tamanho do ícone */}
             </div>
             <div>
               <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">{isEditing ? "Editar Registro" : "Novo Lançamento"}</DialogTitle>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 mt-1"><Sparkles className="w-3.5 h-3.5 text-primary" /> Inteligência Orbium</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 mt-0.5"><Sparkles className="w-3 h-3 text-primary" /> Inteligência Orbium</p> {/* Reduzido tamanho do texto de auxílio */}
             </div>
           </div>
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6 sm:px-8">
-          <div className="py-6 sm:py-8 space-y-8 sm:space-y-10 pb-32 sm:pb-8">
-            <div className="text-center space-y-3">
+          <div className="py-4 sm:py-5 space-y-5 sm:space-y-6 pb-32 sm:pb-6"> {/* Reduzido paddings e espaçamento vertical */}
+            <div className="text-center space-y-1"> {/* Reduzido espaçamento vertical */}
               <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Valor do Lançamento</Label>
               <div className="relative max-w-[280px] mx-auto group">
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-2xl sm:text-3xl font-black text-muted-foreground/20">R$</span>
-                <Input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d,]/g, ''))} className="h-16 sm:h-20 text-4xl sm:text-5xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" placeholder="0,00" />
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl sm:text-2xl font-black text-muted-foreground/20">R$</span> {/* Reduzido tamanho do R$ */}
+                <Input 
+                  type="text" 
+                  inputMode="decimal" 
+                  value={amount} 
+                  onChange={(e) => setAmount(e.target.value.replace(/[^\d,]/g, ''))} 
+                  className="h-14 sm:h-16 text-3xl sm:text-4xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" 
+                  placeholder="0,00" 
+                /> {/* Reduzido altura e tamanho da fonte */}
                 <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-               <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-4"> {/* Reduzido gap */}
+               <div className="space-y-2"> {/* Reduzido space-y */}
                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Operação</Label>
                  <Select value={operationType || ''} onValueChange={(v) => setOperationType(v as OperationType)}>
-                   <SelectTrigger className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
+                   <SelectTrigger className="h-10 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger> {/* Reduzido altura */}
                    <SelectContent className="rounded-2xl shadow-2xl border-none p-2">
                      {OPERATION_OPTIONS.map(o => (
                        <SelectItem key={o.value} value={o.value} className="rounded-xl font-bold py-3"><div className="flex items-center gap-3"><div className={cn("p-1.5 rounded-lg", o.bgColor)}>{React.createElement(o.icon, { size: 16, className: o.color })}</div>{o.label}</div></SelectItem>
@@ -163,16 +170,16 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                    </SelectContent>
                  </Select>
                </div>
-               <div className="space-y-3">
+               <div className="space-y-2"> {/* Reduzido space-y */}
                   <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Data</Label>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner" />
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 rounded-2xl border-none bg-muted/20 font-bold shadow-inner" /> {/* Reduzido altura */}
                </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2"> {/* Reduzido space-y */}
                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Conta de Origem</Label>
                <Select value={accountId} onValueChange={setAccountId}>
-                 <SelectTrigger className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
+                 <SelectTrigger className="h-10 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger> {/* Reduzido altura */}
                  <SelectContent className="rounded-2xl border-none shadow-2xl">
                     {accounts.map(a => <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>)}
                  </SelectContent>
@@ -180,22 +187,48 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             </div>
 
             {operationType === 'transferencia' && (
-              <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300"> {/* Reduzido space-y */}
                 <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary px-1">Conta de Destino</Label>
                 <Select value={destinationAccountId || ''} onValueChange={setDestinationAccountId}>
-                  <SelectTrigger className="h-12 rounded-2xl border-2 border-primary/20 bg-primary/5 font-bold"><SelectValue placeholder="Selecione o destino..." /></SelectTrigger>
+                  <SelectTrigger className="h-10 rounded-2xl border-2 border-primary/20 bg-primary/5 font-bold"><SelectValue placeholder="Selecione o destino..." /></SelectTrigger> {/* Reduzido altura */}
                   <SelectContent className="rounded-2xl border-none shadow-2xl">
                      {accounts.filter(a => a.id !== accountId).map(a => <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             )}
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Categoria</Label>
+                <Select value={categoryId || ''} onValueChange={setCategoryId}>
+                  <SelectTrigger className="h-10 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Selecione a categoria..." /></SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                    {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.icon} {c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Vínculo (Opcional)</Label>
+                <Select value={''} onValueChange={() => {}}>
+                  <SelectTrigger className="h-10 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Empréstimo, Investimento..." /></SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl">
+                     {/* Placeholder para vínculos */}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2"> {/* Reduzido space-y */}
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Descrição</Label>
               <div className="relative">
-                <FileText className="absolute left-4 top-4 w-4 h-4 text-muted-foreground" />
-                <textarea value={description} onChange={(e) => setDescription(e.target.value)} className="w-full h-24 p-4 pl-12 rounded-[1.5rem] border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm" placeholder="Opcional..." />
+                <FileText className="absolute left-4 top-3 w-4 h-4 text-muted-foreground" /> {/* Ajustado posição do ícone */}
+                <textarea 
+                  value={description} 
+                  onChange={(e) => setDescription(e.target.value)} 
+                  className="w-full h-20 p-3 pl-12 rounded-[1.5rem] border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm" 
+                  placeholder="Opcional..." 
+                /> {/* Reduzido altura do textarea */}
               </div>
             </div>
           </div>
@@ -203,15 +236,15 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
 
         <DialogFooter 
           className={cn(
-            "p-6 sm:p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-4",
+            "p-4 sm:p-6 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-3", // Reduzido padding
             isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card"
           )}
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
           {!isMobile && (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button> {/* Reduzido altura */}
           )}
-          <Button onClick={handleSubmit} className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}</Button>
+          <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2"><Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}</Button> {/* Reduzido altura */}
         </DialogFooter>
       </DialogContent>
     </Dialog>
