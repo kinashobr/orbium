@@ -8,10 +8,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Check, Clock, AlertTriangle, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useFinance, AmortizationItem } from "@/contexts/FinanceContext";
 import { Emprestimo, TransacaoCompleta } from "@/types/finance";
-import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
+import { cn, getDueDate } from "@/lib/utils";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -102,45 +102,47 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
         })}
       </div>
 
-      {/* Desktop Table View */}
+      {/* Desktop Table View with Horizontal Scroll */}
       <div className="hidden md:block bg-card rounded-[2rem] border border-border/40 overflow-hidden">
-        <div className="max-h-[550px] overflow-y-auto scrollbar-material">
-          <Table>
-            <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
-              <TableRow className="border-none hover:bg-transparent h-12">
-                <TableHead className="w-16 text-center text-[10px] font-black uppercase tracking-widest">P.</TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest">Vencimento</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Valor Total</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Principal</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Juros</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Saldo Devedor</TableHead>
-                <TableHead className="text-center text-[10px] font-black uppercase tracking-widest">Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {parcelas.map((parcela) => {
-                const config = statusConfig[parcela.status];
-                const StatusIcon = config.icon;
-                const isPaid = parcela.status === 'pago';
+        <div className="max-h-[550px] overflow-x-auto scrollbar-material">
+          <div className="min-w-[900px]">
+            <Table>
+              <TableHeader className="bg-muted/30 sticky top-0 z-10 backdrop-blur-md">
+                <TableRow className="border-none hover:bg-transparent h-12">
+                  <TableHead className="w-16 text-center text-[10px] font-black uppercase tracking-widest">P.</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest">Vencimento</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Valor Total</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Principal</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Juros</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase tracking-widest">Saldo Devedor</TableHead>
+                  <TableHead className="text-center text-[10px] font-black uppercase tracking-widest">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {parcelas.map((parcela) => {
+                  const config = statusConfig[parcela.status];
+                  const StatusIcon = config.icon;
+                  const isPaid = parcela.status === 'pago';
 
-                return (
-                  <TableRow key={parcela.parcela} className={cn("border-b border-border/40 transition-colors h-14 group", isPaid ? "bg-success/[0.02] opacity-70" : "hover:bg-muted/20")}>
-                    <TableCell className="text-center font-bold text-muted-foreground text-xs">{parcela.parcela}</TableCell>
-                    <TableCell className="font-bold text-sm">{format(parcela.dataVencimento, 'dd/MM/yyyy')}</TableCell>
-                    <TableCell className="text-right font-black text-sm">{formatCurrency(parcela.valorTotal)}</TableCell>
-                    <TableCell className="text-right text-success/80 font-bold text-xs">{formatCurrency(parcela.amortizacao)}</TableCell>
-                    <TableCell className="text-right text-destructive/80 font-bold text-xs">{formatCurrency(parcela.juros)}</TableCell>
-                    <TableCell className="text-right font-black text-muted-foreground text-xs tabular-nums">{formatCurrency(parcela.saldoDevedor)}</TableCell>
-                    <TableCell className="text-center">
-                      <Badge className={cn("gap-1 text-[9px] font-black px-3 py-1 rounded-xl", config.color)}>
-                        <StatusIcon className="w-3 h-3" /> {config.label}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                  return (
+                    <TableRow key={parcela.parcela} className={cn("border-b border-border/40 transition-colors h-14 group", isPaid ? "bg-success/[0.02] opacity-70" : "hover:bg-muted/20")}>
+                      <TableCell className="text-center font-bold text-muted-foreground text-xs">{parcela.parcela}</TableCell>
+                      <TableCell className="font-bold text-sm">{format(parcela.dataVencimento, 'dd/MM/yyyy')}</TableCell>
+                      <TableCell className="text-right font-black text-sm">{formatCurrency(parcela.valorTotal)}</TableCell>
+                      <TableCell className="text-right text-success/80 font-bold text-xs">{formatCurrency(parcela.amortizacao)}</TableCell>
+                      <TableCell className="text-right text-destructive/80 font-bold text-xs">{formatCurrency(parcela.juros)}</TableCell>
+                      <TableCell className="text-right font-black text-muted-foreground text-xs tabular-nums">{formatCurrency(parcela.saldoDevedor)}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={cn("gap-1 text-[9px] font-black px-3 py-1 rounded-xl", config.color)}>
+                          <StatusIcon className="w-3 h-3" /> {config.label}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     </div>

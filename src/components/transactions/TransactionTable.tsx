@@ -5,7 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, Wallet, CreditCard, Car, Banknote, DollarSign,
-  MoreVertical, Pencil, Trash2, CheckCircle2, XCircle, Paperclip, Eye, Info
+  MoreVertical, Pencil, Trash2, CheckCircle2, XCircle, Paperclip, Eye, Info, Receipt
 } from "lucide-react";
 import { TransacaoCompleta, OperationType, formatCurrency, ContaCorrente, Categoria } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -33,7 +33,6 @@ const OPERATION_ICONS: Record<OperationType, typeof TrendingUp> = {
   initial_balance: Info,
 };
 
-// Cores ajustadas para melhor contraste em dark/light
 const OPERATION_COLORS: Record<OperationType, string> = {
   receita: 'bg-success/15 text-success border-success/20',
   despesa: 'bg-destructive/15 text-destructive border-destructive/20',
@@ -151,90 +150,90 @@ export function TransactionTable({
         })}
       </div>
 
-      {/* Desktop: Table Layout */}
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent h-10">
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[100px]">Data</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Descrição</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[130px]">Conta</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[150px]">Categoria</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right w-[140px]">Valor</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[120px]">Tipo</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[80px]">Vínculos</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[60px]">Pg</TableHead>
-              <TableHead className="w-12"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.map((transaction) => {
-              const Icon = OPERATION_ICONS[transaction.operationType];
-              const isIncome = transaction.flow === 'in' || transaction.flow === 'transfer_in';
+      {/* Desktop: Scrollable Table Layout */}
+      <div className="hidden md:block overflow-x-auto scrollbar-material">
+        <div className="min-w-[1000px]">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-border hover:bg-transparent h-10">
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[100px]">Data</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Descrição</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[130px]">Conta</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[150px]">Categoria</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right w-[140px]">Valor</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[120px]">Tipo</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[80px]">Vínculos</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[60px]">Pg</TableHead>
+                <TableHead className="w-12"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {transactions.map((transaction) => {
+                const Icon = OPERATION_ICONS[transaction.operationType];
+                const isIncome = transaction.flow === 'in' || transaction.flow === 'transfer_in';
 
-              return (
-                <TableRow key={transaction.id} className="border-border hover:bg-muted/30 transition-colors h-14 group">
-                  <TableCell className="text-xs font-bold text-muted-foreground">{formatDate(transaction.date)}</TableCell>
-                  <TableCell className="max-w-[200px] truncate font-bold text-xs">{transaction.description}</TableCell>
-                  <TableCell className="text-[11px] font-bold text-muted-foreground truncate">{getAccountName(transaction.accountId)}</TableCell>
-                  <TableCell className="text-[11px] font-bold text-foreground">{getCategoryLabel(transaction.categoryId)}</TableCell>
-                  <TableCell className={cn("font-black text-xs text-right tabular-nums", isIncome ? "text-success" : "text-destructive")}>
-                    {isIncome ? '+' : '-'} {formatCurrency(transaction.amount)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge variant="outline" className={cn("gap-1 text-[9px] font-black uppercase border-none px-2", OPERATION_COLORS[transaction.operationType])}>
-                      <Icon className="w-3 h-3" /> {OPERATION_LABELS[transaction.operationType]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-1">
-                      {transaction.links.investmentId && <Badge variant="outline" className="p-0.5 border-none bg-muted"><PiggyBank className="w-3 h-3 text-primary" /></Badge>}
-                      {transaction.links.loanId && <Badge variant="outline" className="p-0.5 border-none bg-muted"><CreditCard className="w-3 h-3 text-orange-500" /></Badge>}
-                      {transaction.links.transferGroupId && <Badge variant="outline" className="p-0.5 border-none bg-muted"><ArrowLeftRight className="w-3 h-3 text-blue-500" /></Badge>}
-                      {transaction.attachments.length > 0 && <Badge variant="outline" className="p-0.5 border-none bg-muted"><Paperclip className="w-3 h-3 text-muted-foreground" /></Badge>}
-                      {!hasLinks(transaction) && transaction.attachments.length === 0 && <span className="opacity-20">—</span>}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <button 
-                      onClick={() => onToggleConciliated(transaction.id, !transaction.conciliated)}
-                      className={cn(
-                        "inline-flex items-center justify-center w-6 h-6 rounded-full transition-colors",
-                        transaction.conciliated ? "text-success bg-success/10" : "text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted"
-                      )}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-xl shadow-xl">
-                        <DropdownMenuItem onClick={() => onEdit(transaction)} className="font-bold text-xs"><Pencil className="w-3.5 h-3.5 mr-2" /> Editar</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onDelete(transaction.id)} className="text-destructive font-bold text-xs"><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                return (
+                  <TableRow key={transaction.id} className="border-border hover:bg-muted/30 transition-colors h-14 group">
+                    <TableCell className="text-xs font-bold text-muted-foreground">{formatDate(transaction.date)}</TableCell>
+                    <TableCell className="max-w-[200px] truncate font-bold text-xs">{transaction.description}</TableCell>
+                    <TableCell className="text-[11px] font-bold text-muted-foreground truncate">{getAccountName(transaction.accountId)}</TableCell>
+                    <TableCell className="text-[11px] font-bold text-foreground">{getCategoryLabel(transaction.categoryId)}</TableCell>
+                    <TableCell className={cn("font-black text-xs text-right tabular-nums", isIncome ? "text-success" : "text-destructive")}>
+                      {isIncome ? '+' : '-'} {formatCurrency(transaction.amount)}
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <Badge variant="outline" className={cn("gap-1 text-[9px] font-black uppercase border-none px-2", OPERATION_COLORS[transaction.operationType])}>
+                        <Icon className="w-3 h-3" /> {OPERATION_LABELS[transaction.operationType]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        {transaction.links.investmentId && <Badge variant="outline" className="p-0.5 border-none bg-muted"><PiggyBank className="w-3 h-3 text-primary" /></Badge>}
+                        {transaction.links.loanId && <Badge variant="outline" className="p-0.5 border-none bg-muted"><CreditCard className="w-3 h-3 text-orange-500" /></Badge>}
+                        {transaction.links.transferGroupId && <Badge variant="outline" className="p-0.5 border-none bg-muted"><ArrowLeftRight className="w-3 h-3 text-blue-500" /></Badge>}
+                        {transaction.attachments.length > 0 && <Badge variant="outline" className="p-0.5 border-none bg-muted"><Paperclip className="w-3 h-3 text-muted-foreground" /></Badge>}
+                        {!hasLinks(transaction) && transaction.attachments.length === 0 && <span className="opacity-20">—</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <button 
+                        onClick={() => onToggleConciliated(transaction.id, !transaction.conciliated)}
+                        className={cn(
+                          "inline-flex items-center justify-center w-6 h-6 rounded-full transition-colors",
+                          transaction.conciliated ? "text-success bg-success/10" : "text-muted-foreground/30 hover:text-muted-foreground hover:bg-muted"
+                        )}
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl shadow-xl">
+                          <DropdownMenuItem onClick={() => onEdit(transaction)} className="font-bold text-xs"><Pencil className="w-3.5 h-3.5 mr-2" /> Editar</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onDelete(transaction.id)} className="text-destructive font-bold text-xs"><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {transactions.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-20 text-muted-foreground opacity-50">
+                    <Receipt className="w-10 h-10 mx-auto mb-3" />
+                    <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum lançamento encontrado</p>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-            {transactions.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={9} className="text-center py-20 text-muted-foreground opacity-50">
-                  <Receipt className="w-10 h-10 mx-auto mb-3" />
-                  <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum lançamento encontrado</p>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </div>
     </TooltipProvider>
   );
 }
-
-import { Receipt } from "lucide-react";

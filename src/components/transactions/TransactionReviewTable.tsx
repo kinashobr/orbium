@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, CheckCircle2, Sparkles, AlertCircle, Info, ChevronRight, ArrowRight, Tag, Wallet, CreditCard, PieChart } from "lucide-react";
+import { Calendar, CheckCircle2, Sparkles, ChevronRight, TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, DollarSign, Car, Coins, Wallet, CreditCard } from "lucide-react";
 import { ContaCorrente, Categoria, ImportedTransaction, OperationType } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { EditableCell } from "../EditableCell";
@@ -51,8 +51,6 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; color: string; b
   { value: 'veiculo', label: 'Veículo', color: 'text-blue-500', bgColor: 'bg-blue-500/10', icon: Car },
   { value: 'rendimento', label: 'Rendimento', color: 'text-teal-500', bgColor: 'bg-teal-500/10', icon: Coins },
 ];
-
-import { TrendingUp, TrendingDown, ArrowLeftRight, PiggyBank, DollarSign, Car, Coins } from "lucide-react";
 
 const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
@@ -211,97 +209,99 @@ export function TransactionReviewTable({
   }
 
   return (
-    <div className="w-full min-w-[1000px]">
-      <Table>
-        <TableHeader className="bg-card sticky top-0 z-30">
-          <TableRow className="hover:bg-transparent border-b border-border/40 h-12">
-            <TableHead className="w-8"></TableHead>
-            <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] pl-2 w-[140px]">Data & Valor</TableHead>
-            <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[200px]">Descrição Original</TableHead>
-            <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[180px]">Operação</TableHead>
-            <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[180px]">Categoria</TableHead>
-            <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[220px]">Vínculo</TableHead>
-            <TableHead className="text-[10px] font-black uppercase tracking-[0.2em]">Descrição Final</TableHead>
-            <TableHead className="w-12 text-center pr-6"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {transactions.map((tx) => {
-            const isIncome = ['receita', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType || '');
-            const ready = isRowReady(tx);
-            const opConfig = OPERATION_OPTIONS.find(o => o.value === tx.operationType);
+    <div className="overflow-x-auto scrollbar-material">
+      <div className="min-w-[1000px]">
+        <Table>
+          <TableHeader className="bg-card sticky top-0 z-30">
+            <TableRow className="hover:bg-transparent border-b border-border/40 h-12">
+              <TableHead className="w-8"></TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] pl-2 w-[140px]">Data & Valor</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[200px]">Descrição Original</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[180px]">Operação</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[180px]">Categoria</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[220px]">Vínculo</TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em]">Descrição Final</TableHead>
+              <TableHead className="w-12 text-center pr-6"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((tx) => {
+              const isIncome = ['receita', 'rendimento', 'liberacao_emprestimo'].includes(tx.operationType || '');
+              const ready = isRowReady(tx);
+              const opConfig = OPERATION_OPTIONS.find(o => o.value === tx.operationType);
 
-            return (
-              <TableRow 
-                key={tx.id} 
-                className={cn(
-                  "border-b border-border/30 transition-all hover:bg-muted/20 h-16 group",
-                  tx.isPotentialDuplicate ? "bg-success/[0.08]" : 
-                  ready ? "bg-card" : "bg-warning/[0.03]"
-                )}
-              >
-                <TableCell className="pl-4">
-                  {ready ? (
-                    <div className="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center text-success animate-in zoom-in duration-300">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                    </div>
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground/30">
-                      <ChevronRight className="w-3 h-3" />
-                    </div>
+              return (
+                <TableRow 
+                  key={tx.id} 
+                  className={cn(
+                    "border-b border-border/30 transition-all hover:bg-muted/20 h-16 group",
+                    tx.isPotentialDuplicate ? "bg-success/[0.08]" : 
+                    ready ? "bg-card" : "bg-warning/[0.03]"
                   )}
-                </TableCell>
+                >
+                  <TableCell className="pl-4">
+                    {ready ? (
+                      <div className="w-5 h-5 rounded-full bg-success/20 flex items-center justify-center text-success animate-in zoom-in duration-300">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      </div>
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground/30">
+                        <ChevronRight className="w-3 h-3" />
+                      </div>
+                    )}
+                  </TableCell>
 
-                <TableCell className="py-2 pl-2">
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-black text-muted-foreground uppercase opacity-60 tracking-widest">{parseDateLocal(tx.date).toLocaleDateString("pt-BR")}</span>
-                    <p className={cn("text-sm font-black tabular-nums tracking-tight", isIncome ? "text-success" : "text-destructive")}>
-                      {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
-                    </p>
-                  </div>
-                </TableCell>
+                  <TableCell className="py-2 pl-2">
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase opacity-60 tracking-widest">{parseDateLocal(tx.date).toLocaleDateString("pt-BR")}</span>
+                      <p className={cn("text-sm font-black tabular-nums tracking-tight", isIncome ? "text-success" : "text-destructive")}>
+                        {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
+                      </p>
+                    </div>
+                  </TableCell>
 
-                <TableCell className="max-w-[200px] py-2">
-                  <div className="space-y-1">
-                    <p className="text-[11px] font-bold text-foreground line-clamp-2 leading-tight" title={tx.originalDescription}>{tx.originalDescription}</p>
-                    {tx.isPotentialDuplicate && <Badge className="bg-success text-white border-none text-[8px] font-black px-1 py-0 h-4 uppercase">Duplicata</Badge>}
-                  </div>
-                </TableCell>
+                  <TableCell className="max-w-[200px] py-2">
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-bold text-foreground line-clamp-2 leading-tight" title={tx.originalDescription}>{tx.originalDescription}</p>
+                      {tx.isPotentialDuplicate && <Badge className="bg-success text-white border-none text-[8px] font-black px-1 py-0 h-4 uppercase">Duplicata</Badge>}
+                    </div>
+                  </TableCell>
 
-                <TableCell className="py-2">
-                  <Select value={tx.operationType || ''} onValueChange={(v) => onUpdateTransaction(tx.id, { operationType: v as OperationType, categoryId: null })}>
-                    <SelectTrigger className={cn("h-8 rounded-xl border-none font-black text-[9px] uppercase tracking-widest", opConfig?.bgColor || "bg-muted/40", opConfig?.color || "text-muted-foreground")}>
-                      <SelectValue placeholder="TIPO" />
-                    </SelectTrigger>
-                    <SelectContent>{OPERATION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </TableCell>
+                  <TableCell className="py-2">
+                    <Select value={tx.operationType || ''} onValueChange={(v) => onUpdateTransaction(tx.id, { operationType: v as OperationType, categoryId: null })}>
+                      <SelectTrigger className={cn("h-8 rounded-xl border-none font-black text-[9px] uppercase tracking-widest", opConfig?.bgColor || "bg-muted/40", opConfig?.color || "text-muted-foreground")}>
+                        <SelectValue placeholder="TIPO" />
+                      </SelectTrigger>
+                      <SelectContent>{OPERATION_OPTIONS.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </TableCell>
 
-                <TableCell className="py-2">
-                  <Select value={tx.categoryId || ''} onValueChange={(v) => onUpdateTransaction(tx.id, { categoryId: v })} disabled={['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo'].includes(tx.operationType || '')}>
-                    <SelectTrigger className="h-8 rounded-xl border-none bg-muted/40 font-bold text-[10px] uppercase tracking-widest text-foreground"><SelectValue placeholder="SELECIONE" /></SelectTrigger>
-                    <SelectContent className="max-h-60">{getCategoryOptions(tx.operationType).map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-bold">{c.icon} {c.label}</SelectItem>)}</SelectContent>
-                  </Select>
-                </TableCell>
+                  <TableCell className="py-2">
+                    <Select value={tx.categoryId || ''} onValueChange={(v) => onUpdateTransaction(tx.id, { categoryId: v })} disabled={['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo'].includes(tx.operationType || '')}>
+                      <SelectTrigger className="h-8 rounded-xl border-none bg-muted/40 font-bold text-[10px] uppercase tracking-widest text-foreground"><SelectValue placeholder="SELECIONE" /></SelectTrigger>
+                      <SelectContent className="max-h-60">{getCategoryOptions(tx.operationType).map(c => <SelectItem key={c.id} value={c.id} className="text-xs font-bold">{c.icon} {c.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </TableCell>
 
-                <TableCell className="py-2">
-                  {renderVincularSelector(tx)}
-                </TableCell>
+                  <TableCell className="py-2">
+                    {renderVincularSelector(tx)}
+                  </TableCell>
 
-                <TableCell className="py-2">
-                  <EditableCell value={tx.description} onSave={(v) => onUpdateTransaction(tx.id, { description: String(v) })} className="text-[11px] font-black h-8 bg-muted/20 rounded-xl px-3 w-full border-none transition-colors group-hover:bg-muted/40" />
-                </TableCell>
+                  <TableCell className="py-2">
+                    <EditableCell value={tx.description} onSave={(v) => onUpdateTransaction(tx.id, { description: String(v) })} className="text-[11px] font-black h-8 bg-muted/20 rounded-xl px-3 w-full border-none transition-colors group-hover:bg-muted/40" />
+                  </TableCell>
 
-                <TableCell className="pr-6 text-right py-2">
-                   <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary" onClick={() => onCreateRule(tx)} disabled={!ready} title="Criar Regra">
-                      <Sparkles className="w-4 h-4" />
-                   </Button>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+                  <TableCell className="pr-6 text-right py-2">
+                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl text-muted-foreground hover:bg-primary/10 hover:text-primary" onClick={() => onCreateRule(tx)} disabled={!ready} title="Criar Regra">
+                        <Sparkles className="w-4 h-4" />
+                     </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }
