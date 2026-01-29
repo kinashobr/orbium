@@ -95,9 +95,9 @@ const ReceitasDespesas = () => {
     if (window.confirm("Excluir transação?")) { 
       const t = transactions.find(x => x.id === id); 
       if (t?.links?.loanId) unmarkLoanParcelPaid(parseInt(t.links.loanId.replace('loan_', ''))); 
-      if (t?.links?.vehicleTransactionId && t.flow === 'out') { 
+      if (t?.links?.vehicleTransactionId) { 
         const [s, p] = t.links.vehicleTransactionId.split('_'); 
-        unmarkSeguroParcelPaid(parseInt(s), parseInt(p)); 
+        if (!isNaN(parseInt(s))) unmarkSeguroParcelPaid(parseInt(s), parseInt(p)); 
       } 
       if (t?.meta.source === 'import') uncontabilizeImportedTransaction(id); 
       setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id)); 
@@ -116,27 +116,17 @@ const ReceitasDespesas = () => {
 
   const handleTransactionSubmit = (t: TransacaoCompleta, g?: any) => {
     if (editingTransaction) {
-      // Remover side effects antigos antes de aplicar os novos
       if (editingTransaction.links?.loanId) unmarkLoanParcelPaid(parseInt(editingTransaction.links.loanId.replace('loan_', '')));
       if (editingTransaction.links?.vehicleTransactionId) {
           const [s, p] = editingTransaction.links.vehicleTransactionId.split('_');
-          unmarkSeguroParcelPaid(parseInt(s), parseInt(p));
+          if (!isNaN(parseInt(s))) unmarkSeguroParcelPaid(parseInt(s), parseInt(p));
       }
-
       setTransacoesV2(p => p.map(x => x.id === t.id ? t : x));
       toast.success("Registro atualizado!");
     } else {
       if (g) {
-        // Gerar as duas pontas da transferência
         const outT = { ...t, id: generateTransactionId(), flow: 'transfer_out' as const, links: { ...t.links, transferGroupId: g.id } };
-        const inT = { 
-            ...t, 
-            id: generateTransactionId(), 
-            accountId: g.toAccountId, 
-            flow: (contasMovimento.find(a => a.id === g.toAccountId)?.accountType === 'cartao_credito' ? 'in' : 'transfer_in') as any, 
-            links: { ...t.links, transferGroupId: g.id }, 
-            conciliated: false 
-        };
+        const inT = { ...t, id: generateTransactionId(), accountId: g.toAccountId, flow: (contasMovimento.find(a => a.id === g.toAccountId)?.accountType === 'cartao_credito' ? 'in' : 'transfer_in') as any, links: { ...t.links, transferGroupId: g.id }, conciliated: false };
         addTransacaoV2(outT);
         addTransacaoV2(inT);
         toast.success("Transferência realizada!");
@@ -146,11 +136,10 @@ const ReceitasDespesas = () => {
       }
     }
 
-    // Aplicar Side Effects (Empréstimos/Seguros)
     if (t.operationType === 'pagamento_emprestimo' && t.links?.loanId && t.links?.parcelaId) {
         markLoanParcelPaid(parseInt(t.links.loanId.replace('loan_', '')), t.amount, t.date, parseInt(t.links.parcelaId));
     }
-    if (t.operationType === 'veiculo' && t.links?.vehicleTransactionId) {
+    if (t.operationType === 'pagamento_seguro' && t.links?.vehicleTransactionId) {
         const [s, p] = t.links.vehicleTransactionId.split('_');
         if (s && p && !isNaN(parseInt(s))) markSeguroParcelPaid(parseInt(s), parseInt(p), t.id);
     }
