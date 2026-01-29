@@ -205,7 +205,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
 
         <Separator className="opacity-20" />
 
-        {/* 4. Projeção de Saldo Final (Design Unificado) */}
+        {/* 4. Saldo em Contas Previsto (Design Unificado) */}
         <div className="px-1">
           <div className={cn(
             "flex items-center justify-between p-4 rounded-2xl border transition-all shadow-sm",
@@ -214,7 +214,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
               : "bg-destructive/[0.05] border-destructive/20"
           )}>
             <div className="space-y-0.5">
-              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Projeção de Saldo Final</Label>
+              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Saldo em Contas Previsto</Label>
               <p className={cn(
                 "text-lg font-black tabular-nums leading-none",
                 stats.projectedFinal >= 0 ? "text-success" : "text-destructive"
@@ -231,17 +231,18 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
           </div>
         </div>
 
-        {/* 5. Saldo Previsto do Mês */}
+        {/* 5. Resultado Previsto do Mês */}
         <div className="px-1">
           <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 dark:bg-white/[0.05] border border-border/40">
             <div className="space-y-0.5">
-              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Saldo Previsto do Mês</Label>
+              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Resultado Previsto do Mês</Label>
               <p className={cn(
                 "text-lg font-black tabular-nums leading-none",
                 stats.monthBalance >= 0 ? "text-foreground" : "text-destructive"
               )}>
                 {formatCurrency(stats.monthBalance)}
               </p>
+              <p className="text-[7px] font-bold text-muted-foreground uppercase opacity-50">(Receita Prev. - Despesas)</p>
             </div>
             <div className={cn(
               "w-9 h-9 rounded-xl flex items-center justify-center shadow-sm",
