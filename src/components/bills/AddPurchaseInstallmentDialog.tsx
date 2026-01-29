@@ -61,19 +61,23 @@ export function AddPurchaseInstallmentDialog({
   );
 
   const handleAmountChange = (value: string) => {
+    // Mantém apenas números e a vírgula decimal
     let cleaned = value.replace(/[^\d,]/g, '');
     const parts = cleaned.split(',');
     if (parts.length > 2) cleaned = parts[0] + ',' + parts.slice(1).join('');
     setFormData(prev => ({ ...prev, totalAmount: cleaned }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const amount = parseFloat(formData.totalAmount.replace('.', '').replace(',', '.'));
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    
+    // Normalização robusta do valor para parseFloat
+    const amountStr = formData.totalAmount.replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(amountStr);
     const installmentsCount = parseInt(formData.installments);
 
     if (!formData.description || isNaN(amount) || amount <= 0 || isNaN(installmentsCount) || installmentsCount <= 0) {
-      toast.error("Preencha todos os campos obrigatórios corretamente.");
+      toast.error("Preencha os campos obrigatórios com valores válidos.");
       return;
     }
 
@@ -86,20 +90,23 @@ export function AddPurchaseInstallmentDialog({
       suggestedCategoryId: formData.categoryId || undefined,
     });
 
-    toast.success(`${installmentsCount} parcelas geradas!`);
+    toast.success(`${installmentsCount} parcelas geradas com sucesso!`);
     onOpenChange(false);
+    
+    // Reset state
     setFormData({
       description: "",
       totalAmount: "",
       installments: "12",
-      firstDueDate: format(currentDate, 'yyyy-MM-dd'),
+      firstDueDate: format(new Date(), 'yyyy-MM-dd'),
       accountId: "",
       categoryId: "",
     });
   };
 
   const installmentPreview = useMemo(() => {
-    const amount = parseFloat(formData.totalAmount.replace('.', '').replace(',', '.')) || 0;
+    const amountStr = formData.totalAmount.replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(amountStr) || 0;
     const count = parseInt(formData.installments) || 1;
     return amount / count;
   }, [formData.totalAmount, formData.installments]);
@@ -110,7 +117,7 @@ export function AddPurchaseInstallmentDialog({
         hideCloseButton 
         fullscreen={isMobile}
         className={cn(
-          "p-0 shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] flex flex-col z-[140]",
+          "p-0 shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] flex flex-col z-[200]", // Aumentado Z-Index
           !isMobile && "max-w-2xl rounded-[2rem]"
         )}
       >
@@ -120,7 +127,12 @@ export function AddPurchaseInstallmentDialog({
         >
           <div className="flex items-center gap-4 sm:gap-5">
             {isMobile && (
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => onOpenChange(false)} 
+                className="rounded-full h-10 w-10 shrink-0 z-10"
+              >
                 <ArrowLeft className="w-6 h-6" />
               </Button>
             )}
@@ -137,7 +149,7 @@ export function AddPurchaseInstallmentDialog({
         </DialogHeader>
 
         <ScrollArea className="flex-1">
-          <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 sm:space-y-8 pb-32 sm:pb-8">
+          <form id="purchase-form" onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 sm:space-y-8 pb-32 sm:pb-8">
             <div className="text-center space-y-2 sm:space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor Total da Compra</Label>
               <div className="relative max-w-[280px] sm:max-w-xs mx-auto">
@@ -163,6 +175,7 @@ export function AddPurchaseInstallmentDialog({
                     value={formData.description}
                     onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                     className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10"
+                    required
                   />
                 </div>
 
@@ -171,6 +184,7 @@ export function AddPurchaseInstallmentDialog({
                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Parcelas</Label>
                     <Input
                       type="number"
+                      min="1"
                       value={formData.installments}
                       onChange={(e) => setFormData(prev => ({ ...prev, installments: e.target.value }))}
                       className="h-11 sm:h-12 border-2 rounded-xl font-black text-lg dark:bg-white/5 dark:border-white/10"
@@ -195,7 +209,7 @@ export function AddPurchaseInstallmentDialog({
                     <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10">
                       <SelectValue placeholder="Selecione a conta..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[210]">
                       {availableAccounts.map(a => (
                         <SelectItem key={a.id} value={a.id} className="font-medium">
                           {a.name}
@@ -211,7 +225,7 @@ export function AddPurchaseInstallmentDialog({
                     <SelectTrigger className="h-11 sm:h-12 border-2 rounded-xl font-bold dark:bg-white/5 dark:border-white/10">
                       <SelectValue placeholder="Selecione a categoria..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[210]">
                       {expenseCategories.map(c => (
                         <SelectItem key={c.id} value={c.id} className="font-medium">
                           {c.icon} {c.label}
@@ -224,7 +238,7 @@ export function AddPurchaseInstallmentDialog({
             </div>
 
             {installmentPreview > 0 && (
-              <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 flex items-center justify-between">
+              <div className="p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 flex items-center justify-between animate-in fade-in duration-500">
                 <div className="flex items-center gap-3 sm:gap-4">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-background flex items-center justify-center text-primary shadow-sm">
                     <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -247,20 +261,24 @@ export function AddPurchaseInstallmentDialog({
 
         <DialogFooter 
           className={cn(
-            "p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 flex flex-col sm:flex-row gap-3",
+            "p-6 sm:p-8 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 flex flex-col sm:flex-row gap-3 z-20",
             isMobile && "fixed bottom-0 left-0 right-0 bg-card"
           )}
           style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
         >
           {!isMobile && (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 sm:h-16 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">
+            <Button 
+              variant="ghost" 
+              onClick={() => onOpenChange(false)} 
+              className="rounded-full h-14 sm:h-16 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+            >
               FECHAR
             </Button>
           )}
           <Button 
+            form="purchase-form"
             type="submit"
-            onClick={handleSubmit}
-            className="flex-1 h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-base sm:text-lg shadow-2xl shadow-primary/20 gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all order-1 sm:order-2"
+            className="flex-1 h-14 sm:h-16 rounded-[1.25rem] sm:rounded-[1.5rem] font-black text-base sm:text-lg shadow-2xl shadow-primary/20 gap-3 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             GERAR {formData.installments} PARCELAS <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </Button>
