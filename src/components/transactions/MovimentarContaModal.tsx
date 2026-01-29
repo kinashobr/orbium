@@ -78,9 +78,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
   const [operationType, setOperationType] = useState<OperationType | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
+  
   const [destinationAccountId, setDestinationAccountId] = useState<string | null>(null);
-
-  // Estados para Vínculo
   const [tempInvestmentId, setTempInvestmentId] = useState<string | null>(null);
   const [tempLoanId, setTempLoanId] = useState<string | null>(null);
   const [tempParcelaId, setTempParcelaId] = useState<string | null>(null);
@@ -88,17 +87,6 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
   const [tempVehicleId, setTempVehicleId] = useState<string | null>(null);
 
   const isEditing = !!editingTransaction;
-
-  useEffect(() => {
-    if (isMobile && open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isMobile, open]);
 
   useEffect(() => {
     if (open) {
@@ -110,7 +98,10 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         setCategoryId(editingTransaction.categoryId); 
         setDescription(editingTransaction.description);
         
-        setDestinationAccountId(editingTransaction.operationType === 'transferencia' ? accounts.find(a => a.id !== editingTransaction.accountId)?.id || null : null);
+        // Carregar vínculos
+        if (editingTransaction.operationType === 'transferencia') {
+            setDestinationAccountId(editingTransaction.links.transferGroupId ? "shared" : null); 
+        }
         setTempInvestmentId(editingTransaction.links.investmentId);
         setTempLoanId(editingTransaction.links.loanId);
         setTempParcelaId(editingTransaction.links.parcelaId);
@@ -148,12 +139,18 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedAmount = parseFromBR(amount);
-    if (!accountId || !date || parsedAmount <= 0 || !operationType) { toast.error("Preencha os campos obrigatórios"); return; }
     
+    // Validações Básicas
+    if (!accountId || !date || parsedAmount <= 0 || !operationType) { toast.error("Preencha os campos obrigatórios."); return; }
+    
+    // Validações Específicas
     if (operationType === 'transferencia' && !destinationAccountId) { toast.error("Selecione a conta de destino."); return; }
-    if ((operationType === 'aplicacao' || operationType === 'resgate') && !tempInvestmentId) { toast.error("Selecione o ativo."); return; }
-    if (operationType === 'pagamento_emprestimo' && (!tempLoanId || !tempParcelaId)) { toast.error("Selecione contrato e parcela."); return; }
-    if (operationType === 'veiculo' && (!tempVehicleId || !tempVehicleOperation)) { toast.error("Selecione o veículo."); return; }
+    if ((operationType === 'aplicacao' || operationType === 'resgate') && !tempInvestmentId) { toast.error("Selecione o ativo de investimento."); return; }
+    if (operationType === 'pagamento_emprestimo' && (!tempLoanId || !tempParcelaId)) { toast.error("Selecione o contrato e a parcela."); return; }
+    if (operationType === 'veiculo' && (!tempVehicleId || !tempVehicleOperation)) { toast.error("Selecione o veículo e a operação."); return; }
+    
+    const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(operationType);
+    if (requiresCategory && !categoryId) { toast.error("A categoria é obrigatória para esta operação."); return; }
 
     const links: TransactionLinks = { 
         investmentId: tempInvestmentId, 
@@ -184,8 +181,19 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     };
 
     let transferGroup;
-    if (operationType === 'transferencia' && destinationAccountId) {
-      transferGroup = { id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(), fromAccountId: accountId, toAccountId: destinationAccountId, amount: parsedAmount, date, description: baseTx.description };
+    // Transferência direta ou movimentação entre contas via investimento (Aplicação/Resgate)
+    const isInterAccountMovement = operationType === 'transferencia' || operationType === 'aplicacao' || operationType === 'resgate';
+    const targetAccountId = operationType === 'transferencia' ? destinationAccountId : tempInvestmentId;
+
+    if (isInterAccountMovement && targetAccountId) {
+      transferGroup = { 
+        id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(), 
+        fromAccountId: accountId, 
+        toAccountId: targetAccountId, 
+        amount: parsedAmount, 
+        date, 
+        description: baseTx.description 
+      };
     }
     
     onSubmit(baseTx, transferGroup);
@@ -205,6 +213,12 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     setTempVehicleOperation(null);
     setTempVehicleId(null);
     setCategoryId(null);
+    // Sugestão de descrição
+    if (!description) {
+        if (v === 'pagamento_emprestimo') setDescription('Pagamento Parcela Empréstimo');
+        if (v === 'aplicacao') setDescription('Aplicação Financeira');
+        if (v === 'resgate') setDescription('Resgate de Investimento');
+    }
   };
 
   return (
@@ -214,7 +228,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "max-w-[36rem] max-h-[90vh] rounded-[2.5rem]"
+          !isMobile && "max-w-[36rem] max-h-[92vh] rounded-[2.5rem]"
         )}
       >
         <DialogHeader className={cn(
@@ -278,7 +292,9 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             </div>
 
             <div className="space-y-2">
-               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Conta de Origem</Label>
+               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">
+                   {operationType === 'transferencia' ? 'Conta de Saída' : 'Conta do Registro'}
+               </Label>
                <Select value={accountId} onValueChange={setAccountId}>
                  <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
                  <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -301,7 +317,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             
             {showVincularSection && (
                 <div className="space-y-4 p-5 rounded-[2rem] bg-primary/5 border-2 border-dashed border-primary/20 animate-in slide-in-from-top-2 duration-300">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary block text-center">Vínculo de Operação</Label>
+                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary block text-center">Vínculo Obrigatório</Label>
                     
                     {operationType === 'pagamento_emprestimo' && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -324,7 +340,9 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                     
                     {(operationType === 'aplicacao' || operationType === 'resgate') && (
                         <div className="space-y-1.5">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Ativo de Destino/Origem</Label>
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">
+                                {operationType === 'aplicacao' ? 'Conta de Investimento (Destino)' : 'Conta de Investimento (Origem)'}
+                            </Label>
                             <Select value={tempInvestmentId || ''} onValueChange={setTempInvestmentId}>
                                 <SelectTrigger className="h-11 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o ativo..." /></SelectTrigger>
                                 <SelectContent>{investments.map(i => <SelectItem key={i.id} value={i.id} className="font-bold">{i.name}</SelectItem>)}</SelectContent>
@@ -360,15 +378,19 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
               <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Categoria</Label>
                 <Select value={categoryId || ''} onValueChange={setCategoryId} disabled={operationType === 'transferencia' || showVincularSection}>
-                  <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner">
+                      <SelectValue placeholder={operationType === 'transferencia' ? 'Automática' : 'Selecione...'} />
+                  </SelectTrigger>
                   <SelectContent className="rounded-2xl border-none shadow-2xl max-h-64">
                     {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.icon} {c.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2 opacity-50">
-                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Vínculo (Opcional)</Label>
-                <div className="h-11 rounded-2xl bg-muted/20 flex items-center px-4 text-xs font-bold text-muted-foreground cursor-not-allowed">Somente Automático</div>
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Vínculo Automático</Label>
+                <div className="h-11 rounded-2xl bg-muted/20 flex items-center px-4 text-xs font-bold text-muted-foreground cursor-not-allowed">
+                    {showVincularSection ? 'Configurado acima' : 'Não aplicável'}
+                </div>
               </div>
             </div>
 
@@ -380,7 +402,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                   value={description} 
                   onChange={(e) => setDescription(e.target.value)} 
                   className="w-full h-24 p-3 pl-12 rounded-[1.5rem] border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm" 
-                  placeholder="Opcional..." 
+                  placeholder="Ex: Compra supermercado, Aporte Selic..." 
                 />
               </div>
             </div>
