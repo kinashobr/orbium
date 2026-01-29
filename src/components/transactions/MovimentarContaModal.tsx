@@ -61,21 +61,11 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color
   { value: 'rendimento', label: 'Rendimento', icon: Coins, color: 'text-primary', bgColor: 'bg-primary/10' },
 ];
 
-const parseFromBR = (v: string): number => {
-    const cleaned = v.replace(/\./g, '').replace(',', '.');
-    const parsed = parseFloat(cleaned);
-    return isNaN(parsed) ? 0 : parsed;
-};
-
-const formatToBR = (v: number): string => {
-    return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
-
 export function MovimentarContaModal({ open, onOpenChange, accounts, categories, investments, loans, segurosVeiculo, veiculos, selectedAccountId, onSubmit, editingTransaction }: MovimentarContaModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState("");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState("0,00");
   const [operationType, setOperationType] = useState<OperationType | null>(null);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [description, setDescription] = useState("");
@@ -87,7 +77,6 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
   const [tempVehicleOperation, setTempVehicleOperation] = useState<'compra' | 'venda' | null>(null);
   const [tempVehicleId, setTempVehicleId] = useState<string | null>(null);
 
-  // Estados para Vínculo de Seguro
   const [tempSeguroId, setTempSeguroId] = useState<string | null>(null);
   const [tempSeguroParcelaId, setTempSeguroParcelaId] = useState<string | null>(null);
 
@@ -99,12 +88,26 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     return cat?.label.toLowerCase().includes('seguro');
   }, [categoryId, operationType, categories]);
 
+  const handleAmountChange = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      setAmount("0,00");
+      return;
+    }
+    const val = parseInt(digits) / 100;
+    setAmount(val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  };
+
+  const parseBrlValue = (value: string) => {
+    return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
+  };
+
   useEffect(() => {
     if (open) {
       if (editingTransaction) {
         setAccountId(editingTransaction.accountId); 
         setDate(editingTransaction.date); 
-        setAmount(formatToBR(editingTransaction.amount));
+        setAmount(editingTransaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
         setOperationType(editingTransaction.operationType); 
         setCategoryId(editingTransaction.categoryId); 
         setDescription(editingTransaction.description);
@@ -118,7 +121,6 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         setTempVehicleOperation(editingTransaction.meta.vehicleOperation || null);
         setTempVehicleId(editingTransaction.links.vehicleTransactionId ? editingTransaction.links.vehicleTransactionId.split('_')[0] : null);
 
-        // Carregar vínculo de seguro se existir
         if (editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa') {
             const [sId, pNum] = editingTransaction.links.vehicleTransactionId.split('_');
             setTempSeguroId(sId);
@@ -127,7 +129,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
       } else {
         setAccountId(selectedAccountId || accounts[0]?.id || ''); 
         setDate(new Date().toISOString().split('T')[0]); 
-        setAmount(formatToBR(0));
+        setAmount("0,00");
         setOperationType('despesa'); 
         setCategoryId(null); 
         setDescription(""); 
@@ -143,21 +145,9 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     }
   }, [open, editingTransaction, selectedAccountId, accounts]);
 
-  const handleAmountChange = (value: string) => {
-    let cleaned = value.replace(/[^\d,.]/g, '');
-    const parts = cleaned.split(/[,.]/);
-    if (parts.length > 2) {
-        const decimalPart = parts.pop();
-        cleaned = parts.join('') + ',' + decimalPart;
-    } else if (cleaned.includes('.')) {
-        cleaned = cleaned.replace('.', ',');
-    }
-    setAmount(cleaned);
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parseFromBR(amount);
+    const parsedAmount = parseBrlValue(amount);
     
     if (!accountId || !date || parsedAmount <= 0 || !operationType) { toast.error("Preencha os campos obrigatórios."); return; }
     
@@ -166,7 +156,6 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     if (operationType === 'pagamento_emprestimo' && (!tempLoanId || !tempParcelaId)) { toast.error("Selecione o contrato e a parcela."); return; }
     if (operationType === 'veiculo' && (!tempVehicleId || !tempVehicleOperation)) { toast.error("Selecione o veículo e a operação."); return; }
     
-    // Validação de Seguro se a categoria for Seguro
     if (isSeguroCategory && (!tempSeguroId || !tempSeguroParcelaId)) {
         toast.error("Vincule este pagamento a uma parcela de seguro em aberto.");
         return;
@@ -175,7 +164,6 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(operationType);
     if (requiresCategory && !categoryId) { toast.error("A categoria é obrigatória para esta operação."); return; }
 
-    // Determinar vehicleTransactionId baseado no tipo (Operação Veículo ou Categoria Seguro)
     let vehicleTransactionId = null;
     if (operationType === 'veiculo' && tempVehicleId) {
         vehicleTransactionId = `${tempVehicleId}_${tempVehicleOperation}`;
@@ -260,11 +248,10 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     if (s) {
         const vModel = veiculos.find(v => v.id === s.veiculoId)?.modelo;
         setDescription(`Pagamento Seguro - ${vModel || s.seguradora}`);
-        // Se houver parcelas, sugerir a primeira não paga
         const firstUnpaid = s.parcelas.find(p => !p.paga);
         if (firstUnpaid) {
             setTempSeguroParcelaId(String(firstUnpaid.numero));
-            setAmount(formatToBR(firstUnpaid.valor));
+            setAmount(firstUnpaid.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
         }
     }
   };
@@ -302,17 +289,16 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         </DialogHeader>
 
         <ScrollArea className="flex-1 px-6 sm:px-8">
-          <div className="py-4 sm:py-5 space-y-6 pb-32 sm:pb-6">
+          <form id="movimentar-form" onSubmit={handleSubmit} className="py-4 sm:py-5 space-y-6 pb-32 sm:pb-6">
             <div className="text-center space-y-1">
               <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Valor do Lançamento</Label>
               <div className="relative max-w-[280px] mx-auto group">
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl sm:text-2xl font-black text-muted-foreground/20">R$</span>
                 <Input 
                   type="text" 
-                  inputMode="decimal" 
+                  inputMode="numeric" 
                   value={amount} 
                   onChange={(e) => handleAmountChange(e.target.value)} 
-                  onBlur={() => setAmount(formatToBR(parseFromBR(amount)))}
                   className="h-14 sm:h-16 text-3xl sm:text-4xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" 
                 />
                 <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
@@ -392,7 +378,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela</Label>
                                 <Select value={tempParcelaId || ''} onValueChange={setTempParcelaId} disabled={!currentLoan}>
                                     <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
-                                    <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({formatToBR(p.valor)})</SelectItem>)}</SelectContent>
+                                    <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}</SelectContent>
                                 </Select>
                             </div>
                         </div>
@@ -418,7 +404,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                                     <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
                                     <SelectContent>
                                         {currentSeguro?.parcelas.filter(p => !p.paga).map(p => (
-                                            <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({formatToBR(p.valor)})</SelectItem>
+                                            <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -474,7 +460,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 />
               </div>
             </div>
-          </div>
+          </form>
         </ScrollArea>
 
         <DialogFooter className={cn(
@@ -484,7 +470,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
           {!isMobile && (
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
           )}
-          <Button onClick={handleSubmit} className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2">
+          <Button form="movimentar-form" type="submit" className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2">
             <Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}
           </Button>
         </DialogFooter>

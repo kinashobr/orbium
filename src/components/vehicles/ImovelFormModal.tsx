@@ -23,14 +23,6 @@ interface ImovelFormModalProps {
   onDelete?: (id: number) => void;
 }
 
-const parseFromBR = (value: string): number => {
-    const cleaned = value.replace(/[^\d,]/g, '');
-    const parsed = parseFloat(cleaned.replace(',', '.'));
-    return isNaN(parsed) ? 0 : parsed;
-};
-
-const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
 export function ImovelFormModal({
   open,
   onOpenChange,
@@ -46,11 +38,10 @@ export function ImovelFormModal({
   const [descricao, setDescricao] = useState("");
   const [endereco, setEndereco] = useState("");
   const [dataAquisicao, setDataAquisicao] = useState(new Date().toISOString().split('T')[0]);
-  const [valorAquisicaoInput, setValorAquisicaoInput] = useState("");
-  const [valorAvaliacaoInput, setValorAvaliacaoInput] = useState("");
+  const [valorAquisicaoInput, setValorAquisicaoInput] = useState("0,00");
+  const [valorAvaliacaoInput, setValorAvaliacaoInput] = useState("0,00");
   const [imovelTipo, setImovelTipo] = useState<'casa' | 'apartamento' | 'comercial'>('casa');
 
-  // Body scroll lock for mobile fullscreen
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -68,8 +59,8 @@ export function ImovelFormModal({
         setDescricao(editingAsset.descricao);
         setEndereco(editingAsset.endereco);
         setDataAquisicao(editingAsset.dataAquisicao);
-        setValorAquisicaoInput(formatToBR(editingAsset.valorAquisicao));
-        setValorAvaliacaoInput(formatToBR(editingAsset.valorAvaliacao));
+        setValorAquisicaoInput(editingAsset.valorAquisicao.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
+        setValorAvaliacaoInput(editingAsset.valorAvaliacao.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
         if (isImovel) {
           setImovelTipo((editingAsset as Imovel).tipo || 'casa');
         }
@@ -77,21 +68,30 @@ export function ImovelFormModal({
         setDescricao("");
         setEndereco("");
         setDataAquisicao(new Date().toISOString().split('T')[0]);
-        setValorAquisicaoInput(formatToBR(0));
-        setValorAvaliacaoInput(formatToBR(0));
+        setValorAquisicaoInput("0,00");
+        setValorAvaliacaoInput("0,00");
         setImovelTipo('casa');
       }
     }
   }, [open, editingAsset, isImovel]);
 
-  const handleValueChange = (setter: React.Dispatch<React.SetStateAction<string>>, value: string) => {
-    const cleaned = value.replace(/[^\d,]/g, '');
-    setter(cleaned);
+  const handleAmountChange = (setter: (v: string) => void, value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      setter("0,00");
+      return;
+    }
+    const val = parseInt(digits) / 100;
+    setter(val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  };
+
+  const parseBrlValue = (value: string) => {
+    return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
   };
 
   const handleSubmit = () => {
-    const valorAquisicao = parseFromBR(valorAquisicaoInput);
-    const valorAvaliacao = parseFromBR(valorAvaliacaoInput);
+    const valorAquisicao = parseBrlValue(valorAquisicaoInput);
+    const valorAvaliacao = parseBrlValue(valorAvaliacaoInput);
 
     if (!descricao || !endereco || valorAquisicao <= 0 || valorAvaliacao <= 0) {
       toast.error("Preencha todos os campos obrigatórios com valores válidos.");
@@ -226,11 +226,11 @@ export function ImovelFormModal({
                 </Label>
                 <Input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   placeholder="0,00"
                   className="h-12 border-2 rounded-2xl font-black text-lg"
                   value={valorAquisicaoInput}
-                  onChange={e => handleValueChange(setValorAquisicaoInput, e.target.value)}
+                  onChange={e => handleAmountChange(setValorAquisicaoInput, e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -239,11 +239,11 @@ export function ImovelFormModal({
                 </Label>
                 <Input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   placeholder="0,00"
                   className="h-12 border-2 rounded-2xl font-black text-lg"
                   value={valorAvaliacaoInput}
-                  onChange={e => handleValueChange(setValorAvaliacaoInput, e.target.value)}
+                  onChange={e => handleAmountChange(setValorAvaliacaoInput, e.target.value)}
                 />
               </div>
             </div>

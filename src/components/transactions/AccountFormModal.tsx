@@ -32,25 +32,16 @@ const ACCOUNT_TYPE_CONFIG: Record<AccountType, { icon: typeof Building2, color: 
   cartao_credito: { icon: CreditCard, color: 'text-destructive', bg: 'bg-destructive/10' },
 };
 
-const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const parseFromBR = (value: string) => {
-  const isNegative = value.startsWith('-');
-  let cleaned = value.replace('-', '').replace(/\./g, '').replace(',', '.');
-  let parsed = parseFloat(cleaned);
-  return isNaN(parsed) ? 0 : (isNegative ? -parsed : parsed);
-};
-
 export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDelete, hasTransactions = false }: AccountFormModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [name, setName] = useState("");
   const [accountType, setAccountType] = useState<AccountType>("corrente");
   const [institution, setInstitution] = useState("");
-  const [initialBalanceInput, setInitialBalanceInput] = useState("");
+  const [initialBalanceInput, setInitialBalanceInput] = useState("0,00");
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
 
   const isEditing = !!account;
 
-  // Body scroll lock for mobile fullscreen
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -67,16 +58,30 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
       setName(account.name);
       setAccountType(account.accountType || 'corrente');
       setInstitution(account.institution || "");
-      setInitialBalanceInput(formatToBR(account.initialBalanceValue ?? 0)); 
+      setInitialBalanceInput((account.initialBalanceValue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })); 
       setStartDate(account.startDate || new Date().toISOString().split('T')[0]);
     } else if (open) {
       setName("");
       setAccountType("corrente");
       setInstitution("");
-      setInitialBalanceInput(formatToBR(0));
+      setInitialBalanceInput("0,00");
       setStartDate(new Date().toISOString().split('T')[0]);
     }
   }, [open, account]);
+
+  const handleAmountChange = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      setInitialBalanceInput("0,00");
+      return;
+    }
+    const val = parseInt(digits) / 100;
+    setInitialBalanceInput(val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  };
+
+  const parseBrlValue = (value: string) => {
+    return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
+  };
 
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Nome da conta é obrigatório"); return; }
@@ -91,7 +96,7 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
       createdAt: account?.createdAt || new Date().toISOString(),
       meta: account?.meta || {}
     };
-    onSubmit(newAccount, parseFromBR(initialBalanceInput));
+    onSubmit(newAccount, parseBrlValue(initialBalanceInput));
     onOpenChange(false);
   };
 
@@ -162,7 +167,7 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
                  <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary/60">Saldo de Implantação</Label>
                  <div className="relative max-w-[240px] mx-auto">
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 text-2xl font-black text-primary/20">R$</span>
-                    <Input type="text" inputMode="decimal" value={initialBalanceInput} onChange={(e) => setInitialBalanceInput(e.target.value.replace(/[^\d,.-]/g, ''))} className="h-20 text-4xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" />
+                    <Input type="text" inputMode="numeric" value={initialBalanceInput} onChange={(e) => handleAmountChange(e.target.value)} className="h-20 text-4xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" />
                  </div>
                </div>
                <div className="space-y-3">

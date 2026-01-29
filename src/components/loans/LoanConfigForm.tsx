@@ -36,8 +36,8 @@ export function LoanConfigForm({
 }: LoanConfigFormProps) {
   const [formData, setFormData] = useState({
     contaCorrenteId: emprestimo.contaCorrenteId || '',
-    valorTotal: emprestimo.valorTotal?.toString() || '',
-    parcela: emprestimo.parcela?.toString() || '',
+    valorTotal: (emprestimo.valorTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
+    parcela: (emprestimo.parcela || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }),
     taxaMensal: emprestimo.taxaMensal?.toString() || '',
     meses: emprestimo.meses?.toString() || '',
     dataInicio: emprestimo.dataInicio || new Date().toISOString().split('T')[0],
@@ -45,23 +45,37 @@ export function LoanConfigForm({
     observacoes: emprestimo.observacoes || '',
   });
 
+  const handleAmountChange = (key: 'valorTotal' | 'parcela', value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      setFormData(prev => ({ ...prev, [key]: "0,00" }));
+      return;
+    }
+    const val = parseInt(digits) / 100;
+    setFormData(prev => ({ ...prev, [key]: val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
+  };
+
+  const parseBrlValue = (value: string) => {
+    return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
+  };
+
   const isPending = emprestimo.status === 'pendente_config';
 
   const calcularParcelaPrice = () => {
-    const valor = Number(formData.valorTotal);
+    const valor = parseBrlValue(formData.valorTotal);
     const taxa = Number(formData.taxaMensal) / 100;
     const n = Number(formData.meses);
 
     if (valor > 0 && taxa > 0 && n > 0) {
       const parcela = (valor * taxa * Math.pow(1 + taxa, n)) / (Math.pow(1 + taxa, n) - 1);
-      setFormData(prev => ({ ...prev, parcela: parcela.toFixed(2) }));
+      setFormData(prev => ({ ...prev, parcela: parcela.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) }));
       toast.success("Parcela calculada via tabela Price.");
     }
   };
   
   const calcularTaxa = () => {
-    const principal = Number(formData.valorTotal);
-    const payment = Number(formData.parcela);
+    const principal = parseBrlValue(formData.valorTotal);
+    const payment = parseBrlValue(formData.parcela);
     const periods = Number(formData.meses);
 
     if (principal > 0 && payment > 0 && periods > 0) {
@@ -76,8 +90,8 @@ export function LoanConfigForm({
   };
 
   const preview = {
-    valorTotal: Number(formData.valorTotal) || 0,
-    parcela: Number(formData.parcela) || 0,
+    valorTotal: parseBrlValue(formData.valorTotal),
+    parcela: parseBrlValue(formData.parcela),
     meses: Number(formData.meses) || 0,
     taxaMensal: Number(formData.taxaMensal) || 0,
     get custoTotal() { return this.parcela * this.meses; },
@@ -88,16 +102,16 @@ export function LoanConfigForm({
     },
   };
 
-  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  const formatCurrencyLocal = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-  const canSave = formData.contaCorrenteId && Number(formData.valorTotal) > 0 && Number(formData.parcela) > 0 && Number(formData.meses) > 0;
+  const canSave = formData.contaCorrenteId && parseBrlValue(formData.valorTotal) > 0 && parseBrlValue(formData.parcela) > 0 && Number(formData.meses) > 0;
 
   const handleSave = () => {
     if (!canSave) return;
     onSave({
       contaCorrenteId: formData.contaCorrenteId,
-      valorTotal: Number(formData.valorTotal),
-      parcela: Number(formData.parcela),
+      valorTotal: parseBrlValue(formData.valorTotal),
+      parcela: parseBrlValue(formData.parcela),
       taxaMensal: Number(formData.taxaMensal),
       meses: Number(formData.meses),
       dataInicio: formData.dataInicio,
@@ -140,7 +154,7 @@ export function LoanConfigForm({
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor do Principal</Label>
             <div className="relative">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/30">R$</span>
-              <Input type="number" step="0.01" value={formData.valorTotal} onChange={(e) => setFormData(prev => ({ ...prev, valorTotal: e.target.value }))} className="h-12 pl-12 rounded-2xl border-2 font-black text-lg bg-card" />
+              <Input type="text" inputMode="numeric" value={formData.valorTotal} onChange={(e) => handleAmountChange('valorTotal', e.target.value)} className="h-12 pl-12 rounded-2xl border-2 font-black text-lg bg-card" />
             </div>
           </div>
 
@@ -154,7 +168,7 @@ export function LoanConfigForm({
             <div className="flex gap-2">
               <div className="relative flex-1">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/30">R$</span>
-                <Input type="number" step="0.01" value={formData.parcela} onChange={(e) => setFormData(prev => ({ ...prev, parcela: e.target.value }))} className="h-12 pl-12 rounded-2xl border-2 font-black text-lg bg-card" />
+                <Input type="text" inputMode="numeric" value={formData.parcela} onChange={(e) => handleAmountChange('parcela', e.target.value)} className="h-12 pl-12 rounded-2xl border-2 font-black text-lg bg-card" />
               </div>
               <Button type="button" variant="outline" size="icon" onClick={calcularParcelaPrice} className="h-12 w-12 rounded-2xl border-2 hover:bg-primary/10 text-primary">
                 <Calculator className="w-5 h-5" />
@@ -199,8 +213,8 @@ export function LoanConfigForm({
              <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Resumo Matemático</h4>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Custo Efetivo</p><p className="text-base font-black tabular-nums">{formatCurrency(preview.custoTotal)}</p></div>
-            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Juros Totais</p><p className="text-base font-black text-destructive tabular-nums">{formatCurrency(preview.jurosTotal)}</p></div>
+            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Custo Efetivo</p><p className="text-base font-black tabular-nums">{formatCurrencyLocal(preview.custoTotal)}</p></div>
+            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Juros Totais</p><p className="text-base font-black text-destructive tabular-nums">{formatCurrencyLocal(preview.jurosTotal)}</p></div>
             <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">CET Anual Est.</p><p className="text-base font-black text-primary tabular-nums">{preview.cetAnual.toFixed(2)}%</p></div>
             <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Impacto Renda</p><p className="text-base font-black text-warning tabular-nums">12.5%</p></div>
           </div>

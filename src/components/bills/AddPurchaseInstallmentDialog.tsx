@@ -31,14 +31,13 @@ export function AddPurchaseInstallmentDialog({
   
   const [formData, setFormData] = useState({
     description: "",
-    totalAmount: "",
+    totalAmount: "0,00",
     installments: "12",
     firstDueDate: format(currentDate, 'yyyy-MM-dd'),
     accountId: "",
     categoryId: "",
   });
 
-  // Body scroll lock for mobile fullscreen
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -61,22 +60,34 @@ export function AddPurchaseInstallmentDialog({
   );
 
   const handleAmountChange = (value: string) => {
-    // Mantém apenas números e a vírgula decimal
-    let cleaned = value.replace(/[^\d,]/g, '');
-    const parts = cleaned.split(',');
-    if (parts.length > 2) cleaned = parts[0] + ',' + parts.slice(1).join('');
-    setFormData(prev => ({ ...prev, totalAmount: cleaned }));
+    // Remove tudo que não é dígito
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      setFormData(prev => ({ ...prev, totalAmount: "0,00" }));
+      return;
+    }
+    
+    // Converte para centavos e formata
+    const amount = parseInt(digits) / 100;
+    const formatted = amount.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    
+    setFormData(prev => ({ ...prev, totalAmount: formatted }));
+  };
+
+  const parseBrlValue = (value: string) => {
+    return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
   };
 
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     
-    // Normalização robusta do valor para parseFloat
-    const amountStr = formData.totalAmount.replace(/\./g, '').replace(',', '.');
-    const amount = parseFloat(amountStr);
+    const amount = parseBrlValue(formData.totalAmount);
     const installmentsCount = parseInt(formData.installments);
 
-    if (!formData.description || isNaN(amount) || amount <= 0 || isNaN(installmentsCount) || installmentsCount <= 0) {
+    if (!formData.description || amount <= 0 || isNaN(installmentsCount) || installmentsCount <= 0) {
       toast.error("Preencha os campos obrigatórios com valores válidos.");
       return;
     }
@@ -93,10 +104,9 @@ export function AddPurchaseInstallmentDialog({
     toast.success(`${installmentsCount} parcelas geradas com sucesso!`);
     onOpenChange(false);
     
-    // Reset state
     setFormData({
       description: "",
-      totalAmount: "",
+      totalAmount: "0,00",
       installments: "12",
       firstDueDate: format(new Date(), 'yyyy-MM-dd'),
       accountId: "",
@@ -105,8 +115,7 @@ export function AddPurchaseInstallmentDialog({
   };
 
   const installmentPreview = useMemo(() => {
-    const amountStr = formData.totalAmount.replace(/\./g, '').replace(',', '.');
-    const amount = parseFloat(amountStr) || 0;
+    const amount = parseBrlValue(formData.totalAmount);
     const count = parseInt(formData.installments) || 1;
     return amount / count;
   }, [formData.totalAmount, formData.installments]);
@@ -117,7 +126,7 @@ export function AddPurchaseInstallmentDialog({
         hideCloseButton 
         fullscreen={isMobile}
         className={cn(
-          "p-0 shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] flex flex-col z-[200]", // Aumentado Z-Index
+          "p-0 shadow-2xl bg-card dark:bg-[hsl(24_8%_10%)] flex flex-col z-[200]",
           !isMobile && "max-w-2xl rounded-[2rem]"
         )}
       >
@@ -156,7 +165,7 @@ export function AddPurchaseInstallmentDialog({
                 <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl sm:text-2xl font-black text-muted-foreground/30">R$</span>
                 <Input
                   type="text"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   placeholder="0,00"
                   value={formData.totalAmount}
                   onChange={(e) => handleAmountChange(e.target.value)}

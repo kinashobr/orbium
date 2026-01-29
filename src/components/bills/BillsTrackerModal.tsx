@@ -74,7 +74,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   const [newBillData, setNewBillData] = useState({
     description: "",
-    amount: "",
+    amount: "0,00",
     dueDate: format(new Date(), "yyyy-MM-dd"),
   });
 
@@ -190,14 +190,24 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     }
   }, [setBillsTracker, contasMovimento, categoriasV2]);
 
+  const handleAmountChange = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      setNewBillData(prev => ({ ...prev, amount: "0,00" }));
+      return;
+    }
+    const val = parseInt(digits) / 100;
+    setNewBillData(prev => ({ ...prev, amount: val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
+  };
+
   const handleAddAdHocBill = () => {
-    const amount = parseFloat(newBillData.amount.replace(".", "").replace(",", "."));
+    const amount = parseFloat(newBillData.amount.replace(/\./g, "").replace(",", "."));
     if (!newBillData.description || isNaN(amount) || amount <= 0 || !newBillData.dueDate) {
       toast.error("Preencha todos os campos corretamente.");
       return;
     }
     setBillsTracker(prev => [...prev, { id: generateBillId(), type: 'tracker', description: newBillData.description, dueDate: newBillData.dueDate, expectedAmount: amount, sourceType: "ad_hoc", suggestedAccountId: contasMovimento.find(c => c.accountType === "corrente")?.id, suggestedCategoryId: null, isPaid: false, isExcluded: false }]);
-    setNewBillData({ description: "", amount: "", dueDate: format(currentDate, "yyyy-MM-dd") });
+    setNewBillData({ description: "", amount: "0,00", dueDate: format(currentDate, "yyyy-MM-dd") });
     setShowNewBillModal(false);
     toast.success("Adicionado!");
   };
@@ -259,7 +269,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               <div className="p-6 space-y-4">
                 <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição</Label><Input placeholder="Ex: Manutenção" className="h-11 border-2 rounded-xl font-bold" value={newBillData.description} onChange={e => setNewBillData(prev => ({ ...prev, description: e.target.value }))} /></div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor</Label><Input placeholder="0,00" className="h-11 border-2 rounded-xl font-black" value={newBillData.amount} onChange={e => { const val = e.target.value.replace(/[^\d,]/g, ""); setNewBillData(prev => ({ ...prev, amount: val })); }} /></div>
+                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor</Label><Input type="text" inputMode="numeric" placeholder="0,00" className="h-11 border-2 rounded-xl font-black" value={newBillData.amount} onChange={e => handleAmountChange(e.target.value)} /></div>
                   <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Vencimento</Label><Input type="date" className="h-11 border-2 rounded-xl font-bold" value={newBillData.dueDate} onChange={e => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} /></div>
                 </div>
               </div>
@@ -296,7 +306,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                   </div>
                 </div>
 
-                {/* Seletor de Mês e Botões de Ação Unificados */}
                 <div className="flex items-center flex-1 justify-center sm:justify-end gap-3">
                   <div className="flex items-center bg-muted/40 rounded-full p-1 border border-border/40 shadow-sm">
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("prev")}>
@@ -379,7 +388,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           <div className="p-6 space-y-4">
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição</Label><Input placeholder="Ex: Manutenção" className="h-11 border-2 rounded-xl font-bold" value={newBillData.description} onChange={e => setNewBillData(prev => ({ ...prev, description: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor</Label><Input placeholder="0,00" className="h-11 border-2 rounded-xl font-black" value={newBillData.amount} onChange={e => { const val = e.target.value.replace(/[^\d,]/g, ""); setNewBillData(prev => ({ ...prev, amount: val })); }} /></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor</Label><Input type="text" inputMode="numeric" placeholder="0,00" className="h-11 border-2 rounded-xl font-black" value={newBillData.amount} onChange={e => handleAmountChange(e.target.value)} /></div>
               <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Vencimento</Label><Input type="date" className="h-11 border-2 rounded-xl font-bold" value={newBillData.dueDate} onChange={e => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} /></div>
             </div>
           </div>
