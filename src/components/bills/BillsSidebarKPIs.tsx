@@ -205,7 +205,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
 
         <Separator className="opacity-20" />
 
-        {/* 4. Projeção (Design Unificado) */}
+        {/* 4. Projeção de Saldo Final (Design Unificado) */}
         <div className="px-1">
           <div className={cn(
             "flex items-center justify-between p-4 rounded-2xl border transition-all shadow-sm",
@@ -214,7 +214,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
               : "bg-destructive/[0.05] border-destructive/20"
           )}>
             <div className="space-y-0.5">
-              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Projeção</Label>
+              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Projeção de Saldo Final</Label>
               <p className={cn(
                 "text-lg font-black tabular-nums leading-none",
                 stats.projectedFinal >= 0 ? "text-success" : "text-destructive"
@@ -231,11 +231,11 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
           </div>
         </div>
 
-        {/* 5. Saldo (Saldo do Mês) */}
+        {/* 5. Saldo Previsto do Mês */}
         <div className="px-1">
           <div className="flex items-center justify-between p-4 rounded-2xl bg-muted/20 dark:bg-white/[0.05] border border-border/40">
             <div className="space-y-0.5">
-              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Saldo</Label>
+              <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Saldo Previsto do Mês</Label>
               <p className={cn(
                 "text-lg font-black tabular-nums leading-none",
                 stats.monthBalance >= 0 ? "text-foreground" : "text-destructive"
@@ -258,7 +258,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
             <div className="p-3 rounded-xl bg-warning/5 dark:bg-warning/10 border border-warning/20 flex gap-2 items-center">
               <AlertCircle className="w-3.5 h-3.5 text-warning shrink-0" />
               <p className="text-[8px] leading-tight text-warning-foreground dark:text-warning font-black uppercase tracking-tighter">
-                Cuidado: Projeção de caixa negativa.
+                Cuidado: Projeção de caixa negativa ao final do mês.
               </p>
             </div>
           </div>
