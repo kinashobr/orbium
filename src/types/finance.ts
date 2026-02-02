@@ -22,6 +22,14 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   cartao_credito: 'Cartão de Crédito',
 };
 
+// Prazo da Conta (Curto / Longo Prazo) - usado para Balanço e Indicadores
+export type AccountTerm = 'curto_prazo' | 'longo_prazo';
+
+export const ACCOUNT_TERM_LABELS: Record<AccountTerm, string> = {
+  curto_prazo: 'Curto Prazo',
+  longo_prazo: 'Longo Prazo',
+};
+
 // Tipos de Categoria
 export type CategoryNature = 'receita' | 'despesa_fixa' | 'despesa_variavel';
 
@@ -36,6 +44,15 @@ export interface ContaCorrente {
   id: string;
   name: string;
   accountType: AccountType;
+  /**
+   * Prazo da conta para fins de classificação contábil (Ativo/Passivo Circulante x Não Circulante).
+   *
+   * - Contas "corrente" e "cartao_credito" são sempre curto prazo (forçado via normalização).
+   * - Demais tipos podem ser curto ou longo prazo, conforme escolha do usuário no cadastro.
+   *
+   * Opcional para manter compatibilidade com dados antigos; será preenchido em runtime.
+   */
+  accountTerm?: AccountTerm;
   institution?: string;
   currency: string;
   initialBalance: number;
@@ -65,7 +82,7 @@ export interface TransactionLinks {
   vehicleTransactionId: string | null;
 }
 
-// Tipos de Operação no Modal (atualizado com veículos e liberação empréstimo)
+// Tipos de Operação no Modal (atualizado com veículos, imobilizados e liberação empréstimo)
 export type OperationType = 
   | 'receita' 
   | 'despesa' 
@@ -76,7 +93,8 @@ export type OperationType =
   | 'liberacao_emprestimo'
   | 'veiculo'
   | 'rendimento'
-  | 'initial_balance'; // ADICIONADO
+  | 'initial_balance' // ADICIONADO
+  | 'imobilizado'; // NOVO: Operações de Imóvel/Terreno
 
 // NOVO: Labels para OperationType
 export const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
@@ -90,6 +108,7 @@ export const OPERATION_TYPE_LABELS: Record<OperationType, string> = {
   veiculo: 'Veículo',
   rendimento: 'Rendimento',
   initial_balance: 'Saldo Inicial',
+  imobilizado: 'Imobilizado',
 };
 
 // Domínio da Transação
@@ -111,6 +130,10 @@ export interface TransactionMeta {
   pendingLoanConfig?: boolean;
   valorDevido?: number; // ADICIONADO para rastrear o valor original da parcela de seguro
   originalDescription?: string; // ADICIONADO para rastrear a descrição original da importação
+  // NOVO: Metadados genéricos para bens (veículo, imóvel, terreno)
+  assetType?: 'veiculo' | 'imovel' | 'terreno';
+  assetId?: number;
+  assetOperation?: 'compra' | 'venda';
 }
 
 // Transação Completa (atualizada)
@@ -372,6 +395,10 @@ export interface ImportedTransaction {
   tempLoanId: string | null; // Para Pagamento Empréstimo
   tempParcelaId: string | null; // NOVO: Para Pagamento Empréstimo (Parcela)
   tempVehicleOperation: 'compra' | 'venda' | null; // Para Veículo
+  // NOVO: Campos temporários genéricos para bens (veículo, imóvel, terreno)
+  tempAssetType?: 'veiculo' | 'imovel' | 'terreno';
+  tempAssetOperation?: 'compra' | 'venda';
+  tempAssetId?: number;
   
   // Meta
   sourceType: 'csv' | 'ofx';
@@ -445,6 +472,7 @@ export interface AccountSummary {
   accountId: string;
   accountName: string;
   accountType: AccountType;
+   accountTerm?: AccountTerm;
   institution?: string;
   initialBalance: number;
   currentBalance: number;
@@ -525,7 +553,7 @@ export function formatCurrency(value: number, currency = 'BRL'): string {
   }).format(value);
 }
 
-export function getFlowTypeFromOperation(op: OperationType, vehicleOp?: 'compra' | 'venda'): FlowType {
+export function getFlowTypeFromOperation(op: OperationType, assetOperation?: 'compra' | 'venda'): FlowType {
   switch (op) {
     case 'receita':
     case 'resgate':
@@ -540,7 +568,9 @@ export function getFlowTypeFromOperation(op: OperationType, vehicleOp?: 'compra'
     case 'transferencia':
       return 'transfer_out';
     case 'veiculo':
-      return vehicleOp === 'venda' ? 'in' : 'out';
+      return assetOperation === 'venda' ? 'in' : 'out';
+    case 'imobilizado':
+      return assetOperation === 'venda' ? 'in' : 'out';
     default:
       return 'out';
   }
@@ -561,6 +591,7 @@ export function getDomainFromOperation(op: OperationType): TransactionDomain {
     case 'liberacao_emprestimo':
       return 'financing';
     case 'veiculo':
+    case 'imobilizado':
       return 'asset';
     default:
       return 'operational';

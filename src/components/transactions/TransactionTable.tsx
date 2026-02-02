@@ -31,6 +31,7 @@ const OPERATION_ICONS: Record<OperationType, typeof TrendingUp> = {
   veiculo: Car,
   rendimento: DollarSign,
   initial_balance: Info,
+  imobilizado: Receipt,
 };
 
 const OPERATION_COLORS: Record<OperationType, string> = {
@@ -44,6 +45,7 @@ const OPERATION_COLORS: Record<OperationType, string> = {
   veiculo: 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20',
   rendimento: 'bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/20',
   initial_balance: 'bg-muted text-muted-foreground border-border',
+   imobilizado: 'bg-primary/15 text-primary border-primary/20',
 };
 
 const OPERATION_LABELS: Record<OperationType, string> = {
@@ -57,6 +59,7 @@ const OPERATION_LABELS: Record<OperationType, string> = {
   veiculo: 'Veículo',
   rendimento: 'Rendimento',
   initial_balance: 'Saldo Inicial',
+  imobilizado: 'Imobilizado',
 };
 
 export function TransactionTable({

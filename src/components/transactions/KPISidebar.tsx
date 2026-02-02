@@ -77,7 +77,7 @@ export function KPISidebar({ transactions, categories }: KPISidebarProps) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PiggyBank className="w-4 h-4 text-primary" />
-            <span className="text-sm font-bold text-foreground">Taxa de Economia</span>
+            <span className="text-sm font-bold text-foreground">Taxa de Poupança</span>
           </div>
           <Badge className={cn(
             "text-[10px] font-black border-none px-2 py-0.5 rounded-lg",

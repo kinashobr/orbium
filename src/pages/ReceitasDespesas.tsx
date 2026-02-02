@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus, CalendarCheck, Receipt, Sparkles, Filter, LayoutDashboard, FileText, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, format } from "date-fns";
-import { ContaCorrente, Categoria, TransacaoCompleta, TransferGroup, AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, generateTransactionId, formatCurrency, generateTransferGroupId, DateRange, ComparisonDateRanges, TransactionLinks } from "@/types/finance";
+import { ContaCorrente, Categoria, TransacaoCompleta, TransferGroup, AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, generateTransactionId, formatCurrency, generateTransferGroupId, DateRange, ComparisonDateRanges, TransactionLinks, Veiculo, Imovel, Terreno } from "@/types/finance";
 import { AccountsCarousel } from "@/components/transactions/AccountsCarousel";
 import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
 import { KPISidebar } from "@/components/transactions/KPISidebar";
@@ -24,6 +24,25 @@ import { parseDateLocal, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
+// Tipos para dados de novos ativos
+interface NewVehicleData {
+  modelo: string;
+  tipo: 'carro' | 'moto' | 'caminhao';
+  marca?: string;
+  ano: number;
+}
+
+interface NewImovelData {
+  descricao: string;
+  tipo: 'casa' | 'apartamento' | 'comercial';
+  endereco: string;
+}
+
+interface NewTerrenoData {
+  descricao: string;
+  endereco: string;
+}
+
 const ReceitasDespesas = () => {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { 
@@ -31,10 +50,12 @@ const ReceitasDespesas = () => {
     categoriasV2: categories, setCategoriasV2, 
     transacoesV2, setTransacoesV2, addTransacaoV2, 
     emprestimos, markLoanParcelPaid, unmarkLoanParcelPaid, 
-    veiculos, calculateBalanceUpToDate, dateRanges, setDateRanges, 
+    veiculos, imoveis, terrenos, calculateBalanceUpToDate, dateRanges, setDateRanges, 
     markSeguroParcelPaid, unmarkSeguroParcelPaid, 
     standardizationRules, deleteStandardizationRule, 
-    uncontabilizeImportedTransaction, segurosVeiculo 
+    uncontabilizeImportedTransaction, segurosVeiculo, 
+    updateImovel, updateTerreno, updateVeiculo,
+    addVeiculo, addImovel, addTerreno,
   } = useFinance();
 
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
@@ -99,6 +120,52 @@ const ReceitasDespesas = () => {
         const [s, p] = t.links.vehicleTransactionId.split('_'); 
         unmarkSeguroParcelPaid(parseInt(s), parseInt(p)); 
       } 
+      
+      // Side effects para veículos (compra/venda)
+      if (t?.operationType === 'veiculo' && t.meta.assetType === 'veiculo' && t.meta.assetId) {
+        const vehicleId = t.meta.assetId;
+        const veiculo = veiculos.find(v => v.id === vehicleId);
+        if (veiculo) {
+          const updates: Partial<Veiculo> = {};
+          if (veiculo.compraTransactionId === t.id) {
+            updates.compraTransactionId = undefined;
+            updates.status = 'pendente_cadastro';
+          }
+          if (veiculo.vendaTransactionId === t.id) {
+            updates.vendaTransactionId = undefined;
+            updates.status = 'ativo';
+          }
+          if (Object.keys(updates).length > 0) updateVeiculo(vehicleId, updates);
+        }
+      }
+      
+      // Side effects para imóveis/terrenos
+      if (t?.operationType === 'imobilizado' && t.meta.assetType && t.meta.assetId) {
+        const assetId = t.meta.assetId;
+        if (t.meta.assetType === 'imovel') {
+          const imovel = imoveis.find(i => i.id === assetId);
+          if (imovel) {
+            const updates: Partial<Imovel> = {};
+            if (imovel.compraTransactionId === t.id) updates.compraTransactionId = undefined;
+            if (imovel.vendaTransactionId === t.id) {
+              updates.vendaTransactionId = undefined;
+              updates.status = 'ativo';
+            }
+            if (Object.keys(updates).length > 0) updateImovel(assetId, updates);
+          }
+        } else if (t.meta.assetType === 'terreno') {
+          const terreno = terrenos.find(tr => tr.id === assetId);
+          if (terreno) {
+            const updates: Partial<Terreno> = {};
+            if (terreno.compraTransactionId === t.id) updates.compraTransactionId = undefined;
+            if (terreno.vendaTransactionId === t.id) {
+              updates.vendaTransactionId = undefined;
+              updates.status = 'ativo';
+            }
+            if (Object.keys(updates).length > 0) updateTerreno(assetId, updates);
+          }
+        }
+      }
       if (t?.meta.source === 'import') uncontabilizeImportedTransaction(id); 
       setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id)); 
       toast.success("Excluído!"); 
@@ -114,13 +181,122 @@ const ReceitasDespesas = () => {
     setShowRuleManagerModal(true);
   }, []);
 
-  const handleTransactionSubmit = (t: TransacaoCompleta, g?: any) => {
+  const handleTransactionSubmit = (
+    t: TransacaoCompleta, 
+    g?: any,
+    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData }
+  ) => {
+    // Se está criando um novo ativo junto com a transação de compra
+    let createdAssetId: number | undefined;
+    
+    if (newAsset) {
+      if (newAsset.type === 'veiculo') {
+        const vehicleData = newAsset.data as NewVehicleData;
+        const newVehicle: Omit<Veiculo, 'id'> = {
+          modelo: vehicleData.modelo,
+          tipo: vehicleData.tipo,
+          marca: vehicleData.marca,
+          ano: vehicleData.ano,
+          dataCompra: t.date,
+          valorVeiculo: t.amount,
+          valorSeguro: 0,
+          vencimentoSeguro: '',
+          parcelaSeguro: 0,
+          valorFipe: t.amount,
+          status: 'ativo',
+          compraTransactionId: t.id,
+        };
+        addVeiculo(newVehicle);
+        // O ID será gerado internamente - precisamos pegar do último veículo adicionado
+        // Por enquanto, vamos marcar o meta.assetId como undefined e atualizar depois
+        createdAssetId = Math.floor(Date.now() / 1000); // Mesmo cálculo usado em generateVeiculoId
+      } else if (newAsset.type === 'imovel') {
+        const imovelData = newAsset.data as NewImovelData;
+        const newImovel: Omit<Imovel, 'id'> = {
+          descricao: imovelData.descricao,
+          tipo: imovelData.tipo,
+          endereco: imovelData.endereco,
+          dataAquisicao: t.date,
+          valorAquisicao: t.amount,
+          valorAvaliacao: t.amount,
+          status: 'ativo',
+          compraTransactionId: t.id,
+        };
+        addImovel(newImovel);
+        createdAssetId = Math.floor(Date.now() / 1000);
+      } else if (newAsset.type === 'terreno') {
+        const terrenoData = newAsset.data as NewTerrenoData;
+        const newTerreno: Omit<Terreno, 'id'> = {
+          descricao: terrenoData.descricao,
+          endereco: terrenoData.endereco,
+          dataAquisicao: t.date,
+          valorAquisicao: t.amount,
+          valorAvaliacao: t.amount,
+          status: 'ativo',
+          compraTransactionId: t.id,
+        };
+        addTerreno(newTerreno);
+        createdAssetId = Math.floor(Date.now() / 1000);
+      }
+      
+      // Atualizar o meta.assetId na transação com o ID do ativo criado
+      if (createdAssetId) {
+        t = { ...t, meta: { ...t.meta, assetId: createdAssetId } };
+      }
+    }
+
     if (editingTransaction) {
       // Remover side effects antigos antes de aplicar os novos
       if (editingTransaction.links?.loanId) unmarkLoanParcelPaid(parseInt(editingTransaction.links.loanId.replace('loan_', '')));
       if (editingTransaction.links?.vehicleTransactionId) {
           const [s, p] = editingTransaction.links.vehicleTransactionId.split('_');
           unmarkSeguroParcelPaid(parseInt(s), parseInt(p));
+      }
+
+      // Remover vínculo antigo de veículo
+      if (editingTransaction.operationType === 'veiculo' && editingTransaction.meta.assetType === 'veiculo' && editingTransaction.meta.assetId) {
+        const oldVehicleId = editingTransaction.meta.assetId;
+        const veiculo = veiculos.find(v => v.id === oldVehicleId);
+        if (veiculo) {
+          const updates: Partial<Veiculo> = {};
+          if (veiculo.compraTransactionId === editingTransaction.id) {
+            updates.compraTransactionId = undefined;
+            updates.status = 'pendente_cadastro';
+          }
+          if (veiculo.vendaTransactionId === editingTransaction.id) {
+            updates.vendaTransactionId = undefined;
+            updates.status = 'ativo';
+          }
+          if (Object.keys(updates).length > 0) updateVeiculo(oldVehicleId, updates);
+        }
+      }
+
+      // Remover vínculo antigo de imóvel/terreno
+      if (editingTransaction.operationType === 'imobilizado' && editingTransaction.meta.assetType && editingTransaction.meta.assetId) {
+        const oldAssetId = editingTransaction.meta.assetId;
+        if (editingTransaction.meta.assetType === 'imovel') {
+          const imovel = imoveis.find(i => i.id === oldAssetId);
+          if (imovel) {
+            const updates: Partial<Imovel> = {};
+            if (imovel.compraTransactionId === editingTransaction.id) updates.compraTransactionId = undefined;
+            if (imovel.vendaTransactionId === editingTransaction.id) {
+              updates.vendaTransactionId = undefined;
+              updates.status = 'ativo';
+            }
+            if (Object.keys(updates).length > 0) updateImovel(oldAssetId, updates);
+          }
+        } else if (editingTransaction.meta.assetType === 'terreno') {
+          const terreno = terrenos.find(tr => tr.id === oldAssetId);
+          if (terreno) {
+            const updates: Partial<Terreno> = {};
+            if (terreno.compraTransactionId === editingTransaction.id) updates.compraTransactionId = undefined;
+            if (terreno.vendaTransactionId === editingTransaction.id) {
+              updates.vendaTransactionId = undefined;
+              updates.status = 'ativo';
+            }
+            if (Object.keys(updates).length > 0) updateTerreno(oldAssetId, updates);
+          }
+        }
       }
 
       setTransacoesV2(p => p.map(x => x.id === t.id ? t : x));
@@ -150,9 +326,53 @@ const ReceitasDespesas = () => {
     if (t.operationType === 'pagamento_emprestimo' && t.links?.loanId && t.links?.parcelaId) {
         markLoanParcelPaid(parseInt(t.links.loanId.replace('loan_', '')), t.amount, t.date, parseInt(t.links.parcelaId));
     }
-    if (t.operationType === 'veiculo' && t.links?.vehicleTransactionId) {
+    
+    // Side effect para pagamento de seguro (usa vehicleTransactionId)
+    if (t.operationType === 'despesa' && t.links?.vehicleTransactionId) {
         const [s, p] = t.links.vehicleTransactionId.split('_');
         if (s && p && !isNaN(parseInt(s))) markSeguroParcelPaid(parseInt(s), parseInt(p), t.id);
+    }
+
+    // Side effects para veículos (compra/venda) - não quando foi criado novo (já aplicado acima)
+    if (t.operationType === 'veiculo' && t.meta.assetType === 'veiculo' && t.meta.assetId && t.meta.assetOperation && !newAsset) {
+      const vehicleId = t.meta.assetId;
+      const updates: Partial<Veiculo> = {};
+      if (t.meta.assetOperation === 'compra') {
+        updates.compraTransactionId = t.id;
+        updates.status = 'ativo';
+        updates.dataCompra = t.date;
+        updates.valorVeiculo = t.amount;
+      } else if (t.meta.assetOperation === 'venda') {
+        updates.vendaTransactionId = t.id;
+        updates.status = 'vendido';
+      }
+      if (Object.keys(updates).length > 0) updateVeiculo(vehicleId, updates);
+    }
+
+    // Side effects para imóveis/terrenos (compra/venda) - não quando foi criado novo
+    if (t.operationType === 'imobilizado' && t.meta.assetType && t.meta.assetId && t.meta.assetOperation && !newAsset) {
+      const assetId = t.meta.assetId;
+      if (t.meta.assetType === 'imovel') {
+        const updates: Partial<Imovel> = {};
+        if (t.meta.assetOperation === 'compra') {
+          updates.compraTransactionId = t.id;
+          updates.status = 'ativo';
+        } else if (t.meta.assetOperation === 'venda') {
+          updates.vendaTransactionId = t.id;
+          updates.status = 'vendido';
+        }
+        if (Object.keys(updates).length > 0) updateImovel(assetId, updates);
+      } else if (t.meta.assetType === 'terreno') {
+        const updates: Partial<Terreno> = {};
+        if (t.meta.assetOperation === 'compra') {
+          updates.compraTransactionId = t.id;
+          updates.status = 'ativo';
+        } else if (t.meta.assetOperation === 'venda') {
+          updates.vendaTransactionId = t.id;
+          updates.status = 'vendido';
+        }
+        if (Object.keys(updates).length > 0) updateTerreno(assetId, updates);
+      }
     }
   };
 
@@ -231,7 +451,42 @@ const ReceitasDespesas = () => {
         </div>
       </div>
 
-      <MovimentarContaModal open={showMovimentarModal} onOpenChange={setShowMovimentarModal} accounts={contasMovimento} categories={categories} investments={contasMovimento.filter(c => ['renda_fixa', 'poupanca', 'reserva', 'objetivo'].includes(c.accountType)).map(i => ({ id: i.id, name: i.name }))} loans={emprestimos.filter(e => e.status !== 'pendente_config').map(e => ({ id: `loan_${e.id}`, institution: e.contrato, numeroContrato: e.contrato, parcelas: e.meses > 0 ? Array.from({ length: e.meses }, (_, i) => ({ numero: i + 1, vencimento: format(addMonths(parseDateLocal(e.dataInicio!), i), 'yyyy-MM-dd'), valor: e.parcela, paga: transactions.some(t => t.links?.loanId === `loan_${e.id}` && t.links?.parcelaId === (i+1).toString()) })) : [], valorParcela: e.parcela, totalParcelas: e.meses }))} segurosVeiculo={segurosVeiculo} veiculos={veiculos} selectedAccountId={selectedAccountForModal} onSubmit={handleTransactionSubmit} editingTransaction={editingTransaction} />
+      <MovimentarContaModal
+        open={showMovimentarModal}
+        onOpenChange={setShowMovimentarModal}
+        accounts={contasMovimento}
+        categories={categories}
+        investments={contasMovimento
+          .filter(c => ['renda_fixa', 'poupanca', 'reserva', 'objetivo'].includes(c.accountType))
+          .map(i => ({ id: i.id, name: i.name }))}
+        loans={emprestimos
+          .filter(e => e.status !== 'pendente_config')
+          .map(e => ({
+            id: `loan_${e.id}`,
+            institution: e.contrato,
+            numeroContrato: e.contrato,
+            parcelas:
+              e.meses > 0
+                ? Array.from({ length: e.meses }, (_, i) => ({
+                    numero: i + 1,
+                    vencimento: format(addMonths(parseDateLocal(e.dataInicio!), i), 'yyyy-MM-dd'),
+                    valor: e.parcela,
+                    paga: transactions.some(
+                      t => t.links?.loanId === `loan_${e.id}` && t.links?.parcelaId === (i + 1).toString(),
+                    ),
+                  }))
+                : [],
+            valorParcela: e.parcela,
+            totalParcelas: e.meses,
+          }))}
+        segurosVeiculo={segurosVeiculo}
+        veiculos={veiculos}
+        imoveis={imoveis}
+        terrenos={terrenos}
+        selectedAccountId={selectedAccountForModal}
+        onSubmit={handleTransactionSubmit}
+        editingTransaction={editingTransaction}
+      />
       <AccountFormModal open={showAccountModal} onOpenChange={setShowAccountModal} account={editingAccount} onSubmit={handleAccountSubmit} onDelete={id => setContasMovimento(p => p.filter(x => x.id !== id))} hasTransactions={editingAccount ? transactions.some(t => t.accountId === editingAccount.id) : false} />
       <CategoryFormModal open={showCategoryModal} onOpenChange={setShowCategoryModal} category={editingCategory} onSubmit={c => { if (editingCategory) setCategoriasV2(p => p.map(x => x.id === c.id ? c : x)); else setCategoriasV2(p => [...p, c]); }} onDelete={id => setCategoriasV2(p => p.filter(x => x.id !== id))} hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false} />
       <CategoryListModal open={showCategoryListModal} onOpenChange={setShowCategoryListModal} categories={categories} onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }} onEditCategory={c => { setEditingCategory(c); setShowCategoryModal(true); }} onDeleteCategory={id => setCategoriasV2(p => p.filter(x => x.id !== id))} transactionCountByCategory={transactionCountByCategory} />

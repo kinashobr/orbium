@@ -1,38 +1,39 @@
 import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode, useMemo } from "react";
 import {
-  Categoria, TransacaoCompleta,
-  DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
-  ContaCorrente,
-  FinanceExportV2,
-  Emprestimo,
-  Veiculo,
-  SeguroVeiculo,
-  ObjetivoFinanceiro,
-  AccountType,
-  DateRange,
-  ComparisonDateRanges,
-  generateAccountId,
-  generateTransactionId,
-  BillTracker,
-  generateBillId,
-  StandardizationRule,
-  generateRuleId,
-  ImportedStatement,
-  ImportedTransaction,
-  generateStatementId,
-  OperationType,
-  getFlowTypeFromOperation,
-  BillSourceType,
-  TransactionLinks,
-  PotentialFixedBill,
-  ExternalPaidBill,
-  BillDisplayItem,
-  Imovel,
-  Terreno,
-  generateImovelId,
-  generateTerrenoId,
-  MetaPersonalizada,
-  MetaProgresso,
+	Categoria, TransacaoCompleta,
+	DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
+	ContaCorrente,
+	FinanceExportV2,
+	Emprestimo,
+	Veiculo,
+	SeguroVeiculo,
+	ObjetivoFinanceiro,
+	AccountType,
+	DateRange,
+	ComparisonDateRanges,
+	generateAccountId,
+	generateTransactionId,
+	BillTracker,
+	generateBillId,
+	StandardizationRule,
+	generateRuleId,
+	ImportedStatement,
+	ImportedTransaction,
+	generateStatementId,
+	OperationType,
+	getFlowTypeFromOperation,
+	BillSourceType,
+	TransactionLinks,
+	PotentialFixedBill,
+	ExternalPaidBill,
+	BillDisplayItem,
+	Imovel,
+	Terreno,
+	generateImovelId,
+	generateTerrenoId,
+	MetaPersonalizada,
+	MetaProgresso,
+	AccountTerm,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
@@ -478,6 +479,22 @@ function saveToStorage<T>(key: string, data: T): void {
   }
 }
 
+// Normaliza o prazo da conta para manter compatibilidade com dados antigos
+// e garantir as regras de negócio:
+// - Contas "corrente" e "cartao_credito": sempre curto prazo
+// - Demais tipos: usuário pode escolher, mas se vier sem informação
+//   assumimos longo prazo por padrão (investimentos/objetivos típicos).
+function normalizeAccountTerm(account: ContaCorrente): ContaCorrente {
+  if (account.accountTerm) return account;
+
+  const isShortTermForced =
+    account.accountType === "corrente" || account.accountType === "cartao_credito";
+
+  const inferredTerm: AccountTerm = isShortTermForced ? "curto_prazo" : "longo_prazo";
+
+  return { ...account, accountTerm: inferredTerm };
+}
+
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>(() => loadFromStorage(STORAGE_KEYS.EMPRESTIMOS, initialEmprestimos));
   const [veiculos, setVeiculos] = useState<Veiculo[]>(() => loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos));
@@ -486,7 +503,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo));
   const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos));
   const [billsTracker, setBillsTracker] = useState<BillTracker[]>(() => loadFromStorage(STORAGE_KEYS.BILLS_TRACKER, initialBillsTracker));
-  const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS));
+  const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() =>
+    loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS).map(normalizeAccountTerm)
+  );
   const [categoriasV2, setCategoriasV2] = useState<Categoria[]>(() => loadFromStorage(STORAGE_KEYS.CATEGORIAS_V2, DEFAULT_CATEGORIES));
   const [transacoesV2, setTransacoesV2] = useState<TransacaoCompleta[]>(() => loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, []));
   const [standardizationRules, setStandardizationRules] = useState<StandardizationRule[]>(() => loadFromStorage(STORAGE_KEYS.STANDARDIZATION_RULES, initialStandardizationRules));
@@ -741,10 +760,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setImportedStatements(prev => prev.map(s => {
         let updated = false;
         const newRawTransactions = s.rawTransactions.map(t => {
-            if (t.contabilizedTransactionId === transactionId) {
-                updated = true;
-                // Reset fields to allow re-categorization
-                return { ...t, isContabilized: false, contabilizedTransactionId: undefined, categoryId: null, operationType: null, description: t.originalDescription, isTransfer: false, destinationAccountId: null, tempInvestmentId: null, tempLoanId: null, tempParcelaId: null, tempVehicleOperation: null };
+                if (t.contabilizedTransactionId === transactionId) {
+		        updated = true;
+		        // Reset fields to allow re-categorization
+		        return {
+		        	...t,
+		        	isContabilized: false,
+		        	contabilizedTransactionId: undefined,
+		        	categoryId: null,
+		        	operationType: null,
+		        	description: t.originalDescription,
+		        	isTransfer: false,
+		        	destinationAccountId: null,
+		        	tempInvestmentId: null,
+		        	tempLoanId: null,
+		        	tempParcelaId: null,
+		        	tempVehicleOperation: null,
+		        	tempAssetType: undefined,
+		        	tempAssetOperation: undefined,
+		        	tempAssetId: undefined,
+		        };
             }
             return t;
         });
@@ -849,7 +884,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const trackerTxIds = new Set(billsTracker.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
     return transacoesV2.filter(t => {
         const transactionDate = parseDateLocal(t.date);
-        return isWithinInterval(transactionDate, { start: monthStart, end: monthEnd }) && (t.flow === 'out' || t.flow === 'transfer_out') && (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo') && (t.meta.source !== 'import' || t.conciliated) && !trackerTxIds.has(t.id) && t.meta.source !== 'bill_tracker';
+        return (
+          isWithinInterval(transactionDate, { start: monthStart, end: monthEnd }) &&
+          (t.flow === 'out' || t.flow === 'transfer_out') &&
+          (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado') &&
+          (t.meta.source !== 'import' || t.conciliated) &&
+          !trackerTxIds.has(t.id) &&
+          t.meta.source !== 'bill_tracker'
+        );
     }).map(t => ({ id: t.id, type: 'external_paid', dueDate: t.date, paymentDate: t.date, expectedAmount: t.amount, description: t.description, suggestedAccountId: t.accountId, suggestedCategoryId: t.categoryId, sourceType: 'external_expense', isPaid: true, isExcluded: false }));
   }, [billsTracker, transacoesV2]);
 

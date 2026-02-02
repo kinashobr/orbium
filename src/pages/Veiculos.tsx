@@ -47,7 +47,7 @@ import {
   Tooltip, 
 } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
-import { format, subMonths, endOfMonth } from "date-fns"; 
+import { format, subMonths, endOfMonth, isWithinInterval, startOfDay, endOfDay, startOfMonth } from "date-fns"; 
 import { ptBR } from "date-fns/locale"; 
 import { toast } from "sonner";
 
@@ -68,8 +68,73 @@ const BensImobilizados = () => {
     updateTerreno,
     deleteTerreno,
     dateRanges,
-    setDateRanges
+    setDateRanges,
+    transacoesV2,
+    categoriasV2
   } = useFinance();
+
+  // Componente interno para calcular custo mensal médio de manutenção de veículos
+  const CustoMedioVeiculos = () => {
+    const custoMedio = useMemo(() => {
+      const now = new Date();
+      const mesesParaAnalisar = 6;
+      
+      // Identificar categorias relacionadas a veículos
+      const categoriasVeiculo = categoriasV2.filter(c => 
+        c.label.toLowerCase().includes('combustível') ||
+        c.label.toLowerCase().includes('combustivel') ||
+        c.label.toLowerCase().includes('manutenção') ||
+        c.label.toLowerCase().includes('manutencao') ||
+        c.label.toLowerCase().includes('ipva') ||
+        c.label.toLowerCase().includes('seguro') ||
+        c.label.toLowerCase().includes('veículo') ||
+        c.label.toLowerCase().includes('veiculo') ||
+        c.label.toLowerCase().includes('carro') ||
+        c.label.toLowerCase().includes('moto')
+      );
+      
+      const categoriaIds = new Set(categoriasVeiculo.map(c => c.id));
+      
+      // Filtrar transações dos últimos 6 meses
+      const transacoesVeiculo: { mes: string; total: number }[] = [];
+      
+      for (let i = 0; i < mesesParaAnalisar; i++) {
+        const mesRef = subMonths(now, i);
+        const inicio = startOfMonth(mesRef);
+        const fim = endOfMonth(mesRef);
+        
+        const txsMes = transacoesV2.filter(t => {
+          if (!categoriaIds.has(t.categoryId || '')) return false;
+          if (t.flow !== 'out') return false;
+          try {
+            const d = parseDateLocal(t.date);
+            return isWithinInterval(d, { start: startOfDay(inicio), end: endOfDay(fim) });
+          } catch {
+            return false;
+          }
+        });
+        
+        const totalMes = txsMes.reduce((acc, t) => acc + t.amount, 0);
+        if (totalMes > 0) {
+          transacoesVeiculo.push({ mes: format(mesRef, 'MMM/yy'), total: totalMes });
+        }
+      }
+      
+      if (transacoesVeiculo.length === 0) return null;
+      
+      const somaTotal = transacoesVeiculo.reduce((acc, m) => acc + m.total, 0);
+      return somaTotal / transacoesVeiculo.length;
+    }, []);
+    
+    return (
+      <div className="relative z-10">
+        <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Custo Mensal Médio</p>
+        <p className="font-display font-black text-xl lg:text-3xl text-foreground tabular-nums">
+          {custoMedio !== null ? formatCurrency(custoMedio) : "Sem dados"}
+        </p>
+      </div>
+    );
+  };
   
   const colors = useChartColors();
   const [activeTab, setActiveTab] = useState("veiculos");
@@ -232,28 +297,54 @@ const BensImobilizados = () => {
                 </div>
                 <Badge className="bg-warning/10 text-warning border-none font-black text-[8px] sm:text-[10px] px-2 py-0.5 rounded-lg uppercase tracking-widest">Manutenção</Badge>
               </div>
-              <div className="relative z-10">
-                <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Custo Mensal Médio</p>
-                <p className="font-display font-black text-xl lg:text-3xl text-foreground tabular-nums">R$ 850,00</p>
-              </div>
+              <CustoMedioVeiculos />
             </div>
 
-            {/* Card Proteção */}
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[160px] xl:h-[194px] hover:shadow-soft-lg hover:-translate-y-1 transition-all group relative overflow-hidden animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-               <div className="absolute -right-4 -bottom-4 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
-                <ShieldCheck className="w-32 h-32 text-green-600" />
-              </div>
-              <div className="flex items-start justify-between relative z-10">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center text-success shadow-sm group-hover:scale-110 transition-transform">
-                  <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
+            {/* Card Proteção - Cálculo dinâmico de cobertura */}
+            {(() => {
+              const veiculosAtivos = veiculos.filter(v => v.status === 'ativo');
+              const totalVeiculos = veiculosAtivos.length;
+              const veiculosComSeguro = veiculosAtivos.filter(v => 
+                segurosVeiculo.some(s => s.veiculoId === v.id && new Date(s.vigenciaFim) >= new Date())
+              ).length;
+              const cobertura = totalVeiculos > 0 ? Math.round((veiculosComSeguro / totalVeiculos) * 100) : 0;
+              const hasVehicles = totalVeiculos > 0;
+              
+              return (
+                <div className="bg-surface-light dark:bg-surface-dark rounded-[24px] sm:rounded-[32px] p-6 lg:p-8 shadow-soft border border-white/60 dark:border-white/5 flex flex-col justify-between h-auto min-h-[160px] xl:h-[194px] hover:shadow-soft-lg hover:-translate-y-1 transition-all group relative overflow-hidden animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+                  <div className="absolute -right-4 -bottom-4 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-700">
+                    <ShieldCheck className="w-32 h-32 text-success" />
+                  </div>
+                  <div className="flex items-start justify-between relative z-10">
+                    <div className={cn(
+                      "w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform",
+                      hasVehicles && cobertura === 100 ? "bg-green-100 dark:bg-green-900/30 text-success" :
+                      hasVehicles && cobertura >= 50 ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600" :
+                      "bg-muted text-muted-foreground"
+                    )}>
+                      <ShieldCheck className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </div>
+                    <Badge className={cn(
+                      "border-none font-black text-[8px] sm:text-[10px] px-2 py-0.5 rounded-lg uppercase tracking-widest",
+                      hasVehicles && cobertura === 100 ? "bg-success/10 text-success" :
+                      hasVehicles && cobertura >= 50 ? "bg-orange-100 text-orange-600" :
+                      "bg-muted text-muted-foreground"
+                    )}>
+                      {hasVehicles ? (cobertura === 100 ? "Total" : "Parcial") : "S/D"}
+                    </Badge>
+                  </div>
+                  <div className="relative z-10">
+                    <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Cobertura Seguros</p>
+                    <p className={cn(
+                      "font-display font-black text-xl lg:text-3xl tabular-nums",
+                      hasVehicles ? "text-foreground" : "text-muted-foreground"
+                    )}>
+                      {hasVehicles ? `${cobertura}% Frota` : "—"}
+                    </p>
+                  </div>
                 </div>
-                <Badge className="bg-success/10 text-success border-none font-black text-[8px] sm:text-[10px] px-2 py-0.5 rounded-lg uppercase tracking-widest">Proteção</Badge>
-              </div>
-              <div className="relative z-10">
-                <p className="text-[9px] sm:text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] mb-1">Cobertura Total</p>
-                <p className="font-display font-black text-xl lg:text-3xl text-foreground tabular-nums">100% Frota</p>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
 

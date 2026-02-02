@@ -79,7 +79,7 @@ export function LoanAlerts({ emprestimos, className, onOpenPendingConfig }: Loan
     
     if (totalJurosRestantes > 1000) {
       items.push({ 
-        id: "save", type: "success", icon: Zap, title: "AMORTIZAÇÃO", statusLabel: "SAUDÁVEL", 
+        id: "save", type: "info", icon: Zap, title: "AMORTIZAÇÃO", statusLabel: "OPORTUNIDADE", 
         description: "Economia potencial ao quitar o principal antecipadamente.",
         value: `R$ ${totalJurosRestantes.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
       });

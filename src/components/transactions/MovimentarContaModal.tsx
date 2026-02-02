@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, Sparkles, ArrowLeft, Shield } from "lucide-react";
+import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, Sparkles, ArrowLeft, Building2 } from "lucide-react";
 import { 
   ContaCorrente, 
   Categoria, 
@@ -20,7 +20,10 @@ import {
   OPERATION_TYPE_LABELS,
   TransactionLinks,
   TransactionMeta,
-  SeguroVeiculo
+  SeguroVeiculo,
+  Imovel,
+  Terreno,
+  Veiculo,
 } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -35,6 +38,25 @@ interface LoanInfo {
   valorParcela: number;
 }
 
+// Dados para cadastrar novo bem durante a compra
+interface NewVehicleData {
+  modelo: string;
+  tipo: 'carro' | 'moto' | 'caminhao';
+  marca?: string;
+  ano: number;
+}
+
+interface NewImovelData {
+  descricao: string;
+  tipo: 'casa' | 'apartamento' | 'comercial';
+  endereco: string;
+}
+
+interface NewTerrenoData {
+  descricao: string;
+  endereco: string;
+}
+
 interface MovimentarContaModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,9 +65,15 @@ interface MovimentarContaModalProps {
   investments: InvestmentInfo[];
   loans: LoanInfo[];
   segurosVeiculo: SeguroVeiculo[];
-  veiculos: any[];
+  veiculos: Veiculo[];
+  imoveis: Imovel[];
+  terrenos: Terreno[];
   selectedAccountId?: string;
-  onSubmit: (transaction: TransacaoCompleta, transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string }) => void;
+  onSubmit: (
+    transaction: TransacaoCompleta, 
+    transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string },
+    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData }
+  ) => void;
   editingTransaction?: TransacaoCompleta;
 }
 
@@ -59,9 +87,10 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color
   { value: 'liberacao_emprestimo', label: 'Liberação', icon: DollarSign, color: 'text-primary', bgColor: 'bg-primary/10' },
   { value: 'veiculo', label: 'Veículo', icon: Car, color: 'text-primary', bgColor: 'bg-primary/10' },
   { value: 'rendimento', label: 'Rendimento', icon: Coins, color: 'text-primary', bgColor: 'bg-primary/10' },
+  { value: 'imobilizado', label: 'Imóvel / Terreno', icon: Building2, color: 'text-primary', bgColor: 'bg-primary/10' },
 ];
 
-export function MovimentarContaModal({ open, onOpenChange, accounts, categories, investments, loans, segurosVeiculo, veiculos, selectedAccountId, onSubmit, editingTransaction }: MovimentarContaModalProps) {
+export function MovimentarContaModal({ open, onOpenChange, accounts, categories, investments, loans, segurosVeiculo, veiculos, imoveis, terrenos, selectedAccountId, onSubmit, editingTransaction }: MovimentarContaModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [accountId, setAccountId] = useState("");
   const [date, setDate] = useState("");
@@ -74,14 +103,28 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
   const [tempInvestmentId, setTempInvestmentId] = useState<string | null>(null);
   const [tempLoanId, setTempLoanId] = useState<string | null>(null);
   const [tempParcelaId, setTempParcelaId] = useState<string | null>(null);
+  
+  // Veículos: compra/venda
   const [tempVehicleOperation, setTempVehicleOperation] = useState<'compra' | 'venda' | null>(null);
   const [tempVehicleId, setTempVehicleId] = useState<string | null>(null);
+  const [isCreatingNewVehicle, setIsCreatingNewVehicle] = useState(false);
+  const [newVehicleData, setNewVehicleData] = useState<NewVehicleData>({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
 
+  // Seguro de veículo (separado de compra/venda)
   const [tempSeguroId, setTempSeguroId] = useState<string | null>(null);
   const [tempSeguroParcelaId, setTempSeguroParcelaId] = useState<string | null>(null);
 
+  // Imobilizado (imóvel/terreno)
+  const [tempAssetType, setTempAssetType] = useState<'imovel' | 'terreno' | null>(null);
+  const [tempAssetId, setTempAssetId] = useState<string | null>(null);
+  const [tempAssetOperation, setTempAssetOperation] = useState<'compra' | 'venda' | null>(null);
+  const [isCreatingNewAsset, setIsCreatingNewAsset] = useState(false);
+  const [newImovelData, setNewImovelData] = useState<NewImovelData>({ descricao: '', tipo: 'casa', endereco: '' });
+  const [newTerrenoData, setNewTerrenoData] = useState<NewTerrenoData>({ descricao: '', endereco: '' });
+
   const isEditing = !!editingTransaction;
 
+  // Verifica se é uma despesa com categoria de seguro (para vincular pagamento de seguro)
   const isSeguroCategory = useMemo(() => {
     if (!categoryId || operationType !== 'despesa') return false;
     const cat = categories.find(c => c.id === categoryId);
@@ -118,15 +161,34 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         setTempInvestmentId(editingTransaction.links.investmentId);
         setTempLoanId(editingTransaction.links.loanId);
         setTempParcelaId(editingTransaction.links.parcelaId);
-        setTempVehicleOperation(editingTransaction.meta.vehicleOperation || null);
-        setTempVehicleId(editingTransaction.links.vehicleTransactionId ? editingTransaction.links.vehicleTransactionId.split('_')[0] : null);
+        
+        // Veículo compra/venda
+        if (editingTransaction.operationType === 'veiculo') {
+          setTempVehicleOperation(editingTransaction.meta.vehicleOperation || null);
+          setTempVehicleId(editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null);
+          setIsCreatingNewVehicle(false);
+        }
 
+        // Seguro (separado - usa vehicleTransactionId para pagamentos de seguro em despesas)
         if (editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa') {
             const [sId, pNum] = editingTransaction.links.vehicleTransactionId.split('_');
             setTempSeguroId(sId);
             setTempSeguroParcelaId(pNum);
         }
+
+        // Imobilizado
+        if (editingTransaction.operationType === 'imobilizado') {
+          setTempAssetType(
+            editingTransaction.meta.assetType === 'imovel' || editingTransaction.meta.assetType === 'terreno'
+              ? editingTransaction.meta.assetType
+              : null,
+          );
+          setTempAssetId(editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null);
+          setTempAssetOperation(editingTransaction.meta.assetOperation || null);
+          setIsCreatingNewAsset(false);
+        }
       } else {
+        // Reset para novo lançamento
         setAccountId(selectedAccountId || accounts[0]?.id || ''); 
         setDate(new Date().toISOString().split('T')[0]); 
         setAmount("0,00");
@@ -139,8 +201,16 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         setTempParcelaId(null);
         setTempVehicleOperation(null);
         setTempVehicleId(null);
+        setIsCreatingNewVehicle(false);
+        setNewVehicleData({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
         setTempSeguroId(null);
         setTempSeguroParcelaId(null);
+        setTempAssetType(null);
+        setTempAssetId(null);
+        setTempAssetOperation(null);
+        setIsCreatingNewAsset(false);
+        setNewImovelData({ descricao: '', tipo: 'casa', endereco: '' });
+        setNewTerrenoData({ descricao: '', endereco: '' });
       }
     }
   }, [open, editingTransaction, selectedAccountId, accounts]);
@@ -149,26 +219,126 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     e.preventDefault();
     const parsedAmount = parseBrlValue(amount);
     
-    if (!accountId || !date || parsedAmount <= 0 || !operationType) { toast.error("Preencha os campos obrigatórios."); return; }
+    if (!accountId || !date || parsedAmount <= 0 || !operationType) { 
+      toast.error("Preencha os campos obrigatórios."); 
+      return; 
+    }
     
-    if (operationType === 'transferencia' && !destinationAccountId) { toast.error("Selecione a conta de destino."); return; }
-    if ((operationType === 'aplicacao' || operationType === 'resgate') && !tempInvestmentId) { toast.error("Selecione o ativo de investimento."); return; }
-    if (operationType === 'pagamento_emprestimo' && (!tempLoanId || !tempParcelaId)) { toast.error("Selecione o contrato e a parcela."); return; }
-    if (operationType === 'veiculo' && (!tempVehicleId || !tempVehicleOperation)) { toast.error("Selecione o veículo e a operação."); return; }
+    if (operationType === 'transferencia' && !destinationAccountId) { 
+      toast.error("Selecione a conta de destino."); 
+      return; 
+    }
+    if ((operationType === 'aplicacao' || operationType === 'resgate') && !tempInvestmentId) { 
+      toast.error("Selecione o ativo de investimento."); 
+      return; 
+    }
+    if (operationType === 'pagamento_emprestimo' && (!tempLoanId || !tempParcelaId)) { 
+      toast.error("Selecione o contrato e a parcela."); 
+      return; 
+    }
     
+    // Validação de veículo
+    if (operationType === 'veiculo') {
+      if (!tempVehicleOperation) {
+        toast.error("Selecione a operação (Compra ou Venda).");
+        return;
+      }
+      if (tempVehicleOperation === 'compra') {
+        // Para compra: sempre cadastrar novo
+        if (!newVehicleData.modelo.trim()) {
+          toast.error("Informe o modelo do veículo.");
+          return;
+        }
+      } else {
+        // Para venda: exige veículo existente ativo
+        if (!tempVehicleId) {
+          toast.error("Selecione o veículo a ser vendido.");
+          return;
+        }
+        const veiculo = veiculos.find(v => v.id === Number(tempVehicleId));
+        if (veiculo && veiculo.status === 'vendido') {
+          toast.error("Este veículo já foi vendido.");
+          return;
+        }
+      }
+    }
+
+    // Validação de imobilizado
+    if (operationType === 'imobilizado') {
+      if (!tempAssetType) {
+        toast.error("Selecione o tipo de bem (Imóvel ou Terreno).");
+        return;
+      }
+      if (!tempAssetOperation) {
+        toast.error("Selecione a operação (Compra ou Venda).");
+        return;
+      }
+      if (tempAssetOperation === 'compra') {
+        // Para compra: sempre cadastrar novo
+        if (tempAssetType === 'imovel' && !newImovelData.descricao.trim()) {
+          toast.error("Informe a descrição do imóvel.");
+          return;
+        }
+        if (tempAssetType === 'terreno' && !newTerrenoData.descricao.trim()) {
+          toast.error("Informe a descrição do terreno.");
+          return;
+        }
+      } else {
+        // Para venda: exige bem existente ativo
+        if (!tempAssetId) {
+          toast.error("Selecione o bem a ser vendido.");
+          return;
+        }
+        const asset = tempAssetType === 'imovel' 
+          ? imoveis.find(i => i.id === Number(tempAssetId))
+          : terrenos.find(t => t.id === Number(tempAssetId));
+        if (asset && asset.status === 'vendido') {
+          toast.error("Este bem já foi vendido.");
+          return;
+        }
+      }
+    }
+    
+    // Validação de seguro (apenas para despesas com categoria seguro)
     if (isSeguroCategory && (!tempSeguroId || !tempSeguroParcelaId)) {
         toast.error("Vincule este pagamento a uma parcela de seguro em aberto.");
         return;
     }
 
+    // Categoria obrigatória apenas para receita/despesa/rendimento
     const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(operationType);
-    if (requiresCategory && !categoryId) { toast.error("A categoria é obrigatória para esta operação."); return; }
+    if (requiresCategory && !categoryId) { 
+      toast.error("A categoria é obrigatória para esta operação."); 
+      return; 
+    }
 
+    // vehicleTransactionId é usado APENAS para pagamentos de seguro (não para compra/venda de veículos)
     let vehicleTransactionId = null;
-    if (operationType === 'veiculo' && tempVehicleId) {
-        vehicleTransactionId = `${tempVehicleId}_${tempVehicleOperation}`;
-    } else if (isSeguroCategory && tempSeguroId) {
+    if (isSeguroCategory && tempSeguroId) {
         vehicleTransactionId = `${tempSeguroId}_${tempSeguroParcelaId}`;
+    }
+
+    // Definir assetId e assetOperation para veículos e imobilizados
+    let finalAssetId: number | undefined = undefined;
+    let finalAssetType: 'veiculo' | 'imovel' | 'terreno' | undefined = undefined;
+    let finalAssetOperation: 'compra' | 'venda' | undefined = undefined;
+
+    if (operationType === 'veiculo') {
+      finalAssetType = 'veiculo';
+      finalAssetOperation = tempVehicleOperation || undefined;
+      // Para compra: sempre criando novo (assetId será preenchido após criar)
+      // Para venda: usa o veículo existente selecionado
+      if (tempVehicleOperation === 'venda' && tempVehicleId) {
+        finalAssetId = Number(tempVehicleId);
+      }
+    } else if (operationType === 'imobilizado') {
+      finalAssetType = tempAssetType || undefined;
+      finalAssetOperation = tempAssetOperation || undefined;
+      // Para compra: sempre criando novo (assetId será preenchido após criar)
+      // Para venda: usa o bem existente selecionado
+      if (tempAssetOperation === 'venda' && tempAssetId) {
+        finalAssetId = Number(tempAssetId);
+      }
     }
 
     const links: TransactionLinks = { 
@@ -181,13 +351,16 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     
     const meta: Partial<TransactionMeta> = {
         vehicleOperation: operationType === 'veiculo' ? tempVehicleOperation || undefined : undefined,
+        assetType: finalAssetType,
+        assetId: finalAssetId,
+        assetOperation: finalAssetOperation,
     };
 
     const baseTx: TransacaoCompleta = {
       id: editingTransaction?.id || generateTransactionId(), 
       date, 
       accountId, 
-      flow: getFlowTypeFromOperation(operationType, tempVehicleOperation || undefined), 
+      flow: getFlowTypeFromOperation(operationType, finalAssetOperation), 
       operationType, 
       domain: getDomainFromOperation(operationType), 
       amount: parsedAmount, 
@@ -213,15 +386,41 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         description: baseTx.description 
       };
     }
+
+    // Preparar dados do novo ativo se for compra (sempre cria novo)
+    let newAssetPayload: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData } | undefined;
     
-    onSubmit(baseTx, transferGroup);
+    if (operationType === 'veiculo' && tempVehicleOperation === 'compra') {
+      newAssetPayload = { type: 'veiculo', data: newVehicleData };
+    } else if (operationType === 'imobilizado' && tempAssetOperation === 'compra' && tempAssetType) {
+      if (tempAssetType === 'imovel') {
+        newAssetPayload = { type: 'imovel', data: newImovelData };
+      } else {
+        newAssetPayload = { type: 'terreno', data: newTerrenoData };
+      }
+    }
+    
+    onSubmit(baseTx, transferGroup, newAssetPayload);
     onOpenChange(false);
   };
 
   const op = OPERATION_OPTIONS.find(o => o.value === operationType);
-  const showVincularSection = ['aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo'].includes(operationType || '') || isSeguroCategory;
+  
+  // Mostrar seção de vínculo para operações que requerem
+  const showVincularSection = ['aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo', 'imobilizado'].includes(operationType || '') || isSeguroCategory;
+  
+  // Esconder campo de categoria para operações de ativos (veículo/imobilizado) e outras que não usam
+  const hideCategory = ['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'imobilizado'].includes(operationType || '');
+  
   const currentLoan = useMemo(() => loans.find(l => l.id === tempLoanId), [loans, tempLoanId]);
   const currentSeguro = useMemo(() => segurosVeiculo.find(s => s.id === Number(tempSeguroId)), [segurosVeiculo, tempSeguroId]);
+
+  // Veículos ativos (não vendidos) para seleção em venda
+  const activeVehicles = useMemo(() => veiculos.filter(v => v.status !== 'vendido'), [veiculos]);
+  
+  // Imóveis/Terrenos ativos para seleção em venda
+  const activeImoveis = useMemo(() => imoveis.filter(i => i.status !== 'vendido'), [imoveis]);
+  const activeTerrenos = useMemo(() => terrenos.filter(t => t.status !== 'vendido'), [terrenos]);
 
   const handleOperationChange = (v: OperationType) => {
     setOperationType(v);
@@ -231,13 +430,23 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     setTempParcelaId(null);
     setTempVehicleOperation(null);
     setTempVehicleId(null);
+    setIsCreatingNewVehicle(false);
+    setNewVehicleData({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
     setTempSeguroId(null);
     setTempSeguroParcelaId(null);
+    setTempAssetType(null);
+    setTempAssetId(null);
+    setTempAssetOperation(null);
+    setIsCreatingNewAsset(false);
+    setNewImovelData({ descricao: '', tipo: 'casa', endereco: '' });
+    setNewTerrenoData({ descricao: '', endereco: '' });
     setCategoryId(null);
     if (!description) {
         if (v === 'pagamento_emprestimo') setDescription('Pagamento Parcela Empréstimo');
         if (v === 'aplicacao') setDescription('Aplicação Financeira');
         if (v === 'resgate') setDescription('Resgate de Investimento');
+        if (v === 'veiculo') setDescription('Operação Veículo');
+        if (v === 'imobilizado') setDescription('Operação Imóvel/Terreno');
     }
   };
 
@@ -253,6 +462,32 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             setTempSeguroParcelaId(String(firstUnpaid.numero));
             setAmount(firstUnpaid.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
         }
+    }
+  };
+
+  const handleVehicleOperationChange = (v: 'compra' | 'venda') => {
+    setTempVehicleOperation(v);
+    setTempVehicleId(null);
+    setIsCreatingNewVehicle(v === 'compra'); // Para compra, default é criar novo
+    setNewVehicleData({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
+    if (v === 'compra') {
+      setDescription('Compra de Veículo');
+    } else {
+      setDescription('Venda de Veículo');
+    }
+  };
+
+  const handleAssetOperationChange = (v: 'compra' | 'venda') => {
+    setTempAssetOperation(v);
+    setTempAssetId(null);
+    setIsCreatingNewAsset(v === 'compra'); // Para compra, default é criar novo
+    setNewImovelData({ descricao: '', tipo: 'casa', endereco: '' });
+    setNewTerrenoData({ descricao: '', endereco: '' });
+    const tipoLabel = tempAssetType === 'imovel' ? 'Imóvel' : 'Terreno';
+    if (v === 'compra') {
+      setDescription(`Compra de ${tipoLabel}`);
+    } else {
+      setDescription(`Venda de ${tipoLabel}`);
     }
   };
 
@@ -288,7 +523,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6 sm:px-8">
+        <ScrollArea className={cn("flex-1 px-6 sm:px-8", isMobile ? "max-h-[calc(100vh-10rem)]" : "max-h-[80vh]")}>
           <form id="movimentar-form" onSubmit={handleSubmit} className="py-4 sm:py-5 space-y-6 pb-32 sm:pb-6">
             <div className="text-center space-y-1">
               <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Valor do Lançamento</Label>
@@ -349,17 +584,20 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
               </div>
             )}
             
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Categoria</Label>
-              <Select value={categoryId || ''} onValueChange={setCategoryId} disabled={operationType === 'transferencia' || (showVincularSection && !isSeguroCategory)}>
-                <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner">
-                    <SelectValue placeholder={operationType === 'transferencia' ? 'Automática' : 'Selecione...'} />
-                </SelectTrigger>
-                <SelectContent className="rounded-2xl border-none shadow-2xl max-h-64">
-                  {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.icon} {c.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Campo Categoria - Escondido para operações de ativos */}
+            {!hideCategory && (
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Categoria</Label>
+                <Select value={categoryId || ''} onValueChange={setCategoryId}>
+                  <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner">
+                      <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-none shadow-2xl max-h-64">
+                    {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.icon} {c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {showVincularSection && (
                 <div className="space-y-4 p-5 rounded-[2rem] bg-primary/5 border-2 border-dashed border-primary/20 animate-in slide-in-from-top-2 duration-300">
@@ -411,6 +649,132 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                             </div>
                         </div>
                     )}
+
+                    {operationType === 'imobilizado' && (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Tipo de Bem</Label>
+                            <Select
+                              value={tempAssetType || ''}
+                              onValueChange={v => {
+                                setTempAssetType(v as 'imovel' | 'terreno');
+                                setTempAssetId(null);
+                                setTempAssetOperation(null);
+                                setIsCreatingNewAsset(false);
+                              }}
+                            >
+                              <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                                <SelectValue placeholder="Imóvel ou Terreno" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="imovel" className="font-bold">Imóvel</SelectItem>
+                                <SelectItem value="terreno" className="font-bold">Terreno</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
+                            <Select
+                              value={tempAssetOperation || ''}
+                              onValueChange={v => handleAssetOperationChange(v as 'compra' | 'venda')}
+                              disabled={!tempAssetType}
+                            >
+                              <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                                <SelectValue placeholder="Compra ou Venda" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="compra" className="font-bold">Compra</SelectItem>
+                                <SelectItem value="venda" className="font-bold">Venda</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
+                        {/* Para VENDA: sempre selecionar bem existente */}
+                        {tempAssetType && tempAssetOperation === 'venda' && (
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Bem</Label>
+                            <Select value={tempAssetId || ''} onValueChange={setTempAssetId}>
+                              <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(tempAssetType === 'imovel' ? activeImoveis : activeTerrenos).map(a => (
+                                  <SelectItem key={a.id} value={String(a.id)} className="font-bold">
+                                    {a.descricao}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {/* Para COMPRA: cadastrar novo bem */}
+                        {tempAssetType && tempAssetOperation === 'compra' && (
+                          <div className="space-y-3 p-3 rounded-xl bg-card/50">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Bem</Label>
+                            {tempAssetType === 'imovel' ? (
+                              <>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
+                                  <Input
+                                    value={newImovelData.descricao}
+                                    onChange={e => setNewImovelData({ ...newImovelData, descricao: e.target.value })}
+                                    placeholder="Ex: Apartamento Centro"
+                                    className="h-9 rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
+                                    <Select value={newImovelData.tipo} onValueChange={v => setNewImovelData({ ...newImovelData, tipo: v as any })}>
+                                      <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="casa">Casa</SelectItem>
+                                        <SelectItem value="apartamento">Apartamento</SelectItem>
+                                        <SelectItem value="comercial">Comercial</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
+                                    <Input
+                                      value={newImovelData.endereco}
+                                      onChange={e => setNewImovelData({ ...newImovelData, endereco: e.target.value })}
+                                      placeholder="Cidade/Bairro"
+                                      className="h-9 rounded-lg text-sm"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
+                                  <Input
+                                    value={newTerrenoData.descricao}
+                                    onChange={e => setNewTerrenoData({ ...newTerrenoData, descricao: e.target.value })}
+                                    placeholder="Ex: Lote Condomínio X"
+                                    className="h-9 rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
+                                  <Input
+                                    value={newTerrenoData.endereco}
+                                    onChange={e => setNewTerrenoData({ ...newTerrenoData, endereco: e.target.value })}
+                                    placeholder="Cidade/Bairro"
+                                    className="h-9 rounded-lg text-sm"
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     
                     {(operationType === 'aplicacao' || operationType === 'resgate') && (
                         <div className="space-y-1.5">
@@ -425,24 +789,77 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                     )}
                     
                     {operationType === 'veiculo' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
+                            <Select value={tempVehicleOperation || ''} onValueChange={(v) => handleVehicleOperationChange(v as 'compra' | 'venda')}>
+                                <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Compra ou Venda" /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="compra" className="font-bold">Compra</SelectItem>
+                                    <SelectItem value="venda" className="font-bold">Venda</SelectItem>
+                                </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Para VENDA: sempre selecionar veículo existente */}
+                          {tempVehicleOperation === 'venda' && (
                             <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Veículo</Label>
-                                <Select value={tempVehicleId || ''} onValueChange={setTempVehicleId}>
-                                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                    <SelectContent>{veiculos.map(v => <SelectItem key={v.id} value={String(v.id)} className="font-bold">{v.modelo}</SelectItem>)}</SelectContent>
-                                </Select>
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Veículo</Label>
+                              <Select value={tempVehicleId || ''} onValueChange={setTempVehicleId}>
+                                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                                  <SelectContent>
+                                    {activeVehicles.map(v => <SelectItem key={v.id} value={String(v.id)} className="font-bold">{v.modelo}</SelectItem>)}
+                                  </SelectContent>
+                              </Select>
                             </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
-                                <Select value={tempVehicleOperation || ''} onValueChange={(v) => setTempVehicleOperation(v as 'compra' | 'venda')}>
-                                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
+                          )}
+
+                          {/* Para COMPRA: cadastrar novo veículo */}
+                          {tempVehicleOperation === 'compra' && (
+                            <div className="space-y-3 p-3 rounded-xl bg-card/50">
+                              <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Veículo</Label>
+                              <div className="space-y-1.5">
+                                <Label className="text-[9px] font-black uppercase text-muted-foreground">Modelo</Label>
+                                <Input
+                                  value={newVehicleData.modelo}
+                                  onChange={e => setNewVehicleData({ ...newVehicleData, modelo: e.target.value })}
+                                  placeholder="Ex: Honda Civic 2.0"
+                                  className="h-9 rounded-lg text-sm"
+                                />
+                              </div>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="space-y-1.5">
+                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
+                                  <Select value={newVehicleData.tipo} onValueChange={v => setNewVehicleData({ ...newVehicleData, tipo: v as any })}>
+                                    <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="compra" className="font-bold">Compra</SelectItem>
-                                        <SelectItem value="venda" className="font-bold">Venda</SelectItem>
+                                      <SelectItem value="carro">Carro</SelectItem>
+                                      <SelectItem value="moto">Moto</SelectItem>
+                                      <SelectItem value="caminhao">Caminhão</SelectItem>
                                     </SelectContent>
-                                </Select>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Marca</Label>
+                                  <Input
+                                    value={newVehicleData.marca || ''}
+                                    onChange={e => setNewVehicleData({ ...newVehicleData, marca: e.target.value })}
+                                    placeholder="Honda"
+                                    className="h-9 rounded-lg text-sm"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Ano</Label>
+                                  <Input
+                                    type="number"
+                                    value={newVehicleData.ano}
+                                    onChange={e => setNewVehicleData({ ...newVehicleData, ano: parseInt(e.target.value) || new Date().getFullYear() })}
+                                    className="h-9 rounded-lg text-sm"
+                                  />
+                                </div>
+                              </div>
                             </div>
+                          )}
                         </div>
                     )}
                 </div>

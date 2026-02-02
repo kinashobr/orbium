@@ -25,6 +25,7 @@ interface SaudeFinanceiraProps {
   diversificacao: number;
   estabilidadeFluxo: number;
   dependenciaRenda: number;
+  hasData?: boolean;
 }
 
 interface StatusConfig {
@@ -36,24 +37,38 @@ interface StatusConfig {
   statusIcon: typeof CheckCircle;
 }
 
-const getLiquidezStatus = (val: number): StatusConfig => {
+// Estado neutro para quando não há dados disponíveis
+const getNeutralStatus = (): StatusConfig => ({
+  label: "S/D",
+  color: "text-muted-foreground",
+  bg: "bg-muted/30 dark:bg-muted/10",
+  border: "border-muted/20 dark:border-muted/10",
+  badgeClass: "bg-muted/30 text-muted-foreground dark:bg-muted/20 dark:text-muted-foreground",
+  statusIcon: AlertTriangle
+});
+
+const getLiquidezStatus = (val: number, hasData: boolean): StatusConfig => {
+  if (!hasData || val === 0) return getNeutralStatus();
   if (val >= 2) return { label: "ÓTIMO", color: "text-green-600", bg: "bg-green-50/80 dark:bg-green-900/10", border: "border-green-100 dark:border-green-900/20", badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400", statusIcon: CheckCircle };
   if (val >= 1.2) return { label: "BOM", color: "text-blue-600", bg: "bg-blue-50/80 dark:bg-blue-900/10", border: "border-blue-100 dark:border-blue-900/20", badgeClass: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400", statusIcon: CheckCircle };
   return { label: "ATENÇÃO", color: "text-orange-600", bg: "bg-orange-50/80 dark:bg-orange-900/10", border: "border-orange-100 dark:border-orange-900/20", badgeClass: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400", statusIcon: AlertTriangle };
 };
 
-const getEndividamentoStatus = (val: number): StatusConfig => {
+const getEndividamentoStatus = (val: number, hasData: boolean): StatusConfig => {
+  if (!hasData) return getNeutralStatus();
   if (val <= 25) return { label: "ÓTIMO", color: "text-green-600", bg: "bg-green-50/80 dark:bg-green-900/10", border: "border-green-100 dark:border-green-900/20", badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400", statusIcon: CheckCircle };
   if (val <= 45) return { label: "ALERTA", color: "text-orange-600", bg: "bg-orange-50/80 dark:bg-orange-900/10", border: "border-orange-100 dark:border-orange-900/20", badgeClass: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400", statusIcon: AlertTriangle };
   return { label: "ALTO", color: "text-red-600", bg: "bg-red-50/80 dark:bg-red-900/10", border: "border-red-100 dark:border-red-900/20", badgeClass: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400", statusIcon: XCircle };
 };
 
-const getDiversificacaoStatus = (val: number): StatusConfig => {
+const getDiversificacaoStatus = (val: number, hasData: boolean): StatusConfig => {
+  if (!hasData || val === 0) return getNeutralStatus();
   if (val >= 60) return { label: "ALTA", color: "text-green-600", bg: "bg-green-50/80 dark:bg-green-900/10", border: "border-green-100 dark:border-green-900/20", badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400", statusIcon: CheckCircle };
   return { label: "BAIXA", color: "text-orange-600", bg: "bg-orange-50/80 dark:bg-orange-900/10", border: "border-orange-100 dark:border-orange-900/20", badgeClass: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400", statusIcon: AlertTriangle };
 };
 
-const getEstabilidadeStatus = (val: number): StatusConfig => {
+const getEstabilidadeStatus = (val: number, hasData: boolean): StatusConfig => {
+  if (!hasData || val === 0) return getNeutralStatus();
   if (val >= 80) return { label: "ALTA", color: "text-green-600", bg: "bg-green-50/80 dark:bg-green-900/10", border: "border-green-100 dark:border-green-900/20", badgeClass: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400", statusIcon: CheckCircle };
   return { label: "MÉDIA", color: "text-primary", bg: "bg-primary/5 dark:bg-primary/10", border: "border-primary/20 dark:border-primary/30", badgeClass: "bg-primary/10 text-primary dark:bg-primary/20 dark:text-primary", statusIcon: AlertTriangle };
 };
@@ -70,6 +85,7 @@ export function SaudeFinanceira({
   endividamento,
   diversificacao,
   estabilidadeFluxo,
+  hasData = true,
 }: SaudeFinanceiraProps) {
   
   const valores = {
@@ -92,7 +108,10 @@ export function SaudeFinanceira({
       <div className="grid grid-cols-2 gap-4 sm:gap-6">
         {indicadoresConfig.map((config, index) => {
           const value = valores[config.id as keyof typeof valores];
-          const status = config.getStatus(value);
+          const status = config.getStatus(value, hasData);
+          const displayValue = !hasData || (value === 0 && config.id !== 'endividamento') 
+            ? "—" 
+            : (config.format === 'decimal' ? `${value.toFixed(1)}x` : `${value.toFixed(0)}%`);
 
           return (
             <div 
@@ -117,7 +136,7 @@ export function SaudeFinanceira({
               </div>
               <div className="relative z-10">
                 <p className={cn("text-3xl sm:text-4xl font-display font-black tabular-nums leading-none tracking-tighter", status.color)}>
-                  {config.format === 'decimal' ? `${value.toFixed(1)}x` : `${value.toFixed(0)}%`}
+                  {displayValue}
                 </p>
                 <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">{config.label}</p>
               </div>

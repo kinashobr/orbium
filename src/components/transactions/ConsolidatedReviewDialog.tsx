@@ -118,7 +118,15 @@ export function ConsolidatedReviewDialog({
   const handleContabilize = () => {
     const txsToContabilize = transactionsToReview.filter(tx => {
       if (tx.isPotentialDuplicate) return false; 
-      return tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo';
+      return (
+        tx.categoryId ||
+        tx.isTransfer ||
+        tx.tempInvestmentId ||
+        tx.tempLoanId ||
+        tx.tempVehicleOperation ||
+        tx.tempAssetOperation ||
+        tx.operationType === 'liberacao_emprestimo'
+      );
     });
     
     if (txsToContabilize.length === 0) {
@@ -134,14 +142,45 @@ export function ConsolidatedReviewDialog({
 
     txsToContabilize.forEach(tx => {
       const transactionId = generateTransactionId();
-      let flow = getFlowTypeFromOperation(tx.operationType!, tx.tempVehicleOperation || undefined);
+      let flow = getFlowTypeFromOperation(
+        tx.operationType!,
+        tx.tempVehicleOperation || tx.tempAssetOperation || undefined
+      );
       const isCreditCard = accounts.find(a => a.id === tx.accountId)?.accountType === 'cartao_credito';
       if (isCreditCard) flow = tx.operationType === 'despesa' ? 'out' : 'in';
 
       const baseTx: TransacaoCompleta = {
-        id: transactionId, date: tx.date, accountId: tx.accountId, flow, operationType: tx.operationType!, domain: getDomainFromOperation(tx.operationType!),
-        amount: tx.amount, categoryId: tx.categoryId || null, description: tx.description, links: { investmentId: tx.tempInvestmentId || null, loanId: tx.tempLoanId || null, transferGroupId: null, parcelaId: tx.tempParcelaId || null, vehicleTransactionId: null },
-        conciliated: true, attachments: [], meta: { createdBy: 'system', source: 'import', createdAt: new Date().toISOString(), originalDescription: tx.originalDescription, vehicleOperation: tx.operationType === 'veiculo' ? tx.tempVehicleOperation || undefined : undefined }
+        id: transactionId,
+        date: tx.date,
+        accountId: tx.accountId,
+        flow,
+        operationType: tx.operationType!,
+        domain: getDomainFromOperation(tx.operationType!),
+        amount: tx.amount,
+        categoryId: tx.categoryId || null,
+        description: tx.description,
+        links: {
+          investmentId: tx.tempInvestmentId || null,
+          loanId: tx.tempLoanId || null,
+          transferGroupId: null,
+          parcelaId: tx.tempParcelaId || null,
+          vehicleTransactionId: null,
+        },
+        conciliated: true,
+        attachments: [],
+        meta: {
+          createdBy: "system",
+          source: "import",
+          createdAt: new Date().toISOString(),
+          originalDescription: tx.originalDescription,
+          vehicleOperation:
+            tx.operationType === "veiculo"
+              ? tx.tempVehicleOperation || undefined
+              : undefined,
+          assetType: tx.tempAssetType,
+          assetId: tx.tempAssetId,
+          assetOperation: tx.tempAssetOperation,
+        },
       };
       
       if (tx.isTransfer && tx.destinationAccountId) {
@@ -178,8 +217,36 @@ export function ConsolidatedReviewDialog({
     onOpenChange(false);
   };
   
-  const readyCount = useMemo(() => transactionsToReview.filter(tx => !tx.isPotentialDuplicate && (tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo')).length, [transactionsToReview]);
-  const pendingCount = useMemo(() => transactionsToReview.filter(tx => !tx.isPotentialDuplicate && !(tx.categoryId || tx.isTransfer || tx.tempInvestmentId || tx.tempLoanId || tx.tempVehicleOperation || tx.operationType === 'liberacao_emprestimo')).length, [transactionsToReview]);
+   const readyCount = useMemo(
+     () =>
+       transactionsToReview.filter(
+         (tx) =>
+           !tx.isPotentialDuplicate &&
+           (tx.categoryId ||
+             tx.isTransfer ||
+             tx.tempInvestmentId ||
+             tx.tempLoanId ||
+             tx.tempVehicleOperation ||
+             tx.tempAssetOperation ||
+             tx.operationType === "liberacao_emprestimo")
+       ).length,
+     [transactionsToReview]
+   );
+   const pendingCount = useMemo(
+     () =>
+       transactionsToReview.filter(
+         (tx) =>
+           !tx.isPotentialDuplicate &&
+           !(tx.categoryId ||
+             tx.isTransfer ||
+             tx.tempInvestmentId ||
+             tx.tempLoanId ||
+             tx.tempVehicleOperation ||
+             tx.tempAssetOperation ||
+             tx.operationType === "liberacao_emprestimo")
+       ).length,
+     [transactionsToReview]
+   );
 
   return (
     <>

@@ -114,19 +114,32 @@ const Index = () => {
   }, [transacoesPeriodo1]);
 
   const saude = useMemo(() => {
-    const temDados = contasMovimento.length > 0;
-    const diversificacao = temDados ? 65 : 0; 
-    const estabilidade = 85; 
-    const dependencia = 40;
+    const temDados = contasMovimento.length > 0 || transacoesV2.length > 0;
+    
+    // Cálculo dinâmico de diversificação: proporção de tipos de conta distintos
+    const tiposAtivos = contasMovimento.reduce((acc, c) => {
+      acc.add(c.accountType);
+      return acc;
+    }, new Set<string>());
+    const diversificacao = temDados && contasMovimento.length > 0 
+      ? Math.min(100, (tiposAtivos.size / 5) * 100) // 5 tipos possíveis = 100%
+      : 0;
+    
+    // Cálculo dinâmico de estabilidade: baseado na variação do fluxo de caixa
+    // (se não houver transações, retorna 0)
+    const estabilidade = temDados && transacoesV2.length > 0 ? 75 : 0; // Placeholder até implementar cálculo de variância
+    
+    const dependencia = temDados ? 40 : 0;
 
     return {
       liquidez: metricasPatrimoniais.passivosAtuais > 0 ? metricasPatrimoniais.ativosAtuais / metricasPatrimoniais.passivosAtuais : 0,
       endividamento: metricasPatrimoniais.ativosAtuais > 0 ? (metricasPatrimoniais.passivosAtuais / metricasPatrimoniais.ativosAtuais) * 100 : 0,
       diversificacao,
       estabilidade,
-      dependencia
+      dependencia,
+      temDados
     };
-  }, [metricasPatrimoniais, contasMovimento]);
+  }, [metricasPatrimoniais, contasMovimento, transacoesV2]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -205,7 +218,7 @@ const Index = () => {
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-lg shadow-primary/20"><LayoutDashboard className="w-5 h-5" /></div>
                 <div>
                   <h1 className="font-display font-bold text-xl leading-none tracking-tight">Orbium</h1>
-                  <p className="text-[10px] text-muted-foreground font-medium tracking-wide mt-0.5">Visão Premium</p>
+                  <p className="text-[10px] text-muted-foreground font-medium tracking-wide mt-0.5">Visão Consolidada</p>
                 </div>
               </div>
             </div>
@@ -271,9 +284,6 @@ const Index = () => {
                       </div>
                       
                       <div className="hidden sm:flex flex-col items-end gap-2">
-                        <Badge className="bg-primary text-white border-none font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-widest shadow-lg shadow-primary/20">
-                          Premium Account
-                        </Badge>
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
                           <Sparkles className="w-3 h-3 text-accent" />
                           Atualizado agora
@@ -351,6 +361,7 @@ const Index = () => {
                   diversificacao={saude.diversificacao}
                   estabilidadeFluxo={saude.estabilidade}
                   dependenciaRenda={saude.dependencia}
+                  hasData={saude.temDados}
                 />
               </section>
               <section className="animate-fade-in-up">

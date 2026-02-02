@@ -107,7 +107,7 @@ export function VehicleDetailDialog({
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "max-w-[32rem] max-h-[85vh] rounded-[2rem]"
+          !isMobile && "w-[min(95vw,32rem)] max-h-[90vh] rounded-[2rem]"
         )}
       >
         <DialogHeader 
@@ -151,7 +151,12 @@ export function VehicleDetailDialog({
             <TabsTrigger value="historico" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-[10px] font-black uppercase tracking-widest">HISTÓRICO</TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea
+            className={cn(
+              "flex-1 min-h-0",
+              isMobile ? "max-h-[calc(100vh-10rem)]" : "max-h-[70vh]"
+            )}
+          >
             <div className="p-6 sm:p-8 space-y-8 pb-12">
               <TabsContent value="resumo" className="mt-0 space-y-8 focus-visible:outline-none animate-in fade-in duration-300">
                 <div className="bg-success/5 border-2 border-success/20 rounded-[2rem] p-6 flex flex-col sm:flex-row items-center justify-between gap-4">

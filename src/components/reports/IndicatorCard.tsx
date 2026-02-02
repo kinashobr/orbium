@@ -11,7 +11,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-export type IndicatorStatus = "success" | "warning" | "danger" | "neutral";
+export type IndicatorStatus = "success" | "warning" | "danger" | "neutral" | "no-data";
 
 interface IndicatorCardProps {
   title: string;
@@ -25,6 +25,7 @@ interface IndicatorCardProps {
   formula?: string;
   idealRange?: string;
   className?: string;
+  hasData?: boolean;
 }
 
 export function IndicatorCard({
@@ -38,13 +39,15 @@ export function IndicatorCard({
   description,
   formula,
   idealRange,
-  className
+  className,
+  hasData = true
 }: IndicatorCardProps) {
   const statusConfig = {
     success: { color: "text-success", bg: "bg-success/10", label: "Saudável" },
     warning: { color: "text-warning", bg: "bg-warning/10", label: "Atenção" },
     danger: { color: "text-destructive", bg: "bg-destructive/10", label: "Crítico" },
     neutral: { color: "text-primary", bg: "bg-primary/10", label: "Neutro" },
+    "no-data": { color: "text-muted-foreground", bg: "bg-muted/30", label: "S/D" },
   };
 
   const config = statusConfig[status];

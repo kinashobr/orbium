@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, CreditCard, Check, Sparkles, Trash2, ArrowLeft } from "lucide-react";
-import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId } from "@/types/finance";
+import { ContaCorrente, AccountType, ACCOUNT_TYPE_LABELS, generateAccountId, AccountTerm, ACCOUNT_TERM_LABELS } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface AccountFormModalProps {
@@ -39,6 +40,7 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
   const [institution, setInstitution] = useState("");
   const [initialBalanceInput, setInitialBalanceInput] = useState("0,00");
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [accountTerm, setAccountTerm] = useState<AccountTerm>("curto_prazo");
 
   const isEditing = !!account;
 
@@ -60,12 +62,23 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
       setInstitution(account.institution || "");
       setInitialBalanceInput((account.initialBalanceValue ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })); 
       setStartDate(account.startDate || new Date().toISOString().split('T')[0]);
+      // Normaliza o prazo da conta ao editar, mantendo regras de negócio
+      const isShortTermForced = (account.accountType === 'corrente' || account.accountType === 'cartao_credito');
+      if (isShortTermForced) {
+        setAccountTerm('curto_prazo');
+      } else {
+        setAccountTerm(account.accountTerm || 'longo_prazo');
+      }
     } else if (open) {
       setName("");
       setAccountType("corrente");
       setInstitution("");
       setInitialBalanceInput("0,00");
       setStartDate(new Date().toISOString().split('T')[0]);
+      // Para nova conta, default:
+      // - corrente/cartão: curto prazo (forçado mais abaixo)
+      // - demais: longo prazo
+      setAccountTerm('curto_prazo');
     }
   }, [open, account]);
 
@@ -89,6 +102,7 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
       id: account?.id || generateAccountId(),
       name: name.trim(),
       accountType,
+      accountTerm,
       institution: institution.trim() || undefined,
       currency: "BRL",
       initialBalance: 0,
@@ -102,6 +116,7 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
 
   const config = ACCOUNT_TYPE_CONFIG[accountType];
   const Icon = config.icon;
+  const isShortTermForced = accountType === 'corrente' || accountType === 'cartao_credito';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -147,7 +162,17 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Classificação</Label>
-                <Select value={accountType} onValueChange={(v) => setAccountType(v as AccountType)}>
+                <Select
+                  value={accountType}
+                  onValueChange={(v) => {
+                    const nextType = v as AccountType;
+                    setAccountType(nextType);
+                    // Força curto prazo para contas corrente/cartão
+                    if (nextType === 'corrente' || nextType === 'cartao_credito') {
+                      setAccountTerm('curto_prazo');
+                    }
+                  }}
+                >
                   <SelectTrigger className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
                   <SelectContent className="rounded-2xl shadow-2xl border-none p-2">
                     {(Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[]).map((type) => (
@@ -159,6 +184,32 @@ export function AccountFormModal({ open, onOpenChange, account, onSubmit, onDele
               <div className="space-y-3">
                 <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Instituição</Label>
                 <Input placeholder="Ex: Nubank" value={institution} onChange={(e) => setInstitution(e.target.value)} className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner" />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Prazo da Conta</Label>
+                {isShortTermForced ? (
+                  <div className="h-12 flex items-center">
+                    <Badge className="rounded-2xl px-4 py-2 text-[11px] font-black tracking-[0.18em] bg-success/10 text-success border-none">
+                      {ACCOUNT_TERM_LABELS['curto_prazo']}
+                    </Badge>
+                  </div>
+                ) : (
+                  <Select value={accountTerm} onValueChange={(v) => setAccountTerm(v as AccountTerm)}>
+                    <SelectTrigger className="h-12 rounded-2xl border-none bg-muted/20 font-bold shadow-inner">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-2xl shadow-2xl border-none p-2">
+                      {(Object.keys(ACCOUNT_TERM_LABELS) as AccountTerm[]).map((term) => (
+                        <SelectItem key={term} value={term} className="rounded-xl font-bold py-3">
+                          {ACCOUNT_TERM_LABELS[term]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 

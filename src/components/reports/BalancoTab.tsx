@@ -50,7 +50,7 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
     transacoesV2, contasMovimento, calculateBalanceUpToDate, 
     getValorFipeTotal, getSegurosAApropriar, getSegurosAPagar, 
     calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining,
-    getCreditCardDebt, getPatrimonioLiquido
+    getCreditCardDebt, getPatrimonioLiquido, getValorImoveisTerrenos
   } = useFinance();
 
   const colors = useChartColors();
@@ -62,26 +62,91 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
       ...acc, 
       [c.id]: calculateBalanceUpToDate(c.id, finalDate, transacoesV2, contasMovimento) 
     }), {} as Record<string, number>);
+
+    // SOLUÇÃO CONTÁBIL (cheque especial):
+    // Se a CONTA CORRENTE ficar negativa, ela deixa de ser ativo e vira obrigação de curto prazo.
+    // Mantemos o ativo apenas com saldos positivos (disponibilidades) e levamos o negativo para Passivo Circulante.
+    const chequeEspecialContaCorrente = contasMovimento
+      .filter((c) => c.accountType === 'corrente')
+      .reduce((acc, c) => acc + Math.max(0, -(saldos[c.id] || 0)), 0);
     
-    const circulantesRaw = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva'].includes(c.accountType));
-    const invNaoCirculantesRaw = contasMovimento.filter(c => ['renda_fixa', 'cripto', 'objetivo'].includes(c.accountType));
-    const ativoCirculante = circulantesRaw.reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
-    const investimentosNaoCirculantes = invNaoCirculantesRaw.reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
+    // ATIVOS
+    // - Contas de ativo: todas exceto cartão de crédito (que é passivo)
+    // - Classificação em CP/LP baseada em accountTerm normalizado no contexto
+    const contasAtivoCurtoPrazo = contasMovimento.filter(
+      (c) => c.accountType !== 'cartao_credito' && c.accountTerm === 'curto_prazo'
+    );
+    const contasAtivoLongoPrazo = contasMovimento.filter(
+      (c) => c.accountType !== 'cartao_credito' && c.accountTerm === 'longo_prazo'
+    );
+
+    const ativoCirculante = contasAtivoCurtoPrazo.reduce(
+      (acc, c) => acc + Math.max(0, saldos[c.id] || 0),
+      0
+    );
+
+    const investimentosNaoCirculantes = contasAtivoLongoPrazo.reduce(
+      (acc, c) => acc + Math.max(0, saldos[c.id] || 0),
+      0
+    );
+
     const imobilizadoFipe = getValorFipeTotal(finalDate);
+    const imoveisTerrenos = getValorImoveisTerrenos(finalDate);
     const segurosAApropriar = getSegurosAApropriar(finalDate);
-    const totalAtivos = ativoCirculante + investimentosNaoCirculantes + imobilizadoFipe + segurosAApropriar;
+
+    const totalAtivos =
+      ativoCirculante +
+      investimentosNaoCirculantes +
+      imobilizadoFipe +
+      imoveisTerrenos +
+      segurosAApropriar;
 
     const dividaCartoes = getCreditCardDebt(finalDate);
     const principalLoans12m = calculateLoanPrincipalDueInNextMonths(finalDate, 12);
     const segurosAPagar = getSegurosAPagar(finalDate);
-    const passivoCirculante = dividaCartoes + principalLoans12m + segurosAPagar;
+    const passivoCirculante = dividaCartoes + principalLoans12m + segurosAPagar + chequeEspecialContaCorrente;
     const totalLoans = getLoanPrincipalRemaining(finalDate);
     const passivoNaoCirculante = Math.max(0, totalLoans - principalLoans12m);
     const totalPassivos = passivoCirculante + passivoNaoCirculante;
     const pl = totalAtivos - totalPassivos;
 
-    return { totalAtivos, ativoCirculante, investimentosNaoCirculantes, imobilizadoFipe, segurosAApropriar, totalPassivos, passivoCirculante, passivoNaoCirculante, pl, dividaCartoes, principalLoans12m, segurosAPagar, contasCirculantes: circulantesRaw.map(c => ({ ...c, saldo: saldos[c.id] || 0 })), contasInvestimentos: invNaoCirculantesRaw.map(c => ({ ...c, saldo: saldos[c.id] || 0 })) };
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getValorFipeTotal, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining, getCreditCardDebt, finalDate]);
+    return {
+      totalAtivos,
+      ativoCirculante,
+      investimentosNaoCirculantes,
+      imobilizadoFipe,
+      imoveisTerrenos,
+      segurosAApropriar,
+      totalPassivos,
+      passivoCirculante,
+      passivoNaoCirculante,
+      pl,
+      dividaCartoes,
+      principalLoans12m,
+      segurosAPagar,
+      chequeEspecialContaCorrente,
+      contasCirculantes: contasAtivoCurtoPrazo.map((c) => ({
+        ...c,
+        saldo: saldos[c.id] || 0,
+      })),
+      contasInvestimentos: contasAtivoLongoPrazo.map((c) => ({
+        ...c,
+        saldo: saldos[c.id] || 0,
+      })),
+    };
+  }, [
+    contasMovimento,
+    transacoesV2,
+    calculateBalanceUpToDate,
+    getValorFipeTotal,
+    getValorImoveisTerrenos,
+    getSegurosAApropriar,
+    getSegurosAPagar,
+    calculateLoanPrincipalDueInNextMonths,
+    getLoanPrincipalRemaining,
+    getCreditCardDebt,
+    finalDate,
+  ]);
 
   const indicadores = useMemo(() => {
     const { pl, totalAtivos, totalPassivos, ativoCirculante, passivoCirculante, imobilizadoFipe } = b1;
@@ -106,25 +171,80 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
     return result;
   }, [getPatrimonioLiquido]);
 
-  const compositionData = useMemo(() => [
-    { name: 'Circulante', value: b1.ativoCirculante, color: colors.success },
-    { name: 'Imobilizado', value: b1.imobilizadoFipe, color: colors.primary },
-    { name: 'Investimentos', value: b1.investimentosNaoCirculantes, color: colors.accent }
-  ].filter(d => d.value > 0), [b1, colors]);
+  const compositionData = useMemo(
+    () =>
+      [
+        { name: 'Circulante', value: b1.ativoCirculante + b1.segurosAApropriar, color: colors.success },
+        { name: 'Investimentos / LP', value: b1.investimentosNaoCirculantes, color: colors.accent },
+        { name: 'Imobilizado (Veículos)', value: b1.imobilizadoFipe, color: colors.primary },
+        { name: 'Imóveis & Terrenos', value: b1.imoveisTerrenos, color: colors.warning },
+      ].filter((d) => d.value > 0),
+    [b1, colors]
+  );
 
   const ativoItems = useMemo(() => {
     const total = b1.totalAtivos;
     const circulanteDetails = b1.contasCirculantes.filter(c => c.saldo > 0).map(c => ({ id: c.id, name: c.name, typeLabel: ACCOUNT_TYPE_LABELS[c.accountType], value: c.saldo, percent: total > 0 ? (c.saldo / total) * 100 : 0, icon: getIconForType(c.accountType) }));
     if (b1.segurosAApropriar > 0) circulanteDetails.push({ id: 'seguros_apropriar', name: 'Seguros a Apropriar', typeLabel: 'Despesa Pré-Paga', value: b1.segurosAApropriar, percent: total > 0 ? (b1.segurosAApropriar / total) * 100 : 0, icon: getIconForType('seguros_apropriar') });
-    const naoCirculanteDetails = b1.contasInvestimentos.filter(c => c.saldo > 0).map(c => ({ id: c.id, name: c.name, typeLabel: ACCOUNT_TYPE_LABELS[c.accountType], value: c.saldo, percent: total > 0 ? (c.saldo / total) * 100 : 0, icon: getIconForType(c.accountType) }));
-    if (b1.imobilizadoFipe > 0) naoCirculanteDetails.push({ id: 'imobilizado', name: 'Imobilizado (Veículos)', typeLabel: 'Avaliação FIPE', value: b1.imobilizadoFipe, percent: total > 0 ? (b1.imobilizadoFipe / total) * 100 : 0, icon: getIconForType('imobilizado') });
-    return [{ label: 'Ativo Circulante', value: b1.ativoCirculante + b1.segurosAApropriar, percent: total > 0 ? ((b1.ativoCirculante + b1.segurosAApropriar) / total) * 100 : 0, type: 'circulante' as const, details: circulanteDetails }, { label: 'Ativo Não Circulante', value: b1.investimentosNaoCirculantes + b1.imobilizadoFipe, percent: total > 0 ? ((b1.investimentosNaoCirculantes + b1.imobilizadoFipe) / total) * 100 : 0, type: 'nao_circulante' as const, details: naoCirculanteDetails }].filter(item => item.value > 0);
+    const naoCirculanteDetails = b1.contasInvestimentos
+      .filter((c) => c.saldo > 0)
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        typeLabel: ACCOUNT_TYPE_LABELS[c.accountType],
+        value: c.saldo,
+        percent: total > 0 ? (c.saldo / total) * 100 : 0,
+        icon: getIconForType(c.accountType),
+      }));
+    if (b1.imobilizadoFipe > 0)
+      naoCirculanteDetails.push({
+        id: 'imobilizado',
+        name: 'Imobilizado (Veículos)',
+        typeLabel: 'Avaliação FIPE',
+        value: b1.imobilizadoFipe,
+        percent: total > 0 ? (b1.imobilizadoFipe / total) * 100 : 0,
+        icon: getIconForType('imobilizado'),
+      });
+    if (b1.imoveisTerrenos > 0)
+      naoCirculanteDetails.push({
+        id: 'imoveis_terrenos',
+        name: 'Imóveis & Terrenos',
+        typeLabel: 'Imobilizado',
+        value: b1.imoveisTerrenos,
+        percent: total > 0 ? (b1.imoveisTerrenos / total) * 100 : 0,
+        icon: getIconForType('imobilizado'),
+      });
+    return [
+      {
+        label: 'Ativo Circulante',
+        value: b1.ativoCirculante + b1.segurosAApropriar,
+        percent: total > 0 ? ((b1.ativoCirculante + b1.segurosAApropriar) / total) * 100 : 0,
+        type: 'circulante' as const,
+        details: circulanteDetails,
+      },
+      {
+        label: 'Ativo Não Circulante',
+        value: b1.investimentosNaoCirculantes + b1.imobilizadoFipe + b1.imoveisTerrenos,
+        percent:
+          total > 0
+            ? ((
+                b1.investimentosNaoCirculantes +
+                b1.imobilizadoFipe +
+                b1.imoveisTerrenos
+              ) /
+                total) * 100
+            : 0,
+        type: 'nao_circulante' as const,
+        details: naoCirculanteDetails,
+      },
+    ].filter((item) => item.value > 0);
   }, [b1]);
 
   const passivoItems = useMemo(() => {
-    const totalPassivoPL = b1.totalAtivos;
+    const totalPassivoPL = b1.totalPassivos + b1.pl;
     const circulanteDetails = [];
     if (b1.dividaCartoes > 0) circulanteDetails.push({ id: 'cartoes', name: 'Saldo Cartões', typeLabel: 'Faturas em aberto', value: b1.dividaCartoes, percent: totalPassivoPL > 0 ? (b1.dividaCartoes / totalPassivoPL) * 100 : 0, icon: getIconForType('cartoes') });
+    if (b1.chequeEspecialContaCorrente > 0) circulanteDetails.push({ id: 'cheque_especial', name: 'Cheque especial (Conta corrente)', typeLabel: 'Obrigação CP', value: b1.chequeEspecialContaCorrente, percent: totalPassivoPL > 0 ? (b1.chequeEspecialContaCorrente / totalPassivoPL) * 100 : 0, icon: getIconForType('corrente') });
     if (b1.principalLoans12m > 0) circulanteDetails.push({ id: 'emprestimos_curto', name: 'Principal (12m)', typeLabel: 'Obrigação CP', value: b1.principalLoans12m, percent: totalPassivoPL > 0 ? (b1.principalLoans12m / totalPassivoPL) * 100 : 0, icon: getIconForType('emprestimos_curto') });
     if (b1.segurosAPagar > 0) circulanteDetails.push({ id: 'seguros_pagar', name: 'Seguros a Pagar', typeLabel: 'Obrigação CP', value: b1.segurosAPagar, percent: totalPassivoPL > 0 ? (b1.segurosAPagar / totalPassivoPL) * 100 : 0, icon: getIconForType('seguros_pagar') });
     const naoCirculanteDetails = [];
@@ -212,9 +332,62 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
          ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 sm:gap-10">
-        <BalanceSheetList title="ATIVO" totalValue={b1.totalAtivos} items={ativoItems} isAsset={true} />
-        <BalanceSheetList title="PASSIVO + PL" totalValue={b1.totalAtivos} items={passivoItems} isAsset={false} plValue={b1.pl} />
+      <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] border border-white/60 dark:border-white/5 shadow-soft p-5 sm:p-6 lg:p-8">
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <Scale className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">
+                Estrutura Patrimonial
+              </p>
+              <h3 className="font-display font-black text-lg sm:text-xl tracking-tight text-foreground uppercase">
+                Balanço Patrimonial
+              </h3>
+            </div>
+          </div>
+          <Badge variant="outline" className="hidden sm:inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-border/60">
+            Ativo = Passivo + PL
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
+          <div className="space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">
+              Lado do Ativo
+            </p>
+            <div className="mb-2 rounded-2xl bg-muted/40 px-4 py-3 flex items-center justify-between border border-border/40">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                Ativo Total
+              </span>
+              <span className="text-sm sm:text-base font-black tabular-nums text-foreground">
+                {formatCurrency(b1.totalAtivos)}
+              </span>
+            </div>
+            <BalanceSheetList title="ATIVO" totalValue={b1.totalAtivos} items={ativoItems} isAsset={true} />
+          </div>
+          <div className="space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1 text-right lg:text-left">
+              Lado do Passivo + PL
+            </p>
+            <div className="mb-2 rounded-2xl bg-muted/40 px-4 py-3 flex items-center justify-between border border-border/40">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                Passivo + PL Total
+              </span>
+              <span className="text-sm sm:text-base font-black tabular-nums text-foreground">
+                {formatCurrency(b1.totalPassivos + b1.pl)}
+              </span>
+            </div>
+            <BalanceSheetList
+              title="PASSIVO + PL"
+              totalValue={b1.totalPassivos + b1.pl}
+              items={passivoItems}
+              isAsset={false}
+              plValue={b1.pl}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

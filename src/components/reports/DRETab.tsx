@@ -14,20 +14,37 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useChartColors } from "@/hooks/useChartColors";
 import { ptBR } from "date-fns/locale";
 import { IndicatorCard } from "./IndicatorCard";
-import { BalanceSheetList } from "./BalanceSheetList";
+import { DREStatement } from "./DREStatement";
 
 interface DREData {
+  // Receita Total (operacional + rendimentos financeiros)
   rec: number;
   fix: number;
   var: number;
   juros: number;
   rendimentos: number;
+  // Resultado Líquido (Resultado Operacional + Resultado Financeiro)
   res: number;
+  // Receita Operacional (apenas operationType = 'receita')
+  receitaOperacional: number;
+  // Resultado Operacional: Receita Operacional - Despesas Operacionais (fixas + variáveis)
+  resultadoOperacional: number;
+  // Resultado Financeiro: Rendimentos - Juros
+  resultadoFinanceiro: number;
   details: {
     receitas: { label: string; value: number; id: string }[];
     despesasFixas: { label: string; value: number; id: string }[];
     despesasVariaveis: { label: string; value: number; id: string }[];
   };
+}
+
+interface DREItem {
+  label: string;
+  value: number;
+  type: "header" | "subtotal" | "detail" | "final";
+  details?: DREItem[];
+  icon?: React.ElementType;
+  color?: string;
 }
 
 export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
@@ -58,13 +75,27 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       } catch { return false; }
     });
 
-    const rec = txs.filter(t => t.operationType === 'receita').reduce((a, t) => a + t.amount, 0);
-    const rendimentos = txs.filter(t => t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
-    const receitaBruta = rec + rendimentos;
+    // Receita operacional (regime de caixa)
+    const receitaOperacional = txs
+      .filter((t) => t.operationType === 'receita')
+      .reduce((a, t) => a + t.amount, 0);
+
+    // Rendimentos financeiros (regime de caixa)
+    const rendimentos = txs
+      .filter((t) => t.operationType === 'rendimento')
+      .reduce((a, t) => a + t.amount, 0);
+
+    // Receita total do período (operacional + financeira)
+    const receitaTotal = receitaOperacional + rendimentos;
     
-    const fix = txs.filter(t => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_fixa').reduce((a, t) => a + t.amount, 0);
-    const var_ = txs.filter(t => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_variavel').reduce((a, t) => a + t.amount, 0);
+    const fix = txs
+      .filter((t) => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_fixa')
+      .reduce((a, t) => a + t.amount, 0);
+    const var_ = txs
+      .filter((t) => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_variavel')
+      .reduce((a, t) => a + t.amount, 0);
     
+    // Juros de empréstimos (custo financeiro) – calculado a partir das parcelas pagas no período
     let juros = 0;
     txs.filter(t => t.operationType === 'pagamento_emprestimo').forEach(t => {
       const lid = t.links?.loanId?.replace('loan_', '');
@@ -75,12 +106,31 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         if (item) juros += item.juros;
       }
     });
+
+    // Resultado operacional: receitas operacionais - despesas operacionais (fixas + variáveis)
+    const despesasOperacionais = fix + var_;
+    const resultadoOperacional = receitaOperacional - despesasOperacionais;
+
+    // Resultado financeiro: rendimentos - juros
+    const resultadoFinanceiro = rendimentos - juros;
+
+    // Resultado líquido do período (caixa): operacional + financeiro
+    const resultadoLiquido = resultadoOperacional + resultadoFinanceiro;
     
-    const resultadoOperacional = receitaBruta - fix - var_;
-    const resultadoLiquido = resultadoOperacional + rendimentos - juros;
-    
-    const groupDetails = (nature: 'receita' | 'despesa_fixa' | 'despesa_variavel') => {
-      const filteredTxs = txs.filter(t => categoriesMap.get(t.categoryId || '')?.nature === nature);
+    // Agrupador genérico por natureza de categoria, com filtro opcional por tipo de operação.
+    // Isso evita, por exemplo, que rendimentos (operationType = 'rendimento') caiam junto
+    // nas linhas de Receita Operacional, o que poderia duplicar valores na DRE.
+    const groupDetails = (
+      nature: 'receita' | 'despesa_fixa' | 'despesa_variavel',
+      operationType?: 'receita' | 'despesa'
+    ) => {
+      const filteredTxs = txs.filter((t) => {
+        const catNature = categoriesMap.get(t.categoryId || '')?.nature;
+        if (catNature !== nature) return false;
+        // Se um operationType específico foi informado, filtramos também por ele
+        if (operationType && t.operationType !== operationType) return false;
+        return true;
+      });
       const grouped = filteredTxs.reduce((acc, t) => {
         const label = categoriesMap.get(t.categoryId || '')?.label || 'Outros';
         acc[label] = (acc[label] || 0) + t.amount;
@@ -89,9 +139,25 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       return Object.entries(grouped).map(([label, value]) => ({ label, value, id: label }));
     };
 
-    return { 
-      rec: receitaBruta, fix, var: var_, juros, rendimentos, res: resultadoLiquido,
-      details: { receitas: groupDetails('receita'), despesasFixas: groupDetails('despesa_fixa'), despesasVariaveis: groupDetails('despesa_variavel') }
+    return {
+      // rec passa a representar a Receita Total (operacional + financeira)
+      rec: receitaTotal,
+      fix,
+      var: var_,
+      juros,
+      rendimentos,
+      res: resultadoLiquido,
+      receitaOperacional,
+      resultadoOperacional,
+      resultadoFinanceiro,
+      details: {
+        // Receitas operacionais: apenas transações marcadas como 'receita'
+        // (rendimentos financeiros continuam segregados em `rendimentos` para o
+        // cálculo do resultado financeiro, evitando dupla contagem).
+        receitas: groupDetails('receita', 'receita'),
+        despesasFixas: groupDetails('despesa_fixa'),
+        despesasVariaveis: groupDetails('despesa_variavel'),
+      },
     };
   }, [transacoesV2, categoriasV2, calculateLoanSchedule, categoriesMap]);
 
@@ -101,52 +167,102 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
   const variacaoRL = dre2.res !== 0 ? ((dre1.res - dre2.res) / Math.abs(dre2.res)) * 100 : 0;
   
   const indicadores = useMemo(() => {
-    const { res, rec, fix, var: v, juros } = dre1;
+    const { res, rec, fix, var: v, juros, rendimentos } = dre1;
     const totalDespesas = fix + v + juros;
     return {
+      // Margem líquida e demais indicadores agora usam Receita Total como base
       margemLiquida: rec > 0 ? (res / rec) * 100 : 0,
-      eficienciaOp: rec > 0 ? ((rec - fix) / rec) * 100 : 0,
+      // Eficiência operacional considera apenas a receita operacional (sem rendimentos)
+      eficienciaOp:
+        rec - rendimentos > 0
+          ? (((rec - rendimentos) - fix) / (rec - rendimentos)) * 100
+          : 0,
       pesoFixos: totalDespesas > 0 ? (fix / totalDespesas) * 100 : 0,
       savingsRate: rec > 0 ? (Math.max(0, res) / rec) * 100 : 0,
       impactoFinanceiro: rec > 0 ? (Math.abs(juros) / rec) * 100 : 0,
       pontoEquilibrio: (fix + v) > 0 ? (fix / (fix + v)) * 100 : 0
     };
   }, [dre1]);
-
-  const receitaItems = useMemo(() => {
-    const total = dre1.rec;
-    const details = dre1.details.receitas.map(d => ({
-        id: d.id, name: d.label, typeLabel: 'Receita Operacional', value: d.value, 
-        percent: total > 0 ? (d.value / total) * 100 : 0, 
-        icon: getCategoryIcon(d.label, TrendingUp)
-    }));
-    if (dre1.rendimentos > 0) {
-        details.push({ id: 'rendimentos', name: 'Rendimentos Financeiros', typeLabel: 'Aplicação/Invest.', value: dre1.rendimentos, percent: total > 0 ? (dre1.rendimentos / total) * 100 : 0, icon: Sparkles });
-    }
-    return [{ label: 'FONTES DE RENDA', value: total, percent: 100, type: 'circulante' as const, details }];
-  }, [dre1, getCategoryIcon]);
-
-  const despesaItems = useMemo(() => {
-    const total = dre1.fix + dre1.var + dre1.juros;
-    const fixDetails = dre1.details.despesasFixas.map(d => ({
-        id: d.id, name: d.label, typeLabel: 'Custo Fixo', value: d.value, 
-        percent: total > 0 ? (d.value / total) * 100 : 0, 
-        icon: getCategoryIcon(d.label, TrendingDown)
-    }));
-    const varDetails = dre1.details.despesasVariaveis.map(d => ({
-        id: d.id, name: d.label, typeLabel: 'Consumo Variável', value: d.value, 
-        percent: total > 0 ? (d.value / total) * 100 : 0, 
-        icon: getCategoryIcon(d.label, Activity)
-    }));
-    if (dre1.juros > 0) {
-        varDetails.push({ id: 'juros', name: 'Juros e Encargos', typeLabel: 'Custo Financeiro', value: dre1.juros, percent: total > 0 ? (dre1.juros / total) * 100 : 0, icon: Gauge });
-    }
-    return [
-        { label: 'DESPESAS FIXAS', value: dre1.fix, percent: total > 0 ? (dre1.fix / total) * 100 : 0, type: 'circulante' as const, details: fixDetails },
-        { label: 'DESPESAS VARIÁVEIS & JUROS', value: dre1.var + dre1.juros, percent: total > 0 ? ((dre1.var + dre1.juros) / total) * 100 : 0, type: 'nao_circulante' as const, details: varDetails },
-        { label: 'RESULTADO LÍQUIDO', value: dre1.res, percent: 0, type: 'patrimonio' as const }
-    ];
-  }, [dre1, getCategoryIcon]);
+  
+  const dreStatementData: DREItem[] = useMemo(() => [
+    {
+      label: "RECEITA OPERACIONAL",
+      value: dre1.receitaOperacional,
+      type: "header",
+      icon: TrendingUp,
+      color: "text-success",
+      details: dre1.details.receitas.map((r) => ({
+        label: r.label,
+        value: r.value,
+        type: "detail",
+        icon: getCategoryIcon(r.label, TrendingUp),
+        color: "text-success",
+      })),
+    },
+    {
+      label: "DESPESAS OPERACIONAIS",
+      value: dre1.fix + dre1.var,
+      type: "header",
+      icon: TrendingDown,
+      color: "text-destructive",
+      // Aqui exibimos diretamente as categorias (fixas e variáveis)
+      // como linhas individuais com ícones, para ficar igual ao Balanço
+      // em termos de leitura por categoria.
+      details: [
+        ...dre1.details.despesasFixas.map((d) => ({
+          label: d.label,
+          value: d.value,
+          type: "detail" as const,
+          icon: getCategoryIcon(d.label, TrendingDown),
+          color: "text-destructive",
+        })),
+        ...dre1.details.despesasVariaveis.map((d) => ({
+          label: d.label,
+          value: d.value,
+          type: "detail" as const,
+          icon: getCategoryIcon(d.label, Activity),
+          color: "text-destructive",
+        })),
+      ],
+    },
+    {
+      label: "RESULTADO OPERACIONAL",
+      value: dre1.resultadoOperacional,
+      type: "subtotal",
+      icon: DollarSign,
+      color: dre1.resultadoOperacional >= 0 ? "text-success" : "text-destructive",
+    },
+    {
+      label: "RESULTADO FINANCEIRO",
+      value: dre1.resultadoFinanceiro,
+      type: "header",
+      icon: Zap,
+      color: dre1.resultadoFinanceiro >= 0 ? "text-success" : "text-destructive",
+      details: [
+        {
+          label: "Rendimentos Financeiros",
+          value: dre1.rendimentos,
+          type: "detail",
+          icon: Sparkles,
+          color: "text-success",
+        },
+        {
+          label: "Juros e Encargos",
+          value: -dre1.juros,
+          type: "detail",
+          icon: Gauge,
+          color: "text-destructive",
+        },
+      ],
+    },
+    {
+      label: "RESULTADO LÍQUIDO DO PERÍODO",
+      value: dre1.res,
+      type: "final",
+      icon: DollarSign,
+      color: dre1.res >= 0 ? "text-success" : "text-destructive",
+    },
+  ], [dre1, getCategoryIcon]);
 
   const evolutionData = useMemo(() => {
     const now = new Date();
@@ -201,8 +317,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
              </div>
              <div className="relative z-10">
                 <div className="flex items-center gap-3 mb-6">
-                  <Badge className={cn("border-none font-black text-[10px] px-3 py-1 rounded-lg uppercase tracking-widest", dre1.res >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
-                    {dre1.res >= 0 ? "Lucro Operacional" : "Déficit Mensal"}
+                <Badge className={cn("border-none font-black text-[10px] px-3 py-1 rounded-lg uppercase tracking-widest", dre1.res >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
+                    {dre1.res >= 0 ? "Superávit Mensal" : "Déficit Mensal"}
                   </Badge>
                 </div>
                 <h2 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Resultado Líquido do Período</h2>
@@ -224,7 +340,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         </div>
         <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
           <IndicatorCard 
-            title="Taxa de Sobra" 
+            title="Taxa de Poupança" 
             value={`${indicadores.margemLiquida.toFixed(1)}%`} 
             status={indicadores.margemLiquida >= 20 ? "success" : "warning"}
             icon={DollarSign}
@@ -246,14 +362,6 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             icon={Target}
             description="Quanto dos seus gastos são fixos e difíceis de cortar."
             formula="Fixos ÷ Total Gastos × 100"
-          />
-          <IndicatorCard 
-            title="Taxa de Economia" 
-            value={`${indicadores.savingsRate.toFixed(1)}%`} 
-            status={indicadores.savingsRate >= 15 ? "success" : "warning"}
-            icon={PiggyBank}
-            description="Quanto você consegue guardar da sua renda."
-            formula="Sobra ÷ Renda × 100"
           />
           <IndicatorCard 
             title="Custo das Dívidas" 
@@ -284,16 +392,18 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             <p className="text-lg font-black tabular-nums text-destructive/80">{formatCurrency(dre1.fix)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Custos Variáveis</p>
-            <p className="text-lg font-black tabular-nums text-destructive">{formatCurrency(dre1.var + dre1.juros)}</p>
+             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Custos Variáveis</p>
+             <p className="text-lg font-black tabular-nums text-destructive">{formatCurrency(dre1.var)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Margem Bruta</p>
-            <p className="text-lg font-black tabular-nums text-primary">{formatCurrency(dre1.rec - dre1.fix)}</p>
+             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Resultado Operacional</p>
+             <p className="text-lg font-black tabular-nums text-primary">{formatCurrency(dre1.resultadoOperacional)}</p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Resultado Financeiro</p>
-            <p className={cn("text-lg font-black tabular-nums", (dre1.rendimentos - dre1.juros) >= 0 ? "text-success" : "text-destructive")}>{formatCurrency(dre1.rendimentos - dre1.juros)}</p>
+             <p className={cn("text-lg font-black tabular-nums", dre1.resultadoFinanceiro >= 0 ? "text-success" : "text-destructive")}>
+               {formatCurrency(dre1.resultadoFinanceiro)}
+             </p>
          </div>
          <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Variação do Período</p>
@@ -303,8 +413,11 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         <div className="lg:col-span-7 space-y-10">
-          <BalanceSheetList title="RECEITAS & CRÉDITOS" totalValue={dre1.rec} items={receitaItems} isAsset={true} />
-          <BalanceSheetList title="DESPESAS & CUSTOS" totalValue={dre1.fix + dre1.var + dre1.juros} items={despesaItems} isAsset={false} plValue={dre1.res} />
+          <DREStatement
+            title="Demonstração do Resultado do Período"
+            data={dreStatementData}
+            className="mt-2"
+          />
         </div>
 
         <div className="lg:col-span-5 space-y-10 lg:sticky lg:top-24">

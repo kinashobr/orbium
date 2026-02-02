@@ -111,18 +111,20 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const renderContent = () => (
     <div className="flex flex-1 flex-col overflow-hidden">
       {showConfigForm ? (
-        <div className="flex-1 overflow-y-auto p-6 sm:p-10">
-          <div className="max-w-2xl mx-auto">
-            <LoanConfigForm
-              emprestimo={emprestimo} contasCorrentes={contasCorrentes}
-              onSave={(data) => { updateEmprestimo(emprestimo.id, data); setIsEditing(false); }}
-              onCancel={() => isPending ? onOpenChange(false) : setIsEditing(false)}
-            />
+        <ScrollArea className="flex-1">
+          <div className="p-6 sm:p-10 pb-16">
+            <div className="max-w-2xl mx-auto">
+              <LoanConfigForm
+                emprestimo={emprestimo} contasCorrentes={contasCorrentes}
+                onSave={(data) => { updateEmprestimo(emprestimo.id, data); setIsEditing(false); }}
+                onCancel={() => isPending ? onOpenChange(false) : setIsEditing(false)}
+              />
+            </div>
           </div>
-        </div>
+        </ScrollArea>
       ) : (
         <Tabs defaultValue="geral" className="flex-1 flex flex-col min-h-0">
-          <TabsList className="bg-muted/30 h-14 border-b rounded-none px-6 sm:px-10 gap-8 justify-start shrink-0 overflow-x-auto no-scrollbar">
+          <TabsList className="bg-muted/30 h-14 border-b rounded-none px-6 sm:px-10 gap-8 justify-start shrink-0">
             <TabsTrigger value="geral" className="h-14 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent shadow-none px-1 text-[10px] font-black uppercase tracking-widest gap-2">
               <LayoutGrid className="w-4 h-4" /> GERAL
             </TabsTrigger>

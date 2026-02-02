@@ -143,7 +143,7 @@ export function ImovelFormModal({
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card dark:bg-[hsl(24_8%_14%)] flex flex-col z-[130]",
-          !isMobile && "max-w-[min(95vw,36rem)] rounded-[2rem]"
+          !isMobile && "w-[min(95vw,36rem)] max-h-[90vh] rounded-[2rem]"
         )}
       >
         <DialogHeader 
@@ -170,7 +170,7 @@ export function ImovelFormModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-6 sm:p-8 space-y-6 pb-32 sm:pb-8">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição / Nome</Label>

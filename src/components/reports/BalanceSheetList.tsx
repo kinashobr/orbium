@@ -4,10 +4,8 @@ import React from 'react';
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/types/finance";
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  ArrowRight, 
-  LayoutGrid,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -30,161 +28,153 @@ interface BalanceSheetListProps {
   }[];
   isAsset: boolean;
   plValue?: number;
+  /**
+   * Controla se a seção de Patrimônio Líquido (type === 'patrimonio') deve ser
+   * exibida. No Balanço Patrimonial mantemos esse card; na DRE podemos ocultá-lo.
+   */
+  showEquity?: boolean;
 }
 
-export function BalanceSheetList({ title, totalValue, items, isAsset, plValue }: BalanceSheetListProps) {
-  const totalPassivo = items.filter(i => i.type !== 'patrimonio').reduce((acc, i) => acc + i.value, 0);
-  const totalGeral = isAsset ? totalValue : (totalValue);
+export function BalanceSheetList({ title, totalValue, items, isAsset, plValue, showEquity = true }: BalanceSheetListProps) {
+  // Totais e título já são exibidos no container (BalancoTab). Aqui focamos no corpo contábil.
+  // Mantemos a assinatura (title/totalValue) por compatibilidade com chamadas existentes.
+  void title;
+  void totalValue;
+
+  const sideTone = isAsset
+    ? {
+        barBg: "bg-success/10",
+        barText: "text-success",
+        iconBg: "bg-success/10",
+        iconText: "text-success",
+      }
+    : {
+        barBg: "bg-destructive/10",
+        barText: "text-destructive",
+        iconBg: "bg-destructive/10",
+        iconText: "text-destructive",
+      };
+
+  const plTone =
+    (plValue ?? 0) >= 0
+      ? { bg: "bg-accent/10", ring: "ring-accent/10", text: "text-accent" }
+      : { bg: "bg-destructive/10", ring: "ring-destructive/10", text: "text-destructive" };
 
   return (
-    <div className="space-y-8 animate-fade-in">
-      {/* Header da Seção */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-2">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              "w-1.5 h-1.5 rounded-full animate-pulse",
-              isAsset ? "bg-success" : "bg-destructive"
-            )} />
-            <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground opacity-70">
-              {isAsset ? "Estrutura de Bens" : "Origens de Capital"}
-            </h3>
-          </div>
-          <h2 className="font-display font-black text-xl sm:text-2xl tracking-tight text-foreground uppercase">
-            {title}
-          </h2>
-        </div>
-        <div className="text-left sm:text-right">
-          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest opacity-60">Total Consolidado</p>
-          <p className={cn(
-            "text-lg sm:text-xl font-black tracking-tighter tabular-nums leading-none",
-            isAsset ? "text-success" : "text-foreground"
-          )}>
-            {formatCurrency(totalGeral)}
-          </p>
-        </div>
-      </div>
-
-      {/* Conteúdo Integrado (Sem balão externo) */}
-      <div className="space-y-12 relative">
+    <div className="space-y-6 animate-fade-in">
+      <div className="space-y-6">
         {items.map((section, idx) => {
           const isPL = section.type === 'patrimonio';
-          
+          // Na DRE, não exibimos o card visual de Patrimônio Líquido; no Balanço,
+          // ele continua aparecendo normalmente no lado do Passivo + PL.
+          if (isPL && !showEquity) return null;
+
           return (
-            <div key={idx} className="space-y-4">
-              {/* Subtotal da Seção */}
-              {!isPL && (
-                <div className="flex items-center justify-between px-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-sm ring-2 ring-primary/5">
-                      <LayoutGrid size={20} />
-                    </div>
-                    <div>
-                      <h4 className="font-display font-black text-base sm:text-lg text-foreground tracking-tight uppercase leading-none">
-                        {section.label}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className="rounded-md border-none bg-primary/10 text-primary font-black text-[8px] px-1.5 py-0 uppercase tracking-tighter">
-                          {section.percent.toFixed(1)}%
-                        </Badge>
+            <div key={idx} className="space-y-3">
+              {/* Faixa da seção */}
+              {(
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-xl px-3.5 py-2 border border-border/40",
+                    sideTone.barBg,
+                    sideTone.barText,
+                  )}
+                >
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-[0.22em] truncate">
+                      {section.label}
+                    </span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "rounded-full border-none px-2 py-0.5 text-[9px] font-black uppercase tracking-widest",
+                        sideTone.barBg,
+                        sideTone.barText,
+                      )}
+                    >
+                      {section.percent.toFixed(1)}%
+                    </Badge>
+                  </div>
+                  <span className="shrink-0 text-sm sm:text-base font-black tabular-nums tracking-tighter">
+                    {formatCurrency(section.value)}
+                  </span>
+                </div>
+              )}
+
+              {/* Linhas */}
+              {!!section.details?.length && (
+                <div className="rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30">
+                  {section.details.map((detail, detailIdx) => (
+                    <div
+                      key={detail.id}
+                      className={cn(
+                        "flex items-center gap-3 px-3.5 sm:px-4 py-3",
+                        detailIdx !== section.details!.length - 1 && "border-b border-dashed border-border/40",
+                      )}
+                    >
+                      <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", sideTone.iconBg, sideTone.iconText)}>
+                        <detail.icon size={16} />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-foreground truncate leading-tight">
+                          {detail.name}
+                        </p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-0.5 opacity-60 truncate">
+                          {detail.typeLabel}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm sm:text-base font-black tabular-nums tracking-tighter leading-none text-foreground">
+                          {formatCurrency(detail.value)}
+                        </p>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-black text-base sm:text-lg text-foreground tabular-nums tracking-tighter leading-none">
+                  ))}
+                </div>
+              )}
+
+              {/* Patrimônio Líquido (somente quando showEquity = true) */}
+              {isPL && showEquity && (
+                <div
+                  className={cn(
+                    "rounded-2xl border border-border/40 bg-card/40 backdrop-blur-sm px-4 py-4 flex items-center justify-between",
+                    "ring-1",
+                    plTone.bg,
+                    plTone.ring,
+                  )}
+                >
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground mb-1">
+                      Patrimônio Líquido
+                    </p>
+                    <p className="text-base sm:text-lg font-black tabular-nums text-foreground leading-none">
                       {formatCurrency(section.value)}
                     </p>
+                  </div>
+
+                  <div className="shrink-0 text-right flex flex-col items-end gap-1">
+                    <div className="inline-flex items-center gap-1.5 rounded-full bg-card/60 px-2 py-0.5 border border-border/30">
+                      {section.value >= 0 ? (
+                        <TrendingUp size={12} className={plTone.text} />
+                      ) : (
+                        <TrendingDown size={12} className={plTone.text} />
+                      )}
+                      <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-[0.15em]">
+                        {section.percent.toFixed(1)}% do total
+                      </span>
+                    </div>
+                    <span className="text-[9px] font-medium text-muted-foreground uppercase tracking-[0.18em]">
+                      Capital próprio
+                    </span>
                   </div>
                 </div>
               )}
 
-              {/* Lista de Itens */}
-              <div className="grid grid-cols-1 gap-2 pl-2 sm:pl-6">
-                {section.details?.map((detail) => (
-                  <div 
-                    key={detail.id}
-                    className="flex items-center justify-between p-3 sm:p-4 rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30 hover:border-primary/30 hover:bg-card transition-all duration-300 group/item cursor-default"
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-9 h-9 rounded-xl bg-muted/40 flex items-center justify-center text-muted-foreground group-hover/item:text-primary transition-all">
-                        <detail.icon size={18} />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm text-foreground truncate leading-tight">
-                          {detail.name}
-                        </p>
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1 opacity-50">
-                          {detail.typeLabel}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="text-right shrink-0">
-                      <p className="font-black text-sm sm:text-base text-foreground tabular-nums leading-none">
-                        {formatCurrency(detail.value)}
-                      </p>
-                      <p className="text-[9px] font-black text-primary/60 uppercase mt-1 tracking-tighter">
-                        {detail.percent.toFixed(1)}%
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Patrimônio Líquido */}
-                {isPL && (
-                  <div className="p-6 sm:p-8 rounded-[2rem] bg-primary text-white shadow-xl shadow-primary/20 relative overflow-hidden group/pl mt-2">
-                    <div className="absolute right-0 top-0 p-6 opacity-10 rotate-12 group-hover/pl:scale-110 transition-transform duration-1000">
-                      <TrendingUp size={100} />
-                    </div>
-                    <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                          <p className="text-[8px] font-black uppercase tracking-[0.3em] text-white/60">Capital Próprio</p>
-                        </div>
-                        <h4 className="text-2xl sm:text-3xl font-black tracking-tighter tabular-nums leading-none">
-                          {formatCurrency(section.value)}
-                        </h4>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-white/60 mb-0.5">Participação</p>
-                          <p className="text-lg font-black">{section.percent.toFixed(1)}%</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center shadow-inner">
-                          <ArrowRight size={20} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           );
         })}
-      </div>
-
-      {/* Indicador de Fechamento */}
-      <div className="mt-12 pt-6 border-t border-border/30 flex items-center justify-between relative z-10 px-2">
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "w-8 h-8 rounded-full flex items-center justify-center shadow-inner",
-            isAsset ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-          )}>
-            {isAsset ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-          </div>
-          <div>
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground block">
-              {isAsset ? "Total Ativo" : "Total Passivo"}
-            </span>
-          </div>
-        </div>
-        <p className={cn(
-          "text-xl sm:text-2xl font-black tabular-nums tracking-tighter",
-          isAsset ? "text-success" : "text-destructive"
-        )}>
-          {formatCurrency(isAsset ? totalValue : totalPassivo)}
-        </p>
       </div>
     </div>
   );

@@ -188,8 +188,20 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
           </div>
         </div>
         <div className="col-span-12 xl:col-span-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
-          <IndicatorCard title="Taxa de Economia" value={`${m1.poupanca.toFixed(1)}%`} trend={getTrend(m1.poupanca, m2.poupanca)} status={m1.poupanca >= 20 ? "success" : m1.poupanca >= 10 ? "warning" : "danger"} icon={ShieldCheck} />
-          <IndicatorCard title="Folga Mensal" value={`${m1.margemSeguranca.toFixed(1)}%`} trend={getTrend(m1.margemSeguranca, m2.margemSeguranca)} status={m1.margemSeguranca >= 30 ? "success" : "warning"} icon={Heart} />
+          <IndicatorCard 
+            title="Taxa de Poupança" 
+            value={hasData ? `${m1.poupanca.toFixed(1)}%` : "—"} 
+            trend={hasData ? getTrend(m1.poupanca, m2.poupanca) : undefined} 
+            status={!hasData ? "no-data" : m1.poupanca >= 20 ? "success" : m1.poupanca >= 10 ? "warning" : "danger"} 
+            icon={ShieldCheck} 
+          />
+          <IndicatorCard 
+            title="Folga Mensal" 
+            value={hasData ? `${m1.margemSeguranca.toFixed(1)}%` : "—"} 
+            trend={hasData ? getTrend(m1.margemSeguranca, m2.margemSeguranca) : undefined} 
+            status={!hasData ? "no-data" : m1.margemSeguranca >= 30 ? "success" : "warning"} 
+            icon={Heart} 
+          />
           <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between bg-muted/20 px-6 py-4 rounded-[2rem] border border-border/40 gap-4">
             <div className="flex gap-4 sm:gap-6 shrink-0">{[{ c: 'bg-success', l: 'Saudável' }, { c: 'bg-warning', l: 'Atenção' }, { c: 'bg-destructive', l: 'Crítico' }].map((s, idx) => (<div key={idx} className="flex items-center gap-2"><div className={cn("w-2 h-2 rounded-full", s.c)} /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{s.l}</span></div>))}</div>
             <button onClick={() => setShowManagerModal(true)} className="rounded-full h-9 gap-2 px-5 font-black text-[10px] uppercase tracking-widest bg-card border border-border/60 flex items-center"><Settings2 size={14} className="mr-2" /> Ajustar</button>
@@ -200,29 +212,87 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
       <section className="space-y-8">
         <SectionHeader title="Gestão de Liquidez" subtitle="Capacidade de Pagamento" icon={Wallet} />
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-          <IndicatorCard title="Liquidez Corrente" value={`${m1.liqCorrente.toFixed(2)}x`} trend={getTrend(m1.liqCorrente, m2.liqCorrente)} status={m1.liqCorrente >= 1.5 ? "success" : "warning"} icon={TrendingUp} />
-          <IndicatorCard title="Cobertura Mensal" value={`${m1.solvenciaImediata.toFixed(2)}x`} trend={getTrend(m1.solvenciaImediata, m2.solvenciaImediata)} status={m1.solvenciaImediata >= 1 ? "success" : "warning"} icon={Activity} />
-          <IndicatorCard title="Solvência Geral" value={`${m1.liqGeral.toFixed(2)}x`} trend={getTrend(m1.liqGeral, m2.liqGeral)} status={m1.liqGeral >= 2 ? "success" : "warning"} icon={Shield} />
+          <IndicatorCard 
+            title="Liquidez Corrente" 
+            value={hasData ? `${m1.liqCorrente.toFixed(2)}x` : "—"} 
+            trend={hasData ? getTrend(m1.liqCorrente, m2.liqCorrente) : undefined} 
+            status={!hasData ? "no-data" : m1.liqCorrente >= 1.5 ? "success" : "warning"} 
+            icon={TrendingUp} 
+          />
+          <IndicatorCard 
+            title="Cobertura Mensal" 
+            value={hasData ? `${m1.solvenciaImediata.toFixed(2)}x` : "—"} 
+            trend={hasData ? getTrend(m1.solvenciaImediata, m2.solvenciaImediata) : undefined} 
+            status={!hasData ? "no-data" : m1.solvenciaImediata >= 1 ? "success" : "warning"} 
+            icon={Activity} 
+          />
+          <IndicatorCard 
+            title="Solvência Geral" 
+            value={hasData ? `${m1.liqGeral.toFixed(2)}x` : "—"} 
+            trend={hasData ? getTrend(m1.liqGeral, m2.liqGeral) : undefined} 
+            status={!hasData ? "no-data" : m1.liqGeral >= 2 ? "success" : "warning"} 
+            icon={Shield} 
+          />
         </div>
       </section>
 
       <section className="space-y-8">
         <SectionHeader title="Endividamento" subtitle="Comprometimento do Patrimônio" icon={Scale} />
         <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6">
-          <IndicatorCard title="Dívida / Ativo" value={`${m1.endivTotal.toFixed(1)}%`} status={m1.endivTotal <= 30 ? "success" : "warning"} icon={TrendingDown} />
-          <IndicatorCard title="Dívida / PL" value={`${m1.dividaPatrimonio.toFixed(1)}%`} status={m1.dividaPatrimonio <= 50 ? "success" : "warning"} icon={Target} />
-          <IndicatorCard title="Imobilização" value={`${m1.imobPL.toFixed(1)}%`} status={m1.imobPL <= 60 ? "success" : "warning"} icon={Landmark} />
-          <IndicatorCard title="Curto Prazo" value={`${m1.compDivida.toFixed(1)}%`} status={m1.compDivida <= 40 ? "success" : "warning"} icon={LayoutGrid} />
+          <IndicatorCard 
+            title="Dívida / Ativo" 
+            value={hasData ? `${m1.endivTotal.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.endivTotal <= 30 ? "success" : "warning"} 
+            icon={TrendingDown} 
+          />
+          <IndicatorCard 
+            title="Dívida / PL" 
+            value={hasData ? `${m1.dividaPatrimonio.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.dividaPatrimonio <= 50 ? "success" : "warning"} 
+            icon={Target} 
+          />
+          <IndicatorCard 
+            title="Imobilização" 
+            value={hasData ? `${m1.imobPL.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.imobPL <= 60 ? "success" : "warning"} 
+            icon={Landmark} 
+          />
+          <IndicatorCard 
+            title="Curto Prazo" 
+            value={hasData ? `${m1.compDivida.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.compDivida <= 40 ? "success" : "warning"} 
+            icon={LayoutGrid} 
+          />
         </div>
       </section>
 
       <section className="space-y-8">
         <SectionHeader title="Rentabilidade & Eficiência" subtitle="Performance Financeira" icon={TrendingUp} />
         <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6">
-          <IndicatorCard title="Taxa de Sobra" value={`${m1.margemLiquida.toFixed(1)}%`} status={m1.margemLiquida >= 15 ? "success" : "warning"} icon={Sparkles} />
-          <IndicatorCard title="Retorno Ativos" value={`${m1.roa.toFixed(1)}%`} status={m1.roa >= 5 ? "success" : "warning"} icon={BarChart3} />
-          <IndicatorCard title="Burn Rate" value={`${m1.burnRate.toFixed(1)}%`} status={m1.burnRate <= 80 ? "success" : "warning"} icon={Zap} />
-          <IndicatorCard title="Reserva (Meses)" value={`${m1.sobrevivencia.toFixed(1)}m`} status={m1.sobrevivencia >= 6 ? "success" : "warning"} icon={Calendar} />
+          <IndicatorCard 
+            title="Taxa de Sobra" 
+            value={hasData ? `${m1.margemLiquida.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.margemLiquida >= 15 ? "success" : "warning"} 
+            icon={Sparkles} 
+          />
+          <IndicatorCard 
+            title="Retorno Ativos" 
+            value={hasData ? `${m1.roa.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.roa >= 5 ? "success" : "warning"} 
+            icon={BarChart3} 
+          />
+          <IndicatorCard 
+            title="Burn Rate" 
+            value={hasData ? `${m1.burnRate.toFixed(1)}%` : "—"} 
+            status={!hasData ? "no-data" : m1.burnRate <= 80 ? "success" : "warning"} 
+            icon={Zap} 
+          />
+          <IndicatorCard 
+            title="Reserva (Meses)" 
+            value={hasData ? `${m1.sobrevivencia.toFixed(1)}m` : "—"} 
+            status={!hasData ? "no-data" : m1.sobrevivencia >= 6 ? "success" : "warning"} 
+            icon={Calendar} 
+          />
         </div>
       </section>
 
