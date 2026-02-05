@@ -302,6 +302,10 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
   }, [dre1, colors]);
 
   const totalGastos = useMemo(() => dre1.fix + dre1.var + dre1.juros, [dre1]);
+  const resultadoLiquidoLabel = useMemo(() => {
+    const v = dre1.res;
+    return v < 0 ? `-${formatCurrency(Math.abs(v))}` : formatCurrency(v);
+  }, [dre1.res]);
 
   return (
     <div className="space-y-10 animate-fade-in-up">
@@ -323,8 +327,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
                 </div>
                 <h2 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-4">Resultado Líquido do Período</h2>
                 <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
-                   <h3 className={cn("font-display font-extrabold text-5xl sm:text-6xl tracking-tighter leading-none tabular-nums", dre1.res >= 0 ? "text-success" : "text-destructive")}>
-                     {formatCurrency(dre1.res)}
+                   <h3 className={cn("font-display font-extrabold text-5xl sm:text-6xl tracking-tighter leading-none tabular-nums whitespace-nowrap", dre1.res >= 0 ? "text-success" : "text-destructive")}>
+                      {resultadoLiquidoLabel}
                    </h3>
                    <Badge className={cn("rounded-xl px-4 py-2 font-black text-xs gap-2 mb-2 w-fit", variacaoRL >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
                       {variacaoRL >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -340,7 +344,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         </div>
         <div className="lg:col-span-6 grid grid-cols-2 sm:grid-cols-3 gap-4">
           <IndicatorCard 
-            title="Taxa de Poupança" 
+            title="Margem Líq." 
             value={`${indicadores.margemLiquida.toFixed(1)}%`} 
             status={indicadores.margemLiquida >= 20 ? "success" : "warning"}
             icon={DollarSign}
@@ -348,7 +352,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             formula="Resultado ÷ Renda × 100"
           />
           <IndicatorCard 
-            title="Eficiência Operacional" 
+            title="Eficiência Op." 
             value={`${indicadores.eficienciaOp.toFixed(1)}%`} 
             status={indicadores.eficienciaOp >= 70 ? "success" : "warning"}
             icon={Zap}
@@ -356,7 +360,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             formula="(Renda - Fixos) ÷ Renda × 100"
           />
           <IndicatorCard 
-            title="Peso dos Fixos" 
+            title="Fixos (%)" 
             value={`${indicadores.pesoFixos.toFixed(1)}%`} 
             status={indicadores.pesoFixos <= 40 ? "success" : "warning"}
             icon={Target}
@@ -364,7 +368,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             formula="Fixos ÷ Total Gastos × 100"
           />
           <IndicatorCard 
-            title="Custo das Dívidas" 
+            title="Juros (%)" 
             value={`${indicadores.impactoFinanceiro.toFixed(1)}%`} 
             status={indicadores.impactoFinanceiro <= 5 ? "success" : "warning"}
             icon={Gauge}
@@ -372,7 +376,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             formula="Juros ÷ Renda × 100"
           />
           <IndicatorCard 
-            title="Balanço Fixo/Variável" 
+            title="Fixos vs Var." 
             value={`${indicadores.pontoEquilibrio.toFixed(1)}%`} 
             status={indicadores.pontoEquilibrio <= 50 ? "success" : "warning"}
             icon={Activity}

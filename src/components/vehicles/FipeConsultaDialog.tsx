@@ -195,7 +195,7 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
           </div>
         </DialogHeader>
         
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 scrollbar-material">
           <div className="p-6 sm:p-8 space-y-6 pb-32 sm:pb-8">
             {error && (
               <div className="flex items-center gap-3 p-4 rounded-2xl bg-destructive/10 text-destructive border border-destructive/20">
@@ -286,7 +286,13 @@ export function FipeConsultaDialog({ open, onOpenChange, veiculo, onUpdateFipe }
               CONSULTAR VALOR
             </Button>
           ) : (
-            <Button onClick={() => { if (veiculo && onUpdateFipe) onUpdateFipe(veiculo.id, valorNumerico); onOpenChange(false); }} className="flex-1 rounded-full h-12 bg-success text-white font-black text-sm gap-2 shadow-xl shadow-success/20">
+            <Button
+              onClick={() => {
+                if (veiculo && onUpdateFipe) onUpdateFipe(veiculo.id, valorNumerico);
+                onOpenChange(false);
+              }}
+              className="flex-1 rounded-full h-12 bg-success text-success-foreground font-black text-sm gap-2 shadow-xl shadow-success/20"
+            >
               <Check className="w-5 h-5" /> APLICAR VALOR
             </Button>
           )}

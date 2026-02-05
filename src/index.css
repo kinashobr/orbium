@@ -209,13 +209,25 @@
 }
 
 @layer utilities {
+  /* Scrollbar customizada (aplicada via classe .scrollbar-material) */
+  .scrollbar-material {
+    /* Firefox */
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+  }
+
   .scrollbar-material::-webkit-scrollbar {
     height: 6px;
     width: 6px;
   }
+
   .scrollbar-material::-webkit-scrollbar-thumb {
-    background: hsl(var(--primary) / 0.3);
+    background: hsl(var(--primary) / 0.35);
     border-radius: 9999px;
+  }
+
+  .scrollbar-material::-webkit-scrollbar-track {
+    background: transparent;
   }
 
   /* Animações Customizadas */

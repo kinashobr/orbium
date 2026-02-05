@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,6 +45,29 @@ export function AccountStatementDialog({
   onReconcileAll
 }: AccountStatementDialogProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const isTablet = useMediaQuery("(max-width: 1024px)");
+  
+  // Estado para redimensionamento
+  const [size, setSize] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('extrato-dialog-size');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          return {
+            width: Math.min(2000, Math.max(600, parsed.width)),
+            height: Math.min(1200, Math.max(400, parsed.height))
+          };
+        } catch (e) {
+          return { width: 1100, height: 700 };
+        }
+      }
+    }
+    return { width: 1100, height: 700 };
+  });
+  
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeRef = useRef<{ startX: number; startY: number; startWidth: number; startHeight: number } | null>(null);
   
   const [localDateRanges, setLocalDateRanges] = useState<ComparisonDateRanges>(() => ({
     range1: { from: startOfMonth(new Date()), to: endOfMonth(new Date()) },
@@ -61,6 +84,61 @@ export function AccountStatementDialog({
       document.body.style.overflow = 'unset';
     };
   }, [isMobile, open]);
+
+  // Salvar tamanho no localStorage
+  useEffect(() => {
+    if (!isMobile && !isTablet) {
+      localStorage.setItem('extrato-dialog-size', JSON.stringify(size));
+    }
+  }, [size, isMobile, isTablet]);
+
+  // Handlers de redimensionamento
+  const onMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isMobile || isTablet) return;
+    e.preventDefault();
+    setIsResizing(true);
+    resizeRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: size.width,
+      startHeight: size.height,
+    };
+  }, [size, isMobile, isTablet]);
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    if (!isResizing || !resizeRef.current) return;
+
+    const deltaX = e.clientX - resizeRef.current.startX;
+    const deltaY = e.clientY - resizeRef.current.startY;
+
+    const newWidth = Math.min(2000, Math.max(600, resizeRef.current.startWidth + deltaX * 2));
+    const newHeight = Math.min(1200, Math.max(400, resizeRef.current.startHeight + deltaY * 2));
+
+    setSize({ width: newWidth, height: newHeight });
+  }, [isResizing]);
+
+  const onMouseUp = useCallback(() => {
+    setIsResizing(false);
+    resizeRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'nwse-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'default';
+      document.body.style.userSelect = 'auto';
+    }
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isResizing, onMouseMove, onMouseUp]);
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setLocalDateRanges(ranges);
@@ -81,22 +159,42 @@ export function AccountStatementDialog({
       .sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
   }, [transactions, localDateRanges.range1]);
 
+  // Calcular sumário do período selecionado baseado nas transações FILTRADAS
   const periodSummary = useMemo(() => {
     const conciliatedCount = filteredTransactions.filter(t => t.conciliated).length;
     const pendingCount = filteredTransactions.length - conciliatedCount;
     
+    // Calcular entradas e saídas do período filtrado
+    let totalIn = 0;
+    let totalOut = 0;
+    
+    filteredTransactions.forEach(t => {
+      if (t.flow === 'in' || t.flow === 'transfer_in') {
+        totalIn += t.amount;
+      } else if (t.flow === 'out' || t.flow === 'transfer_out') {
+        totalOut += t.amount;
+      }
+    });
+    
     return {
       initialBalance: accountSummary.initialBalance, 
       finalBalance: accountSummary.currentBalance,
-      totalIn: accountSummary.totalIn,
-      totalOut: accountSummary.totalOut,
-      netChange: accountSummary.totalIn - accountSummary.totalOut,
+      totalIn,
+      totalOut,
+      netChange: totalIn - totalOut,
       conciliatedCount,
       pendingCount,
     };
-  }, [accountSummary, filteredTransactions]);
+  }, [filteredTransactions, accountSummary]);
 
   const statusColor = periodSummary.pendingCount === 0 ? 'text-success' : 'text-warning';
+
+  // Estilos responsivos para o dialog
+  const dialogStyles = isMobile
+    ? {}
+    : isTablet
+    ? { width: `${Math.min(size.width, window.innerWidth * 0.9)}px`, height: `${Math.min(size.height, window.innerHeight * 0.85)}px`, maxWidth: '90vw', maxHeight: '85vh' }
+    : { width: `${size.width}px`, height: `${size.height}px`, maxWidth: '95vw', maxHeight: '95vh' };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -105,8 +203,9 @@ export function AccountStatementDialog({
         fullscreen={isMobile}
         className={cn(
           "p-0 overflow-hidden flex flex-col shadow-2xl bg-card",
-          !isMobile && "max-w-[min(95vw,80rem)] h-[min(90vh,900px)] rounded-[2rem]"
+          !isMobile && "rounded-[2rem]"
         )}
+        style={dialogStyles}
       >
         <DialogHeader className={cn(
           "px-4 sm:px-8 pt-6 sm:pt-10 pb-4 sm:pb-6 border-b shrink-0 bg-muted/50 relative",
@@ -138,7 +237,7 @@ export function AccountStatementDialog({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 scrollbar-material">
           <div className="p-4 sm:p-8 space-y-6">
             <div className="flex flex-col sm:flex-row gap-4 bg-muted/20 p-4 rounded-[2rem] border border-border/40">
               <div className="flex flex-wrap items-center gap-4 flex-1">
@@ -193,6 +292,16 @@ export function AccountStatementDialog({
           <DialogFooter className="p-6 bg-muted/10 border-t">
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
           </DialogFooter>
+        )}
+        
+        {/* Resizer handle (Bottom Right) - Hidden on mobile/tablet */}
+        {!isMobile && !isTablet && (
+          <div
+            className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-[100] group"
+            onMouseDown={onMouseDown}
+          >
+            <div className="absolute bottom-1 right-1 w-2 h-2 border-r-2 border-b-2 border-muted-foreground/30 group-hover:border-primary transition-colors" />
+          </div>
         )}
       </DialogContent>
     </Dialog>

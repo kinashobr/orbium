@@ -86,8 +86,13 @@ const Emprestimos = () => {
     };
   }, [emprestimos, getLoanPrincipalRemaining, getCreditCardDebt, dateRanges.range1.to]);
 
-  const formatCurrency = (value: number) => 
-    `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
 
   const dynamicDebtPaths = useMemo(() => {
     const now = new Date();

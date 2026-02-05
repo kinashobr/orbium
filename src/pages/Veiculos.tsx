@@ -54,6 +54,7 @@ import { toast } from "sonner";
 const BensImobilizados = () => {
   const { 
     veiculos, 
+    updateVeiculo,
     deleteVeiculo, 
     getPendingVehicles,
     segurosVeiculo,
@@ -176,6 +177,34 @@ const BensImobilizados = () => {
     setSelectedVeiculoForFipe(v);
     setShowFipeDialog(true);
   };
+
+  const handleApplyFipe = useCallback((veiculoId: number, valorFipe: number) => {
+    const v = veiculos.find(x => x.id === veiculoId);
+    if (!v) return;
+
+    const oldValue = v.valorFipe || 0;
+    const nowIso = new Date().toISOString();
+
+    const historico = [
+      ...(v.historico || []),
+      {
+        id: `vh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'fipe' as const,
+        date: nowIso,
+        title: 'Atualização FIPE',
+        description: `${formatCurrency(oldValue)} → ${formatCurrency(valorFipe)}`,
+        amount: valorFipe,
+        meta: { oldValue, newValue: valorFipe },
+      },
+    ];
+
+    updateVeiculo(veiculoId, { valorFipe: valorFipe, historico });
+
+    // Se o modal de detalhes estiver aberto para este veículo, atualiza o estado local
+    setSelectedVehicle(prev => (prev?.id === veiculoId ? { ...prev, valorFipe: valorFipe, historico } : prev));
+
+    toast.success(`FIPE atualizada: ${formatCurrency(valorFipe)}`);
+  }, [veiculos, updateVeiculo]);
   
   const handleViewDetails = (veiculo: Veiculo) => {
     setSelectedVehicle(veiculo);
@@ -529,6 +558,7 @@ const BensImobilizados = () => {
         open={showFipeDialog} 
         onOpenChange={setShowFipeDialog} 
         veiculo={selectedVeiculoForFipe}
+        onUpdateFipe={handleApplyFipe}
       />
       
       <ImovelFormModal
@@ -546,6 +576,7 @@ const BensImobilizados = () => {
         veiculo={selectedVehicle}
         seguro={selectedVehicle ? segurosVeiculo.find(s => s.veiculoId === selectedVehicle.id) : undefined}
         onUpdateFipe={handleOpenFipe}
+        onUpdateVeiculo={updateVeiculo}
       />
     </MainLayout>
   );

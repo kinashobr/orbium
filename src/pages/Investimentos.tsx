@@ -19,7 +19,8 @@ import {
   LayoutGrid,
   Zap,
   ArrowRight,
-  LineChart
+  LineChart,
+  Settings2
 } from "lucide-react";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -30,6 +31,7 @@ import { ptBR } from "date-fns/locale";
 import { useChartColors } from "@/hooks/useChartColors";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { toast } from "sonner";
+import { ObjectivesConfigDialog } from "@/components/investments/ObjectivesConfigDialog";
 
 export default function Investimentos() {
   const { 
@@ -41,13 +43,16 @@ export default function Investimentos() {
     calculateTotalInvestmentBalanceAtDate,
     transacoesV2,
     setTransacoesV2,
-    categoriasV2
+    categoriasV2,
+    metasPersonalizadas,
+    calcularProgressoMeta
   } = useFinance();
   
   const colors = useChartColors();
   const [activeTab, setActiveTab] = useState("visao-geral");
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
+  const [showObjectivesConfig, setShowObjectivesConfig] = useState(false);
 
   const handlePeriodChange = useCallback((ranges: ComparisonDateRanges) => {
     setDateRanges(ranges);
@@ -127,13 +132,32 @@ export default function Investimentos() {
   }, [viewingAccount, transacoesV2, dateRanges, calculateBalanceUpToDate, contasMovimento]);
 
   const recomendacao = useMemo(() => {
-    const { percCripto, percRF, patrimonioTotal, progressoReserva } = metricas;
+    const { percCripto, percRF, patrimonioTotal } = metricas;
+    const metaReserva = metasPersonalizadas.find(m => m.ativo && m.metrica === 'reserva_emergencia');
+    const progressoReserva = metaReserva ? calcularProgressoMeta(metaReserva) : null;
     if (patrimonioTotal === 0) return { tipo: 'info' as const, icone: Wallet, mensagem: 'Cadastre suas contas de investimento para acompanhar seu patrimônio.' };
-    if (progressoReserva < 50) return { tipo: 'alerta' as const, icone: Target, mensagem: `Reserva de emergência em ${progressoReserva.toFixed(0)}%. Priorize completar antes de novos riscos.` };
+    // Reserva de emergência: não usar texto hardcoded; depende da meta configurada pelo usuário.
+    if (progressoReserva && progressoReserva.percentual < 100) {
+      return {
+        tipo: 'alerta' as const,
+        icone: Target,
+        mensagem: `${metaReserva!.nome}: ${progressoReserva.percentual.toFixed(0)}% (atual ${progressoReserva.valorAtual.toFixed(1)} meses • alvo ${metaReserva!.valorAlvo.toFixed(0)} meses).`,
+      };
+    }
     if (percCripto > 15) return { tipo: 'alerta' as const, icone: Bitcoin, mensagem: `Exposição em Cripto (${percCripto.toFixed(0)}%) alta. Considere rebalancear.` };
     if (percRF > 80) return { tipo: 'info' as const, icone: Landmark, mensagem: `Alta concentração em Renda Fixa (${percRF.toFixed(0)}%). Avalie diversificar.` };
     return { tipo: 'sucesso' as const, icone: Sparkles, mensagem: 'Portfólio bem diversificado! Continue com aportes regulares.' };
-  }, [metricas]);
+  }, [metricas, metasPersonalizadas, calcularProgressoMeta]);
+
+  const metasObjetivos = useMemo(() => {
+    return metasPersonalizadas
+      .filter(m => ["investimento", "patrimonio", "saldo"].includes(m.metrica))
+      .sort((a, b) => (b.ativo ? 1 : 0) - (a.ativo ? 1 : 0));
+  }, [metasPersonalizadas]);
+
+  const progressoObjetivos = useMemo(() => {
+    return metasObjetivos.map(m => ({ meta: m, progresso: calcularProgressoMeta(m) }));
+  }, [metasObjetivos, calcularProgressoMeta]);
 
   return (
     <MainLayout>
@@ -299,35 +323,58 @@ export default function Investimentos() {
               </div>
               
               <div className="bg-surface-light dark:bg-surface-dark rounded-[32px] sm:rounded-[40px] p-8 shadow-soft border border-white/60 dark:border-white/5 space-y-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center text-accent shadow-sm"><Target className="w-6 h-6" /></div>
-                  <div><h3 className="font-display font-bold text-xl text-foreground">Objetivos</h3><p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Progresso de Metas</p></div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-accent/10 rounded-2xl flex items-center justify-center text-accent shadow-sm"><Target className="w-6 h-6" /></div>
+                    <div>
+                      <h3 className="font-display font-bold text-xl text-foreground">Objetivos</h3>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Metas Personalizadas</p>
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 rounded-full"
+                    onClick={() => setShowObjectivesConfig(true)}
+                    aria-label="Configurar objetivos"
+                  >
+                    <Settings2 className="w-4 h-4 text-muted-foreground" />
+                  </Button>
                 </div>
+
                 <div className="space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-                      <span className="text-muted-foreground">Reserva de Emergência</span>
-                      <span className={cn(metricas.progressoReserva >= 100 ? "text-success" : metricas.progressoReserva >= 50 ? "text-primary" : "text-destructive")}>
-                        {metricas.progressoReserva.toFixed(0)}%
-                      </span>
+                  {progressoObjetivos.filter(x => x.meta.ativo).slice(0, 3).map(({ meta, progresso }) => (
+                    <div key={meta.id} className="space-y-2">
+                      <div className="flex justify-between text-xs font-bold uppercase tracking-widest gap-3">
+                        <span className="text-muted-foreground truncate">{meta.nome}</span>
+                        <span className={cn(progresso.percentual >= 100 ? "text-success" : progresso.percentual >= 70 ? "text-primary" : "text-destructive")}>
+                          {Math.min(100, progresso.percentual).toFixed(0)}%
+                        </span>
+                      </div>
+                      <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
+                        <div
+                          className={cn(
+                            "h-full rounded-full transition-all duration-500",
+                            progresso.percentual >= 100 ? "bg-success" : progresso.percentual >= 70 ? "bg-primary" : "bg-destructive",
+                          )}
+                          style={{ width: `${Math.min(100, progresso.percentual)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {meta.metrica === 'investimento' ? `Aportes no período: ${formatCurrency(progresso.valorAtual)} / ${formatCurrency(meta.valorAlvo)}` :
+                         meta.metrica === 'patrimonio' ? `Patrimônio: ${formatCurrency(progresso.valorAtual)} / ${formatCurrency(meta.valorAlvo)}` :
+                         `Saldo: ${formatCurrency(progresso.valorAtual)} / ${formatCurrency(meta.valorAlvo)}`}
+                      </p>
                     </div>
-                    <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-500", metricas.progressoReserva >= 100 ? "bg-success" : metricas.progressoReserva >= 50 ? "bg-primary" : "bg-destructive")} style={{ width: `${Math.min(100, metricas.progressoReserva)}%` }} />
+                  ))}
+
+                  {progressoObjetivos.filter(x => x.meta.ativo).length === 0 && (
+                    <div className="py-6 text-center opacity-70">
+                      <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Nenhum objetivo ativo</p>
+                      <p className="text-[11px] text-muted-foreground mt-2">Clique na engrenagem para criar sua primeira meta.</p>
                     </div>
-                    <p className="text-[10px] text-muted-foreground">{formatCurrency(metricas.reservaEmergencia)} de {formatCurrency(metricas.metaReserva)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-xs font-bold uppercase tracking-widest">
-                      <span className="text-muted-foreground">Liberdade Financeira</span>
-                      <span className={cn(metricas.progressoLiberdade >= 100 ? "text-success" : "text-accent")}>
-                        {metricas.progressoLiberdade.toFixed(0)}%
-                      </span>
-                    </div>
-                    <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-                      <div className={cn("h-full rounded-full transition-all duration-500", metricas.progressoLiberdade >= 100 ? "bg-success" : "bg-accent")} style={{ width: `${Math.min(100, metricas.progressoLiberdade)}%` }} />
-                    </div>
-                    <p className="text-[10px] text-muted-foreground">Renda passiva: {formatCurrency(metricas.rendimentosPassivos)}/mês</p>
-                  </div>
+                  )}
                 </div>
                 <div className="pt-6 border-t border-border/40">
                   <div className={cn("p-4 rounded-2xl flex gap-3 border", recomendacao.tipo === 'sucesso' ? "bg-success/5 border-success/10" : recomendacao.tipo === 'alerta' ? "bg-destructive/5 border-destructive/10" : "bg-primary/5 border-primary/10")}>
@@ -395,6 +442,8 @@ export default function Investimentos() {
           onReconcileAll={() => { setTransacoesV2(prev => prev.map(t => t.accountId === viewingAccountId ? { ...t, conciliated: true } : t)); }} 
         />
       )}
+
+      <ObjectivesConfigDialog open={showObjectivesConfig} onOpenChange={setShowObjectivesConfig} />
     </MainLayout>
   );
 }

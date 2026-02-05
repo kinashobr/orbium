@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
-import { MetaPersonalizada } from "@/types/finance";
+import { generateMetaId, MetaPersonalizada } from "@/types/finance";
 import { MetaPersonalizadaFormModal } from "./MetaPersonalizadaFormModal";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
@@ -48,20 +48,11 @@ export interface AlertaConfig {
   notificarDispositivo: boolean;
 }
 
-export interface MetaConfig {
-  id: string;
-  nome: string;
-  ativo: boolean;
-  valorAlvo: number;
-  tipo: 'receita' | 'gasto' | 'investimento';
-}
-
 interface AlertasConfigDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   config: AlertaConfig[];
-  metas: MetaConfig[];
-  onSave: (config: AlertaConfig[], metas: MetaConfig[]) => void;
+  onSave: (config: AlertaConfig[]) => void;
   initialStartDate: string;
   onStartDateChange: (date: string) => void;
 }
@@ -75,30 +66,47 @@ const ALERTA_INFO: Record<string, { icon: any; color: string; descricao: string;
   "gasto-categoria": { icon: ShoppingCart, color: "text-pink-500", descricao: "Alerta quando uma categoria variar mais de X%.", unidade: "%" }
 };
 
-const META_INFO: Record<string, { icon: any; color: string; descricao: string }> = {
-  "meta-receita": { icon: TrendingUp, color: "text-success", descricao: "Objetivo de renda total mensal." },
-  "teto-gastos": { icon: TrendingDown, color: "text-destructive", descricao: "Limite máximo de despesas no mês." },
-  "meta-investimento": { icon: Rocket, color: "text-indigo-500", descricao: "Valor alvo para novos investimentos." }
-};
-
 const COR_BG: Record<string, string> = {
   emerald: 'bg-emerald-500', blue: 'bg-blue-500', violet: 'bg-violet-500', amber: 'bg-amber-500', rose: 'bg-rose-500', cyan: 'bg-cyan-500',
 };
 
-export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave, initialStartDate, onStartDateChange }: AlertasConfigDialogProps) {
+export function AlertasConfigDialog({ open, onOpenChange, config, onSave, initialStartDate, onStartDateChange }: AlertasConfigDialogProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada } = useFinance();
   
   const [localConfig, setLocalConfig] = useState<AlertaConfig[]>(config);
-  const [localMetas, setLocalMetas] = useState<MetaConfig[]>(metas);
   const [startDate, setStartDate] = useState(initialStartDate);
   const [activeTab, setActiveTab] = useState("alertas");
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [editingMeta, setEditingMeta] = useState<MetaPersonalizada | null>(null);
 
-  useEffect(() => { if (open) { setLocalConfig(config); setLocalMetas(metas || []); setStartDate(initialStartDate); } }, [open, config, metas, initialStartDate]);
+  useEffect(() => { if (open) { setLocalConfig(config); setStartDate(initialStartDate); } }, [open, config, initialStartDate]);
 
-  const handleSave = () => { onSave(localConfig, localMetas); onStartDateChange(startDate); onOpenChange(false); };
+  const handleSave = () => { onSave(localConfig); onStartDateChange(startDate); onOpenChange(false); };
+
+  const openPreset = (preset: 'reserva' | 'teto' | 'aporte') => {
+    const base: MetaPersonalizada = {
+      id: generateMetaId(),
+      nome: preset === 'reserva' ? 'Reserva de Emergência' : preset === 'teto' ? 'Limite de Gastos' : 'Aporte Mensal',
+      descricao:
+        preset === 'reserva'
+          ? 'Meta em meses de cobertura (base: gasto médio dos últimos 3 meses).'
+          : preset === 'teto'
+            ? 'Limite máximo de despesas no mês.'
+            : 'Objetivo de aporte/investimento no mês.',
+      tipo: 'valor_fixo',
+      metrica: preset === 'reserva' ? 'reserva_emergencia' : preset === 'teto' ? 'despesa' : 'investimento',
+      valorAlvo: preset === 'reserva' ? 6 : 0,
+      periodoAvaliacao: 'mensal',
+      logica: preset === 'teto' ? 'menor_melhor' : 'maior_melhor',
+      ativo: true,
+      criadoEm: new Date().toISOString(),
+      cor: preset === 'reserva' ? 'emerald' : preset === 'teto' ? 'rose' : 'violet',
+      icone: preset === 'reserva' ? 'piggy-bank' : preset === 'teto' ? 'trending-down' : 'rocket',
+    };
+    setEditingMeta(base);
+    setFormModalOpen(true);
+  };
 
   return (
     <>
@@ -149,7 +157,7 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
             </Tabs>
           </DialogHeader>
 
-          <ScrollArea className={cn("flex-1", isMobile ? "px-4" : "px-6 sm:px-8")}>
+          <ScrollArea className={cn("flex-1 scrollbar-material", isMobile ? "px-4" : "px-6 sm:px-8")}>
             <div className={cn("py-4 sm:py-6 space-y-6 sm:space-y-8 pb-32 sm:pb-6")}>
               <Tabs value={activeTab} className="mt-0">
                 <TabsContent value="alertas" className="space-y-4 sm:space-y-6 mt-0 focus-visible:outline-none">
@@ -214,54 +222,30 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
                 </TabsContent>
 
                 <TabsContent value="metas" className="space-y-6 sm:space-y-8 mt-0 focus-visible:outline-none">
-                  <div className="space-y-3 sm:space-y-4">
-                    {localMetas.map(meta => {
-                      const info = META_INFO[meta.id];
-                      return (
-                        <div key={meta.id} className={cn(
-                          "rounded-[1.5rem] sm:rounded-[2rem] border-2 transition-all", 
-                          meta.ativo ? "bg-card border-success/20 shadow-md" : "bg-muted/20 border-transparent opacity-60",
-                          isMobile ? "p-4" : "p-4 sm:p-5"
-                        )}>
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                              <div className={cn("rounded-xl bg-muted flex items-center justify-center shrink-0", isMobile ? "w-8 h-8" : "w-10 h-10")}>
-                                {info && <info.icon className={cn(meta.ativo ? info.color : "text-muted-foreground", isMobile ? "w-4 h-4" : "w-5 h-5")} />}
-                              </div>
-                              <div className="space-y-0.5 min-w-0">
-                                <Label className={cn("font-black truncate block", isMobile ? "text-[11px]" : "text-sm")}>{meta.nome}</Label>
-                                <p className="text-[9px] sm:text-[10px] font-medium text-muted-foreground leading-tight">{info?.descricao}</p>
-                              </div>
-                            </div>
-                            <div className="shrink-0 pt-1">
-                              <Switch 
-                                checked={meta.ativo} 
-                                onCheckedChange={() => setLocalMetas(prev => prev.map(m => m.id === meta.id ? { ...m, ativo: !m.ativo } : m))} 
-                                className={cn(isMobile && "scale-[0.65] origin-right")}
-                              />
-                            </div>
-                          </div>
-                          {meta.ativo && (
-                            <div className="mt-4 pt-4 border-t border-border/40 space-y-2">
-                                <Label className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor Alvo (R$)</Label>
-                                <div className="relative">
-                                  <span className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-[10px] sm:text-xs font-black text-muted-foreground/40">R$</span>
-                                  <Input type="number" value={meta.valorAlvo} onChange={e => setLocalMetas(prev => prev.map(m => m.id === meta.id ? { ...m, valorAlvo: parseFloat(e.target.value) || 0 } : m))} className={cn("pl-8 sm:pl-10 rounded-xl border-2 font-black", isMobile ? "h-9 text-xs" : "h-11 text-lg")} />
-                                </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
                   <div className="space-y-4 sm:space-y-5">
                     <div className="flex items-center justify-between px-1">
-                      <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">Personalizadas</p>
+                      <div>
+                        <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">Metas & Riscos (baseado em metas)</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Crie presets (reserva/teto/aporte) ou personalize livremente.</p>
+                      </div>
                       <Button variant="outline" size="sm" onClick={() => { setEditingMeta(null); setFormModalOpen(true); }} className={cn("rounded-full px-4 gap-2 font-black text-[8px] sm:text-[10px]", isMobile ? "h-8" : "h-9")}>
-                        <Plus className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} /> NOVA META
+                        <Plus className={cn(isMobile ? "w-3 h-3" : "w-4 h-4")} /> NOVA
                       </Button>
                     </div>
+
+                    <div className={cn("grid gap-2", isMobile ? "grid-cols-1" : "grid-cols-3")}
+                    >
+                      <Button variant="outline" onClick={() => openPreset('reserva')} className="rounded-2xl justify-start gap-2 font-black">
+                        <PiggyBank className="w-4 h-4" /> Reserva
+                      </Button>
+                      <Button variant="outline" onClick={() => openPreset('teto')} className="rounded-2xl justify-start gap-2 font-black">
+                        <TrendingDown className="w-4 h-4" /> Limite Gastos
+                      </Button>
+                      <Button variant="outline" onClick={() => openPreset('aporte')} className="rounded-2xl justify-start gap-2 font-black">
+                        <Rocket className="w-4 h-4" /> Aporte
+                      </Button>
+                    </div>
+
                     {metasPersonalizadas.map(meta => (
                       <div key={meta.id} className={cn(
                         "rounded-[1.5rem] sm:rounded-[1.75rem] border-2 transition-all", 
@@ -325,7 +309,20 @@ export function AlertasConfigDialog({ open, onOpenChange, config, metas, onSave,
         </DialogContent>
       </Dialog>
 
-      <MetaPersonalizadaFormModal open={formModalOpen} onOpenChange={setFormModalOpen} meta={editingMeta} onSave={m => { if (editingMeta) updateMetaPersonalizada(m.id, m); else addMetaPersonalizada(m); setEditingMeta(null); }} />
+      <MetaPersonalizadaFormModal
+        open={formModalOpen}
+        onOpenChange={(v) => {
+          setFormModalOpen(v);
+          if (!v) setEditingMeta(null);
+        }}
+        meta={editingMeta}
+        onSave={(m) => {
+          const exists = metasPersonalizadas.some(x => x.id === m.id);
+          if (exists) updateMetaPersonalizada(m.id, m);
+          else addMetaPersonalizada(m);
+          setEditingMeta(null);
+        }}
+      />
     </>
   );
 }

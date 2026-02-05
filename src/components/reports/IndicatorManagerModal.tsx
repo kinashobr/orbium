@@ -121,7 +121,7 @@ export function IndicatorManagerModal({
         </DialogHeader>
 
         {view === "list" ? (
-          <ScrollArea className="flex-1 px-8 pb-4 h-[400px]">
+          <ScrollArea className="flex-1 px-8 pb-4 h-[400px] scrollbar-material">
             <div className="space-y-3 py-6">
               {indicators.map(ind => (
                 <div key={ind.id} className="flex items-center gap-4 p-4 rounded-[1.75rem] bg-card border border-border/40 hover:border-primary/30 transition-all group">
@@ -151,7 +151,8 @@ export function IndicatorManagerModal({
             </div>
           </ScrollArea>
         ) : (
-          <div className="p-8 space-y-6 max-h-[500px] overflow-y-auto no-scrollbar">
+          <ScrollArea className="flex-1 px-8 pb-4 scrollbar-material h-[min(70vh,520px)]">
+            <div className="space-y-6 py-6">
             {/* Seção de Ajuda */}
             <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
               <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">💡 Como criar fórmulas</p>
@@ -240,7 +241,8 @@ export function IndicatorManagerModal({
                 />
               </div>
             </div>
-          </div>
+            </div>
+          </ScrollArea>
         )}
 
         <DialogFooter className="p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 flex gap-3">

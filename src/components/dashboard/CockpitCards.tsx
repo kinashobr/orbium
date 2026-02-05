@@ -26,10 +26,13 @@ interface CockpitCardsProps {
 }
 
 export function CockpitCards({ data }: CockpitCardsProps) {
-  const formatCompact = (value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}k`;
-    return value.toLocaleString('pt-BR');
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
   };
 
   const liquidezPercent = useMemo(() => {
@@ -55,7 +58,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                     <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Capital Disponível</p>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
                   </div>
-                  <p className="font-display font-bold text-2xl lg:text-4xl text-foreground tracking-tight">R$ {formatCompact(data.liquidezImediata)}</p>
+                  <p className="font-display font-bold text-xl lg:text-3xl text-foreground tracking-tight">{formatCurrency(data.liquidezImediata)}</p>
                   <p className="text-[10px] sm:text-xs font-medium text-muted-foreground mt-1">Dinheiro livre para usar</p>
                 </div>
                 <div className="flex items-center gap-2 mt-auto">
@@ -116,7 +119,7 @@ export function CockpitCards({ data }: CockpitCardsProps) {
                     <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">Contas do Mês</p>
                     <Info className="w-3 h-3 text-muted-foreground/40" />
                   </div>
-                  <p className="font-display font-bold text-2xl lg:text-4xl text-foreground tracking-tight">R$ {formatCompact(data.compromissosMes)}</p>
+                  <p className="font-display font-bold text-xl lg:text-3xl text-foreground tracking-tight">{formatCurrency(data.compromissosMes)}</p>
                   <p className="text-[10px] sm:text-xs font-medium text-muted-foreground mt-1">Valor comprometido</p>
                 </div>
                 <div className="flex items-center gap-2 mt-auto">

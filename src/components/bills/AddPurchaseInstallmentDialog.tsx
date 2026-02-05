@@ -10,7 +10,7 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency } from "@/types/finance";
 import { getDueDate } from "@/lib/utils";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -120,6 +120,12 @@ export function AddPurchaseInstallmentDialog({
     return amount / count;
   }, [formData.totalAmount, formData.installments]);
 
+  const endDateLabel = useMemo(() => {
+    const due = getDueDate(formData.firstDueDate, parseInt(formData.installments) || 1);
+    if (!isValid(due)) return "—";
+    return format(due, "MMMM yyyy", { locale: ptBR });
+  }, [formData.firstDueDate, formData.installments]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
@@ -157,7 +163,7 @@ export function AddPurchaseInstallmentDialog({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 scrollbar-material">
           <form id="purchase-form" onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-6 sm:space-y-8 pb-32 sm:pb-8">
             <div className="text-center space-y-2 sm:space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor Total da Compra</Label>
@@ -260,7 +266,7 @@ export function AddPurchaseInstallmentDialog({
                 <div className="text-right">
                   <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-muted-foreground">Término Previsto</p>
                   <p className="text-xs sm:text-sm font-bold text-foreground">
-                    {format(getDueDate(formData.firstDueDate, parseInt(formData.installments) || 1), 'MMMM yyyy', { locale: ptBR })}
+                    {endDateLabel}
                   </p>
                 </div>
               </div>

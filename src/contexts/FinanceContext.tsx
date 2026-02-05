@@ -1208,6 +1208,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           valorAtual = txsPeriodo.filter(t => t.categoryId === meta.categoriaId).reduce((a, t) => a + t.amount, 0);
         }
         break;
+      case 'reserva_emergencia': {
+        // Valor atual = meses de cobertura da reserva, baseado na média de gastos dos últimos 3 meses.
+        const reserva = contasMovimento
+          .filter(c => c.accountType === 'reserva')
+          .reduce((a, c) => a + Math.max(0, calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento)), 0);
+
+        const threeMonthsAgo = subMonths(now, 3);
+        const gastos3m = transacoesV2
+          .filter(t => {
+            try {
+              const d = parseDateLocal(t.date);
+              return d >= threeMonthsAgo && d <= now && t.flow === 'out';
+            } catch {
+              return false;
+            }
+          })
+          .reduce((acc, t) => acc + t.amount, 0);
+
+        const gastoMensalMedio = gastos3m / 3;
+        valorAtual = gastoMensalMedio > 0 ? reserva / gastoMensalMedio : 0;
+        break;
+      }
     }
 
     // Para economia, calcular percentual

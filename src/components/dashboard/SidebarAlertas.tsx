@@ -23,8 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
-import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "./AlertasConfigDialog";
-import { isAfter, isSameDay, startOfDay } from "date-fns";
+import { AlertaConfig } from "./AlertasConfigDialog";
+import { isAfter, isSameDay, startOfDay, startOfMonth, endOfMonth, differenceInDays, startOfYear, endOfYear, addMonths } from "date-fns";
 import { toast } from "sonner";
 
 interface Alerta {
@@ -74,12 +74,6 @@ export const DEFAULT_ALERTS: AlertaConfig[] = [
   { id: "gasto-categoria", nome: "Variação de Gastos", ativo: true, tolerancia: 30, notificarDispositivo: false },
 ];
 
-export const DEFAULT_METAS: MetaConfig[] = [
-  { id: "meta-receita", nome: "Meta de Receita", ativo: false, valorAlvo: 0, tipo: 'receita' },
-  { id: "teto-gastos", nome: "Teto de Gastos", ativo: false, valorAlvo: 0, tipo: 'gasto' },
-  { id: "meta-investimento", nome: "Meta de Investimento", ativo: false, valorAlvo: 0, tipo: 'investimento' },
-];
-
 export function SidebarAlertas({ collapsed = false, onConfigOpen }: { collapsed?: boolean; onConfigOpen?: () => void }) {
   const navigate = useNavigate();
   const { 
@@ -89,7 +83,6 @@ export function SidebarAlertas({ collapsed = false, onConfigOpen }: { collapsed?
   } = useFinance();
   
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS)));
-  const [metasConfig, setMetasConfig] = useState<MetaConfig[]>(() => JSON.parse(localStorage.getItem("metas-config-v3") || JSON.stringify(DEFAULT_METAS)));
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   const metricas = useMemo(() => {
@@ -119,49 +112,93 @@ export function SidebarAlertas({ collapsed = false, onConfigOpen }: { collapsed?
     if (aMap.get("saldo-negativo")?.ativo && metricas.saldoLiq < aMap.get("saldo-negativo")!.tolerancia) 
       items.push({ id: "saldo-negativo", tipo: "danger", titulo: "Saldo Crítico", descricao: `Disponível: R$ ${metricas.saldoLiq.toLocaleString('pt-BR')}`, rota: "/receitas-despesas" });
     
-    // Processar Metas Padrão
-    metasConfig.filter(m => m.ativo).forEach(m => {
-      if (m.id === "meta-receita") {
-        const progresso = m.valorAlvo > 0 ? (metricas.receitasMes / m.valorAlvo) * 100 : 0;
-        items.push({ id: m.id, tipo: "goal", titulo: "Meta de Receita", descricao: `${progresso.toFixed(0)}% atingido (R$ ${metricas.receitasMes.toLocaleString('pt-BR')})`, rota: "/receitas-despesas", percentual: progresso });
-      }
-      if (m.id === "teto-gastos") {
-        const progresso = m.valorAlvo > 0 ? (metricas.despesasMes / m.valorAlvo) * 100 : 0;
-        items.push({ id: m.id, tipo: progresso > 90 ? "warning" : "goal", titulo: "Teto de Gastos", descricao: `${progresso.toFixed(0)}% do limite utilizado`, rota: "/receitas-despesas", percentual: progresso });
-      }
-      if (m.id === "meta-investimento") {
-        const progresso = m.valorAlvo > 0 ? (metricas.investimentosMes / m.valorAlvo) * 100 : 0;
-        items.push({ id: m.id, tipo: "goal", titulo: "Meta de Investimento", descricao: `${progresso.toFixed(0)}% atingido (R$ ${metricas.investimentosMes.toLocaleString('pt-BR')})`, rota: "/investimentos", percentual: progresso });
-      }
-    });
-
     // Processar Metas Personalizadas
     metasPersonalizadas.filter(m => m.ativo).forEach(meta => {
       const progresso = calcularProgressoMeta(meta);
-      const valorFormatado = meta.tipo === 'percentual' || meta.tipo === 'economia' 
-        ? `${progresso.valorAtual.toFixed(1)}%`
-        : `R$ ${progresso.valorAtual.toLocaleString('pt-BR')}`;
+
+      const valorAtualLabel = (() => {
+        if (meta.metrica === 'reserva_emergencia') return `${progresso.valorAtual.toFixed(1)} meses`;
+        if (meta.tipo === 'percentual' || meta.tipo === 'economia') return `${progresso.valorAtual.toFixed(1)}%`;
+        return `R$ ${progresso.valorAtual.toLocaleString('pt-BR')}`;
+      })();
+
+      const alvoLabel = (() => {
+        if (meta.metrica === 'reserva_emergencia') return `${meta.valorAlvo.toFixed(0)} meses`;
+        if (meta.tipo === 'percentual' || meta.tipo === 'economia') return `${meta.valorAlvo.toFixed(1)}%`;
+        return `R$ ${meta.valorAlvo.toLocaleString('pt-BR')}`;
+      })();
+
+      const faltanteLabel = (() => {
+        const diff = meta.valorAlvo - progresso.valorAtual;
+        if (meta.metrica === 'reserva_emergencia') return `${Math.max(0, diff).toFixed(1)} meses`;
+        if (meta.tipo === 'percentual' || meta.tipo === 'economia') return `${Math.max(0, diff).toFixed(1)}%`;
+        return `R$ ${Math.max(0, diff).toLocaleString('pt-BR')}`;
+      })();
       
       items.push({
         id: meta.id,
         tipo: progresso.status === 'sucesso' ? 'success' : progresso.status === 'alerta' ? 'warning' : progresso.status === 'perigo' ? 'danger' : 'goal',
         titulo: meta.nome,
-        descricao: `${progresso.percentual.toFixed(0)}% • ${valorFormatado}`,
-        rota: "/",
+        descricao: `${progresso.percentual.toFixed(0)}% • atual ${valorAtualLabel} • alvo ${alvoLabel}${progresso.percentual < 100 ? ` • faltam ${faltanteLabel}` : ''}`,
+        rota: meta.metrica === 'investimento' ? "/investimentos" : meta.metrica === 'despesa' || meta.metrica === 'categoria_especifica' || meta.metrica === 'receita' ? "/receitas-despesas" : "/",
         percentual: progresso.percentual,
       });
+
+      // Alertas automáticos (Objetivos / Investimentos)
+      if (meta.metrica === 'investimento' && meta.logica === 'maior_melhor') {
+        // 1) Meta atingida
+        if (progresso.percentual >= 100) {
+          items.push({
+            id: `${meta.id}-achieved`,
+            tipo: "success",
+            titulo: "Meta atingida",
+            descricao: meta.nome,
+            rota: "/investimentos",
+            percentual: Math.min(progresso.percentual, 100),
+          });
+        }
+
+        // 2) Atraso no cronograma (por fração do período decorrido)
+        const now = new Date();
+        let expectedPct = 0;
+        if (meta.periodoAvaliacao === 'mensal') {
+          const start = startOfMonth(now);
+          const end = endOfMonth(now);
+          const total = Math.max(1, differenceInDays(end, start) + 1);
+          const elapsed = Math.min(total, differenceInDays(now, start) + 1);
+          expectedPct = (elapsed / total) * 100;
+        } else if (meta.periodoAvaliacao === 'trimestral') {
+          const qStartMonth = now.getMonth() - (now.getMonth() % 3);
+          const start = new Date(now.getFullYear(), qStartMonth, 1);
+          const end = addMonths(start, 3);
+          const total = Math.max(1, differenceInDays(end, start));
+          const elapsed = Math.min(total, Math.max(0, differenceInDays(now, start) + 1));
+          expectedPct = (elapsed / total) * 100;
+        } else {
+          const start = startOfYear(now);
+          const end = endOfYear(now);
+          const total = Math.max(1, differenceInDays(end, start) + 1);
+          const elapsed = Math.min(total, differenceInDays(now, start) + 1);
+          expectedPct = (elapsed / total) * 100;
+        }
+
+        // tolerância simples para não gerar ruído
+        const tolerance = 10;
+        if (progresso.percentual < 100 && progresso.percentual < expectedPct - tolerance) {
+          items.push({
+            id: `${meta.id}-behind`,
+            tipo: "warning",
+            titulo: "Objetivo atrasado",
+            descricao: `${meta.nome} • ${progresso.percentual.toFixed(0)}% (esperado ~${expectedPct.toFixed(0)}%) • ajuste sugerido: aumentar aporte/ritmo`,
+            rota: "/investimentos",
+            percentual: progresso.percentual,
+          });
+        }
+      }
     });
 
     return items.filter(i => !dismissed.has(i.id));
-  }, [metricas, alertasConfig, metasConfig, dismissed, metasPersonalizadas, calcularProgressoMeta]);
-
-  const handleSave = (newAlerts: AlertaConfig[], newMetas: MetaConfig[]) => {
-    setAlertasConfig(newAlerts);
-    setMetasConfig(newMetas);
-    localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
-    localStorage.setItem("metas-config-v3", JSON.stringify(newMetas));
-    toast.success("Configurações atualizadas!");
-  };
+  }, [metricas, alertasConfig, dismissed, metasPersonalizadas, calcularProgressoMeta]);
 
   return (
     <div className="px-2">

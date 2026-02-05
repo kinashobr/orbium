@@ -56,7 +56,13 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
     return taxaPonderada / totalPrincipal;
   }, [emprestimos]);
 
-  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
 
   const ResultCard = ({ title, value, badge, subtext, labelSub, icon: Icon }: { title: string, value: string, badge?: string, subtext?: string, labelSub?: string, icon?: any }) => (
     <div className="p-6 sm:p-8 rounded-[2rem] sm:rounded-[3rem] bg-success/5 border border-success/20 space-y-6 relative overflow-hidden animate-in zoom-in duration-500 shadow-sm">
@@ -169,9 +175,16 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
                />
             </div>
           </div>
-          {simulacaoAumento && (
-            <ResultCard title="Redução Projetada" value={`R$ ${simulacaoAumento.jurosEconomizados.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} badge={`-${simulacaoAumento.mesesEconomizados.toFixed(0)} MESES`} labelSub="Nova Parcela" subtext={formatCurrency(simulacaoAumento.novaParcela)} icon={TrendingDown} />
-          )}
+           {simulacaoAumento && (
+             <ResultCard
+               title="Redução Projetada"
+               value={formatCurrency(simulacaoAumento.jurosEconomizados)}
+               badge={`-${simulacaoAumento.mesesEconomizados.toFixed(0)} MESES`}
+               labelSub="Nova Parcela"
+               subtext={formatCurrency(simulacaoAumento.novaParcela)}
+               icon={TrendingDown}
+             />
+           )}
         </TabsContent>
 
         <TabsContent value="quitar" className="space-y-8 animate-in fade-in duration-500">
@@ -184,15 +197,22 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
                 <Input type="number" placeholder="0" value={valorQuitacao} onChange={(e) => setValorQuitacao(e.target.value)} className="h-16 pl-14 pr-6 border-2 border-border/40 rounded-[1.75rem] bg-card font-black text-2xl focus:border-primary/40 focus:ring-4 focus:ring-primary/5 transition-all outline-none" />
             </div>
           </div>
-          {simulacaoQuitacao && (
-            <ResultCard title="Corte de Juros" value={`R$ ${simulacaoQuitacao.jurosEconomizados.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} badge={`${simulacaoQuitacao.percentualQuitacao.toFixed(0)}% DA DÍVIDA`} labelSub="Saldo Restante" subtext={formatCurrency(simulacaoQuitacao.saldoRestante)} icon={Zap} />
-          )}
+           {simulacaoQuitacao && (
+             <ResultCard
+               title="Corte de Juros"
+               value={formatCurrency(simulacaoQuitacao.jurosEconomizados)}
+               badge={`${simulacaoQuitacao.percentualQuitacao.toFixed(0)}% DA DÍVIDA`}
+               labelSub="Saldo Restante"
+               subtext={formatCurrency(simulacaoQuitacao.saldoRestante)}
+               icon={Zap}
+             />
+           )}
         </TabsContent>
 
         <TabsContent value="refinanciar" className="space-y-8 animate-in fade-in duration-500">
           <div className="p-6 rounded-[2rem] bg-muted/30 border border-border/40 grid grid-cols-3 gap-4 text-center">
             <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Taxa Atual</p><p className="font-black text-base sm:text-xl text-foreground">{taxaMedia.toFixed(2)}%</p></div>
-            <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Parcela</p><p className="font-black text-base sm:text-xl text-foreground truncate">{formatCurrency(parcelaTotal).split(',')[0]}</p></div>
+             <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Parcela</p><p className="font-black text-base sm:text-xl text-foreground truncate">{formatCurrency(parcelaTotal)}</p></div>
             <div><p className="text-[9px] font-black text-muted-foreground uppercase mb-1">Meses</p><p className="font-black text-base sm:text-xl text-foreground">{mesesRestantes}</p></div>
           </div>
 
@@ -223,11 +243,25 @@ export function LoanSimulator({ emprestimos, className }: LoanSimulatorProps) {
                   </button>
                 ))}
               </div>
-              {cenarioRefinanciamento === 'reduzir_parcela' ? (
-                <ResultCard title="Economia Estimada" value={`R$ ${simulacaoRefinanciamento.economiaJurosCenario1.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} badge={`-${simulacaoRefinanciamento.reducaoTaxa.toFixed(0)}% TAXA`} labelSub="Nova Parcela" subtext={formatCurrency(simulacaoRefinanciamento.novaParcelaReduzida)} icon={TrendingDown} />
-              ) : (
-                <ResultCard title="Economia Estimada" value={`R$ ${simulacaoRefinanciamento.economiaJurosCenario2.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`} badge={`-${simulacaoRefinanciamento.mesesEconomizados} MESES`} labelSub="Novo Prazo" subtext={`${simulacaoRefinanciamento.novosMeses} meses`} icon={Zap} />
-              )}
+               {cenarioRefinanciamento === 'reduzir_parcela' ? (
+                 <ResultCard
+                   title="Economia Estimada"
+                   value={formatCurrency(simulacaoRefinanciamento.economiaJurosCenario1)}
+                   badge={`-${simulacaoRefinanciamento.reducaoTaxa.toFixed(0)}% TAXA`}
+                   labelSub="Nova Parcela"
+                   subtext={formatCurrency(simulacaoRefinanciamento.novaParcelaReduzida)}
+                   icon={TrendingDown}
+                 />
+               ) : (
+                 <ResultCard
+                   title="Economia Estimada"
+                   value={formatCurrency(simulacaoRefinanciamento.economiaJurosCenario2)}
+                   badge={`-${simulacaoRefinanciamento.mesesEconomizados} MESES`}
+                   labelSub="Novo Prazo"
+                   subtext={`${simulacaoRefinanciamento.novosMeses} meses`}
+                   icon={Zap}
+                 />
+               )}
             </div>
           )}
         </TabsContent>

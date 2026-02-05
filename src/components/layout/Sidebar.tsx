@@ -26,8 +26,8 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { toast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { SidebarAlertas, DEFAULT_ALERTS, DEFAULT_METAS } from "@/components/dashboard/SidebarAlertas";
-import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "@/components/dashboard/AlertasConfigDialog";
+import { SidebarAlertas, DEFAULT_ALERTS } from "@/components/dashboard/SidebarAlertas";
+import { AlertasConfigDialog, AlertaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { GoogleDriveSync } from "./GoogleDriveSync";
 import { 
   Popover, 
@@ -57,7 +57,6 @@ export function Sidebar() {
   const [alertasPopoverOpen, setAlertasPopoverOpen] = useState(false);
   const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS)));
-  const [metasConfig, setMetasConfig] = useState<MetaConfig[]>(() => JSON.parse(localStorage.getItem("metas-config-v3") || JSON.stringify(DEFAULT_METAS)));
   const location = useLocation();
   const { 
     exportData, 
@@ -254,12 +253,9 @@ export function Sidebar() {
           open={alertasConfigOpen} 
           onOpenChange={setAlertasConfigOpen} 
           config={alertasConfig} 
-          metas={metasConfig} 
-          onSave={(newAlerts, newMetas) => {
+          onSave={(newAlerts) => {
             setAlertasConfig(newAlerts);
-            setMetasConfig(newMetas);
             localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
-            localStorage.setItem("metas-config-v3", JSON.stringify(newMetas));
           }} 
           initialStartDate={alertStartDate} 
           onStartDateChange={setAlertStartDate} 

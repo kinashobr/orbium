@@ -106,12 +106,18 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const isQuitado = calculos.saldoDevedor <= 0;
   const showConfigForm = isPending || isEditing;
 
-  const formatCurrency = (value: number) => `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
 
   const renderContent = () => (
     <div className="flex flex-1 flex-col overflow-hidden">
       {showConfigForm ? (
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 scrollbar-material">
           <div className="p-6 sm:p-10 pb-16">
             <div className="max-w-2xl mx-auto">
               <LoanConfigForm
@@ -136,7 +142,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="flex-1">
+          <ScrollArea className="flex-1 scrollbar-material">
             <div className="p-6 sm:p-10 space-y-10 pb-16">
               <TabsContent value="geral" className="mt-0 space-y-10 focus-visible:outline-none">
                 {/* Cards de Resumo Principal */}
@@ -174,9 +180,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                     </p>
                     <p className="text-xs font-bold text-success/60 max-w-sm">Economia estimada em juros se o saldo devedor for liquidado no período atual.</p>
                   </div>
-                  <Button className="rounded-full h-14 sm:h-16 px-8 sm:px-12 font-black text-xs sm:text-sm gap-3 shadow-2xl shadow-success/20 w-full sm:w-auto hover:scale-105 active:scale-95 transition-all">
-                    SIMULAR QUITAÇÃO <ArrowRight className="w-4 h-4" />
-                  </Button>
+                  {/* Botão "Simular Quitação" removido conforme solicitado */}
                 </div>
 
                 {/* Barra de Progresso Financeiro */}
@@ -220,8 +224,20 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colors.border} opacity={0.3} />
                         <XAxis dataKey="parcela" axisLine={false} tickLine={false} tick={{fill: colors.mutedForeground, fontSize: 10, fontWeight: 'bold'}} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fill: colors.mutedForeground, fontSize: 10}} tickFormatter={v => `R$ ${v/1000}k`} />
-                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)'}} formatter={(v: number) => [formatCurrency(v), "Saldo"]} />
+                        <YAxis
+                          axisLine={false}
+                          tickLine={false}
+                          tick={{ fill: colors.mutedForeground, fontSize: 10 }}
+                          tickFormatter={(v: number) => formatCurrency(v)}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: "16px",
+                            border: "none",
+                            boxShadow: "0 10px 30px rgba(0,0,0,0.1)",
+                          }}
+                          formatter={(v: number) => [formatCurrency(v), "Saldo"]}
+                        />
                         <Area type="monotone" dataKey="saldo" stroke={colors.primary} strokeWidth={4} fillOpacity={1} fill="url(#loanGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -238,7 +254,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
                       <BarChart data={evolucaoData.slice(1, 25)}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={colors.border} opacity={0.3} />
                         <XAxis dataKey="parcela" axisLine={false} tickLine={false} tick={{fill: colors.mutedForeground, fontSize: 10}} />
-                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(v: number) => [formatCurrency(v)]} />
+                        <Tooltip contentStyle={{ borderRadius: "16px", border: "none" }} formatter={(v: number) => [formatCurrency(v)]} />
                         <Legend verticalAlign="top" align="right" iconType="circle" />
                         <Bar dataKey="juros" name="Juros" fill={colors.destructive} stackId="a" opacity={0.7} />
                         <Bar dataKey="amortizacao" name="Principal" fill={colors.success} stackId="a" radius={[4, 4, 0, 0]} />

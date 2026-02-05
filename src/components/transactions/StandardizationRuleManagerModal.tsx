@@ -133,7 +133,7 @@ export function StandardizationRuleManagerModal({
             </div>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 px-4 sm:px-8 pb-8 overflow-x-hidden">
+          <ScrollArea className="flex-1 px-4 sm:px-8 pb-8 overflow-x-hidden scrollbar-material">
             <div className="space-y-3 max-w-full py-4">
               {filteredRules.map((rule) => {
                 const category = rule.categoryId ? categoriesMap.get(rule.categoryId) : null;

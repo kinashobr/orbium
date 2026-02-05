@@ -1,12 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { 
-  TrendingUp, TrendingDown, Scale, Building2, Car, 
-  Banknote, Shield, History, CreditCard, ArrowUpRight, 
-  Info, LineChart, PieChart, LayoutGrid, Sparkles,
-  Zap, Target, Gauge, Activity, ShieldCheck, Wallet, Landmark
-} from "lucide-react";
+import { TrendingUp, TrendingDown, Scale, Building2, Car, Banknote, Shield, History, CreditCard, ArrowUpRight, Info, LineChart, PieChart, LayoutGrid, Sparkles, Zap, Target, Gauge, Activity, ShieldCheck, Wallet, Landmark } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { ACCOUNT_TYPE_LABELS, ComparisonDateRanges, formatCurrency } from "@/types/finance";
@@ -17,90 +12,83 @@ import { BalanceSheetList } from "./BalanceSheetList";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, PieChart as RePieChart, Pie, Cell } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
-
 const getIconForType = (type: string): React.ElementType => {
-    switch (type) {
-        case 'corrente':
-        case 'poupanca':
-        case 'reserva':
-            return Building2;
-        case 'renda_fixa':
-        case 'cripto':
-        case 'objetivo':
-            return Shield;
-        case 'imobilizado':
-            return Car;
-        case 'seguros_apropriar':
-            return Shield;
-        case 'cartoes':
-            return CreditCard;
-        case 'emprestimos_curto':
-            return Banknote;
-        case 'emprestimos_longo':
-            return History;
-        case 'seguros_pagar':
-            return Shield;
-        default:
-            return Scale;
-    }
+  switch (type) {
+    case 'corrente':
+    case 'poupanca':
+    case 'reserva':
+      return Building2;
+    case 'renda_fixa':
+    case 'cripto':
+    case 'objetivo':
+      return Shield;
+    case 'imobilizado':
+      return Car;
+    case 'seguros_apropriar':
+      return Shield;
+    case 'cartoes':
+      return CreditCard;
+    case 'emprestimos_curto':
+      return Banknote;
+    case 'emprestimos_longo':
+      return History;
+    case 'seguros_pagar':
+      return Shield;
+    default:
+      return Scale;
+  }
 };
-
-export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
-  const { 
-    transacoesV2, contasMovimento, calculateBalanceUpToDate, 
-    getValorFipeTotal, getSegurosAApropriar, getSegurosAPagar, 
-    calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining,
-    getCreditCardDebt, getPatrimonioLiquido, getValorImoveisTerrenos
+export function BalancoTab({
+  dateRanges
+}: {
+  dateRanges: ComparisonDateRanges;
+}) {
+  const {
+    transacoesV2,
+    contasMovimento,
+    calculateBalanceUpToDate,
+    getValorFipeTotal,
+    getSegurosAApropriar,
+    getSegurosAPagar,
+    calculateLoanPrincipalDueInNextMonths,
+    getLoanPrincipalRemaining,
+    getCreditCardDebt,
+    getPatrimonioLiquido,
+    getValorImoveisTerrenos
   } = useFinance();
-
   const colors = useChartColors();
   const finalDate = dateRanges.range1.to || new Date();
   const prevDate = dateRanges.range2.to || subMonths(finalDate, 1);
-
   const b1 = useMemo(() => {
-    const saldos = contasMovimento.reduce((acc, c) => ({ 
-      ...acc, 
-      [c.id]: calculateBalanceUpToDate(c.id, finalDate, transacoesV2, contasMovimento) 
+    const saldos = contasMovimento.reduce((acc, c) => ({
+      ...acc,
+      [c.id]: calculateBalanceUpToDate(c.id, finalDate, transacoesV2, contasMovimento)
     }), {} as Record<string, number>);
+
+    // Tipos que compõem o card/linha "Investimentos" (por tipo, não por prazo)
+    const isInvestmentAccountType = (t: string) => t === "renda_fixa" || t === "cripto" || t === "objetivo";
 
     // SOLUÇÃO CONTÁBIL (cheque especial):
     // Se a CONTA CORRENTE ficar negativa, ela deixa de ser ativo e vira obrigação de curto prazo.
     // Mantemos o ativo apenas com saldos positivos (disponibilidades) e levamos o negativo para Passivo Circulante.
-    const chequeEspecialContaCorrente = contasMovimento
-      .filter((c) => c.accountType === 'corrente')
-      .reduce((acc, c) => acc + Math.max(0, -(saldos[c.id] || 0)), 0);
-    
+    const chequeEspecialContaCorrente = contasMovimento.filter(c => c.accountType === 'corrente').reduce((acc, c) => acc + Math.max(0, -(saldos[c.id] || 0)), 0);
+
     // ATIVOS
-    // - Contas de ativo: todas exceto cartão de crédito (que é passivo)
-    // - Classificação em CP/LP baseada em accountTerm normalizado no contexto
-    const contasAtivoCurtoPrazo = contasMovimento.filter(
-      (c) => c.accountType !== 'cartao_credito' && c.accountTerm === 'curto_prazo'
-    );
-    const contasAtivoLongoPrazo = contasMovimento.filter(
-      (c) => c.accountType !== 'cartao_credito' && c.accountTerm === 'longo_prazo'
-    );
+    // - Classificação de Curto/Longo prazo deve respeitar accountTerm das contas movimento
+    // - Cartão de crédito é passivo
+    const contasAtivoCurtoPrazo = contasMovimento.filter(c => c.accountType !== "cartao_credito" && c.accountTerm === "curto_prazo");
+    const contasAtivoLongoPrazo = contasMovimento.filter(c => c.accountType !== "cartao_credito" && c.accountTerm === "longo_prazo");
+    const ativoCirculante = contasAtivoCurtoPrazo.reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
 
-    const ativoCirculante = contasAtivoCurtoPrazo.reduce(
-      (acc, c) => acc + Math.max(0, saldos[c.id] || 0),
-      0
-    );
+    // Soma do ATIVO não circulante via accountTerm (para consistência contábil)
+    const investimentosNaoCirculantes = contasAtivoLongoPrazo.reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
 
-    const investimentosNaoCirculantes = contasAtivoLongoPrazo.reduce(
-      (acc, c) => acc + Math.max(0, saldos[c.id] || 0),
-      0
-    );
-
+    // Card/linha "Investimentos" (resumo): por TIPO de conta (independente de CP/LP)
+    const investimentosPorTipo = contasMovimento.filter(c => c.accountType !== "cartao_credito" && isInvestmentAccountType(c.accountType)).reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
     const imobilizadoFipe = getValorFipeTotal(finalDate);
     const imoveisTerrenos = getValorImoveisTerrenos(finalDate);
     const segurosAApropriar = getSegurosAApropriar(finalDate);
-
-    const totalAtivos =
-      ativoCirculante +
-      investimentosNaoCirculantes +
-      imobilizadoFipe +
-      imoveisTerrenos +
-      segurosAApropriar;
-
+    const totalAtivos = ativoCirculante + investimentosNaoCirculantes + imobilizadoFipe + imoveisTerrenos + segurosAApropriar;
     const dividaCartoes = getCreditCardDebt(finalDate);
     const principalLoans12m = calculateLoanPrincipalDueInNextMonths(finalDate, 12);
     const segurosAPagar = getSegurosAPagar(finalDate);
@@ -109,11 +97,11 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
     const passivoNaoCirculante = Math.max(0, totalLoans - principalLoans12m);
     const totalPassivos = passivoCirculante + passivoNaoCirculante;
     const pl = totalAtivos - totalPassivos;
-
     return {
       totalAtivos,
       ativoCirculante,
       investimentosNaoCirculantes,
+      investimentosPorTipo,
       imobilizadoFipe,
       imoveisTerrenos,
       segurosAApropriar,
@@ -125,139 +113,196 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
       principalLoans12m,
       segurosAPagar,
       chequeEspecialContaCorrente,
-      contasCirculantes: contasAtivoCurtoPrazo.map((c) => ({
+      contasCirculantes: contasAtivoCurtoPrazo.map(c => ({
         ...c,
-        saldo: saldos[c.id] || 0,
+        saldo: saldos[c.id] || 0
       })),
-      contasInvestimentos: contasAtivoLongoPrazo.map((c) => ({
+      contasInvestimentos: contasAtivoLongoPrazo.map(c => ({
         ...c,
-        saldo: saldos[c.id] || 0,
-      })),
+        saldo: saldos[c.id] || 0
+      }))
     };
-  }, [
-    contasMovimento,
-    transacoesV2,
-    calculateBalanceUpToDate,
-    getValorFipeTotal,
-    getValorImoveisTerrenos,
-    getSegurosAApropriar,
-    getSegurosAPagar,
-    calculateLoanPrincipalDueInNextMonths,
-    getLoanPrincipalRemaining,
-    getCreditCardDebt,
-    finalDate,
-  ]);
-
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getValorFipeTotal, getValorImoveisTerrenos, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining, getCreditCardDebt, finalDate]);
   const indicadores = useMemo(() => {
-    const { pl, totalAtivos, totalPassivos, ativoCirculante, passivoCirculante, imobilizadoFipe } = b1;
-    const equityRatio = totalAtivos > 0 ? (pl / totalAtivos) * 100 : 0;
-    const liqGeral = totalPassivos > 0 ? (totalAtivos / totalPassivos) : 0;
-    const liqCorrente = passivoCirculante > 0 ? (ativoCirculante / passivoCirculante) : 0;
-    const endividamento = totalAtivos > 0 ? (totalPassivos / totalAtivos) * 100 : 0;
-    const assetCoverage = totalPassivos > 0 ? (pl / totalPassivos) : 0;
-    const fixedAssetEquity = pl > 0 ? (imobilizadoFipe / pl) * 100 : 0;
-    return { equityRatio, liqGeral, liqCorrente, endividamento, assetCoverage, fixedAssetEquity };
+    const {
+      pl,
+      totalAtivos,
+      totalPassivos,
+      ativoCirculante,
+      passivoCirculante,
+      imobilizadoFipe
+    } = b1;
+    const equityRatio = totalAtivos > 0 ? pl / totalAtivos * 100 : 0;
+    const liqGeral = totalPassivos > 0 ? totalAtivos / totalPassivos : 0;
+    const liqCorrente = passivoCirculante > 0 ? ativoCirculante / passivoCirculante : 0;
+    const endividamento = totalAtivos > 0 ? totalPassivos / totalAtivos * 100 : 0;
+    const assetCoverage = totalPassivos > 0 ? pl / totalPassivos : 0;
+    const fixedAssetEquity = pl > 0 ? imobilizadoFipe / pl * 100 : 0;
+    return {
+      equityRatio,
+      liqGeral,
+      liqCorrente,
+      endividamento,
+      assetCoverage,
+      fixedAssetEquity
+    };
   }, [b1]);
-
   const plAnterior = getPatrimonioLiquido(prevDate);
-  const variacaoPlPerc = plAnterior !== 0 ? ((b1.pl - plAnterior) / Math.abs(plAnterior)) * 100 : 0;
-  
+  const variacaoPlPerc = plAnterior !== 0 ? (b1.pl - plAnterior) / Math.abs(plAnterior) * 100 : 0;
   const evolutionData = useMemo(() => {
     const result = [];
     for (let i = 11; i >= 0; i--) {
       const date = endOfMonth(subMonths(new Date(), i));
-      result.push({ mes: format(date, 'MMM', { locale: ptBR }).toUpperCase(), valor: getPatrimonioLiquido(date) });
+      result.push({
+        mes: format(date, 'MMM', {
+          locale: ptBR
+        }).toUpperCase(),
+        valor: getPatrimonioLiquido(date)
+      });
     }
     return result;
   }, [getPatrimonioLiquido]);
-
-  const compositionData = useMemo(
-    () =>
-      [
-        { name: 'Circulante', value: b1.ativoCirculante + b1.segurosAApropriar, color: colors.success },
-        { name: 'Investimentos / LP', value: b1.investimentosNaoCirculantes, color: colors.accent },
-        { name: 'Imobilizado (Veículos)', value: b1.imobilizadoFipe, color: colors.primary },
-        { name: 'Imóveis & Terrenos', value: b1.imoveisTerrenos, color: colors.warning },
-      ].filter((d) => d.value > 0),
-    [b1, colors]
-  );
-
+  const compositionData = useMemo(() => [{
+    name: 'Circulante',
+    value: b1.ativoCirculante + b1.segurosAApropriar,
+    color: colors.success
+  }, {
+    name: 'Investimentos / LP',
+    value: b1.investimentosNaoCirculantes,
+    color: colors.accent
+  }, {
+    name: 'Imobilizado (Veículos)',
+    value: b1.imobilizadoFipe,
+    color: colors.primary
+  }, {
+    name: 'Imóveis & Terrenos',
+    value: b1.imoveisTerrenos,
+    color: colors.warning
+  }].filter(d => d.value > 0), [b1, colors]);
   const ativoItems = useMemo(() => {
     const total = b1.totalAtivos;
-    const circulanteDetails = b1.contasCirculantes.filter(c => c.saldo > 0).map(c => ({ id: c.id, name: c.name, typeLabel: ACCOUNT_TYPE_LABELS[c.accountType], value: c.saldo, percent: total > 0 ? (c.saldo / total) * 100 : 0, icon: getIconForType(c.accountType) }));
-    if (b1.segurosAApropriar > 0) circulanteDetails.push({ id: 'seguros_apropriar', name: 'Seguros a Apropriar', typeLabel: 'Despesa Pré-Paga', value: b1.segurosAApropriar, percent: total > 0 ? (b1.segurosAApropriar / total) * 100 : 0, icon: getIconForType('seguros_apropriar') });
-    const naoCirculanteDetails = b1.contasInvestimentos
-      .filter((c) => c.saldo > 0)
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        typeLabel: ACCOUNT_TYPE_LABELS[c.accountType],
-        value: c.saldo,
-        percent: total > 0 ? (c.saldo / total) * 100 : 0,
-        icon: getIconForType(c.accountType),
-      }));
-    if (b1.imobilizadoFipe > 0)
-      naoCirculanteDetails.push({
-        id: 'imobilizado',
-        name: 'Imobilizado (Veículos)',
-        typeLabel: 'Avaliação FIPE',
-        value: b1.imobilizadoFipe,
-        percent: total > 0 ? (b1.imobilizadoFipe / total) * 100 : 0,
-        icon: getIconForType('imobilizado'),
-      });
-    if (b1.imoveisTerrenos > 0)
-      naoCirculanteDetails.push({
-        id: 'imoveis_terrenos',
-        name: 'Imóveis & Terrenos',
-        typeLabel: 'Imobilizado',
-        value: b1.imoveisTerrenos,
-        percent: total > 0 ? (b1.imoveisTerrenos / total) * 100 : 0,
-        icon: getIconForType('imobilizado'),
-      });
-    return [
-      {
-        label: 'Ativo Circulante',
-        value: b1.ativoCirculante + b1.segurosAApropriar,
-        percent: total > 0 ? ((b1.ativoCirculante + b1.segurosAApropriar) / total) * 100 : 0,
-        type: 'circulante' as const,
-        details: circulanteDetails,
-      },
-      {
-        label: 'Ativo Não Circulante',
-        value: b1.investimentosNaoCirculantes + b1.imobilizadoFipe + b1.imoveisTerrenos,
-        percent:
-          total > 0
-            ? ((
-                b1.investimentosNaoCirculantes +
-                b1.imobilizadoFipe +
-                b1.imoveisTerrenos
-              ) /
-                total) * 100
-            : 0,
-        type: 'nao_circulante' as const,
-        details: naoCirculanteDetails,
-      },
-    ].filter((item) => item.value > 0);
+    const circulanteDetails = b1.contasCirculantes.filter(c => c.saldo > 0).map(c => ({
+      id: c.id,
+      name: c.name,
+      typeLabel: ACCOUNT_TYPE_LABELS[c.accountType],
+      value: c.saldo,
+      percent: total > 0 ? c.saldo / total * 100 : 0,
+      icon: getIconForType(c.accountType)
+    }));
+    if (b1.segurosAApropriar > 0) circulanteDetails.push({
+      id: 'seguros_apropriar',
+      name: 'Seguros a Apropriar',
+      typeLabel: 'Despesa Pré-Paga',
+      value: b1.segurosAApropriar,
+      percent: total > 0 ? b1.segurosAApropriar / total * 100 : 0,
+      icon: getIconForType('seguros_apropriar')
+    });
+    const naoCirculanteDetails = b1.contasInvestimentos.filter(c => c.saldo > 0).map(c => ({
+      id: c.id,
+      name: c.name,
+      typeLabel: ACCOUNT_TYPE_LABELS[c.accountType],
+      value: c.saldo,
+      percent: total > 0 ? c.saldo / total * 100 : 0,
+      icon: getIconForType(c.accountType)
+    }));
+    if (b1.imobilizadoFipe > 0) naoCirculanteDetails.push({
+      id: 'imobilizado',
+      name: 'Imobilizado (Veículos)',
+      typeLabel: 'Avaliação FIPE',
+      value: b1.imobilizadoFipe,
+      percent: total > 0 ? b1.imobilizadoFipe / total * 100 : 0,
+      icon: getIconForType('imobilizado')
+    });
+    if (b1.imoveisTerrenos > 0) naoCirculanteDetails.push({
+      id: 'imoveis_terrenos',
+      name: 'Imóveis & Terrenos',
+      typeLabel: 'Imobilizado',
+      value: b1.imoveisTerrenos,
+      percent: total > 0 ? b1.imoveisTerrenos / total * 100 : 0,
+      icon: getIconForType('imobilizado')
+    });
+    return [{
+      label: 'Ativo Circulante',
+      value: b1.ativoCirculante + b1.segurosAApropriar,
+      percent: total > 0 ? (b1.ativoCirculante + b1.segurosAApropriar) / total * 100 : 0,
+      type: 'circulante' as const,
+      details: circulanteDetails
+    }, {
+      label: 'Ativo Não Circulante',
+      value: b1.investimentosNaoCirculantes + b1.imobilizadoFipe + b1.imoveisTerrenos,
+      percent: total > 0 ? (b1.investimentosNaoCirculantes + b1.imobilizadoFipe + b1.imoveisTerrenos) / total * 100 : 0,
+      type: 'nao_circulante' as const,
+      details: naoCirculanteDetails
+    }].filter(item => item.value > 0);
   }, [b1]);
-
   const passivoItems = useMemo(() => {
     const totalPassivoPL = b1.totalPassivos + b1.pl;
     const circulanteDetails = [];
-    if (b1.dividaCartoes > 0) circulanteDetails.push({ id: 'cartoes', name: 'Saldo Cartões', typeLabel: 'Faturas em aberto', value: b1.dividaCartoes, percent: totalPassivoPL > 0 ? (b1.dividaCartoes / totalPassivoPL) * 100 : 0, icon: getIconForType('cartoes') });
-    if (b1.chequeEspecialContaCorrente > 0) circulanteDetails.push({ id: 'cheque_especial', name: 'Cheque especial (Conta corrente)', typeLabel: 'Obrigação CP', value: b1.chequeEspecialContaCorrente, percent: totalPassivoPL > 0 ? (b1.chequeEspecialContaCorrente / totalPassivoPL) * 100 : 0, icon: getIconForType('corrente') });
-    if (b1.principalLoans12m > 0) circulanteDetails.push({ id: 'emprestimos_curto', name: 'Principal (12m)', typeLabel: 'Obrigação CP', value: b1.principalLoans12m, percent: totalPassivoPL > 0 ? (b1.principalLoans12m / totalPassivoPL) * 100 : 0, icon: getIconForType('emprestimos_curto') });
-    if (b1.segurosAPagar > 0) circulanteDetails.push({ id: 'seguros_pagar', name: 'Seguros a Pagar', typeLabel: 'Obrigação CP', value: b1.segurosAPagar, percent: totalPassivoPL > 0 ? (b1.segurosAPagar / totalPassivoPL) * 100 : 0, icon: getIconForType('seguros_pagar') });
+    if (b1.dividaCartoes > 0) circulanteDetails.push({
+      id: 'cartoes',
+      name: 'Saldo Cartões',
+      typeLabel: 'Faturas em aberto',
+      value: b1.dividaCartoes,
+      percent: totalPassivoPL > 0 ? b1.dividaCartoes / totalPassivoPL * 100 : 0,
+      icon: getIconForType('cartoes')
+    });
+    if (b1.chequeEspecialContaCorrente > 0) circulanteDetails.push({
+      id: 'cheque_especial',
+      name: 'Cheque especial (Conta corrente)',
+      typeLabel: 'Obrigação CP',
+      value: b1.chequeEspecialContaCorrente,
+      percent: totalPassivoPL > 0 ? b1.chequeEspecialContaCorrente / totalPassivoPL * 100 : 0,
+      icon: getIconForType('corrente')
+    });
+    if (b1.principalLoans12m > 0) circulanteDetails.push({
+      id: 'emprestimos_curto',
+      name: 'Principal (12m)',
+      typeLabel: 'Obrigação CP',
+      value: b1.principalLoans12m,
+      percent: totalPassivoPL > 0 ? b1.principalLoans12m / totalPassivoPL * 100 : 0,
+      icon: getIconForType('emprestimos_curto')
+    });
+    if (b1.segurosAPagar > 0) circulanteDetails.push({
+      id: 'seguros_pagar',
+      name: 'Seguros a Pagar',
+      typeLabel: 'Obrigação CP',
+      value: b1.segurosAPagar,
+      percent: totalPassivoPL > 0 ? b1.segurosAPagar / totalPassivoPL * 100 : 0,
+      icon: getIconForType('seguros_pagar')
+    });
     const naoCirculanteDetails = [];
-    if (b1.passivoNaoCirculante > 0) naoCirculanteDetails.push({ id: 'emprestimos_longo', name: 'Principal (LP)', typeLabel: 'Obrigação LP', value: b1.passivoNaoCirculante, percent: totalPassivoPL > 0 ? (b1.passivoNaoCirculante / totalPassivoPL) * 100 : 0, icon: getIconForType('emprestimos_longo') });
+    if (b1.passivoNaoCirculante > 0) naoCirculanteDetails.push({
+      id: 'emprestimos_longo',
+      name: 'Principal (LP)',
+      typeLabel: 'Obrigação LP',
+      value: b1.passivoNaoCirculante,
+      percent: totalPassivoPL > 0 ? b1.passivoNaoCirculante / totalPassivoPL * 100 : 0,
+      icon: getIconForType('emprestimos_longo')
+    });
     const sections = [];
-    if (b1.passivoCirculante > 0) sections.push({ label: 'Passivo Circulante', value: b1.passivoCirculante, percent: totalPassivoPL > 0 ? (b1.passivoCirculante / totalPassivoPL) * 100 : 0, type: 'circulante' as const, details: circulanteDetails });
-    if (b1.passivoNaoCirculante > 0) sections.push({ label: 'Passivo Não Circulante', value: b1.passivoNaoCirculante, percent: totalPassivoPL > 0 ? (b1.passivoNaoCirculante / totalPassivoPL) * 100 : 0, type: 'nao_circulante' as const, details: naoCirculanteDetails });
-    sections.push({ label: 'Patrimônio Líquido', value: b1.pl, percent: totalPassivoPL > 0 ? (b1.pl / totalPassivoPL) * 100 : 0, type: 'patrimonio' as const });
+    if (b1.passivoCirculante > 0) sections.push({
+      label: 'Passivo Circulante',
+      value: b1.passivoCirculante,
+      percent: totalPassivoPL > 0 ? b1.passivoCirculante / totalPassivoPL * 100 : 0,
+      type: 'circulante' as const,
+      details: circulanteDetails
+    });
+    if (b1.passivoNaoCirculante > 0) sections.push({
+      label: 'Passivo Não Circulante',
+      value: b1.passivoNaoCirculante,
+      percent: totalPassivoPL > 0 ? b1.passivoNaoCirculante / totalPassivoPL * 100 : 0,
+      type: 'nao_circulante' as const,
+      details: naoCirculanteDetails
+    });
+    sections.push({
+      label: 'Patrimônio Líquido',
+      value: b1.pl,
+      percent: totalPassivoPL > 0 ? b1.pl / totalPassivoPL * 100 : 0,
+      type: 'patrimonio' as const
+    });
     return sections;
   }, [b1]);
-
-  return (
-    <div className="space-y-10 animate-fade-in-up">
+  return <div className="space-y-10 animate-fade-in-up">
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         <div className="col-span-12 xl:col-span-6">
           <div className="bg-surface-light dark:bg-surface-dark rounded-[40px] p-8 shadow-soft relative overflow-hidden border border-white/60 dark:border-white/5 h-[350px] sm:h-[400px] flex flex-col justify-center group transition-all">
@@ -272,64 +317,44 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
           </div>
         </div>
         <div className="col-span-12 xl:col-span-6 grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <IndicatorCard 
-            title="Participação Própria" 
-            value={`${indicadores.equityRatio.toFixed(1)}%`} 
-            status={indicadores.equityRatio >= 40 ? "success" : "warning"} 
-            icon={ShieldCheck}
-            description="Percentual do patrimônio total que é financiado por capital próprio."
-            formula="PL ÷ Ativos Totais × 100"
-          />
-          <IndicatorCard 
-            title="Índice de Solvência" 
-            value={`${indicadores.liqGeral.toFixed(2)}x`} 
-            status={indicadores.liqGeral >= 1.5 ? "success" : "warning"} 
-            icon={Scale}
-            description="Capacidade de pagar todas as dívidas com os bens atuais."
-            formula="Ativos ÷ Passivos"
-          />
-          <IndicatorCard 
-            title="Liquidez CP" 
-            value={`${indicadores.liqCorrente.toFixed(2)}x`} 
-            status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"} 
-            icon={Wallet}
-            description="Capacidade de pagar dívidas de curto prazo com dinheiro disponível."
-            formula="Ativo Circulante ÷ Passivo Circulante"
-          />
-          <IndicatorCard 
-            title="Endividamento" 
-            value={`${indicadores.endividamento.toFixed(1)}%`} 
-            status={indicadores.endividamento <= 30 ? "success" : "warning"} 
-            icon={TrendingDown}
-            description="Quanto do seu patrimônio está comprometido com dívidas."
-            formula="Passivos ÷ Ativos × 100"
-          />
-          <IndicatorCard 
-            title="Cobertura Patrimonial" 
-            value={`${indicadores.assetCoverage.toFixed(2)}x`} 
-            status={indicadores.assetCoverage >= 2 ? "success" : "warning"} 
-            icon={Activity}
-            description="Quantas vezes seu capital próprio cobre suas dívidas."
-            formula="PL ÷ Passivos"
-          />
-          <IndicatorCard 
-            title="Imobilização" 
-            value={`${indicadores.fixedAssetEquity.toFixed(1)}%`} 
-            status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"} 
-            icon={Landmark}
-            description="Quanto do seu capital próprio está 'preso' em bens físicos."
-            formula="Imobilizado ÷ PL × 100"
-          />
+          <IndicatorCard title="Participação Própria" value={`${indicadores.equityRatio.toFixed(1)}%`} status={indicadores.equityRatio >= 40 ? "success" : "warning"} icon={ShieldCheck} description="Percentual do patrimônio total que é financiado por capital próprio." formula="PL ÷ Ativos Totais × 100" />
+          <IndicatorCard title="Índice de Solvência" value={`${indicadores.liqGeral.toFixed(2)}x`} status={indicadores.liqGeral >= 1.5 ? "success" : "warning"} icon={Scale} description="Capacidade de pagar todas as dívidas com os bens atuais." formula="Ativos ÷ Passivos" />
+          <IndicatorCard title="Liquidez CP" value={`${indicadores.liqCorrente.toFixed(2)}x`} status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"} icon={Wallet} description="Capacidade de pagar dívidas de curto prazo com dinheiro disponível." formula="Ativo Circulante ÷ Passivo Circulante" />
+          <IndicatorCard title="Endividamento" value={`${indicadores.endividamento.toFixed(1)}%`} status={indicadores.endividamento <= 30 ? "success" : "warning"} icon={TrendingDown} description="Quanto do seu patrimônio está comprometido com dívidas." formula="Passivos ÷ Ativos × 100" />
+          <IndicatorCard title="Cobertura Patrimonial" value={`${indicadores.assetCoverage.toFixed(2)}x`} status={indicadores.assetCoverage >= 2 ? "success" : "warning"} icon={Activity} description="Quantas vezes seu capital próprio cobre suas dívidas." formula="PL ÷ Passivos" />
+          <IndicatorCard title="Imobilização" value={`${indicadores.fixedAssetEquity.toFixed(1)}%`} status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"} icon={Landmark} description="Quanto do seu capital próprio está 'preso' em bens físicos." formula="Imobilizado ÷ PL × 100" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
-         {[ { l: 'Total de Bens', v: b1.totalAtivos, c: 'text-success' }, { l: 'Disponível', v: b1.ativoCirculante, c: 'text-success/80' }, { l: 'Investimentos', v: b1.investimentosNaoCirculantes, c: 'text-indigo-500' }, { l: 'Obrigações', v: b1.totalPassivos, c: 'text-destructive' }, { l: 'Cap. Próprio', v: b1.pl, c: 'text-primary' }, { l: 'Variação PL', v: b1.pl - plAnterior, c: b1.pl >= plAnterior ? 'text-success' : 'text-destructive' }].map((item, idx) => (
-           <div key={idx} className="p-4 sm:p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
+       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
+          {[{
+        l: 'Total de Bens',
+        v: b1.totalAtivos,
+        c: 'text-success'
+      }, {
+        l: 'Disponível',
+        v: b1.ativoCirculante,
+        c: 'text-success/80'
+      }, {
+        l: 'Investimentos',
+        v: b1.investimentosPorTipo,
+        c: 'text-accent'
+      }, {
+        l: 'Total do Passivo',
+        v: b1.totalPassivos,
+        c: 'text-destructive'
+      }, {
+        l: 'Cap. Próprio',
+        v: b1.pl,
+        c: 'text-primary'
+      }, {
+        l: 'Variação PL',
+        v: b1.pl - plAnterior,
+        c: b1.pl >= plAnterior ? 'text-success' : 'text-destructive'
+      }].map((item, idx) => <div key={idx} className="p-4 sm:p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">
               <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1 truncate">{item.l}</p>
               <p className={cn("text-base sm:text-lg font-black tabular-nums truncate", item.c)}>{formatCurrency(item.v)}</p>
-           </div>
-         ))}
+           </div>)}
       </div>
 
       <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] border border-white/60 dark:border-white/5 shadow-soft p-5 sm:p-6 lg:p-8">
@@ -347,9 +372,7 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
               </h3>
             </div>
           </div>
-          <Badge variant="outline" className="hidden sm:inline-flex rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest border-border/60">
-            Ativo = Passivo + PL
-          </Badge>
+          
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10">
@@ -371,21 +394,15 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1 text-right lg:text-left">
               Lado do Passivo + PL
             </p>
-            <div className="mb-2 rounded-2xl bg-muted/40 px-4 py-3 flex items-center justify-between border border-border/40">
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-                Passivo + PL Total
-              </span>
-              <span className="text-sm sm:text-base font-black tabular-nums text-foreground">
-                {formatCurrency(b1.totalPassivos + b1.pl)}
-              </span>
-            </div>
-            <BalanceSheetList
-              title="PASSIVO + PL"
-              totalValue={b1.totalPassivos + b1.pl}
-              items={passivoItems}
-              isAsset={false}
-              plValue={b1.pl}
-            />
+             <div className="mb-2 rounded-2xl bg-muted/40 px-4 py-3 flex items-center justify-between border border-border/40">
+               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+                 Passivo + PL Total
+               </span>
+               <span className="text-sm sm:text-base font-black tabular-nums text-foreground">
+                 {formatCurrency(b1.totalPassivos + b1.pl)}
+               </span>
+             </div>
+            <BalanceSheetList title="PASSIVO" totalValue={b1.totalPassivos} items={passivoItems} isAsset={false} plValue={b1.pl} />
           </div>
         </div>
       </div>
@@ -393,7 +410,18 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
          <div className="lg:col-span-2 bg-surface-light dark:bg-surface-dark rounded-[3rem] p-6 lg:p-8 border border-white/60 dark:border-white/5 shadow-soft">
             <div className="flex items-center gap-3 mb-8 px-2"><div className="p-2 bg-primary/10 rounded-xl text-primary"><LineChart className="w-5 h-5" /></div><h4 className="font-display font-black text-xl text-foreground uppercase tracking-tight">Evolução Patrimonial</h4></div>
-            <div className="h-[250px] sm:h-[300px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={evolutionData}><defs><linearGradient id="plGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/><stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.3} /><XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10, fontWeight: 'bold'}} /><YAxis axisLine={false} tickLine={false} tick={{fill: 'hsl(var(--muted-foreground))', fontSize: 10}} tickFormatter={v => `R$ ${v/1000}k`} /><Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px rgba(0,0,0,0.1)'}} formatter={(v: number) => [formatCurrency(v), 'PL']} /><Area type="monotone" dataKey="valor" stroke="hsl(var(--primary))" strokeWidth={4} fillOpacity={1} fill="url(#plGradient)" /></AreaChart></ResponsiveContainer></div>
+            <div className="h-[250px] sm:h-[300px]"><ResponsiveContainer width="100%" height="100%"><AreaChart data={evolutionData}><defs><linearGradient id="plGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} /><stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.3} /><XAxis dataKey="mes" axisLine={false} tickLine={false} tick={{
+                fill: 'hsl(var(--muted-foreground))',
+                fontSize: 10,
+                fontWeight: 'bold'
+              }} /><YAxis axisLine={false} tickLine={false} tick={{
+                fill: 'hsl(var(--muted-foreground))',
+                fontSize: 10
+              }} tickFormatter={v => `R$ ${v / 1000}k`} /><Tooltip contentStyle={{
+                borderRadius: '16px',
+                border: 'none',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
+              }} formatter={(v: number) => [formatCurrency(v), 'PL']} /><Area type="monotone" dataKey="valor" stroke="hsl(var(--primary))" strokeWidth={4} fillOpacity={1} fill="url(#plGradient)" /></AreaChart></ResponsiveContainer></div>
          </div>
          
          <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-6 lg:p-8 border border-white/60 dark:border-white/5 shadow-soft flex flex-col">
@@ -406,30 +434,15 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
               <div className="w-full h-[240px] relative">
                 <ResponsiveContainer width="100%" height="100%">
                   <RePieChart>
-                    <Pie 
-                      data={compositionData} 
-                      cx="50%" 
-                      cy="50%" 
-                      innerRadius="72%" 
-                      outerRadius="95%" 
-                      paddingAngle={6} 
-                      dataKey="value" 
-                      stroke="none"
-                      cornerRadius={12}
-                    >
-                      {compositionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
+                    <Pie data={compositionData} cx="50%" cy="50%" innerRadius="72%" outerRadius="95%" paddingAngle={6} dataKey="value" stroke="none" cornerRadius={12}>
+                      {compositionData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: 'none', 
-                        borderRadius: '16px',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.1)' 
-                      }}
-                      formatter={(v: number) => [formatCurrency(v), "Valor"]}
-                    />
+                    <Tooltip contentStyle={{
+                  backgroundColor: 'hsl(var(--card))',
+                  border: 'none',
+                  borderRadius: '16px',
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.1)'
+                }} formatter={(v: number) => [formatCurrency(v), "Valor"]} />
                   </RePieChart>
                 </ResponsiveContainer>
 
@@ -444,22 +457,18 @@ export function BalancoTab({ dateRanges }: { dateRanges: ComparisonDateRanges })
 
               {/* Legenda customizada em Badges */}
               <div className="mt-6 flex flex-wrap justify-center gap-2">
-                {compositionData.map((item, idx) => (
-                  <div 
-                    key={idx} 
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border/40 shadow-sm"
-                  >
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                {compositionData.map((item, idx) => <div key={idx} className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-card border border-border/40 shadow-sm">
+                    <div className="w-2 h-2 rounded-full" style={{
+                backgroundColor: item.color
+              }} />
                     <span className="text-[10px] font-bold text-foreground">{item.name}</span>
                     <span className="text-[9px] font-black text-muted-foreground">
-                      {((item.value / b1.totalAtivos) * 100).toFixed(0)}%
+                      {(item.value / b1.totalAtivos * 100).toFixed(0)}%
                     </span>
-                  </div>
-                ))}
+                  </div>)}
               </div>
             </div>
          </div>
       </div>
-    </div>
-  );
+    </div>;
 }

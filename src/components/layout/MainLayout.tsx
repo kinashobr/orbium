@@ -29,8 +29,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SidebarAlertas, DEFAULT_ALERTS, DEFAULT_METAS } from "@/components/dashboard/SidebarAlertas";
-import { AlertasConfigDialog, AlertaConfig, MetaConfig } from "@/components/dashboard/AlertasConfigDialog";
+import { SidebarAlertas, DEFAULT_ALERTS } from "@/components/dashboard/SidebarAlertas";
+import { AlertasConfigDialog, AlertaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { GoogleDriveSync } from "./GoogleDriveSync";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -68,9 +68,6 @@ export function MainLayout({
   const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => 
     JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS))
-  );
-  const [metasConfig, setMetasConfig] = useState<MetaConfig[]>(() => 
-    JSON.parse(localStorage.getItem("metas-config-v3") || JSON.stringify(DEFAULT_METAS))
   );
 
   useEffect(() => {
@@ -257,7 +254,17 @@ export function MainLayout({
         </main>
       </div>
       <BottomNav />
-      <AlertasConfigDialog open={alertasConfigOpen} onOpenChange={setAlertasConfigOpen} config={alertasConfig} metas={metasConfig} onSave={(newAlerts, newMetas) => { setAlertasConfig(newAlerts); setMetasConfig(newMetas); localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts)); localStorage.setItem("metas-config-v3", JSON.stringify(newMetas)); }} initialStartDate={alertStartDate} onStartDateChange={setAlertStartDate} />
+      <AlertasConfigDialog
+        open={alertasConfigOpen}
+        onOpenChange={setAlertasConfigOpen}
+        config={alertasConfig}
+        onSave={(newAlerts) => {
+          setAlertasConfig(newAlerts);
+          localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
+        }}
+        initialStartDate={alertStartDate}
+        onStartDateChange={setAlertStartDate}
+      />
     </div>
   );
 }

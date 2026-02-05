@@ -170,7 +170,7 @@ export function ImovelFormModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0 scrollbar-material">
           <div className="p-6 sm:p-8 space-y-6 pb-32 sm:pb-8">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição / Nome</Label>

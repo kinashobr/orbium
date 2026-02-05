@@ -33,6 +33,17 @@ interface LoanAlertsProps {
   onOpenPendingConfig?: () => void;
 }
 
+const brlFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatBrl(value: number) {
+  return brlFormatter.format(value);
+}
+
 export function LoanAlerts({ emprestimos, className, onOpenPendingConfig }: LoanAlertsProps) {
   const { calculateLoanSchedule, calculatePaidInstallmentsUpToDate } = useFinance();
   const hoje = new Date();
@@ -81,7 +92,7 @@ export function LoanAlerts({ emprestimos, className, onOpenPendingConfig }: Loan
       items.push({ 
         id: "save", type: "info", icon: Zap, title: "AMORTIZAÇÃO", statusLabel: "OPORTUNIDADE", 
         description: "Economia potencial ao quitar o principal antecipadamente.",
-        value: `R$ ${totalJurosRestantes.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`
+        value: formatBrl(totalJurosRestantes),
       });
     }
     

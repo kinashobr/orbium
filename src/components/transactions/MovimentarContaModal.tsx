@@ -491,6 +491,363 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     }
   };
 
+  const formBody = (
+    <form id="movimentar-form" onSubmit={handleSubmit} className="py-3 space-y-4 pb-28 sm:pb-4">
+      <div className="text-center space-y-0.5">
+        <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor do Lançamento</Label>
+        <div className="relative max-w-[220px] mx-auto group">
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/20">R$</span>
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={amount}
+            onChange={(e) => handleAmountChange(e.target.value)}
+            className="h-12 text-2xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
+          />
+          <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Operação</Label>
+          <Select value={operationType || ''} onValueChange={handleOperationChange}>
+            <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue /></SelectTrigger>
+            <SelectContent className="rounded-xl shadow-2xl border-none p-1">
+              {OPERATION_OPTIONS.map(o => (
+                <SelectItem key={o.value} value={o.value} className="rounded-lg font-bold py-2 text-sm">
+                  <div className="flex items-center gap-2"><div className={cn("p-1 rounded-md", o.bgColor)}>{React.createElement(o.icon, { size: 14, className: o.color })}</div>{o.label}</div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Data</Label>
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm" />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">
+          {operationType === 'transferencia' ? 'Conta de Saída' : 'Conta do Registro'}
+        </Label>
+        <Select value={accountId} onValueChange={setAccountId}>
+          <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue /></SelectTrigger>
+          <SelectContent className="rounded-xl border-none shadow-2xl">
+            {accounts.map(a => <SelectItem key={a.id} value={a.id} className="font-bold text-sm">{a.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {operationType === 'transferencia' && (
+        <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
+          <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-primary px-1">Conta de Destino</Label>
+          <Select value={destinationAccountId || ''} onValueChange={setDestinationAccountId}>
+            <SelectTrigger className="h-9 rounded-xl border-2 border-primary/20 bg-primary/5 font-bold text-sm"><SelectValue placeholder="Selecione o destino..." /></SelectTrigger>
+            <SelectContent className="rounded-xl border-none shadow-2xl">
+              {accounts.filter(a => a.id !== accountId).map(a => <SelectItem key={a.id} value={a.id} className="font-bold text-sm">{a.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Campo Categoria - Escondido para operações de ativos */}
+      {!hideCategory && (
+        <div className="space-y-1.5">
+          <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Categoria</Label>
+          <Select value={categoryId || ''} onValueChange={setCategoryId}>
+            <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm">
+              <SelectValue placeholder="Selecione..." />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-none shadow-2xl max-h-56">
+              {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold text-sm">{c.icon} {c.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {showVincularSection && (
+        <div className="space-y-4 p-5 rounded-[2rem] bg-primary/5 border-2 border-dashed border-primary/20 animate-in slide-in-from-top-2 duration-300">
+          <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary block text-center">Vínculo Obrigatório</Label>
+
+          {operationType === 'pagamento_emprestimo' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Contrato</Label>
+                <Select value={tempLoanId || ''} onValueChange={(v) => { setTempLoanId(v); setTempParcelaId(null); }}>
+                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                  <SelectContent>{loans.map(l => <SelectItem key={l.id} value={l.id} className="font-bold">{l.institution}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela</Label>
+                <Select value={tempParcelaId || ''} onValueChange={setTempParcelaId} disabled={!currentLoan}>
+                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
+                  <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {isSeguroCategory && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Seguro/Veículo</Label>
+                <Select value={tempSeguroId || ''} onValueChange={handleSeguroChange}>
+                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o seguro..." /></SelectTrigger>
+                  <SelectContent>
+                    {segurosVeiculo.map(s => {
+                      const v = veiculos.find(x => x.id === s.veiculoId);
+                      return <SelectItem key={s.id} value={String(s.id)} className="font-bold">{v?.modelo || s.seguradora}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela em Aberto</Label>
+                <Select value={tempSeguroParcelaId || ''} onValueChange={setTempSeguroParcelaId} disabled={!currentSeguro}>
+                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
+                  <SelectContent>
+                    {currentSeguro?.parcelas.filter(p => !p.paga).map(p => (
+                      <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {operationType === 'imobilizado' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Tipo de Bem</Label>
+                  <Select
+                    value={tempAssetType || ''}
+                    onValueChange={v => {
+                      setTempAssetType(v as 'imovel' | 'terreno');
+                      setTempAssetId(null);
+                      setTempAssetOperation(null);
+                      setIsCreatingNewAsset(false);
+                    }}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                      <SelectValue placeholder="Imóvel ou Terreno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="imovel" className="font-bold">Imóvel</SelectItem>
+                      <SelectItem value="terreno" className="font-bold">Terreno</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
+                  <Select
+                    value={tempAssetOperation || ''}
+                    onValueChange={v => handleAssetOperationChange(v as 'compra' | 'venda')}
+                    disabled={!tempAssetType}
+                  >
+                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                      <SelectValue placeholder="Compra ou Venda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compra" className="font-bold">Compra</SelectItem>
+                      <SelectItem value="venda" className="font-bold">Venda</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Para VENDA: sempre selecionar bem existente */}
+              {tempAssetType && tempAssetOperation === 'venda' && (
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Bem</Label>
+                  <Select value={tempAssetId || ''} onValueChange={setTempAssetId}>
+                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(tempAssetType === 'imovel' ? activeImoveis : activeTerrenos).map(a => (
+                        <SelectItem key={a.id} value={String(a.id)} className="font-bold">
+                          {a.descricao}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Para COMPRA: cadastrar novo bem */}
+              {tempAssetType && tempAssetOperation === 'compra' && (
+                <div className="space-y-3 p-3 rounded-xl bg-card/50">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Bem</Label>
+                  {tempAssetType === 'imovel' ? (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
+                        <Input
+                          value={newImovelData.descricao}
+                          onChange={e => setNewImovelData({ ...newImovelData, descricao: e.target.value })}
+                          placeholder="Ex: Apartamento Centro"
+                          className="h-9 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
+                          <Select value={newImovelData.tipo} onValueChange={v => setNewImovelData({ ...newImovelData, tipo: v as any })}>
+                            <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="casa">Casa</SelectItem>
+                              <SelectItem value="apartamento">Apartamento</SelectItem>
+                              <SelectItem value="comercial">Comercial</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
+                          <Input
+                            value={newImovelData.endereco}
+                            onChange={e => setNewImovelData({ ...newImovelData, endereco: e.target.value })}
+                            placeholder="Cidade/Bairro"
+                            className="h-9 rounded-lg text-sm"
+                          />
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
+                        <Input
+                          value={newTerrenoData.descricao}
+                          onChange={e => setNewTerrenoData({ ...newTerrenoData, descricao: e.target.value })}
+                          placeholder="Ex: Lote Condomínio X"
+                          className="h-9 rounded-lg text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
+                        <Input
+                          value={newTerrenoData.endereco}
+                          onChange={e => setNewTerrenoData({ ...newTerrenoData, endereco: e.target.value })}
+                          placeholder="Cidade/Bairro"
+                          className="h-9 rounded-lg text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {(operationType === 'aplicacao' || operationType === 'resgate') && (
+            <div className="space-y-1.5">
+              <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">
+                {operationType === 'aplicacao' ? 'Conta de Investimento (Destino)' : 'Conta de Investimento (Origem)'}
+              </Label>
+              <Select value={tempInvestmentId || ''} onValueChange={setTempInvestmentId}>
+                <SelectTrigger className="h-11 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o ativo..." /></SelectTrigger>
+                <SelectContent>{investments.map(i => <SelectItem key={i.id} value={i.id} className="font-bold">{i.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {operationType === 'veiculo' && (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
+                <Select value={tempVehicleOperation || ''} onValueChange={(v) => handleVehicleOperationChange(v as 'compra' | 'venda')}>
+                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Compra ou Venda" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="compra" className="font-bold">Compra</SelectItem>
+                    <SelectItem value="venda" className="font-bold">Venda</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Para VENDA: sempre selecionar veículo existente */}
+              {tempVehicleOperation === 'venda' && (
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Veículo</Label>
+                  <Select value={tempVehicleId || ''} onValueChange={setTempVehicleId}>
+                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                    <SelectContent>
+                      {activeVehicles.map(v => <SelectItem key={v.id} value={String(v.id)} className="font-bold">{v.modelo}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Para COMPRA: cadastrar novo veículo */}
+              {tempVehicleOperation === 'compra' && (
+                <div className="space-y-3 p-3 rounded-xl bg-card/50">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Veículo</Label>
+                  <div className="space-y-1.5">
+                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Modelo</Label>
+                    <Input
+                      value={newVehicleData.modelo}
+                      onChange={e => setNewVehicleData({ ...newVehicleData, modelo: e.target.value })}
+                      placeholder="Ex: Honda Civic 2.0"
+                      className="h-9 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
+                      <Select value={newVehicleData.tipo} onValueChange={v => setNewVehicleData({ ...newVehicleData, tipo: v as any })}>
+                        <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="carro">Carro</SelectItem>
+                          <SelectItem value="moto">Moto</SelectItem>
+                          <SelectItem value="caminhao">Caminhão</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground">Marca</Label>
+                      <Input
+                        value={newVehicleData.marca || ''}
+                        onChange={e => setNewVehicleData({ ...newVehicleData, marca: e.target.value })}
+                        placeholder="Honda"
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-[9px] font-black uppercase text-muted-foreground">Ano</Label>
+                      <Input
+                        type="number"
+                        value={newVehicleData.ano}
+                        onChange={e => setNewVehicleData({ ...newVehicleData, ano: parseInt(e.target.value) || new Date().getFullYear() })}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Descrição do Registro</Label>
+        <div className="relative">
+          <FileText className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full h-16 p-2.5 pl-9 rounded-xl border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm"
+            placeholder="Ex: Compra supermercado, Aporte Selic..."
+          />
+        </div>
+      </div>
+    </form>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
@@ -498,397 +855,51 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "max-w-[36rem] max-h-[92vh] rounded-[2rem]"
+          // +30% width on desktop (28rem -> ~36.4rem)
+          !isMobile && "max-w-[36.4rem] max-h-[85vh] rounded-[2rem]"
         )}
       >
         <DialogHeader className={cn(
-          "px-6 sm:px-8 pt-4 sm:pt-6 pb-4 sm:pb-4 shrink-0 relative transition-colors duration-500",
+          "px-5 sm:px-6 pt-4 sm:pt-5 pb-3 sm:pb-4 shrink-0 relative transition-colors duration-500",
           op?.bgColor || "bg-muted/30"
         )} style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}>
-          <div className="flex items-center gap-4 sm:gap-5">
+          <div className="flex items-center gap-3">
             {isMobile && (
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 shrink-0" onClick={() => onOpenChange(false)}>
-                <ArrowLeft className="w-6 h-6" />
+              <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 shrink-0" onClick={() => onOpenChange(false)}>
+                <ArrowLeft className="w-5 h-5" />
               </Button>
             )}
-            <div className={cn("w-12 h-12 sm:w-14 sm:h-14 rounded-[1.5rem] bg-card flex items-center justify-center shadow-xl transition-transform duration-500", op?.color)}>
-              {op ? <op.icon size={24} /> : <DollarSign size={24} />}
+            <div className={cn("w-10 h-10 rounded-xl bg-card flex items-center justify-center shadow-lg transition-transform duration-500", op?.color)}>
+              {op ? <op.icon size={20} /> : <DollarSign size={20} />}
             </div>
             <div>
-              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
+              <DialogTitle className="text-lg font-black tracking-tighter">
                 {isEditing ? "Editar Registro" : "Novo Lançamento"}
               </DialogTitle>
-              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 mt-0.5"><Sparkles className="w-3 h-3 text-primary" /> Inteligência Orbium</p>
+              <p className="text-[8px] font-bold uppercase tracking-[0.15em] text-muted-foreground flex items-center gap-1.5"><Sparkles className="w-2.5 h-2.5 text-primary" /> Inteligência Orbium</p>
             </div>
           </div>
         </DialogHeader>
 
-        <ScrollArea className={cn("flex-1 px-6 sm:px-8", isMobile ? "max-h-[calc(100vh-10rem)]" : "max-h-[80vh]")}>
-          <form id="movimentar-form" onSubmit={handleSubmit} className="py-4 sm:py-5 space-y-6 pb-32 sm:pb-6">
-            <div className="text-center space-y-1">
-              <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground">Valor do Lançamento</Label>
-              <div className="relative max-w-[280px] mx-auto group">
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl sm:text-2xl font-black text-muted-foreground/20">R$</span>
-                <Input 
-                  type="text" 
-                  inputMode="numeric" 
-                  value={amount} 
-                  onChange={(e) => handleAmountChange(e.target.value)} 
-                  className="h-14 sm:h-16 text-3xl sm:text-4xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums" 
-                />
-                <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-               <div className="space-y-2">
-                 <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Operação</Label>
-                 <Select value={operationType || ''} onValueChange={handleOperationChange}>
-                   <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
-                   <SelectContent className="rounded-2xl shadow-2xl border-none p-2">
-                     {OPERATION_OPTIONS.map(o => (
-                       <SelectItem key={o.value} value={o.value} className="rounded-xl font-bold py-3">
-                         <div className="flex items-center gap-3"><div className={cn("p-1.5 rounded-lg", o.bgColor)}>{React.createElement(o.icon, { size: 16, className: o.color })}</div>{o.label}</div>
-                       </SelectItem>
-                     ))}
-                   </SelectContent>
-                 </Select>
-               </div>
-               <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Data</Label>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner" />
-               </div>
-            </div>
-
-            <div className="space-y-2">
-               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">
-                   {operationType === 'transferencia' ? 'Conta de Saída' : 'Conta do Registro'}
-               </Label>
-               <Select value={accountId} onValueChange={setAccountId}>
-                 <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue /></SelectTrigger>
-                 <SelectContent className="rounded-2xl border-none shadow-2xl">
-                    {accounts.map(a => <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>)}
-                 </SelectContent>
-               </Select>
-            </div>
-
-            {operationType === 'transferencia' && (
-              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary px-1">Conta de Destino</Label>
-                <Select value={destinationAccountId || ''} onValueChange={setDestinationAccountId}>
-                  <SelectTrigger className="h-11 rounded-2xl border-2 border-primary/20 bg-primary/5 font-bold"><SelectValue placeholder="Selecione o destino..." /></SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl">
-                     {accounts.filter(a => a.id !== accountId).map(a => <SelectItem key={a.id} value={a.id} className="font-bold">{a.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            
-            {/* Campo Categoria - Escondido para operações de ativos */}
-            {!hideCategory && (
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Categoria</Label>
-                <Select value={categoryId || ''} onValueChange={setCategoryId}>
-                  <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner">
-                      <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-2xl border-none shadow-2xl max-h-64">
-                    {categories.map(c => <SelectItem key={c.id} value={c.id} className="font-bold">{c.icon} {c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {showVincularSection && (
-                <div className="space-y-4 p-5 rounded-[2rem] bg-primary/5 border-2 border-dashed border-primary/20 animate-in slide-in-from-top-2 duration-300">
-                    <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary block text-center">Vínculo Obrigatório</Label>
-                    
-                    {operationType === 'pagamento_emprestimo' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Contrato</Label>
-                                <Select value={tempLoanId || ''} onValueChange={(v) => { setTempLoanId(v); setTempParcelaId(null); }}>
-                                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                    <SelectContent>{loans.map(l => <SelectItem key={l.id} value={l.id} className="font-bold">{l.institution}</SelectItem>)}</SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela</Label>
-                                <Select value={tempParcelaId || ''} onValueChange={setTempParcelaId} disabled={!currentLoan}>
-                                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
-                                    <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}</SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    )}
-                    
-                    {isSeguroCategory && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Seguro/Veículo</Label>
-                                <Select value={tempSeguroId || ''} onValueChange={handleSeguroChange}>
-                                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o seguro..." /></SelectTrigger>
-                                    <SelectContent>
-                                        {segurosVeiculo.map(s => {
-                                            const v = veiculos.find(x => x.id === s.veiculoId);
-                                            return <SelectItem key={s.id} value={String(s.id)} className="font-bold">{v?.modelo || s.seguradora}</SelectItem>;
-                                        })}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela em Aberto</Label>
-                                <Select value={tempSeguroParcelaId || ''} onValueChange={setTempSeguroParcelaId} disabled={!currentSeguro}>
-                                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
-                                    <SelectContent>
-                                        {currentSeguro?.parcelas.filter(p => !p.paga).map(p => (
-                                            <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        </div>
-                    )}
-
-                    {operationType === 'imobilizado' && (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Tipo de Bem</Label>
-                            <Select
-                              value={tempAssetType || ''}
-                              onValueChange={v => {
-                                setTempAssetType(v as 'imovel' | 'terreno');
-                                setTempAssetId(null);
-                                setTempAssetOperation(null);
-                                setIsCreatingNewAsset(false);
-                              }}
-                            >
-                              <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
-                                <SelectValue placeholder="Imóvel ou Terreno" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="imovel" className="font-bold">Imóvel</SelectItem>
-                                <SelectItem value="terreno" className="font-bold">Terreno</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
-                            <Select
-                              value={tempAssetOperation || ''}
-                              onValueChange={v => handleAssetOperationChange(v as 'compra' | 'venda')}
-                              disabled={!tempAssetType}
-                            >
-                              <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
-                                <SelectValue placeholder="Compra ou Venda" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="compra" className="font-bold">Compra</SelectItem>
-                                <SelectItem value="venda" className="font-bold">Venda</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-
-                        {/* Para VENDA: sempre selecionar bem existente */}
-                        {tempAssetType && tempAssetOperation === 'venda' && (
-                          <div className="space-y-1.5">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Bem</Label>
-                            <Select value={tempAssetId || ''} onValueChange={setTempAssetId}>
-                              <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
-                                <SelectValue placeholder="Selecione..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {(tempAssetType === 'imovel' ? activeImoveis : activeTerrenos).map(a => (
-                                  <SelectItem key={a.id} value={String(a.id)} className="font-bold">
-                                    {a.descricao}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-
-                        {/* Para COMPRA: cadastrar novo bem */}
-                        {tempAssetType && tempAssetOperation === 'compra' && (
-                          <div className="space-y-3 p-3 rounded-xl bg-card/50">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Bem</Label>
-                            {tempAssetType === 'imovel' ? (
-                              <>
-                                <div className="space-y-1.5">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
-                                  <Input
-                                    value={newImovelData.descricao}
-                                    onChange={e => setNewImovelData({ ...newImovelData, descricao: e.target.value })}
-                                    placeholder="Ex: Apartamento Centro"
-                                    className="h-9 rounded-lg text-sm"
-                                  />
-                                </div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
-                                    <Select value={newImovelData.tipo} onValueChange={v => setNewImovelData({ ...newImovelData, tipo: v as any })}>
-                                      <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="casa">Casa</SelectItem>
-                                        <SelectItem value="apartamento">Apartamento</SelectItem>
-                                        <SelectItem value="comercial">Comercial</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
-                                    <Input
-                                      value={newImovelData.endereco}
-                                      onChange={e => setNewImovelData({ ...newImovelData, endereco: e.target.value })}
-                                      placeholder="Cidade/Bairro"
-                                      className="h-9 rounded-lg text-sm"
-                                    />
-                                  </div>
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="space-y-1.5">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
-                                  <Input
-                                    value={newTerrenoData.descricao}
-                                    onChange={e => setNewTerrenoData({ ...newTerrenoData, descricao: e.target.value })}
-                                    placeholder="Ex: Lote Condomínio X"
-                                    className="h-9 rounded-lg text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
-                                  <Input
-                                    value={newTerrenoData.endereco}
-                                    onChange={e => setNewTerrenoData({ ...newTerrenoData, endereco: e.target.value })}
-                                    placeholder="Cidade/Bairro"
-                                    className="h-9 rounded-lg text-sm"
-                                  />
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    
-                    {(operationType === 'aplicacao' || operationType === 'resgate') && (
-                        <div className="space-y-1.5">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">
-                                {operationType === 'aplicacao' ? 'Conta de Investimento (Destino)' : 'Conta de Investimento (Origem)'}
-                            </Label>
-                            <Select value={tempInvestmentId || ''} onValueChange={setTempInvestmentId}>
-                                <SelectTrigger className="h-11 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o ativo..." /></SelectTrigger>
-                                <SelectContent>{investments.map(i => <SelectItem key={i.id} value={i.id} className="font-bold">{i.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                        </div>
-                    )}
-                    
-                    {operationType === 'veiculo' && (
-                        <div className="space-y-4">
-                          <div className="space-y-1.5">
-                            <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
-                            <Select value={tempVehicleOperation || ''} onValueChange={(v) => handleVehicleOperationChange(v as 'compra' | 'venda')}>
-                                <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Compra ou Venda" /></SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="compra" className="font-bold">Compra</SelectItem>
-                                    <SelectItem value="venda" className="font-bold">Venda</SelectItem>
-                                </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Para VENDA: sempre selecionar veículo existente */}
-                          {tempVehicleOperation === 'venda' && (
-                            <div className="space-y-1.5">
-                              <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Veículo</Label>
-                              <Select value={tempVehicleId || ''} onValueChange={setTempVehicleId}>
-                                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                                  <SelectContent>
-                                    {activeVehicles.map(v => <SelectItem key={v.id} value={String(v.id)} className="font-bold">{v.modelo}</SelectItem>)}
-                                  </SelectContent>
-                              </Select>
-                            </div>
-                          )}
-
-                          {/* Para COMPRA: cadastrar novo veículo */}
-                          {tempVehicleOperation === 'compra' && (
-                            <div className="space-y-3 p-3 rounded-xl bg-card/50">
-                              <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Veículo</Label>
-                              <div className="space-y-1.5">
-                                <Label className="text-[9px] font-black uppercase text-muted-foreground">Modelo</Label>
-                                <Input
-                                  value={newVehicleData.modelo}
-                                  onChange={e => setNewVehicleData({ ...newVehicleData, modelo: e.target.value })}
-                                  placeholder="Ex: Honda Civic 2.0"
-                                  className="h-9 rounded-lg text-sm"
-                                />
-                              </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="space-y-1.5">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
-                                  <Select value={newVehicleData.tipo} onValueChange={v => setNewVehicleData({ ...newVehicleData, tipo: v as any })}>
-                                    <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="carro">Carro</SelectItem>
-                                      <SelectItem value="moto">Moto</SelectItem>
-                                      <SelectItem value="caminhao">Caminhão</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Marca</Label>
-                                  <Input
-                                    value={newVehicleData.marca || ''}
-                                    onChange={e => setNewVehicleData({ ...newVehicleData, marca: e.target.value })}
-                                    placeholder="Honda"
-                                    className="h-9 rounded-lg text-sm"
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-[9px] font-black uppercase text-muted-foreground">Ano</Label>
-                                  <Input
-                                    type="number"
-                                    value={newVehicleData.ano}
-                                    onChange={e => setNewVehicleData({ ...newVehicleData, ano: parseInt(e.target.value) || new Date().getFullYear() })}
-                                    className="h-9 rounded-lg text-sm"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                    )}
-                </div>
-            )}
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Descrição do Registro</Label>
-              <div className="relative">
-                <FileText className="absolute left-4 top-3.5 w-4 h-4 text-muted-foreground" />
-                <textarea 
-                  value={description} 
-                  onChange={(e) => setDescription(e.target.value)} 
-                  className="w-full h-24 p-3 pl-12 rounded-[1.5rem] border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm" 
-                  placeholder="Ex: Compra supermercado, Aporte Selic..." 
-                />
-              </div>
-            </div>
-          </form>
-        </ScrollArea>
+        {isMobile ? (
+          <ScrollArea className={cn("flex-1 px-5 sm:px-6 scrollbar-material", "max-h-[calc(100vh-10rem)]")}>
+            {formBody}
+          </ScrollArea>
+        ) : (
+          <div className={cn("flex-1 overflow-y-auto px-5 sm:px-6 scrollbar-material", "max-h-[75vh]")}>
+            {formBody}
+          </div>
+        )}
 
         <DialogFooter className={cn(
-          "p-4 sm:p-8 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-3",
+          "p-4 sm:p-5 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-2",
           isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card"
         )} style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}>
           {!isMobile && (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-14 px-10 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-8 font-black text-[9px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
           )}
-          <Button form="movimentar-form" type="submit" className="flex-1 rounded-full h-14 bg-primary text-primary-foreground font-black text-sm gap-3 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2">
-            <Check size={20} /> {isEditing ? "SALVAR ALTERAÇÕES" : "CONFIRMAR REGISTRO"}
+          <Button form="movimentar-form" type="submit" className="flex-1 rounded-full h-11 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] transition-all order-1 sm:order-2">
+            <Check size={18} /> {isEditing ? "SALVAR" : "CONFIRMAR"}
           </Button>
         </DialogFooter>
       </DialogContent>

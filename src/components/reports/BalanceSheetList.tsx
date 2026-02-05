@@ -36,10 +36,8 @@ interface BalanceSheetListProps {
 }
 
 export function BalanceSheetList({ title, totalValue, items, isAsset, plValue, showEquity = true }: BalanceSheetListProps) {
-  // Totais e título já são exibidos no container (BalancoTab). Aqui focamos no corpo contábil.
   // Mantemos a assinatura (title/totalValue) por compatibilidade com chamadas existentes.
   void title;
-  void totalValue;
 
   const sideTone = isAsset
     ? {
@@ -65,6 +63,10 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue, s
       <div className="space-y-6">
         {items.map((section, idx) => {
           const isPL = section.type === 'patrimonio';
+          // No lado do Passivo, usamos a faixa do item PL como "Total do Passivo" (o PL fica no card separado abaixo).
+          const showPassivoTotalInEquityRow = !isAsset && isPL;
+          const passivoPlusPL = showPassivoTotalInEquityRow ? (totalValue + section.value) : 0;
+          const passivoPercent = showPassivoTotalInEquityRow && passivoPlusPL > 0 ? (totalValue / passivoPlusPL) * 100 : 0;
           // Na DRE, não exibimos o card visual de Patrimônio Líquido; no Balanço,
           // ele continua aparecendo normalmente no lado do Passivo + PL.
           if (isPL && !showEquity) return null;
@@ -82,7 +84,7 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue, s
                 >
                   <div className="min-w-0 flex items-center gap-2">
                     <span className="text-[10px] font-black uppercase tracking-[0.22em] truncate">
-                      {section.label}
+                      {showPassivoTotalInEquityRow ? "Total do Passivo" : section.label}
                     </span>
                     <Badge
                       variant="outline"
@@ -92,11 +94,11 @@ export function BalanceSheetList({ title, totalValue, items, isAsset, plValue, s
                         sideTone.barText,
                       )}
                     >
-                      {section.percent.toFixed(1)}%
+                      {(showPassivoTotalInEquityRow ? passivoPercent : section.percent).toFixed(1)}%
                     </Badge>
                   </div>
                   <span className="shrink-0 text-sm sm:text-base font-black tabular-nums tracking-tighter">
-                    {formatCurrency(section.value)}
+                    {formatCurrency(showPassivoTotalInEquityRow ? totalValue : section.value)}
                   </span>
                 </div>
               )}

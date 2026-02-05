@@ -198,9 +198,31 @@ export interface Veiculo {
   vencimentoSeguro: string;
   parcelaSeguro: number;
   valorFipe: number;
+  /**
+   * Categorias (v2) usadas para importar automaticamente despesas do veículo.
+   * Opcional para manter compatibilidade.
+   */
+  categoriasDespesasIds?: string[];
+  /**
+   * Histórico unificado do bem (FIPE, despesas e manutenções).
+   * Opcional para compatibilidade com dados antigos.
+   */
+  historico?: VehicleHistoryItem[];
   compraTransactionId?: string; // Link to purchase purchase
   vendaTransactionId?: string; // Link to sale transaction
   status?: 'ativo' | 'pendente_cadastro' | 'vendido';
+}
+
+export type VehicleHistoryType = 'fipe' | 'despesa' | 'manutencao';
+
+export interface VehicleHistoryItem {
+  id: string;
+  type: VehicleHistoryType;
+  date: string; // ISO
+  title: string;
+  description?: string;
+  amount?: number;
+  meta?: Record<string, unknown>;
 }
 
 // NOVO: Imóvel V2
@@ -266,7 +288,15 @@ export interface ObjetivoFinanceiro {
 // ============================================
 
 export type MetaTipo = 'valor_fixo' | 'percentual' | 'economia' | 'categoria';
-export type MetaMetrica = 'receita' | 'despesa' | 'investimento' | 'saldo' | 'patrimonio' | 'categoria_especifica';
+export type MetaMetrica =
+  | 'receita'
+  | 'despesa'
+  | 'investimento'
+  | 'saldo'
+  | 'patrimonio'
+  | 'categoria_especifica'
+  // NOVO: metas guiadas (gestão pessoal)
+  | 'reserva_emergencia';
 export type MetaPeriodo = 'mensal' | 'trimestral' | 'anual';
 export type MetaLogica = 'maior_melhor' | 'menor_melhor';
 

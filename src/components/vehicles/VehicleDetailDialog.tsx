@@ -30,10 +30,12 @@ import {
 import { formatCurrency, Veiculo, SeguroVeiculo } from "@/types/finance";
 import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { format, differenceInMonths } from "date-fns";
+import { format, differenceInMonths, isValid, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { VehicleInsuranceTab } from "@/components/vehicles/detail/VehicleInsuranceTab";
+import { VehicleHistoryTab } from "@/components/vehicles/detail/VehicleHistoryTab";
 
 interface VehicleDetailDialogProps {
   open: boolean;
@@ -41,6 +43,7 @@ interface VehicleDetailDialogProps {
   veiculo: Veiculo | null;
   seguro: SeguroVeiculo | undefined;
   onUpdateFipe: (veiculo: Veiculo) => void;
+  onUpdateVeiculo?: (id: number, updates: Partial<Veiculo>) => void;
   onEdit?: (veiculo: Veiculo) => void;
 }
 
@@ -50,9 +53,21 @@ export function VehicleDetailDialog({
   veiculo,
   seguro,
   onUpdateFipe,
+  onUpdateVeiculo,
   onEdit,
 }: VehicleDetailDialogProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
+
+  const parseHistoryDate = (value: unknown): Date | null => {
+    if (typeof value !== "string" || !value.trim()) return null;
+    try {
+      // Historico pode estar em ISO (com horário) ou em YYYY-MM-DD
+      const d = value.includes("T") ? parseISO(value) : parseDateLocal(value);
+      return isValid(d) ? d : null;
+    } catch {
+      return null;
+    }
+  };
 
   // Body scroll lock for mobile fullscreen
   useEffect(() => {
@@ -107,7 +122,8 @@ export function VehicleDetailDialog({
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "w-[min(95vw,32rem)] max-h-[90vh] rounded-[2rem]"
+            // Desktop: largura expandida (72rem)
+            !isMobile && "w-[min(95vw,72rem)] max-h-[90vh] rounded-[2rem]"
         )}
       >
         <DialogHeader 
@@ -153,7 +169,7 @@ export function VehicleDetailDialog({
 
           <ScrollArea
             className={cn(
-              "flex-1 min-h-0",
+              "flex-1 min-h-0 scrollbar-material",
               isMobile ? "max-h-[calc(100vh-10rem)]" : "max-h-[70vh]"
             )}
           >
@@ -164,7 +180,12 @@ export function VehicleDetailDialog({
                     <p className="text-[10px] font-black text-success uppercase tracking-[0.2em] mb-1">Avaliação FIPE Atual</p>
                     <p className="text-3xl font-black text-success tabular-nums">{formatCurrency(veiculo.valorFipe || 0)}</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={() => onUpdateFipe(veiculo)} className="rounded-full h-10 px-5 font-bold gap-2 border-success/30 text-success bg-white/50">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onUpdateFipe(veiculo)}
+                    className="rounded-full h-10 px-5 font-bold gap-2 border-success/30 text-success hover:bg-success/10"
+                  >
                     <RefreshCw className="w-4 h-4" /> ATUALIZAR
                   </Button>
                 </div>
@@ -201,54 +222,19 @@ export function VehicleDetailDialog({
               </TabsContent>
 
               <TabsContent value="seguro" className="mt-0 space-y-6 focus-visible:outline-none">
-                {seguro ? (
-                  <div className="space-y-8">
-                    <div className="p-6 rounded-[2rem] bg-muted/20 border border-border/40 space-y-6">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Apólice</p>
-                          <p className="font-black text-lg text-foreground">{seguro.numeroApolice || 'N/A'}</p>
-                          <p className="text-xs font-bold text-primary uppercase mt-1">{seguro.seguradora}</p>
-                        </div>
-                        <Badge className="bg-primary/10 text-primary border-none font-black text-[10px] px-3 py-1 uppercase">VALOR: {formatCurrency(seguro.valorTotal || 0)}</Badge>
-                      </div>
-                      <div className="pt-4 border-t border-border/40 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Vigência Início</p><p className="font-bold text-sm">{seguro.vigenciaInicio ? format(parseDateLocal(seguro.vigenciaInicio), "dd/MM/yyyy") : 'N/A'}</p></div>
-                        <div><p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Vigência Fim</p><p className="font-bold text-sm">{seguro.vigenciaFim ? format(parseDateLocal(seguro.vigenciaFim), "dd/MM/yyyy") : 'N/A'}</p></div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] px-2">Histórico de Parcelas</p>
-                      <div className="space-y-2">
-                        {seguro.parcelas?.map((p) => {
-                          const isOver = !p.paga && p.vencimento && parseDateLocal(p.vencimento) < new Date();
-                          return (
-                            <div key={p.numero} className={cn("flex items-center justify-between p-4 rounded-2xl border transition-all", p.paga ? "bg-success/[0.03] border-success/20 opacity-70" : isOver ? "bg-destructive/5 border-destructive/20" : "bg-muted/10 border-border/40")}>
-                              <div className="flex items-center gap-4">
-                                {p.paga ? <CheckCircle2 className="w-5 h-5 text-success" /> : isOver ? <AlertTriangle className="w-5 h-5 text-destructive" /> : <Clock className="w-5 h-5 text-muted-foreground/40" />}
-                                <div><p className="font-black text-sm text-foreground">Parcela {p.numero}</p><p className="text-[10px] font-bold text-muted-foreground uppercase">{p.vencimento ? format(parseDateLocal(p.vencimento), "dd 'de' MMMM", { locale: ptBR }) : 'N/A'}</p></div>
-                              </div>
-                              <span className={cn("font-black text-base tabular-nums", p.paga ? "text-success" : "text-foreground")}>{formatCurrency(p.valor || 0)}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="py-20 text-center opacity-30">
-                    <Shield className="w-16 h-16 mx-auto mb-4" />
-                    <p className="font-black uppercase tracking-widest text-xs">Sem seguro ativo</p>
-                  </div>
-                )}
+                <VehicleInsuranceTab seguro={seguro} isMobile={isMobile} />
               </TabsContent>
 
               <TabsContent value="historico" className="mt-0 focus-visible:outline-none">
-                <div className="py-20 text-center opacity-30">
-                  <FileText className="w-16 h-16 mx-auto mb-4" />
-                  <p className="font-black uppercase tracking-widest text-xs">Sem movimentações registradas</p>
-                </div>
+                {onUpdateVeiculo ? (
+                  <VehicleHistoryTab veiculo={veiculo} onUpdateVeiculo={onUpdateVeiculo} />
+                ) : (
+                  <div className="py-20 text-center opacity-30">
+                    <FileText className="w-16 h-16 mx-auto mb-4" />
+                    <p className="font-black uppercase tracking-widest text-xs">Histórico indisponível</p>
+                    <p className="text-xs text-muted-foreground mt-2">Faltou conectar o salvamento do veículo.</p>
+                  </div>
+                )}
               </TabsContent>
             </div>
           </ScrollArea>

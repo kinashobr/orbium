@@ -36,6 +36,7 @@ const METRICA_OPTIONS: { value: MetaMetrica; label: string; tipos: MetaTipo[] }[
   { value: 'saldo', label: 'Saldo Disponível', tipos: ['valor_fixo'] },
   { value: 'patrimonio', label: 'Patrimônio Líquido', tipos: ['valor_fixo', 'percentual'] },
   { value: 'categoria_especifica', label: 'Categoria Específica', tipos: ['categoria'] },
+  { value: 'reserva_emergencia', label: 'Reserva de Emergência (meses)', tipos: ['valor_fixo'] },
 ];
 
 const PERIODO_OPTIONS: { value: MetaPeriodo; label: string }[] = [
@@ -63,6 +64,10 @@ export function MetaPersonalizadaFormModal({ open, onOpenChange, meta, onSave }:
     setFormData(prev => ({ ...prev, tipo, metrica: metrics[0]?.value || 'receita', categoriaId: tipo === 'categoria' ? prev.categoriaId : undefined }));
   };
 
+  const unidadeValorAlvo = formData.metrica === 'reserva_emergencia'
+    ? 'meses'
+    : (formData.tipo === 'percentual' || formData.tipo === 'economia' ? '%' : 'R$');
+
   const handleSubmit = () => {
     if (!formData.nome?.trim() || !formData.valorAlvo || formData.valorAlvo <= 0) {
       toast.error("Preencha o nome e um valor alvo válido."); return;
@@ -78,7 +83,8 @@ export function MetaPersonalizadaFormModal({ open, onOpenChange, meta, onSave }:
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "max-w-[26rem] h-[85vh] rounded-[2rem]"
+            // Desktop: +30% largura (26rem -> ~34rem)
+            !isMobile && "max-w-[34rem] h-[85vh] rounded-[2rem]"
         )}
       >
         <DialogHeader 
@@ -99,7 +105,7 @@ export function MetaPersonalizadaFormModal({ open, onOpenChange, meta, onSave }:
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6 sm:px-8">
+        <ScrollArea className="flex-1 px-6 sm:px-8 scrollbar-material">
           <div className="py-6 space-y-6 pb-32 sm:pb-6">
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome da Meta</Label><Input value={formData.nome} onChange={e => setFormData(p => ({ ...p, nome: e.target.value }))} placeholder="Ex: Economizar 20%" className="h-12 rounded-2xl border-2 font-bold" /></div>
             
@@ -127,8 +133,13 @@ export function MetaPersonalizadaFormModal({ open, onOpenChange, meta, onSave }:
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor Alvo</Label>
               <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/30">{formData.tipo === 'percentual' || formData.tipo === 'economia' ? '%' : 'R$'}</span>
-                <Input type="number" value={formData.valorAlvo} onChange={e => setFormData(p => ({ ...p, valorAlvo: Number(e.target.value) }))} className="h-14 pl-12 rounded-2xl border-2 font-black text-xl" />
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/30">{unidadeValorAlvo}</span>
+                <Input
+                  type="number"
+                  value={formData.valorAlvo}
+                  onChange={e => setFormData(p => ({ ...p, valorAlvo: Number(e.target.value) }))}
+                  className="h-14 pl-16 rounded-2xl border-2 font-black text-xl"
+                />
               </div>
             </div>
 

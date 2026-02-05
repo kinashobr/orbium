@@ -76,7 +76,7 @@ export function CategoryListModal({
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          !isMobile && "max-w-[26rem] h-[80vh] rounded-[2rem]"
+          !isMobile && "max-w-[34rem] h-[80vh] rounded-[2rem]"
         )}
       >
         <DialogHeader 
@@ -107,7 +107,7 @@ export function CategoryListModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-6 sm:px-8">
+        <ScrollArea className="flex-1 px-6 sm:px-8 scrollbar-material">
           <div className="space-y-8 py-6 pb-32 sm:pb-6">
             {Object.entries(groupedCategories).map(([nature, list]) => (
               <div key={nature} className="space-y-4">

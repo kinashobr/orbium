@@ -52,10 +52,11 @@ export function IndicatorCard({
 
   const config = statusConfig[status];
   const hasTooltipContent = description || formula || idealRange;
+  const showInlineDescription = Boolean(description);
 
   return (
     <div className={cn(
-      "bg-gradient-to-br from-neutral-800 to-neutral-900 text-white rounded-[2.5rem] p-6 shadow-xl relative overflow-hidden group hover:-translate-y-1 hover:shadow-soft-lg transition-all duration-500 border border-white/5 animate-fade-in-up",
+      "bg-gradient-to-br from-neutral-800 to-neutral-900 text-white rounded-[2.5rem] p-6 shadow-xl relative overflow-hidden group hover:-translate-y-1 hover:shadow-soft-lg transition-all duration-500 border border-white/5 animate-fade-in-up min-h-[220px] sm:min-h-[240px]",
       className
     )}>
       {/* Ícone Decorativo de Fundo */}
@@ -72,8 +73,8 @@ export function IndicatorCard({
         </div>
 
         <div className="flex items-end justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em] truncate" title={title}>
+          <div className="space-y-1 flex-1 min-w-0">
+            <p className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em] truncate w-full" title={title}>
               {title}
             </p>
             <h3 className="text-3xl font-black tracking-tighter tabular-nums leading-none">
@@ -92,18 +93,25 @@ export function IndicatorCard({
         </div>
 
         <div className="mt-4 pt-4 border-t border-white/5 flex items-center justify-between">
-          {trend !== undefined ? (
-            <div className={cn(
-              "flex items-center gap-1 text-[10px] font-black uppercase tracking-tight",
-              trend >= 0 ? "text-success" : "text-destructive"
-            )}>
+          {showInlineDescription ? (
+            <p
+              className="text-[10px] font-bold text-neutral-400 tracking-tight leading-snug line-clamp-2 pr-2"
+              title={description}
+            >
+              {description}
+            </p>
+          ) : trend !== undefined ? (
+            <div
+              className={cn(
+                "flex items-center gap-1 text-[10px] font-black uppercase tracking-tight",
+                trend >= 0 ? "text-success" : "text-destructive",
+              )}
+            >
               {trend >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
               {Math.abs(trend).toFixed(1)}% {trendLabel || "vs anterior"}
             </div>
           ) : (
-            <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
-              Estável
-            </div>
+            <div className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Estável</div>
           )}
           
           {hasTooltipContent ? (

@@ -97,6 +97,7 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
     return {
       poupanca: receitas > 0 ? (lucro / receitas) * 100 : 0,
+      sobraCaixa: receitas > 0 ? ((lucro - parcelas) / receitas) * 100 : 0,
       liqCorrente: passivoCirculante > 0 ? ativoCirculante / passivoCirculante : 0,
       solvenciaImediata: passivoCirculante > 0 ? disponibilidades / passivoCirculante : 0,
       liqGeral: totalPassivos > 0 ? totalAtivos / totalPassivos : 0,
@@ -141,11 +142,15 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
   const scorePatrimonial = useMemo(() => {
     if (!hasData) return null;
-    const liqScore = Math.min(100, (m1.liqGeral / 2) * 100);
-    const endivScore = Math.max(0, 100 - m1.endivTotal);
-    const poupScore = Math.min(100, (m1.poupanca / 30) * 100);
-    const sobrevScore = Math.min(100, (m1.sobrevivencia / 12) * 100);
-    return (liqScore * 0.25) + (endivScore * 0.25) + (poupScore * 0.25) + (sobrevScore * 0.25);
+    const clamp01 = (n: number) => Math.min(100, Math.max(0, n));
+
+    const liqScore = clamp01((m1.liqGeral / 2) * 100);
+    const endivScore = clamp01(100 - m1.endivTotal);
+    const poupScore = clamp01((m1.poupanca / 30) * 100);
+    const sobrevScore = clamp01((m1.sobrevivencia / 12) * 100);
+
+    const score = (liqScore * 0.25) + (endivScore * 0.25) + (poupScore * 0.25) + (sobrevScore * 0.25);
+    return clamp01(score);
   }, [m1, hasData]);
 
   return (
@@ -194,13 +199,19 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
             trend={hasData ? getTrend(m1.poupanca, m2.poupanca) : undefined} 
             status={!hasData ? "no-data" : m1.poupanca >= 20 ? "success" : m1.poupanca >= 10 ? "warning" : "danger"} 
             icon={ShieldCheck} 
+            description="Percentual da renda do período que sobrou após todas as despesas."
+            formula="(Receitas - Despesas) ÷ Receitas × 100"
+            idealRange=">= 20%"
           />
           <IndicatorCard 
-            title="Folga Mensal" 
+            title="Folga Financeira Mensal" 
             value={hasData ? `${m1.margemSeguranca.toFixed(1)}%` : "—"} 
             trend={hasData ? getTrend(m1.margemSeguranca, m2.margemSeguranca) : undefined} 
             status={!hasData ? "no-data" : m1.margemSeguranca >= 30 ? "success" : "warning"} 
             icon={Heart} 
+            description="Parcela da renda que permanece livre após pagar os custos fixos."
+            formula="(Receitas - Fixas) ÷ Receitas × 100"
+            idealRange=">= 30%"
           />
           <div className="sm:col-span-2 flex flex-col sm:flex-row items-center justify-between bg-muted/20 px-6 py-4 rounded-[2rem] border border-border/40 gap-4">
             <div className="flex gap-4 sm:gap-6 shrink-0">{[{ c: 'bg-success', l: 'Saudável' }, { c: 'bg-warning', l: 'Atenção' }, { c: 'bg-destructive', l: 'Crítico' }].map((s, idx) => (<div key={idx} className="flex items-center gap-2"><div className={cn("w-2 h-2 rounded-full", s.c)} /><span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{s.l}</span></div>))}</div>
@@ -218,80 +229,123 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
             trend={hasData ? getTrend(m1.liqCorrente, m2.liqCorrente) : undefined} 
             status={!hasData ? "no-data" : m1.liqCorrente >= 1.5 ? "success" : "warning"} 
             icon={TrendingUp} 
+            description="Quanto do ativo circulante cobre o passivo circulante."
+            formula="Ativo Circulante ÷ Passivo Circulante"
+            idealRange=">= 1,5x"
           />
           <IndicatorCard 
-            title="Cobertura Mensal" 
+            title="Cobertura de Despesas" 
             value={hasData ? `${m1.solvenciaImediata.toFixed(2)}x` : "—"} 
             trend={hasData ? getTrend(m1.solvenciaImediata, m2.solvenciaImediata) : undefined} 
             status={!hasData ? "no-data" : m1.solvenciaImediata >= 1 ? "success" : "warning"} 
             icon={Activity} 
+            description="Capacidade de cobrir o passivo circulante apenas com disponibilidades."
+            formula="Disponibilidades ÷ Passivo Circulante"
+            idealRange=">= 1,0x"
           />
           <IndicatorCard 
-            title="Solvência Geral" 
+            title="Índice de Solvência" 
             value={hasData ? `${m1.liqGeral.toFixed(2)}x` : "—"} 
             trend={hasData ? getTrend(m1.liqGeral, m2.liqGeral) : undefined} 
             status={!hasData ? "no-data" : m1.liqGeral >= 2 ? "success" : "warning"} 
             icon={Shield} 
+            description="Relação entre ativos totais e passivos totais."
+            formula="Ativos Totais ÷ Passivos Totais"
+            idealRange=">= 2,0x"
+          />
+          <IndicatorCard
+            title="Sobra em Caixa (%)"
+            value={hasData ? `${m1.sobraCaixa.toFixed(1)}%` : "—"}
+            trend={hasData ? getTrend(m1.sobraCaixa, m2.sobraCaixa) : undefined}
+            status={!hasData ? "no-data" : m1.sobraCaixa >= 10 ? "success" : m1.sobraCaixa >= 0 ? "warning" : "danger"}
+            icon={Coins}
+            description="Percentual da renda que sobra após despesas e parcelas do período."
+            formula="(Receitas - Despesas - Parcelas) ÷ Receitas × 100"
+            idealRange=">= 10%"
           />
         </div>
       </section>
 
       <section className="space-y-8">
         <SectionHeader title="Endividamento" subtitle="Comprometimento do Patrimônio" icon={Scale} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           <IndicatorCard 
-            title="Dívida / Ativo" 
+            title="Alavancagem" 
             value={hasData ? `${m1.endivTotal.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.endivTotal <= 30 ? "success" : "warning"} 
             icon={TrendingDown} 
+            description="Percentual dos ativos financiado por capital de terceiros (dívidas)."
+            formula="Passivos Totais ÷ Ativos Totais × 100"
+            idealRange="<= 30%"
           />
           <IndicatorCard 
-            title="Dívida / PL" 
+            title="Dívida sobre Patrimônio" 
             value={hasData ? `${m1.dividaPatrimonio.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.dividaPatrimonio <= 50 ? "success" : "warning"} 
             icon={Target} 
+            description="Quanto as dívidas representam em relação ao patrimônio líquido."
+            formula="Passivos Totais ÷ Patrimônio Líquido × 100"
+            idealRange="<= 50%"
           />
           <IndicatorCard 
-            title="Imobilização" 
+            title="Imobilização do Patrimônio" 
             value={hasData ? `${m1.imobPL.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.imobPL <= 60 ? "success" : "warning"} 
             icon={Landmark} 
+            description="Percentual do patrimônio líquido alocado em bens imobilizados."
+            formula="Imobilizado ÷ Patrimônio Líquido × 100"
+            idealRange="<= 60%"
           />
           <IndicatorCard 
-            title="Curto Prazo" 
+            title="Peso do Curto Prazo" 
             value={hasData ? `${m1.compDivida.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.compDivida <= 40 ? "success" : "warning"} 
             icon={LayoutGrid} 
+            description="Proporção das dívidas que vence no curto prazo em relação ao total."
+            formula="Passivo Circulante ÷ Passivos Totais × 100"
+            idealRange="<= 40%"
           />
         </div>
       </section>
 
       <section className="space-y-8">
         <SectionHeader title="Rentabilidade & Eficiência" subtitle="Performance Financeira" icon={TrendingUp} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
           <IndicatorCard 
-            title="Taxa de Sobra" 
+            title="Margem de Segurança" 
             value={hasData ? `${m1.margemLiquida.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.margemLiquida >= 15 ? "success" : "warning"} 
             icon={Sparkles} 
+            description="Percentual do período que ficou como resultado após despesas."
+            formula="(Receitas - Despesas) ÷ Receitas × 100"
+            idealRange=">= 15%"
           />
           <IndicatorCard 
-            title="Retorno Ativos" 
+            title="ROA (Retorno sobre Ativos)" 
             value={hasData ? `${m1.roa.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.roa >= 5 ? "success" : "warning"} 
             icon={BarChart3} 
+            description="Resultado do período em relação ao total de ativos."
+            formula="Lucro ÷ Ativos Totais × 100"
+            idealRange=">= 5%"
           />
           <IndicatorCard 
-            title="Burn Rate" 
+            title="Taxa de Consumo" 
             value={hasData ? `${m1.burnRate.toFixed(1)}%` : "—"} 
             status={!hasData ? "no-data" : m1.burnRate <= 80 ? "success" : "warning"} 
             icon={Zap} 
+            description="Percentual da renda consumido por despesas no período."
+            formula="Despesas ÷ Receitas × 100"
+            idealRange="<= 80%"
           />
           <IndicatorCard 
-            title="Reserva (Meses)" 
+            title="Reserva de Emergência" 
             value={hasData ? `${m1.sobrevivencia.toFixed(1)}m` : "—"} 
             status={!hasData ? "no-data" : m1.sobrevivencia >= 6 ? "success" : "warning"} 
             icon={Calendar} 
+            description="Quantos meses de custos fixos o ativo circulante consegue cobrir."
+            formula="Ativo Circulante ÷ Custos Fixos"
+            idealRange=">= 6 meses"
           />
         </div>
       </section>

@@ -1,5 +1,5 @@
-import { useRef, useCallback, useMemo, useState, useEffect } from "react";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { useRef, useCallback, useMemo } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AccountSummary } from "@/types/finance";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -7,7 +7,6 @@ import { SortableAccountCard } from "./SortableAccountCard";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, TouchSensor } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import { restrictToHorizontalAxis } from "@dnd-kit/modifiers";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface AccountsCarouselProps {
   accounts: AccountSummary[];
@@ -30,7 +29,6 @@ export function AccountsCarousel({
 }: AccountsCarouselProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const { contasMovimento, setContasMovimento } = useFinance();
-  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const visibleContasMovimento = useMemo(() => contasMovimento.filter(c => !c.hidden), [contasMovimento]);
   const orderedSummaries = useMemo(() => visibleContasMovimento.map(account => accounts.find(s => s.accountId === account.id)).filter((s): s is AccountSummary => !!s), [visibleContasMovimento, accounts]);
@@ -53,16 +51,6 @@ export function AccountsCarousel({
       coordinateGetter: sortableKeyboardCoordinates
     })
   );
-
-  const handleScroll = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const scrollAmount = 320;
-      scrollContainerRef.current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -110,29 +98,6 @@ export function AccountsCarousel({
         </div>
       )}
 
-      {/* Navigation Arrows - Floating Style */}
-      <div className="hidden md:flex absolute -left-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
-        <Button 
-          variant="secondary" 
-          size="icon" 
-          className="h-10 w-10 rounded-full shadow-lg bg-card border border-border/60 hover:bg-primary hover:text-white transition-all" 
-          onClick={() => handleScroll('left')} 
-          title="Rolar para esquerda"
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
-      </div>
-      <div className="hidden md:flex absolute -right-3 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover/carousel:opacity-100 transition-opacity">
-        <Button 
-          variant="secondary" 
-          size="icon" 
-          className="h-10 w-10 rounded-full shadow-lg bg-card border border-border/60 hover:bg-primary hover:text-white transition-all" 
-          onClick={() => handleScroll('right')} 
-          title="Rolar para direita"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </Button>
-      </div>
 
       <DndContext 
         sensors={sensors} 

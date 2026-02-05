@@ -39,11 +39,9 @@ const renderItem = (item: DREItem, level: number = 0) => {
     borderBottom: isHeader || isSubtotal ? '1px solid hsl(var(--border) / 0.5)' : 'none',
   };
   
-  const valueColor = isHeader || isFinal ? 
-    (item.value >= 0 ? 'text-success' : 'text-destructive') : 
-    isSubtotal ? 
-    (item.value >= 0 ? 'text-success' : 'text-destructive') : 
-    (item.value >= 0 ? 'text-success' : 'text-destructive');
+  const valueColor =
+    item.color ||
+    (item.value >= 0 ? "text-success" : "text-destructive");
 
   // Nível de topo: tratamos como blocos, similar ao Balanço (faixa + card interno de linhas)
   if (level === 0) {
@@ -117,8 +115,8 @@ const renderItem = (item: DREItem, level: number = 0) => {
         {/* Card com itens internos da seção, visualmente igual ao corpo do Balanço */}
         {!!item.details?.length && (
           <div className="rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30">
-            {item.details.map((detail, detailIdx) => {
-              const detailValueColor = detail.value >= 0 ? "text-success" : "text-destructive";
+             {item.details.map((detail, detailIdx) => {
+               const detailValueColor = detail.color || (detail.value >= 0 ? "text-success" : "text-destructive");
 
               return (
                 <div
@@ -146,7 +144,7 @@ const renderItem = (item: DREItem, level: number = 0) => {
                   <span
                     className={cn(
                       "shrink-0 text-sm sm:text-base font-black tabular-nums tracking-tighter", 
-                      detailValueColor,
+                       detailValueColor,
                     )}
                   >
                     {formatCurrency(detail.value)}

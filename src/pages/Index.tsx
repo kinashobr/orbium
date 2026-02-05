@@ -145,8 +145,8 @@ const Index = () => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value);
   };
 
@@ -269,18 +269,6 @@ const Index = () => {
                         <h2 className="font-display font-extrabold text-4xl sm:text-5xl lg:text-6xl text-foreground tracking-tighter leading-none mt-4 tabular-nums">
                           {formatCurrency(metricasPatrimoniais.plAtual)}
                         </h2>
-                        <div className="flex items-center gap-3 mt-4">
-                          <p className="text-xs sm:text-sm text-muted-foreground font-bold tabular-nums">
-                            {metricasPatrimoniais.variacaoAbs >= 0 ? "+" : "-"} {formatCurrency(Math.abs(metricasPatrimoniais.variacaoAbs))}
-                          </p>
-                          <Badge variant="outline" className={cn(
-                            "text-[10px] font-black px-2 py-1 rounded-xl border-none shadow-sm",
-                            metricasPatrimoniais.variacaoAbs >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
-                          )}>
-                            {metricasPatrimoniais.variacaoAbs >= 0 ? <TrendingUp className="w-3 h-3 mr-1 inline" /> : <TrendingDown className="w-3 h-3 mr-1 inline" />}
-                            {Math.abs(metricasPatrimoniais.variacaoPerc).toFixed(1)}%
-                          </Badge>
-                        </div>
                       </div>
                       
                       <div className="hidden sm:flex flex-col items-end gap-2">
@@ -327,7 +315,7 @@ const Index = () => {
                   <Badge variant="outline" className="bg-green-50 text-green-600 border-none text-[8px] font-black uppercase px-1.5">Operacional</Badge>
                 </div>
                 <div className="relative z-10">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Saldo Operacional</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Resultado Operacional</p>
                   <p className="font-display font-bold text-lg sm:text-xl text-foreground tabular-nums">{formatCurrency(fluxo.p1.saldo)}</p>
                 </div>
               </div>

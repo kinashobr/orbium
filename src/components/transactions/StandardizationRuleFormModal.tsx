@@ -144,7 +144,7 @@ export function StandardizationRuleFormModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 scrollbar-material">
           <div className="p-6 space-y-6 pb-32 sm:pb-6">
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Padrão de Busca *</Label>

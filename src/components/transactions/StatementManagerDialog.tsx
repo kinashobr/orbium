@@ -132,7 +132,7 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
           </div>
         </DialogHeader>
         
-        <div className="flex-1 overflow-y-auto px-4 sm:px-8 pb-4 sm:pb-8 space-y-6 sm:space-y-8">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 pb-4 sm:pb-8 space-y-6 sm:space-y-8 scrollbar-material">
             <div 
               className={cn(
                   "p-8 border-3 border-dashed rounded-[2rem] text-center space-y-4 transition-all",

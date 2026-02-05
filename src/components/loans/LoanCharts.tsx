@@ -23,8 +23,13 @@ interface LoanChartsProps {
   className?: string;
 }
 
-const formatCurrency = (value: number) => 
-  `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}`;
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 
 export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
   const colors = useChartColors();

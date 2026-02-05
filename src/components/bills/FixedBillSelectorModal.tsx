@@ -82,7 +82,7 @@ export function FixedBillSelectorModal({
           </div>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 p-4 sm:p-8">
+        <ScrollArea className="flex-1 p-4 sm:p-8 scrollbar-material">
           {potentialFixedBills.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center py-12 sm:py-20 opacity-30">
               <Calendar className="w-12 h-12 sm:w-16 sm:h-16 mb-4" />

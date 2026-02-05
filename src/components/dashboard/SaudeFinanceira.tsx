@@ -74,10 +74,10 @@ const getEstabilidadeStatus = (val: number, hasData: boolean): StatusConfig => {
 };
 
 const indicadoresConfig = [
-  { id: 'liquidez', label: 'Liquidez', icon: Wallet, format: 'decimal' as const, getStatus: getLiquidezStatus },
-  { id: 'endividamento', label: 'Dívidas', icon: Scale, format: 'percent' as const, getStatus: getEndividamentoStatus },
-  { id: 'diversificacao', label: 'Mix Ativos', icon: Activity, format: 'percent' as const, getStatus: getDiversificacaoStatus },
-  { id: 'estabilidade', label: 'Consistência', icon: Shield, format: 'percent' as const, getStatus: getEstabilidadeStatus }
+  { id: 'liquidez', label: 'Indicador de Liquidez', shortLabel: 'Liquidez', icon: Wallet, format: 'decimal' as const, getStatus: getLiquidezStatus, description: 'Ativos ÷ Passivos. Acima de 1x = você consegue pagar suas dívidas.' },
+  { id: 'endividamento', label: 'Indicador de Endividamento', shortLabel: 'Endividamento', icon: Scale, format: 'percent' as const, getStatus: getEndividamentoStatus, description: 'Dívidas ÷ Ativos. Ideal abaixo de 30%.' },
+  { id: 'diversificacao', label: 'Distribuição de Ativos', shortLabel: 'Distribuição', icon: Activity, format: 'percent' as const, getStatus: getDiversificacaoStatus, description: 'Variedade de contas. Mais tipos = menos risco.' },
+  { id: 'estabilidade', label: 'Consistência Patrimonial', shortLabel: 'Consistência', icon: Shield, format: 'percent' as const, getStatus: getEstabilidadeStatus, description: 'Regularidade do seu fluxo. Menos variação = mais controle.' }
 ];
 
 export function SaudeFinanceira({
@@ -96,6 +96,7 @@ export function SaudeFinanceira({
   };
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       <div className="flex justify-between items-center px-1">
         <div className="flex items-center gap-2">
@@ -138,12 +139,25 @@ export function SaudeFinanceira({
                 <p className={cn("text-3xl sm:text-4xl font-display font-black tabular-nums leading-none tracking-tighter", status.color)}>
                   {displayValue}
                 </p>
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">{config.label}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mt-1">{config.shortLabel}</p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="text-[9px] text-muted-foreground/70 mt-1 flex items-center gap-1 cursor-help">
+                      <Info className="w-3 h-3" />
+                      {config.description}
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[200px] p-3 rounded-xl">
+                    <p className="text-xs font-medium">{config.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">{config.description}</p>
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </div>
           );
         })}
       </div>
     </div>
+    </TooltipProvider>
   );
 }

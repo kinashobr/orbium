@@ -25,7 +25,7 @@ export default function Relatorios() {
   const tabOptions = [
     { value: "balanco", label: "Balanço", icon: Scale },
     { value: "dre", label: "DRE", icon: Receipt },
-    { value: "indicadores", label: "KPIs", icon: Activity },
+    { value: "indicadores", label: "Indicadores", icon: Activity },
   ];
 
   return (
