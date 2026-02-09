@@ -217,7 +217,11 @@ export function BillsTrackerList({
                       </TableCell>
                       <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>
                         {!isExt && !isPaid && (
-                          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
+                          bill.sourceType === 'ad_hoc' ? (
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => onDeleteBill(bill.id)}><Trash2 className="w-4 h-4" /></Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
+                          )
                         )}
                       </TableCell>
                     </TableRow>
