@@ -914,6 +914,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // 3. Compras Parceladas (já estão no billsTracker, mas em meses futuros)
     billsTracker.filter(b => b.sourceType === 'purchase_installment' && !b.isExcluded).forEach(bill => {
         const dueDate = parseDateLocal(bill.dueDate);
+        
+        // Se a data de vencimento for após o mês de referência, ela é uma candidata a adiantamento
         if (isAfter(dueDate, referenceMonthEnd)) {
             futureBills.push({
                 key: `purchase_${bill.sourceRef}_${bill.parcelaNumber}`,
@@ -924,9 +926,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 expectedAmount: bill.expectedAmount,
                 description: bill.description,
                 isPaid: bill.isPaid,
-                isIncluded: true, // Já existe no tracker
+                isIncluded: false, // Como está no futuro, não está "incluída" no mês de referência
             });
         }
+        // Se a data de vencimento for NO mês de referência, verificamos se ela foi adiantada
+        // (Para compras parceladas, se ela está no mês atual, ela já aparece na lista principal)
     });
 
     return futureBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());

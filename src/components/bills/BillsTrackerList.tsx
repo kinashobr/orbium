@@ -197,8 +197,18 @@ export function BillsTrackerList({
                         <Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)} title={cfg.label}><Icon className="w-4 h-4 mr-1.5" /> {cfg.label.substring(0, 4)}</Badge>
                       </TableCell>
                       <TableCell className="p-3" style={{ width: columnWidths.category }}>
-                          {isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : 
-                          <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}
+                          {isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> :
+                          <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}>
+                            <SelectTrigger className={cn(
+                              "h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30",
+                              bill.sourceType === 'loan_installment' && !bill.suggestedCategoryId && "opacity-50"
+                            )}>
+                              <SelectValue placeholder={bill.sourceType === 'loan_installment' ? "Opcional" : "..."} />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-60">
+                              {expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>}
                       </TableCell>
                       <TableCell className={cn("text-right font-black text-sm p-3 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
                         {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? 

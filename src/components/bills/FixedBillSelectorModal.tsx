@@ -109,9 +109,10 @@ export function FixedBillSelectorModal({
                         "w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
                         bill.isIncluded ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                       )}>
-                        {isLoan ? <Building2 className="w-5 h-5 sm:w-6 sm:h-6" /> :
+                        {bill.sourceType === 'loan_installment' ? <Building2 className="w-5 h-5 sm:w-6 sm:h-6" /> :
                          bill.sourceType === 'insurance_installment' ? <Shield className="w-5 h-5 sm:w-6 sm:h-6" /> :
-                         <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" />}
+                         bill.sourceType === 'purchase_installment' ? <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6" /> :
+                         <Calendar className="w-5 h-5 sm:w-6 sm:h-6" />}
                       </div>
                       {bill.isIncluded && (
                         <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-primary flex items-center justify-center text-primary-foreground animate-in zoom-in duration-300">
