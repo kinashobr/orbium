@@ -865,18 +865,72 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const getFutureFixedBills = useCallback((referenceDate: Date, localBills: BillTracker[]): PotentialFixedBill[] => {
     const futureBills: PotentialFixedBill[] = [];
     const referenceMonthEnd = endOfMonth(referenceDate);
-    const isBillIncluded = (sourceType: BillSourceType, sourceRef: string, parcelaNumber: number) => localBills.some(b => b.sourceType === sourceType && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber && !b.isExcluded);
+    
+    // Helper para verificar se a parcela já está no tracker (em qualquer mês)
+    const isAlreadyInTracker = (sourceType: BillSourceType, sourceRef: string, parcelaNumber: number) =>
+      billsTracker.some(b => b.sourceType === sourceType && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber && !b.isExcluded);
+
+    // 1. Empréstimos
     emprestimos.filter(e => e.status === 'ativo').forEach(loan => {
         if (!loan.dataInicio) return;
         calculateLoanSchedule(loan.id).forEach(item => {
             const dueDate = getDueDate(loan.dataInicio!, item.parcela);
             if (isAfter(dueDate, referenceMonthEnd)) {
-                futureBills.push({ key: `loan_${loan.id}_${item.parcela}`, sourceType: 'loan_installment', sourceRef: String(loan.id), parcelaNumber: item.parcela, dueDate: format(dueDate, 'yyyy-MM-dd'), expectedAmount: loan.parcela, description: `Empréstimo ${loan.contrato} - P${item.parcela}/${loan.meses}`, isPaid: false, isIncluded: isBillIncluded('loan_installment', String(loan.id), item.parcela) });
+                futureBills.push({
+                    key: `loan_${loan.id}_${item.parcela}`,
+                    sourceType: 'loan_installment',
+                    sourceRef: String(loan.id),
+                    parcelaNumber: item.parcela,
+                    dueDate: format(dueDate, 'yyyy-MM-dd'),
+                    expectedAmount: loan.parcela,
+                    description: `Empréstimo ${loan.contrato} - P${item.parcela}/${loan.meses}`,
+                    isPaid: transacoesV2.some(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === String(item.parcela)),
+                    isIncluded: isAlreadyInTracker('loan_installment', String(loan.id), item.parcela)
+                });
             }
         });
     });
+
+    // 2. Seguros
+    segurosVeiculo.forEach(seguro => {
+        seguro.parcelas.forEach(parcela => {
+            const dueDate = parseDateLocal(parcela.vencimento);
+            if (isAfter(dueDate, referenceMonthEnd)) {
+                futureBills.push({
+                    key: `ins_${seguro.id}_${parcela.numero}`,
+                    sourceType: 'insurance_installment',
+                    sourceRef: String(seguro.id),
+                    parcelaNumber: parcela.numero,
+                    dueDate: parcela.vencimento,
+                    expectedAmount: parcela.valor,
+                    description: `Seguro ${seguro.numeroApolice} - P${parcela.numero}/${seguro.numeroParcelas}`,
+                    isPaid: transacoesV2.some(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`),
+                    isIncluded: isAlreadyInTracker('insurance_installment', String(seguro.id), parcela.numero)
+                });
+            }
+        });
+    });
+
+    // 3. Compras Parceladas (já estão no billsTracker, mas em meses futuros)
+    billsTracker.filter(b => b.sourceType === 'purchase_installment' && !b.isExcluded).forEach(bill => {
+        const dueDate = parseDateLocal(bill.dueDate);
+        if (isAfter(dueDate, referenceMonthEnd)) {
+            futureBills.push({
+                key: `purchase_${bill.sourceRef}_${bill.parcelaNumber}`,
+                sourceType: 'purchase_installment',
+                sourceRef: bill.sourceRef!,
+                parcelaNumber: bill.parcelaNumber!,
+                dueDate: bill.dueDate,
+                expectedAmount: bill.expectedAmount,
+                description: bill.description,
+                isPaid: bill.isPaid,
+                isIncluded: true, // Já existe no tracker
+            });
+        }
+    });
+
     return futureBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
-  }, [emprestimos, calculateLoanSchedule]);
+  }, [emprestimos, segurosVeiculo, billsTracker, transacoesV2, calculateLoanSchedule]);
   
   const getOtherPaidExpensesForMonth = useCallback((date: Date): ExternalPaidBill[] => {
     const monthStart = startOfMonth(date);

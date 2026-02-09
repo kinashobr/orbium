@@ -134,7 +134,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     if (isChecked) {
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
       const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
-      if (!account || !category) {
+      const isLoan = trackerBill.sourceType === 'loan_installment';
+      
+      if (!account || (!category && !isLoan)) {
         toast.error("Configure conta e categoria antes de pagar.");
         return;
       }
@@ -159,7 +161,19 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       }
 
       addTransacaoV2({
-        id: transactionId, date: trackerBill.dueDate, accountId: account.id, flow: 'out', operationType, domain, amount: trackerBill.expectedAmount, categoryId: category.id, description, links: { investmentId: null, transferGroupId: null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null }, conciliated: false, attachments: [], meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Bill ID: ${trackerBill.id}` }
+        id: transactionId,
+        date: trackerBill.dueDate,
+        accountId: account.id,
+        flow: 'out',
+        operationType,
+        domain,
+        amount: trackerBill.expectedAmount,
+        categoryId: category?.id || null,
+        description,
+        links: { investmentId: null, transferGroupId: null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null },
+        conciliated: false,
+        attachments: [],
+        meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Bill ID: ${trackerBill.id}` }
       });
 
       updateBill(trackerBill.id, { isPaid: true, transactionId, paymentDate: trackerBill.dueDate });
@@ -179,16 +193,56 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
     const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description } = potentialBill;
+    
     if (isChecked) {
+      // Se estiver no modo 'future' (adiantar), usamos o primeiro dia do mês visualizado para que apareça na lista
+      const effectiveDueDate = fixedBillSelectorMode === 'future'
+        ? format(currentDate, 'yyyy-MM-01')
+        : dueDate;
+
+      // Especial para compras parceladas: elas já existem no tracker, então apenas movemos a data
+      if (sourceType === 'purchase_installment') {
+        setBillsTracker(prev => prev.map(b => {
+          if (b.sourceType === 'purchase_installment' && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber) {
+            return { ...b, dueDate: effectiveDueDate, isExcluded: false };
+          }
+          return b;
+        }));
+        toast.success("Parcela antecipada para este mês.");
+        return;
+      }
+
       const newBill: BillTracker = {
-        id: generateBillId(), type: 'tracker', description, dueDate, expectedAmount, sourceType, sourceRef, parcelaNumber, suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id, suggestedCategoryId: categoriasV2.find(c => (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) || (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro')))?.id || null, isExcluded: false, isPaid: false
+        id: generateBillId(),
+        type: 'tracker',
+        description,
+        dueDate: effectiveDueDate,
+        expectedAmount,
+        sourceType,
+        sourceRef,
+        parcelaNumber,
+        suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
+        suggestedCategoryId: categoriasV2.find(c => (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) || (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro')))?.id || null,
+        isExcluded: false,
+        isPaid: false
       };
       setBillsTracker(prev => [...prev, newBill]);
-      toast.success("Conta fixa incluída.");
+      toast.success(fixedBillSelectorMode === 'future' ? "Conta antecipada." : "Conta fixa incluída.");
     } else {
+      // Se estiver desmarcando uma antecipação de compra parcelada, volta para a data original
+      if (fixedBillSelectorMode === 'future' && sourceType === 'purchase_installment') {
+        setBillsTracker(prev => prev.map(b => {
+          if (b.sourceType === 'purchase_installment' && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber) {
+            return { ...b, dueDate: dueDate }; // dueDate aqui é a data original do potentialBill
+          }
+          return b;
+        }));
+        toast.info("Antecipação cancelada.");
+        return;
+      }
       setBillsTracker(prev => prev.filter(b => !(b.sourceType === sourceType && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber)));
     }
-  }, [setBillsTracker, contasMovimento, categoriasV2]);
+  }, [setBillsTracker, contasMovimento, categoriasV2, fixedBillSelectorMode, currentDate]);
 
   const handleAmountChange = (value: string) => {
     const digits = value.replace(/\D/g, "");
