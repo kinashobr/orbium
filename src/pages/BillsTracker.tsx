@@ -1,16 +1,15 @@
 import { useState, useMemo, useCallback } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { FixedBillSelectorModal } from "@/components/bills/FixedBillSelectorModal";
 import { BillsTrackerList } from "@/components/bills/BillsTrackerList";
 import { BillsSidebarKPIs } from "@/components/bills/BillsSidebarKPIs";
 import { Button } from "@/components/ui/button";
-import { Settings, Plus, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { PotentialFixedBill, BillTracker, generateBillId } from "@/types/finance";
 import { toast } from "sonner";
-import { AddPurchaseInstallmentDialog } from "@/components/bills/AddPurchaseInstallmentDialog";
+import { ManageCommitmentsModal } from "@/components/bills/ManageCommitmentsModal";
 
 export default function BillsTracker() {
   const { 
@@ -20,7 +19,6 @@ export default function BillsTracker() {
     updateBill,
     deleteBill,
     setBillsTracker,
-    billsTracker,
     contasMovimento,
     categoriasV2,
     getOtherPaidExpensesForMonth
@@ -28,8 +26,6 @@ export default function BillsTracker() {
 
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
-  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
-  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
 
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
@@ -44,7 +40,7 @@ export default function BillsTracker() {
     getFutureFixedBills(currentDate, trackerManagedBills)
   , [getFutureFixedBills, currentDate, trackerManagedBills]);
 
-  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
+  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean, _mode: 'current' | 'future') => {
     if (isChecked) {
       const newBill: BillTracker = {
         id: generateBillId(),
@@ -79,14 +75,8 @@ export default function BillsTracker() {
           <p className="text-xs md:text-base text-muted-foreground">Gerenciamento de despesas e parcelas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => setShowPurchaseDialog(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-2 md:px-4">
-            <ShoppingCart className="w-4 h-4" /> <span className="hidden sm:inline">Compra Parcelada</span><span className="sm:hidden">Parcelas</span>
-          </Button>
           <Button variant="outline" onClick={() => setIsManageModalOpen(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-2 md:px-4">
-            <Settings className="w-4 h-4" /> <span className="hidden sm:inline">Gerenciar Fixas</span><span className="sm:hidden">Fixas</span>
-          </Button>
-          <Button onClick={() => setIsAdvanceModalOpen(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-2 md:px-4">
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Adiantar Parcelas</span><span className="sm:hidden">Adiantar</span>
+            <Settings className="w-4 h-4" /> <span className="hidden sm:inline">Gerenciar Compromissos</span><span className="sm:hidden">Gerenciar</span>
           </Button>
         </div>
       </div>
@@ -124,28 +114,13 @@ export default function BillsTracker() {
         </div>
       </div>
 
-      <FixedBillSelectorModal
+      <ManageCommitmentsModal
         open={isManageModalOpen}
         onOpenChange={setIsManageModalOpen}
-        mode="current"
         currentDate={currentDate}
         potentialFixedBills={potentialFixedBills}
+        futureFixedBills={futureFixedBills}
         onToggleFixedBill={handleToggleFixedBill}
-      />
-
-      <FixedBillSelectorModal
-        open={isAdvanceModalOpen}
-        onOpenChange={setIsAdvanceModalOpen}
-        mode="future"
-        currentDate={currentDate}
-        potentialFixedBills={futureFixedBills}
-        onToggleFixedBill={handleToggleFixedBill}
-      />
-
-      <AddPurchaseInstallmentDialog 
-        open={showPurchaseDialog}
-        onOpenChange={setShowPurchaseDialog}
-        currentDate={currentDate}
       />
     </div>
     </MainLayout>
