@@ -40,7 +40,7 @@ export default function BillsTracker() {
     getFutureFixedBills(currentDate, trackerManagedBills)
   , [getFutureFixedBills, currentDate, trackerManagedBills]);
 
-  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
+  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean, _mode: 'current' | 'future') => {
     if (isChecked) {
       const newBill: BillTracker = {
         id: generateBillId(),
