@@ -19,7 +19,7 @@ interface ManageCommitmentsModalProps {
   currentDate: Date;
   potentialFixedBills: PotentialFixedBill[];
   futureFixedBills: PotentialFixedBill[];
-  onToggleFixedBill: (bill: PotentialFixedBill, isChecked: boolean, mode: 'current' | 'future') => void;
+  onToggleFixedBill: (bill: PotentialFixedBill, isChecked: boolean) => void;
 }
 
 export function ManageCommitmentsModal({
@@ -45,7 +45,7 @@ export function ManageCommitmentsModal({
     [contasMovimento]
   );
 
-  const renderBillGrid = (bills: PotentialFixedBill[], emptyText: string, mode: 'current' | 'future') => {
+  const renderBillGrid = (bills: PotentialFixedBill[], emptyText: string) => {
     if (!bills.length) {
       return <p className="text-sm text-muted-foreground">{emptyText}</p>;
     }
@@ -56,7 +56,7 @@ export function ManageCommitmentsModal({
           <label key={bill.key} className="border rounded-xl p-3 flex items-start gap-3 cursor-pointer">
             <Checkbox
               checked={bill.isIncluded}
-              onCheckedChange={(checked) => onToggleFixedBill(bill, Boolean(checked), mode)}
+              onCheckedChange={(checked) => onToggleFixedBill(bill, Boolean(checked))}
             />
             <div className="space-y-1 min-w-0">
               <p className="font-semibold text-sm truncate">{bill.description}</p>
@@ -94,7 +94,7 @@ export function ManageCommitmentsModal({
 
             <ScrollArea className="h-[calc(85vh-140px)] pr-2 mt-4">
               <TabsContent value="fixas" className="space-y-4">
-                {renderBillGrid(potentialFixedBills, "Nenhuma conta fixa/parcela sugerida para este mês.", 'current')}
+                {renderBillGrid(potentialFixedBills, "Nenhuma conta fixa/parcela sugerida para este mês.")}
               </TabsContent>
 
               <TabsContent value="parceladas" className="space-y-4">
@@ -126,7 +126,7 @@ export function ManageCommitmentsModal({
               </TabsContent>
 
               <TabsContent value="adiantamentos" className="space-y-4">
-                {renderBillGrid(futureFixedBills, "Nenhuma parcela futura disponível para adiantamento.", 'future')}
+                {renderBillGrid(futureFixedBills, "Nenhuma parcela futura disponível para adiantamento.")}
               </TabsContent>
 
               <TabsContent value="cartoes" className="space-y-3">
