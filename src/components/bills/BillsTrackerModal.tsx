@@ -5,6 +5,8 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
 import { BillsSidebarKPIs } from "./BillsSidebarKPIs";
+import { FixedBillSelectorModal } from "./FixedBillSelectorModal";
+import { AddPurchaseInstallmentDialog } from "./AddPurchaseInstallmentDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -12,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { 
   Plus, 
   CalendarCheck, 
+  ShoppingCart, 
   ChevronLeft, 
   ChevronRight, 
   ArrowLeft,
@@ -31,7 +34,6 @@ import { format, startOfMonth, subMonths, addMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ManageCommitmentsModal } from "./ManageCommitmentsModal";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -65,7 +67,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
-  const [showManageCommitments, setShowManageCommitments] = useState(false);
+  const [showFixedBillSelector, setShowFixedBillSelector] = useState(false);
+  const [fixedBillSelectorMode, setFixedBillSelectorMode] = useState<'current' | 'future'>('current');
+  const [showAddPurchaseDialog, setShowAddPurchaseDialog] = useState(false);
   const [showNewBillModal, setShowNewBillModal] = useState(false);
 
   const [newBillData, setNewBillData] = useState({
@@ -187,12 +191,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     }
   }, [updateBill, addTransacaoV2, contasMovimento, categoriasV2, emprestimos, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
 
-  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean, mode: 'current' | 'future') => {
+  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
     const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description } = potentialBill;
     
     if (isChecked) {
       // Se estiver no modo 'future' (adiantar), usamos o primeiro dia do mês visualizado para que apareça na lista
-      const effectiveDueDate = mode === 'future'
+      const effectiveDueDate = fixedBillSelectorMode === 'future'
         ? format(currentDate, 'yyyy-MM-01')
         : dueDate;
 
@@ -223,10 +227,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         isPaid: false
       };
       setBillsTracker(prev => [...prev, newBill]);
-      toast.success(mode === 'future' ? "Conta antecipada." : "Conta fixa incluída.");
+      toast.success(fixedBillSelectorMode === 'future' ? "Conta antecipada." : "Conta fixa incluída.");
     } else {
       // Se estiver desmarcando uma antecipação de compra parcelada, volta para a data original
-      if (mode === 'future' && sourceType === 'purchase_installment') {
+      if (fixedBillSelectorMode === 'future' && sourceType === 'purchase_installment') {
         setBillsTracker(prev => prev.map(b => {
           if (b.sourceType === 'purchase_installment' && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber) {
             return { ...b, dueDate: dueDate }; // dueDate aqui é a data original do potentialBill
@@ -238,7 +242,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       }
       setBillsTracker(prev => prev.filter(b => !(b.sourceType === sourceType && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber)));
     }
-  }, [setBillsTracker, contasMovimento, categoriasV2, currentDate]);
+  }, [setBillsTracker, contasMovimento, categoriasV2, fixedBillSelectorMode, currentDate]);
 
   const handleAmountChange = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -279,7 +283,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fluxo Mensal</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => setShowManageCommitments(true)}><Settings className="w-5 h-5" /></Button>
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => { setFixedBillSelectorMode("current"); setShowFixedBillSelector(true); }}><Settings className="w-5 h-5" /></Button>
             </div>
           </header>
           <main className="flex-1 p-6 overflow-y-auto hide-scrollbar-mobile">
@@ -306,19 +310,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 <BillsTrackerMobileList bills={combinedBills} onTogglePaid={handleTogglePaid} onUpdateBill={updateBill} onDeleteBill={deleteBill} onAddBill={handleAddBill} currentDate={currentDate} />
               </div>
               <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[60]">
-                <Button size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-accent text-accent-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowManageCommitments(true)}><Settings className="w-5 h-5" /></Button>
+                <Button size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-accent text-accent-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowAddPurchaseDialog(true)}><ShoppingCart className="w-5 h-5" /></Button>
                 <Button size="icon" className="h-14 w-14 rounded-[1.25rem] shadow-2xl bg-primary text-primary-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowNewBillModal(true)}><Plus className="w-7 h-7" /></Button>
               </div>
             </div>
           </main>
-          <ManageCommitmentsModal
-            open={showManageCommitments}
-            onOpenChange={setShowManageCommitments}
-            currentDate={currentDate}
-            potentialFixedBills={potentialFixedBills}
-            futureFixedBills={futureFixedBills}
-            onToggleFixedBill={handleToggleFixedBill}
-          />
+          <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
+          <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
           <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
             <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
               <DialogHeader className="p-6 bg-muted/50 border-b"><DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle></DialogHeader>
@@ -381,16 +379,24 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      onClick={() => setShowManageCommitments(true)} 
+                      onClick={() => setShowAddPurchaseDialog(true)} 
                       className="rounded-full h-10 px-5 font-bold gap-2 text-[11px] uppercase tracking-widest border-border/40 hover:bg-muted/50"
                     >
-                      <Settings className="w-3.5 h-3.5" /> Gerenciar Compromissos
+                      <ShoppingCart className="w-3.5 h-3.5" /> Compra Parcelada
                     </Button>
                     <Button 
-                      onClick={() => setShowNewBillModal(true)} 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => { setFixedBillSelectorMode("current"); setShowFixedBillSelector(true); }} 
+                      className="rounded-full h-10 px-5 font-bold gap-2 text-[11px] uppercase tracking-widest border-border/40 hover:bg-muted/50"
+                    >
+                      <Settings className="w-3.5 h-3.5" /> Gerenciar Fixas
+                    </Button>
+                    <Button 
+                      onClick={() => { setFixedBillSelectorMode("future"); setShowFixedBillSelector(true); }} 
                       className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"
                     >
-                      <Plus className="w-4 h-4" /> Nova Conta
+                      <Plus className="w-4 h-4" /> Adiantar
                     </Button>
                   </div>
                 </div>
@@ -425,14 +431,8 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </ResizableDialogContent>
       </Dialog>
 
-      <ManageCommitmentsModal
-        open={showManageCommitments}
-        onOpenChange={setShowManageCommitments}
-        currentDate={currentDate}
-        potentialFixedBills={potentialFixedBills}
-        futureFixedBills={futureFixedBills}
-        onToggleFixedBill={handleToggleFixedBill}
-      />
+      <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
+      <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
 
       <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
         <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
