@@ -1,74 +1,155 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { FixedBillSelectorModal } from "@/components/bills/FixedBillSelectorModal";
 import { BillsTrackerList } from "@/components/bills/BillsTrackerList";
 import { BillsSidebarKPIs } from "@/components/bills/BillsSidebarKPIs";
+import { ManageCommitmentsModal } from "@/components/bills/ManageCommitmentsModal";
+import { CashFlowTimeline } from "@/components/bills/CashFlowTimeline";
 import { Button } from "@/components/ui/button";
-import { Settings, Plus, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, startOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { PotentialFixedBill, BillTracker, generateBillId } from "@/types/finance";
+import { 
+  BillTracker, BillDisplayItem, generateBillId, TransactionLinks, OperationType 
+} from "@/types/finance";
 import { toast } from "sonner";
-import { AddPurchaseInstallmentDialog } from "@/components/bills/AddPurchaseInstallmentDialog";
+
+const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === 'tracker';
 
 export default function BillsTracker() {
   const { 
     getBillsForMonth, 
-    getPotentialFixedBillsForMonth, 
-    getFutureFixedBills,
     updateBill,
     deleteBill,
     setBillsTracker,
-    billsTracker,
+    getOtherPaidExpensesForMonth,
+    generateInvoiceBills,
     contasMovimento,
+    addTransacaoV2,
+    setTransacoesV2,
     categoriasV2,
-    getOtherPaidExpensesForMonth
+    emprestimos,
+    markSeguroParcelPaid,
+    markLoanParcelPaid,
+    unmarkSeguroParcelPaid,
+    unmarkLoanParcelPaid,
+    creditCardConfigs,
   } = useFinance();
 
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
-  const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
-  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
 
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
+  const invoiceBills = useMemo(() => generateInvoiceBills(currentDate), [generateInvoiceBills, currentDate]);
   
-  const combinedBills = useMemo(() => [...trackerManagedBills, ...externalPaidBills], [trackerManagedBills, externalPaidBills]);
-  
-  const potentialFixedBills = useMemo(() => 
-    getPotentialFixedBillsForMonth(currentDate, trackerManagedBills)
-  , [getPotentialFixedBillsForMonth, currentDate, trackerManagedBills]);
+  const trackerBillIds = useMemo(() => new Set(trackerManagedBills.map(b => b.id)), [trackerManagedBills]);
+  const newInvoiceBills = useMemo(() => invoiceBills.filter(b => !trackerBillIds.has(b.id)), [invoiceBills, trackerBillIds]);
 
-  const futureFixedBills = useMemo(() => 
-    getFutureFixedBills(currentDate, trackerManagedBills)
-  , [getFutureFixedBills, currentDate, trackerManagedBills]);
-
-  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
-    if (isChecked) {
-      const newBill: BillTracker = {
-        id: generateBillId(),
-        type: 'tracker',
-        description: potentialBill.description,
-        dueDate: potentialBill.dueDate,
-        expectedAmount: potentialBill.expectedAmount,
-        sourceType: potentialBill.sourceType,
-        sourceRef: potentialBill.sourceRef,
-        parcelaNumber: potentialBill.parcelaNumber,
-        isPaid: false,
-        isExcluded: false,
-        suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
-        suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase().includes(potentialBill.sourceType === 'loan_installment' ? 'emprestimo' : 'seguro'))?.id || null,
-      };
-      setBillsTracker(prev => [...prev, newBill]);
-      toast.success("Conta adicionada ao mês.");
-    } else {
-      setBillsTracker(prev => prev.filter(b => 
-        !(b.sourceType === potentialBill.sourceType && b.sourceRef === potentialBill.sourceRef && b.parcelaNumber === potentialBill.parcelaNumber)
-      ));
-      toast.info("Conta removida.");
+  // M1: Persist generated invoice bills
+  const newInvoiceIds = useMemo(() => newInvoiceBills.map(b => b.id).join(','), [newInvoiceBills]);
+  useEffect(() => {
+    if (newInvoiceBills.length > 0) {
+      setBillsTracker(prev => {
+        const existingIds = new Set(prev.map(b => b.id));
+        const toAdd = newInvoiceBills.filter(b => !existingIds.has(b.id));
+        return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+      });
     }
-  }, [setBillsTracker, contasMovimento, categoriasV2]);
+  }, [newInvoiceIds]);
+
+  const combinedBills: BillDisplayItem[] = useMemo(() => {
+    const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
+    const filtered = externalPaidBills.filter(eb => !trackerPaidTxIds.has(eb.id));
+    return [...trackerManagedBills, ...newInvoiceBills, ...filtered];
+  }, [trackerManagedBills, newInvoiceBills, externalPaidBills]);
+
+  // M5: Full onTogglePaid implementation (same logic as modal)
+  const handleTogglePaid = useCallback((bill: BillDisplayItem, isChecked: boolean) => {
+    if (!isBillTracker(bill)) return;
+    const trackerBill = bill as BillTracker;
+    
+    if (isChecked) {
+      // M2: Card invoice special handling
+      const isCardInvoice = trackerBill.sourceType === 'card_invoice';
+      if (isCardInvoice) {
+        const cardConfig = creditCardConfigs.find(c => c.id === trackerBill.cardId);
+        const paymentAccountId = cardConfig?.defaultPaymentAccountId || trackerBill.suggestedAccountId;
+        const paymentAccount = contasMovimento.find(c => c.id === paymentAccountId);
+        if (!paymentAccount) {
+          toast.error("Configure a conta de pagamento do cartão.");
+          return;
+        }
+        const txId = `bill_tx_${trackerBill.id}`;
+        addTransacaoV2({
+          id: txId, date: trackerBill.dueDate, accountId: paymentAccount.id, flow: 'out',
+          operationType: 'despesa', domain: 'operational', amount: trackerBill.expectedAmount,
+          categoryId: null, description: `Pagamento ${trackerBill.description}`,
+          links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
+          conciliated: true, attachments: [],
+          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+        });
+        updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: txId });
+        toast.success("Fatura paga e lançada!");
+        return;
+      }
+
+      const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
+      const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
+      const isLoan = trackerBill.sourceType === 'loan_installment';
+      
+      if (!account || (!category && !isLoan)) {
+        toast.error("Configure conta e categoria antes de pagar.");
+        return;
+      }
+      const transactionId = `bill_tx_${trackerBill.id}`;
+      const baseLinks: Partial<TransactionLinks> = {};
+      let description = trackerBill.description;
+      const operationType: OperationType = isLoan ? 'pagamento_emprestimo' : 'despesa';
+      const domain = isLoan ? 'financing' : 'operational';
+
+      if (isLoan && trackerBill.sourceRef && trackerBill.parcelaNumber) {
+        const loanId = parseInt(trackerBill.sourceRef);
+        baseLinks.loanId = `loan_${loanId}`;
+        baseLinks.parcelaId = String(trackerBill.parcelaNumber);
+        const loan = emprestimos.find(e => e.id === loanId);
+        description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${trackerBill.parcelaNumber}/${loan?.meses || 'N/A'}`;
+        markLoanParcelPaid(loanId, trackerBill.expectedAmount, trackerBill.dueDate, trackerBill.parcelaNumber);
+      }
+
+      if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
+        baseLinks.vehicleTransactionId = `${trackerBill.sourceRef}_${trackerBill.parcelaNumber}`;
+        markSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber, transactionId);
+      }
+
+      addTransacaoV2({
+        id: transactionId, date: trackerBill.dueDate, accountId: account.id, flow: 'out',
+        operationType, domain: domain as any, amount: trackerBill.expectedAmount,
+        categoryId: trackerBill.suggestedCategoryId || null, description,
+        links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
+        conciliated: true, attachments: [],
+        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+      });
+      updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
+      toast.success("Despesa paga e lançada!");
+    } else {
+      if (trackerBill.transactionId) {
+        setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId));
+      }
+      if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
+        unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef));
+      }
+      if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
+        unmarkSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber);
+      }
+      updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
+      toast.info("Pagamento desfeito.");
+    }
+  }, [contasMovimento, categoriasV2, emprestimos, creditCardConfigs, addTransacaoV2, updateBill, setTransacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
+
+  const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => {
+    setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);
+  }, [setBillsTracker]);
 
   return (
     <MainLayout>
@@ -79,25 +160,23 @@ export default function BillsTracker() {
           <p className="text-xs md:text-base text-muted-foreground">Gerenciamento de despesas e parcelas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" onClick={() => setShowPurchaseDialog(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-2 md:px-4">
-            <ShoppingCart className="w-4 h-4" /> <span className="hidden sm:inline">Compra Parcelada</span><span className="sm:hidden">Parcelas</span>
-          </Button>
-          <Button variant="outline" onClick={() => setIsManageModalOpen(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-2 md:px-4">
-            <Settings className="w-4 h-4" /> <span className="hidden sm:inline">Gerenciar Fixas</span><span className="sm:hidden">Fixas</span>
-          </Button>
-          <Button onClick={() => setIsAdvanceModalOpen(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-2 md:px-4">
-            <Plus className="w-4 h-4" /> <span className="hidden sm:inline">Adiantar Parcelas</span><span className="sm:hidden">Adiantar</span>
+          <Button onClick={() => setIsManageModalOpen(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-3 md:px-4">
+            <Settings className="w-4 h-4" /> <span className="hidden sm:inline">Gerenciar Compromissos</span><span className="sm:hidden">Gerenciar</span>
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-1 space-y-6 p-6 rounded-2xl bg-card dark:bg-[hsl(24_8%_10%)] border border-border/40 dark:border-white/5">
+          {/* M5: Pass combinedBills to KPIs */}
           <BillsSidebarKPIs 
             currentDate={currentDate}
+            combinedBills={combinedBills}
             totalPendingBills={combinedBills.filter(b => !b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)}
             totalPaidBills={combinedBills.filter(b => b.isPaid).reduce((acc, b) => acc + b.expectedAmount, 0)}
           />
+          {/* M6: Cash Flow Timeline */}
+          <CashFlowTimeline currentDate={currentDate} combinedBills={combinedBills} />
         </div>
 
         <div className="lg:col-span-3 space-y-4">
@@ -117,34 +196,16 @@ export default function BillsTracker() {
             bills={combinedBills}
             onUpdateBill={updateBill}
             onDeleteBill={deleteBill}
-            onAddBill={(b) => setBillsTracker(prev => [...prev, { ...b, id: generateBillId(), type: 'tracker', isPaid: false }])}
-            onTogglePaid={() => {}} // Lógica simplificada para a página
+            onAddBill={handleAddBill}
+            onTogglePaid={handleTogglePaid}
             currentDate={currentDate}
           />
         </div>
       </div>
 
-      <FixedBillSelectorModal
+      <ManageCommitmentsModal
         open={isManageModalOpen}
         onOpenChange={setIsManageModalOpen}
-        mode="current"
-        currentDate={currentDate}
-        potentialFixedBills={potentialFixedBills}
-        onToggleFixedBill={handleToggleFixedBill}
-      />
-
-      <FixedBillSelectorModal
-        open={isAdvanceModalOpen}
-        onOpenChange={setIsAdvanceModalOpen}
-        mode="future"
-        currentDate={currentDate}
-        potentialFixedBills={futureFixedBills}
-        onToggleFixedBill={handleToggleFixedBill}
-      />
-
-      <AddPurchaseInstallmentDialog 
-        open={showPurchaseDialog}
-        onOpenChange={setShowPurchaseDialog}
         currentDate={currentDate}
       />
     </div>

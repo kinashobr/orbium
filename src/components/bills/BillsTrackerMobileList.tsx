@@ -12,6 +12,7 @@ import {
   Info,
   ShoppingCart,
   CheckCircle2,
+  CreditCard,
 } from "lucide-react";
 import { differenceInCalendarDays, startOfDay } from "date-fns";
 
@@ -34,6 +35,7 @@ const SOURCE_CONFIG_MOBILE: Record<
   variable_expense: { icon: DollarSign, color: "text-warning", label: "Variável" },
   ad_hoc: { icon: Info, color: "text-primary", label: "Avulsa" },
   purchase_installment: { icon: ShoppingCart, color: "text-pink-500", label: "Parcela" },
+  card_invoice: { icon: CreditCard, color: "text-violet-500", label: "Fatura" },
   external_expense: { icon: CheckCircle2, color: "text-success", label: "Extrato" },
 };
 

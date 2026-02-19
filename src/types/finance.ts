@@ -336,7 +336,8 @@ export type BillSourceType =
   | 'fixed_expense' 
   | 'ad_hoc' 
   | 'variable_expense' 
-  | 'purchase_installment'; // NOVO: Compra Parcelada
+  | 'purchase_installment'
+  | 'card_invoice'; // NOVO: Fatura de Cartão de Crédito
 
 export interface BillTracker {
   id: string;
@@ -361,6 +362,26 @@ export interface BillTracker {
   suggestedCategoryId?: string;
   
   isExcluded?: boolean; // NEW: Mark if excluded from current month's list
+  
+  // NOVO: Metadados de Cartão de Crédito
+  cardId?: string;           // ID do CreditCardConfig
+  invoiceCycle?: string;     // 'YYYY-MM' do ciclo da fatura
+  paymentMode?: 'total' | 'minimo' | 'custom';
+  customPaymentAmount?: number;
+}
+
+// NOVO: Configuração de Cartão de Crédito
+export interface CreditCardConfig {
+  id: string;
+  accountId: string;        // Link para ContaCorrente tipo cartao_credito
+  limit: number;
+  closingDay: number;       // Dia de fechamento (1-31)
+  dueDay: number;           // Dia de vencimento (1-31)
+  defaultPaymentAccountId?: string; // Conta padrão para pagamento
+}
+
+export function generateCreditCardConfigId(): string {
+  return `cc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 // NOVO: Parcela Fixa Potencial para Seleção
@@ -475,7 +496,8 @@ export interface FinanceExportV2 {
     importedStatements: ImportedStatement[];
     imoveis: Imovel[];
     terrenos: Terreno[];
-    metasPersonalizadas: MetaPersonalizada[]; // NOVO
+    metasPersonalizadas: MetaPersonalizada[];
+    creditCardConfigs: CreditCardConfig[]; // NOVO
     
     // Configuration/Context States
     monthlyRevenueForecast: number;

@@ -34,6 +34,8 @@ import {
 	MetaPersonalizada,
 	MetaProgresso,
 	AccountTerm,
+	CreditCardConfig,
+	generateCreditCardConfigId,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
@@ -322,6 +324,14 @@ interface FinanceContextType {
   getFutureFixedBills: (referenceDate: Date, localBills: BillTracker[]) => PotentialFixedBill[];
   getOtherPaidExpensesForMonth: (date: Date) => ExternalPaidBill[];
   
+  // Credit Card Configs
+  creditCardConfigs: CreditCardConfig[];
+  addCreditCardConfig: (config: Omit<CreditCardConfig, 'id'>) => void;
+  updateCreditCardConfig: (id: string, updates: Partial<CreditCardConfig>) => void;
+  deleteCreditCardConfig: (id: string) => void;
+  getInvoiceForCard: (cardId: string, monthDate: Date) => number;
+  generateInvoiceBills: (monthDate: Date) => BillTracker[];
+  
   // Contas Movimento
   contasMovimento: ContaCorrente[];
   setContasMovimento: Dispatch<SetStateAction<ContaCorrente[]>>;
@@ -424,6 +434,7 @@ const STORAGE_KEYS = {
   IMOVEIS: "neon_finance_imoveis",
   TERRENOS: "neon_finance_terrenos",
   METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
+  CREDIT_CARD_CONFIGS: "fin_credit_card_configs_v1",
   LAST_MODIFIED: "fin_last_modified_v1", // NOVO
 };
 
@@ -437,6 +448,7 @@ const initialImportedStatements: ImportedStatement[] = [];
 const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
 const initialMetasPersonalizadas: MetaPersonalizada[] = [];
+const initialCreditCardConfigs: CreditCardConfig[] = [];
 const initialLastModified = new Date(0).toISOString(); // Ponto de partida
 
 const defaultAlertStartDate = subMonths(new Date(), 6).toISOString().split('T')[0];
@@ -514,6 +526,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [alertStartDate, setAlertStartDate] = useState<string>(() => loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate));
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
   const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
+  const [creditCardConfigs, setCreditCardConfigs] = useState<CreditCardConfig[]>(() => loadFromStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, initialCreditCardConfigs));
   const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified)); // NOVO
 
   // Função para atualizar o timestamp de última modificação
@@ -540,6 +553,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); updateLastModified(); }, [categoriasV2]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, creditCardConfigs); updateLastModified(); }, [creditCardConfigs]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -1064,6 +1078,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         imoveis, 
         terrenos,
         metasPersonalizadas,
+        creditCardConfigs,
       },
       lastModified: lastModified, // Incluindo o timestamp local
     };
@@ -1098,6 +1113,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.imoveis) setImoveis(data.data.imoveis);
       if (data.data.terrenos) setTerrenos(data.data.terrenos);
       if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
+      if (data.data.creditCardConfigs) setCreditCardConfigs(data.data.creditCardConfigs);
       
       // Atualiza o lastModified local para o valor importado ou agora
       const newTimestamp = data.lastModified || new Date().toISOString();
@@ -1316,6 +1332,75 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return { valorAtual, percentual, status };
   }, [transacoesV2, contasMovimento, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal]);
 
+  // Credit Card Config CRUD
+  const addCreditCardConfig = useCallback((config: Omit<CreditCardConfig, 'id'>) => {
+    setCreditCardConfigs(prev => [...prev, { ...config, id: generateCreditCardConfigId() }]);
+  }, []);
+
+  const updateCreditCardConfig = useCallback((id: string, updates: Partial<CreditCardConfig>) => {
+    setCreditCardConfigs(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  }, []);
+
+  const deleteCreditCardConfig = useCallback((id: string) => {
+    setCreditCardConfigs(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const getInvoiceForCard = useCallback((cardId: string, monthDate: Date): number => {
+    const config = creditCardConfigs.find(c => c.id === cardId);
+    if (!config) return 0;
+    
+    // Determine billing cycle: from previous closing day to current closing day
+    const closingDay = config.closingDay;
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth(); // 0-indexed
+    
+    // Current closing date
+    const currentClosing = new Date(year, month, Math.min(closingDay, new Date(year, month + 1, 0).getDate()));
+    // Previous closing date
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
+    
+    // Sum all outgoing transactions on this card account within the cycle
+    return transacoesV2
+      .filter(t => {
+        if (t.accountId !== config.accountId) return false;
+        if (t.flow !== 'out') return false;
+        const txDate = parseDateLocal(t.date);
+        return txDate > prevClosing && txDate <= currentClosing;
+      })
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [creditCardConfigs, transacoesV2]);
+
+  const generateInvoiceBills = useCallback((monthDate: Date): BillTracker[] => {
+    return creditCardConfigs.map(config => {
+      const invoiceAmount = getInvoiceForCard(config.id, monthDate);
+      if (invoiceAmount <= 0) return null;
+      
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const dueDay = Math.min(config.dueDay, new Date(year, month + 1, 0).getDate());
+      const dueDate = new Date(year, month, dueDay);
+      const account = contasMovimento.find(a => a.id === config.accountId);
+      
+      return {
+        id: `invoice_${config.id}_${format(monthDate, 'yyyy-MM')}`,
+        type: 'tracker' as const,
+        description: `Fatura ${account?.name || 'Cartão'}`,
+        dueDate: format(dueDate, 'yyyy-MM-dd'),
+        expectedAmount: invoiceAmount,
+        isPaid: false,
+        sourceType: 'card_invoice' as const,
+        sourceRef: config.id,
+        cardId: config.id,
+        invoiceCycle: format(monthDate, 'yyyy-MM'),
+        suggestedAccountId: config.defaultPaymentAccountId,
+        suggestedCategoryId: null,
+        isExcluded: false,
+      };
+    }).filter(Boolean) as BillTracker[];
+  }, [creditCardConfigs, getInvoiceForCard, contasMovimento]);
+
   const value = {
     emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo: (id: number) => setEmprestimos(p => p.filter(e => e.id !== id)), getPendingLoans: () => emprestimos.filter(e => e.status === 'pendente_config'), markLoanParcelPaid, unmarkLoanParcelPaid, calculateLoanSchedule, calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths,
     veiculos, addVeiculo, updateVeiculo: (id: number, u: any) => setVeiculos(p => p.map(v => v.id === id ? { ...v, ...u } : v)), deleteVeiculo: (id: number) => setVeiculos(p => p.filter(v => v.id !== id)), getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro'),
@@ -1324,6 +1409,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     segurosVeiculo, addSeguroVeiculo: (s: any) => setSegurosVeiculo(p => [...p, { ...s, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), markSeguroParcelPaid, unmarkSeguroParcelPaid,
     objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
     billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth,
+    creditCardConfigs, addCreditCardConfig, updateCreditCardConfig, deleteCreditCardConfig, getInvoiceForCard, generateInvoiceBills,
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,

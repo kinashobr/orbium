@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart } from "lucide-react";
+import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, CreditCard } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -30,6 +30,7 @@ const SOURCE_CONFIG: Record<BillSourceType | 'external_expense', { icon: React.E
   variable_expense: { icon: DollarSign, color: 'text-warning', label: 'Variável' },
   ad_hoc: { icon: Info, color: 'text-primary', label: 'Avulsa' },
   purchase_installment: { icon: ShoppingCart, color: 'text-pink-500', label: 'Parcela' },
+  card_invoice: { icon: CreditCard, color: 'text-violet-500', label: 'Fatura' },
   external_expense: { icon: CheckCircle2, color: 'text-success', label: 'Extrato' },
 };
 

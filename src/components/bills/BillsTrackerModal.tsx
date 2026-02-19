@@ -5,8 +5,7 @@ import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
 import { BillsSidebarKPIs } from "./BillsSidebarKPIs";
-import { FixedBillSelectorModal } from "./FixedBillSelectorModal";
-import { AddPurchaseInstallmentDialog } from "./AddPurchaseInstallmentDialog";
+import { ManageCommitmentsModal } from "./ManageCommitmentsModal";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -14,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { 
   Plus, 
   CalendarCheck, 
-  ShoppingCart, 
   ChevronLeft, 
   ChevronRight, 
   ArrowLeft,
@@ -23,7 +21,6 @@ import {
 } from "lucide-react";
 import { 
   BillTracker, 
-  PotentialFixedBill, 
   formatCurrency, 
   generateBillId, 
   TransactionLinks, 
@@ -51,8 +48,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     updateBill,
     deleteBill,
     getBillsForMonth,
-    getPotentialFixedBillsForMonth,
-    getFutureFixedBills,
     getOtherPaidExpensesForMonth,
     contasMovimento,
     addTransacaoV2,
@@ -63,13 +58,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     markLoanParcelPaid,
     unmarkSeguroParcelPaid,
     unmarkLoanParcelPaid,
+    generateInvoiceBills,
+    creditCardConfigs,
   } = useFinance();
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
-  const [showFixedBillSelector, setShowFixedBillSelector] = useState(false);
-  const [fixedBillSelectorMode, setFixedBillSelectorMode] = useState<'current' | 'future'>('current');
-  const [showAddPurchaseDialog, setShowAddPurchaseDialog] = useState(false);
+  const [showManageCommitments, setShowManageCommitments] = useState(false);
   const [showNewBillModal, setShowNewBillModal] = useState(false);
 
   const [newBillData, setNewBillData] = useState({
@@ -84,27 +79,32 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+    return () => { document.body.style.overflow = 'unset'; };
   }, [isMobile, open]);
 
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
-  
+  const invoiceBills = useMemo(() => generateInvoiceBills(currentDate), [generateInvoiceBills, currentDate]);
+  const trackerBillIds = useMemo(() => new Set(trackerManagedBills.map(b => b.id)), [trackerManagedBills]);
+  const newInvoiceBills = useMemo(() => invoiceBills.filter(b => !trackerBillIds.has(b.id)), [invoiceBills, trackerBillIds]);
+
+  // M1: Persist generated invoice bills to tracker state
+  const newInvoiceIds = useMemo(() => newInvoiceBills.map(b => b.id).join(','), [newInvoiceBills]);
+  useEffect(() => {
+    if (newInvoiceBills.length > 0) {
+      setBillsTracker(prev => {
+        const existingIds = new Set(prev.map(b => b.id));
+        const toAdd = newInvoiceBills.filter(b => !existingIds.has(b.id));
+        return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+      });
+    }
+  }, [newInvoiceIds]);
+
   const combinedBills: BillDisplayItem[] = useMemo(() => {
     const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
     const externalBills: BillDisplayItem[] = externalPaidBills.filter(eb => !trackerPaidTxIds.has(eb.id));
-    return [...trackerManagedBills, ...externalBills];
-  }, [trackerManagedBills, externalPaidBills]);
-
-  const potentialFixedBills = useMemo(() => 
-    getPotentialFixedBillsForMonth(currentDate, trackerManagedBills)
-  , [getPotentialFixedBillsForMonth, currentDate, trackerManagedBills]);
-
-  const futureFixedBills = useMemo(() => 
-    getFutureFixedBills(currentDate, trackerManagedBills)
-  , [getFutureFixedBills, currentDate, trackerManagedBills]);
+    return [...trackerManagedBills, ...newInvoiceBills, ...externalBills];
+  }, [trackerManagedBills, newInvoiceBills, externalPaidBills]);
 
   const totalUnpaidBills = useMemo(() => {
     const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
@@ -132,6 +132,30 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     if (!isBillTracker(bill)) return;
     const trackerBill = bill as BillTracker;
     if (isChecked) {
+      // M2: Special handling for card invoices
+      const isCardInvoice = trackerBill.sourceType === 'card_invoice';
+      if (isCardInvoice) {
+        const cardConfig = creditCardConfigs.find(c => c.id === trackerBill.cardId);
+        const paymentAccountId = cardConfig?.defaultPaymentAccountId || trackerBill.suggestedAccountId;
+        const paymentAccount = contasMovimento.find(c => c.id === paymentAccountId);
+        if (!paymentAccount) {
+          toast.error("Configure a conta de pagamento do cartão.");
+          return;
+        }
+        const txId = `bill_tx_${trackerBill.id}`;
+        addTransacaoV2({
+          id: txId, date: trackerBill.dueDate, accountId: paymentAccount.id, flow: 'out',
+          operationType: 'despesa', domain: 'operational', amount: trackerBill.expectedAmount,
+          categoryId: null, description: `Pagamento ${trackerBill.description}`,
+          links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
+          conciliated: true, attachments: [],
+          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+        });
+        updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: txId });
+        toast.success("Fatura paga e lançada!");
+        return;
+      }
+
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
       const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
       const isLoan = trackerBill.sourceType === 'loan_installment';
@@ -166,90 +190,36 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         accountId: account.id,
         flow: 'out',
         operationType,
-        domain,
+        domain: domain as any,
         amount: trackerBill.expectedAmount,
-        categoryId: category?.id || null,
+        categoryId: trackerBill.suggestedCategoryId || null,
         description,
-        links: { investmentId: null, transferGroupId: null, vehicleTransactionId: baseLinks.vehicleTransactionId || null, loanId: baseLinks.loanId || null, parcelaId: baseLinks.parcelaId || null },
-        conciliated: false,
+        links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
+        conciliated: true,
         attachments: [],
-        meta: { createdBy: 'bill_tracker', source: 'bill_tracker', createdAt: new Date().toISOString(), notes: `Bill ID: ${trackerBill.id}` }
+        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
       });
 
-      updateBill(trackerBill.id, { isPaid: true, transactionId, paymentDate: trackerBill.dueDate });
-      toast.success(`Conta paga com sucesso!`);
+      updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
+      toast.success("Despesa paga e lançada!");
     } else {
       if (trackerBill.transactionId) {
-        if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef));
-        if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) unmarkSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber);
         setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId));
-        updateBill(trackerBill.id, { isPaid: false, transactionId: undefined, paymentDate: undefined });
-        toast.info("Pagamento estornado.");
-      } else {
-        updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined });
       }
+      if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
+        unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef));
+      }
+      if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
+        unmarkSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber);
+      }
+      updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
+      toast.info("Pagamento desfeito.");
     }
-  }, [updateBill, addTransacaoV2, contasMovimento, categoriasV2, emprestimos, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, setTransacoesV2]);
-
-  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
-    const { sourceType, sourceRef, parcelaNumber, dueDate, expectedAmount, description } = potentialBill;
-    
-    if (isChecked) {
-      // Se estiver no modo 'future' (adiantar), usamos o primeiro dia do mês visualizado para que apareça na lista
-      const effectiveDueDate = fixedBillSelectorMode === 'future'
-        ? format(currentDate, 'yyyy-MM-01')
-        : dueDate;
-
-      // Especial para compras parceladas: elas já existem no tracker, então apenas movemos a data
-      if (sourceType === 'purchase_installment') {
-        setBillsTracker(prev => prev.map(b => {
-          if (b.sourceType === 'purchase_installment' && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber) {
-            return { ...b, dueDate: effectiveDueDate, isExcluded: false };
-          }
-          return b;
-        }));
-        toast.success("Parcela antecipada para este mês.");
-        return;
-      }
-
-      const newBill: BillTracker = {
-        id: generateBillId(),
-        type: 'tracker',
-        description,
-        dueDate: effectiveDueDate,
-        expectedAmount,
-        sourceType,
-        sourceRef,
-        parcelaNumber,
-        suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
-        suggestedCategoryId: categoriasV2.find(c => (sourceType === 'loan_installment' && c.label.toLowerCase().includes('emprestimo')) || (sourceType === 'insurance_installment' && c.label.toLowerCase().includes('seguro')))?.id || null,
-        isExcluded: false,
-        isPaid: false
-      };
-      setBillsTracker(prev => [...prev, newBill]);
-      toast.success(fixedBillSelectorMode === 'future' ? "Conta antecipada." : "Conta fixa incluída.");
-    } else {
-      // Se estiver desmarcando uma antecipação de compra parcelada, volta para a data original
-      if (fixedBillSelectorMode === 'future' && sourceType === 'purchase_installment') {
-        setBillsTracker(prev => prev.map(b => {
-          if (b.sourceType === 'purchase_installment' && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber) {
-            return { ...b, dueDate: dueDate }; // dueDate aqui é a data original do potentialBill
-          }
-          return b;
-        }));
-        toast.info("Antecipação cancelada.");
-        return;
-      }
-      setBillsTracker(prev => prev.filter(b => !(b.sourceType === sourceType && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber)));
-    }
-  }, [setBillsTracker, contasMovimento, categoriasV2, fixedBillSelectorMode, currentDate]);
+  }, [contasMovimento, categoriasV2, emprestimos, addTransacaoV2, updateBill, setTransacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
 
   const handleAmountChange = (value: string) => {
     const digits = value.replace(/\D/g, "");
-    if (!digits) {
-      setNewBillData(prev => ({ ...prev, amount: "0,00" }));
-      return;
-    }
+    if (!digits) { setNewBillData(prev => ({ ...prev, amount: "0,00" })); return; }
     const val = parseInt(digits) / 100;
     setNewBillData(prev => ({ ...prev, amount: val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
   };
@@ -283,7 +253,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Fluxo Mensal</p>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => { setFixedBillSelectorMode("current"); setShowFixedBillSelector(true); }}><Settings className="w-5 h-5" /></Button>
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => setShowManageCommitments(true)}><Settings className="w-5 h-5" /></Button>
             </div>
           </header>
           <main className="flex-1 p-6 overflow-y-auto hide-scrollbar-mobile">
@@ -310,13 +280,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                 <BillsTrackerMobileList bills={combinedBills} onTogglePaid={handleTogglePaid} onUpdateBill={updateBill} onDeleteBill={deleteBill} onAddBill={handleAddBill} currentDate={currentDate} />
               </div>
               <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[60]">
-                <Button size="icon" className="h-12 w-12 rounded-2xl shadow-xl bg-accent text-accent-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowAddPurchaseDialog(true)}><ShoppingCart className="w-5 h-5" /></Button>
                 <Button size="icon" className="h-14 w-14 rounded-[1.25rem] shadow-2xl bg-primary text-primary-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowNewBillModal(true)}><Plus className="w-7 h-7" /></Button>
               </div>
             </div>
           </main>
-          <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
-          <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
+          <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
           <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
             <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
               <DialogHeader className="p-6 bg-muted/50 border-b"><DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle></DialogHeader>
@@ -375,30 +343,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                     </Button>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => setShowAddPurchaseDialog(true)} 
-                      className="rounded-full h-10 px-5 font-bold gap-2 text-[11px] uppercase tracking-widest border-border/40 hover:bg-muted/50"
-                    >
-                      <ShoppingCart className="w-3.5 h-3.5" /> Compra Parcelada
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => { setFixedBillSelectorMode("current"); setShowFixedBillSelector(true); }} 
-                      className="rounded-full h-10 px-5 font-bold gap-2 text-[11px] uppercase tracking-widest border-border/40 hover:bg-muted/50"
-                    >
-                      <Settings className="w-3.5 h-3.5" /> Gerenciar Fixas
-                    </Button>
-                    <Button 
-                      onClick={() => { setFixedBillSelectorMode("future"); setShowFixedBillSelector(true); }} 
-                      className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"
-                    >
-                      <Plus className="w-4 h-4" /> Adiantar
-                    </Button>
-                  </div>
+                  <Button 
+                    onClick={() => setShowManageCommitments(true)} 
+                    className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"
+                  >
+                    <Settings className="w-4 h-4" /> Gerenciar Compromissos
+                  </Button>
                 </div>
               </div>
             </DialogHeader>
@@ -431,8 +381,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </ResizableDialogContent>
       </Dialog>
 
-      <FixedBillSelectorModal open={showFixedBillSelector} onOpenChange={setShowFixedBillSelector} mode={fixedBillSelectorMode} currentDate={currentDate} potentialFixedBills={fixedBillSelectorMode === "current" ? potentialFixedBills : futureFixedBills} onToggleFixedBill={handleToggleFixedBill} />
-      <AddPurchaseInstallmentDialog open={showAddPurchaseDialog} onOpenChange={setShowAddPurchaseDialog} currentDate={currentDate} />
+      <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
 
       <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
         <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">

@@ -36,6 +36,81 @@ const parseFromBR = (value: string): number => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
+// M7: Smart alerts sub-component
+function SmartCardAlerts({ combinedBills, currentDate }: { combinedBills: BillDisplayItem[]; currentDate: Date }) {
+  const { creditCardConfigs, contasMovimento, calculateBalanceUpToDate, transacoesV2, billsTracker } = useFinance();
+  
+  const alerts = useMemo(() => {
+    const items: { type: 'error' | 'warning' | 'info'; message: string }[] = [];
+    
+    creditCardConfigs.forEach(config => {
+      const account = contasMovimento.find(a => a.id === config.accountId);
+      const cardName = account?.name || 'Cartão';
+      
+      // 1. Invoice without coverage
+      const invoiceBill = combinedBills.find(b => 
+        b.type === 'tracker' && (b as any).sourceType === 'card_invoice' && (b as any).cardId === config.id && !b.isPaid
+      );
+      if (invoiceBill && config.defaultPaymentAccountId) {
+        const paymentBalance = calculateBalanceUpToDate(config.defaultPaymentAccountId, undefined, transacoesV2, contasMovimento);
+        if (paymentBalance < invoiceBill.expectedAmount) {
+          items.push({ type: 'error', message: `${cardName}: saldo insuficiente para fatura (faltam ${formatCurrency(invoiceBill.expectedAmount - paymentBalance)})` });
+        }
+      }
+      
+      // 2. Critical limit usage (>80%)
+      const usedAmount = Math.abs(Math.min(0, calculateBalanceUpToDate(config.accountId, undefined, transacoesV2, contasMovimento)));
+      const usagePercent = config.limit > 0 ? (usedAmount / config.limit) * 100 : 0;
+      if (usagePercent > 80) {
+        items.push({ type: 'warning', message: `${cardName}: ${Math.round(usagePercent)}% do limite usado` });
+      }
+      
+      // 3. Recurring minimum payment (2+ months)
+      const minPayments = billsTracker.filter(b => b.sourceType === 'card_invoice' && b.cardId === config.id && b.isPaid && b.paymentMode === 'minimo');
+      if (minPayments.length >= 2) {
+        items.push({ type: 'warning', message: `${cardName}: pagamento mínimo recorrente (${minPayments.length} meses)` });
+      }
+    });
+    
+    return items;
+  }, [creditCardConfigs, combinedBills, contasMovimento, calculateBalanceUpToDate, transacoesV2, billsTracker]);
+
+  if (alerts.length === 0) return null;
+
+  return (
+    <>
+      <Separator className="opacity-20" />
+      <div className="px-1 space-y-2">
+        <div className="flex items-center gap-2 opacity-60">
+          <AlertCircle className="w-3.5 h-3.5" />
+          <p className="text-[9px] font-black uppercase tracking-widest">Alertas de Cartão</p>
+        </div>
+        {alerts.map((alert, i) => (
+          <div key={i} className={cn(
+            "p-2.5 rounded-xl flex gap-2 items-start border",
+            alert.type === 'error' ? "bg-destructive/5 border-destructive/15" :
+            alert.type === 'warning' ? "bg-warning/5 border-warning/15" :
+            "bg-primary/5 border-primary/15"
+          )}>
+            <AlertCircle className={cn(
+              "w-3 h-3 shrink-0 mt-0.5",
+              alert.type === 'error' ? "text-destructive" :
+              alert.type === 'warning' ? "text-warning" : "text-primary"
+            )} />
+            <p className={cn(
+              "text-[8px] font-black uppercase tracking-tighter leading-tight",
+              alert.type === 'error' ? "text-destructive" :
+              alert.type === 'warning' ? "text-warning" : "text-primary"
+            )}>
+              {alert.message}
+            </p>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSidebarKPIsProps) {
   const { 
     revenueForecasts, 
@@ -264,6 +339,9 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
             </div>
           </div>
         )}
+
+        {/* M7: Smart Credit Card Alerts */}
+        <SmartCardAlerts combinedBills={combinedBills} currentDate={currentDate} />
       </div>
     </ScrollArea>
   );
