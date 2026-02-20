@@ -278,7 +278,7 @@ interface FinanceContextType {
   addVeiculo: (veiculo: Omit<Veiculo, "id">) => void;
   updateVeiculo: (id: number, veiculo: Partial<Veiculo>) => void;
   deleteVeiculo: (id: number) => void;
-  getPendingVehicles: () => Veiculo[];
+  getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro');
   
   // Imóveis
   imoveis: Imovel[];
@@ -1460,24 +1460,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const dueDateStr = format(new Date(year, month, dueDay), 'yyyy-MM-dd');
       const account = contasMovimento.find(a => a.id === config.accountId);
       
-      // M3: Check if invoice is already paid via transfer (manual or imported)
+      // M3: Check if invoice is already paid (via transfer OR simple inflow on card account)
       const invoiceCycleKey = format(monthDate, 'yyyy-MM');
       const existingPaidInvoice = billsTracker.find(b => b.sourceRef === config.id && b.invoiceCycle === invoiceCycleKey && b.isPaid);
       
-      // If not marked as paid in tracker, check transactions for a matching transfer
+      // If not marked as paid in tracker, check transactions for any inflow to card account in the month
       let isPaid = existingPaidInvoice?.isPaid || false;
       let paymentDate = existingPaidInvoice?.paymentDate;
       let transactionId = existingPaidInvoice?.transactionId;
 
       if (!isPaid) {
-        const cycleTransactions = transacoesV2.filter(t => 
+        // Broaden search: any inflow (transfer_in or flow: in) on the card account in this month
+        const cycleInflows = transacoesV2.filter(t => 
           t.accountId === config.accountId && 
-          t.flow === 'transfer_in' && 
+          (t.flow === 'in' || t.flow === 'transfer_in') && 
           isSameMonth(parseDateLocal(t.date), monthDate)
         );
         
-        if (cycleTransactions.length > 0) {
-          const match = cycleTransactions[0];
+        if (cycleInflows.length > 0) {
+          // Sort by date to get the actual payment date (even if early)
+          const match = [...cycleInflows].sort((a,b) => a.date.localeCompare(b.date))[0];
           isPaid = true;
           paymentDate = match.date;
           transactionId = match.links?.transferGroupId || match.id;
