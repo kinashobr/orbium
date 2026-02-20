@@ -1,3 +1,5 @@
+"use client";
+
 import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode, useMemo } from "react";
 import {
 	Categoria, TransacaoCompleta,
