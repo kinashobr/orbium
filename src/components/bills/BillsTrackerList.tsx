@@ -112,13 +112,13 @@ export function BillsTrackerList({
     if (s && b.sourceType !== 'purchase_installment') { type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; }
     onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
   };
-  const handleUpdateDueDate = (b: BillTracker, n: string) => { onUpdateBill(b.id, { dueDate: n }); };
+  const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
   
   const handleUpdatePaymentDate = (b: BillTracker, n: string) => { 
     if (b.isPaid) {
       onUpdateBill(b.id, { paymentDate: n });
       if (b.transactionId) {
-        setTransacoesV2(prev => prev.map(t => (t.id === b.transactionId || t.links?.transferGroupId === b.transactionId) ? { ...t, date: n } : t));
+        setTransacoesV2(prev => prev.map(t => t.id === b.transactionId ? { ...t, date: n } : t));
       }
     } 
   };
@@ -184,7 +184,7 @@ export function BillsTrackerList({
                         {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}
                       </TableCell>
                       <TableCell className={cn("text-xs font-bold p-3", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
-                          {isExt ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}
+                          {isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}
                       </TableCell>
                       <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>
                           {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}
@@ -217,11 +217,11 @@ export function BillsTrackerList({
                         formatCurrency(bill.expectedAmount)}
                       </TableCell>
                       <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>
-                        {!isExt && (
+                        {!isExt && !isPaid && (
                           (bill.sourceType === 'ad_hoc' || bill.sourceType === 'card_invoice') ? (
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => onDeleteBill(bill.id)}><Trash2 className="w-4 h-4" /></Button>
                           ) : (
-                            !isPaid && <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>
                           )
                         )}
                       </TableCell>
