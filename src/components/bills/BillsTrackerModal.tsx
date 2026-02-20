@@ -44,6 +44,7 @@ interface BillsTrackerModalProps {
 
 export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps) {
   const {
+    billsTracker,
     setBillsTracker,
     updateBill,
     deleteBill,
@@ -169,7 +170,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
           conciliated: true,
           attachments: [],
-          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+          meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
         };
 
         // Transação de Entrada (Cartão de Crédito)
@@ -186,7 +187,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
           conciliated: true,
           attachments: [],
-          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+          meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
         };
 
         addTransacaoV2(txSource);
