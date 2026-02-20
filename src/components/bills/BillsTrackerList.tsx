@@ -114,13 +114,17 @@ export function BillsTrackerList({
   };
   const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
   
-  const handleUpdatePaymentDate = (b: BillTracker, n: string) => { 
+  const handleUpdatePaymentDate = (b: BillTracker, n: string) => {
     if (b.isPaid) {
       onUpdateBill(b.id, { paymentDate: n });
       if (b.transactionId) {
-        setTransacoesV2(prev => prev.map(t => t.id === b.transactionId ? { ...t, date: n } : t));
+        setTransacoesV2(prev => prev.map(t =>
+          (t.id === b.transactionId || (t.links?.transferGroupId && t.links.transferGroupId === b.transactionId))
+            ? { ...t, date: n }
+            : t
+        ));
       }
-    } 
+    }
   };
 
   const sortedBills = useMemo(() => {
@@ -218,7 +222,7 @@ export function BillsTrackerList({
                       </TableCell>
                       <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>
                         {!isExt && !isPaid && (
-                          (bill.sourceType === 'ad_hoc' || bill.sourceType === 'card_invoice') ? (
+                          (bill.sourceType === 'ad_hoc') ? (
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => onDeleteBill(bill.id)}><Trash2 className="w-4 h-4" /></Button>
                           ) : (
                             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>

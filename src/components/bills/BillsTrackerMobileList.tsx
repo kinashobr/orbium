@@ -169,7 +169,7 @@ export function BillsTrackerMobileList({
                 <div className="flex flex-col items-end justify-between gap-2 self-stretch">
                   <div className="flex items-center gap-2">
                     {!isPaid && !isExt && isBillTracker(bill) && (
-                      (bill.sourceType === 'ad_hoc' || bill.sourceType === 'card_invoice') ? (
+                      (bill.sourceType === 'ad_hoc') ? (
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground" onClick={() => onDeleteBill(bill.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>

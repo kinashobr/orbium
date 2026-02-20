@@ -1460,24 +1460,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const dueDateStr = format(new Date(year, month, dueDay), 'yyyy-MM-dd');
       const account = contasMovimento.find(a => a.id === config.accountId);
       
-      // M3: Check if invoice is already paid via transfer (manual or imported)
       const invoiceCycleKey = format(monthDate, 'yyyy-MM');
-      const existingPaidInvoice = billsTracker.find(b => b.sourceRef === config.id && b.invoiceCycle === invoiceCycleKey && b.isPaid);
+      const existingInTracker = billsTracker.find(b => b.sourceRef === config.id && b.invoiceCycle === invoiceCycleKey);
       
-      // If not marked as paid in tracker, check transactions for a matching transfer
-      let isPaid = existingPaidInvoice?.isPaid || false;
-      let paymentDate = existingPaidInvoice?.paymentDate;
-      let transactionId = existingPaidInvoice?.transactionId;
+      // Se já existe no tracker e está excluído, não gerar novamente
+      if (existingInTracker?.isExcluded) return null;
+
+      // M3: Check if invoice is already paid via transfer (manual or imported)
+      let isPaid = existingInTracker?.isPaid || false;
+      let paymentDate = existingInTracker?.paymentDate;
+      let transactionId = existingInTracker?.transactionId;
 
       if (!isPaid) {
-        const cycleTransactions = transacoesV2.filter(t => 
-          t.accountId === config.accountId && 
-          t.flow === 'transfer_in' && 
-          isSameMonth(parseDateLocal(t.date), monthDate)
+        // Look for payments in a wider range: current month and previous month (for early payments)
+        const prevMonthDate = subMonths(monthDate, 1);
+        
+        const cycleTransactions = transacoesV2.filter(t =>
+          t.accountId === config.accountId &&
+          (t.flow === 'transfer_in' || t.flow === 'in') &&
+          (isSameMonth(parseDateLocal(t.date), monthDate) || isSameMonth(parseDateLocal(t.date), prevMonthDate))
         );
         
         if (cycleTransactions.length > 0) {
-          const match = cycleTransactions[0];
+          // Sort by date to get the one closest to or after the start of the cycle,
+          // but for simplicity we'll just take the first one found in the month of the invoice or the previous month's end
+          const match = cycleTransactions.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime())[0];
           isPaid = true;
           paymentDate = match.date;
           transactionId = match.links?.transferGroupId || match.id;
@@ -1485,7 +1492,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       
       return {
-        id: `invoice_${config.id}_${invoiceCycleKey}`,
+        id: existingInTracker?.id || `invoice_${config.id}_${invoiceCycleKey}`,
         type: 'tracker' as const,
         description: `Fatura ${account?.name || 'Cartão'}`,
         dueDate: dueDateStr,
