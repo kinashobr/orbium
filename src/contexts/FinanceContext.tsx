@@ -331,6 +331,9 @@ interface FinanceContextType {
   deleteCreditCardConfig: (id: string) => void;
   getInvoiceForCard: (cardId: string, monthDate: Date) => number;
   generateInvoiceBills: (monthDate: Date) => BillTracker[];
+  getCardCurrentCycleUsage: (cardId: string, referenceDate?: Date) => number;
+  getNextCycleBalance: (cardId: string, referenceDate?: Date) => number;
+  getCardCycleTransactions: (cardId: string, monthDate: Date) => TransacaoCompleta[];
   
   // Contas Movimento
   contasMovimento: ContaCorrente[];
@@ -1372,6 +1375,80 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       .reduce((acc, t) => acc + t.amount, 0);
   }, [creditCardConfigs, transacoesV2]);
 
+  /**
+   * Retorna o uso atual do cartão no ciclo aberto (após último fechamento até hoje).
+   * Corrige L1: evita somar todo o histórico.
+   */
+  const getCardCurrentCycleUsage = useCallback((cardId: string, referenceDate?: Date): number => {
+    const config = creditCardConfigs.find(c => c.id === cardId);
+    if (!config) return 0;
+    const today = referenceDate || new Date();
+    const closingDay = config.closingDay;
+    // Calcular último fechamento (antes de hoje)
+    const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
+    const lastClosing = today > thisMonthClosing
+      ? thisMonthClosing
+      : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
+
+    return transacoesV2
+      .filter(t => {
+        if (t.accountId !== config.accountId || t.flow !== 'out') return false;
+        const txDate = parseDateLocal(t.date);
+        return txDate > lastClosing && txDate <= today;
+      })
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [creditCardConfigs, transacoesV2]);
+
+  /**
+   * Retorna o saldo em aberto do próximo ciclo (compras após o último fechamento).
+   * Usado para exibir "Próxima fatura (em aberto)" – L4/L10.
+   */
+  const getNextCycleBalance = useCallback((cardId: string, referenceDate?: Date): number => {
+    const config = creditCardConfigs.find(c => c.id === cardId);
+    if (!config) return 0;
+    const today = referenceDate || new Date();
+    const closingDay = config.closingDay;
+    // Fechamento atual deste mês (pode já ter passado)
+    const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
+    // Se hoje passou do fechamento, o "próximo ciclo" começa a partir de hoje
+    const cycleStart = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
+    const cycleEnd = today > thisMonthClosing
+      ? new Date(today.getFullYear(), today.getMonth() + 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate()))
+      : thisMonthClosing;
+
+    return transacoesV2
+      .filter(t => {
+        if (t.accountId !== config.accountId || t.flow !== 'out') return false;
+        const txDate = parseDateLocal(t.date);
+        return txDate > cycleStart && txDate <= cycleEnd && txDate > today;
+      })
+      .reduce((acc, t) => acc + t.amount, 0);
+  }, [creditCardConfigs, transacoesV2]);
+
+  /**
+   * Retorna as transações do ciclo de faturamento de um cartão para um mês.
+   * Usado para o breakdown de transações na aba Cartões – L3.
+   */
+  const getCardCycleTransactions = useCallback((cardId: string, monthDate: Date) => {
+    const config = creditCardConfigs.find(c => c.id === cardId);
+    if (!config) return [];
+    const closingDay = config.closingDay;
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const currentClosing = new Date(year, month, Math.min(closingDay, new Date(year, month + 1, 0).getDate()));
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
+
+    return transacoesV2
+      .filter(t => {
+        if (t.accountId !== config.accountId || t.flow !== 'out') return false;
+        const txDate = parseDateLocal(t.date);
+        return txDate > prevClosing && txDate <= currentClosing;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [creditCardConfigs, transacoesV2]);
+
   const generateInvoiceBills = useCallback((monthDate: Date): BillTracker[] => {
     return creditCardConfigs.map(config => {
       const invoiceAmount = getInvoiceForCard(config.id, monthDate);
@@ -1409,7 +1486,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     segurosVeiculo, addSeguroVeiculo: (s: any) => setSegurosVeiculo(p => [...p, { ...s, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), markSeguroParcelPaid, unmarkSeguroParcelPaid,
     objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
     billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth,
-    creditCardConfigs, addCreditCardConfig, updateCreditCardConfig, deleteCreditCardConfig, getInvoiceForCard, generateInvoiceBills,
+    creditCardConfigs, addCreditCardConfig, updateCreditCardConfig, deleteCreditCardConfig, getInvoiceForCard, generateInvoiceBills, getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions,
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,
@@ -1425,6 +1502,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     lastModified,
     exportData, importData,
   };
+
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
 }

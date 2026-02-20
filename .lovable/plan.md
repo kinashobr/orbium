@@ -1,163 +1,297 @@
 
+# Plano: Fatura de Cartão — Modelo Banco Real
 
-# Analise Completa: O que Falta, Problemas e Melhorias
+## Referência: o que a fatura do banco mostra
+
+Com base nos dados brutos da fatura Nubank fornecidos, a fatura real de um banco apresenta:
+
+**Seção 1 — Cabeçalho da fatura**
+- Valor total da fatura
+- Data de vencimento
+- Período vigente (ex: 04 JAN a 04 FEV)
+
+**Seção 2 — Alternativas de pagamento (com cálculo real)**
+- Opção 1: Pagar total — sem juros
+- Opção 2: Parcelar fatura — com simulação de parcelas, juros, IOF e CET
+- Opção 3: Pagamento mínimo (15% das compras) — entra no rotativo (juros 16,1% a.m.)
+- Opção 4: Atraso — bloqueio de cartão, negativação
+
+**Seção 3 — Resumo da fatura**
+- Fatura anterior + Pagamento recebido + Novas compras = Total a pagar
+- Pagamento mínimo
+
+**Seção 4 — Próximas faturas**
+- Próximo fechamento
+- Saldo em aberto da próxima fatura
+
+**Seção 5 — Limites disponíveis**
+- Utilizado vs disponível (total, saque, pix, boleto)
+
+**Seção 6 — Transações detalhadas**
+- Data, descrição, valor, número de parcela
 
 ---
 
-## 1. O QUE FALTA IMPLEMENTAR (do plano original)
+## O que o app faz hoje (estado atual)
 
-### Fase 3 inteira -- Projecao de Caixa e Alertas
+### O que funciona:
+- Configuração de cartão (limite, fechamento, vencimento, conta pagamento)
+- Cálculo do valor da fatura por ciclo de fechamento
+- Barra de uso (usado / limite)
+- Botões de pagamento: Total, Mínimo, Custom
+- Persistência da fatura no `billsTracker`
+- Alertas na sidebar (cobertura, limite crítico, mínimo recorrente)
 
-| Item | Status |
-|------|--------|
-| `CashFlowTimeline.tsx` (timeline 30/60/90 dias com recharts) | Nao criado |
-| Alertas inteligentes na sidebar (fatura sem cobertura, limite critico >80%, pagamento minimo recorrente) | Nao implementado |
-| Simulacao de impacto na aba Cartoes (Total vs Minimo vs Custom) | Nao implementado |
+### Limitações identificadas:
 
-### Acoes de pagamento de fatura no CreditCardTab
+**L1 — Cálculo de "Usado" está errado**
+O `usedAmount` usa `calculateBalanceUpToDate` que soma tudo desde sempre. O correto é somar apenas transações `flow === 'out'` no ciclo aberto atual (pós-fechamento anterior até hoje).
 
-O card do cartao mostra valor da fatura, mas **nao tem nenhum botao de acao**. O plano previa:
-- Botao "Pagar Total"
-- Botao "Pagar Minimo"
-- Botao "Personalizado"
+**L2 — Mínimo calculado simplesmente como 15% flat**
+O banco calcula: 15% das compras em aberto do mês atual + 15% do mês anterior + 100% de outros lançamentos (juros, mora, IOF, saques, parcelamentos). O app usa só `Math.max(invoiceAmount * 0.15, 50)`.
 
-Atualmente o usuario ve a fatura mas nao pode interagir com ela diretamente na aba.
+**L3 — Nenhuma informação de transações da fatura**
+O card não mostra quais transações compõem a fatura. O usuário não consegue ver "04 JAN - Supermercado R$49,75" como no banco.
 
-### Pagamento parcial / saldo remanescente
+**L4 — Sem distinção de ciclo (fatura atual vs próxima)**
+Não existe noção de "saldo em aberto da próxima fatura". Compras feitas após o fechamento já pertencem ao próximo ciclo, mas o app não separa isso.
 
-Os campos `paymentMode`, `customPaymentAmount` existem no tipo mas nao sao usados em nenhum fluxo.
+**L5 — Sem simulação de parcelamento de fatura**
+O banco mostra: se parcelar em 3x → total R$ 344,44 com juros 12,86% a.m. O app não tem isso.
+
+**L6 — Sem cálculo de juros rotativos**
+O app não calcula o custo do rotativo (ex: "saldo restante R$ 239,80 × 16,1% a.m. = + R$ 47,42"). O usuário não vê o impacto real de pagar o mínimo.
+
+**L7 — Sem resumo estruturado tipo extrato**
+Não há "Fatura anterior + Pagamentos recebidos + Novas compras = Total" como a estrutura de extrato bancário.
+
+**L8 — Pagamento mínimo sem warning quantificado**
+O card avisa genericamente que "haverá juros". O banco mostra: "Na próxima fatura ficará R$ 329,54 se pagar só o mínimo".
+
+**L9 — CashFlowTimeline não está integrada na UI**
+O componente `CashFlowTimeline.tsx` existe mas não aparece em nenhum lugar da interface (nem no modal nem na página).
+
+**L10 — Fatura da próxima vigência não é calculada nem exibida**
+A seção "Próximas Faturas" do banco mostra o saldo em aberto do próximo ciclo. O app não calcula compras após o fechamento.
 
 ---
 
-## 2. PROBLEMAS NO FLUXO ATUAL
+## Soluções possíveis para cada limitação
 
-### P1: Fatura gerada como "fantasma" -- nao persiste
+| Limitação | Solução | Viabilidade |
+|-----------|---------|-------------|
+| L1 — Cálculo de usado | Criar função `getCardCurrentCycleUsage(cardId, today)` que soma `flow === 'out'` pós último fechamento | Alta — só lógica de filtro |
+| L2 — Mínimo flat | Criar `calculateMinimumPayment(invoiceAmount, previousBalance)` com fórmula real do banco | Alta — cálculo puro |
+| L3 — Transações da fatura | Criar seção expansível no card mostrando transações do ciclo | Alta — dados já existem |
+| L4 — Próximo ciclo | Calcular transações entre último fechamento e hoje (ciclo aberto) | Alta — extensão de L1 |
+| L5 — Simulação parcelamento | Criar função `simulateInstallmentPlan(amount, months, monthlyRate)` | Alta — math financeiro |
+| L6 — Juros rotativos | Calcular `saldoRestante × taxaMensal` e exibir no modo Mínimo | Alta — simples multiplicação |
+| L7 — Resumo estruturado | Criar painel "Resumo da Fatura" com linhas: anterior + pagamentos + compras = total | Alta |
+| L8 — Warning quantificado | No modo Mínimo, calcular e mostrar "próxima fatura será R$ X se pagar só o mínimo" | Alta |
+| L9 — Timeline não integrada | Adicionar `CashFlowTimeline` na sidebar do `BillsSidebarKPIs` | Imediata |
+| L10 — Próxima fatura | Criar `getNextCycleBalance(cardId, today)` somando transações após o fechamento | Alta |
 
-`generateInvoiceBills` cria objetos `BillTracker` em memoria a cada render. Eles **nunca sao salvos** no `billsTracker`. Isso causa:
-- A fatura aparece na lista, mas se o usuario marca como paga, o `updateBill` procura no array persistido e **nao encontra**
-- A fatura sempre reaparece como nao paga ao recarregar a pagina
-- O `id` gerado (`invoice_{cardId}_{yyyy-MM}`) e deterministic, mas a logica de merge (`trackerBillIds`) so funciona se o item ja estiver no tracker -- ele nunca esta
+---
 
-**Impacto**: O usuario marca a fatura como paga, recarrega a pagina e ela volta como pendente.
+## Plano de implementação
 
-### P2: `onTogglePaid` vazio na pagina `BillsTracker.tsx`
+### Passo 1 — Corrigir lógica de ciclo e "usado" (L1, L4, L10)
 
-Na pagina standalone (linha 78), `onTogglePaid` recebe `() => {}`. O usuario clica no checkbox de "pagar" e nada acontece. A pagina esta funcional apenas como visualizacao -- pagamento so funciona dentro do `BillsTrackerModal`.
+**Arquivo: `src/contexts/FinanceContext.tsx`**
 
-### P3: Calculo de "usado" no cartao esta incorreto
+Criar/atualizar funções:
+
+```
+getCardCurrentCycleUsage(cardId, referenceDate):
+  1. Calcular data do último fechamento (mês anterior ou atual)
+  2. Filtrar transacoesV2 onde:
+     - accountId === config.accountId
+     - flow === 'out'
+     - date > lastClosingDate && date <= referenceDate
+  3. Retornar soma
+
+getNextCycleBalance(cardId, referenceDate):
+  1. Calcular data do fechamento atual
+  2. Filtrar transações após o fechamento até hoje
+  3. Retornar soma (saldo aberto da próxima fatura)
+
+getCardCycleTransactions(cardId, monthDate):
+  Retorna array de TransacaoCompleta do ciclo (para exibir no breakdown)
+```
+
+Expor essas 3 funções no `FinanceContext.value`.
+
+---
+
+### Passo 2 — Reestruturar o `CreditCardTab` como "Fatura do Banco" (L2–L8)
+
+**Arquivo: `src/components/bills/CreditCardTab.tsx`**
+
+Cada card de cartão passa a ter **duas seções expansíveis**:
+
+#### Seção A — Visão da Fatura Atual (sempre visível)
+
+```
+┌─ Nubank ────────────────────────────────────┐
+│ Período: 04 JAN → 04 FEV                   │
+│ Vence: 11 FEV 2026                         │
+│                                             │
+│ FATURA: R$ 282,12    DISPONÍVEL: R$ 5.318  │
+│ ▓▓▓▓▓▓░░░░░░░░░░  14% usado               │
+│                                             │
+│ Próxima fatura (em aberto): R$ 119,90      │
+└─────────────────────────────────────────────┘
+```
+
+#### Seção B — Breakdown de transações (expansível, ▼)
+
+```
+┌─ Transações do ciclo ───────────────────────┐
+│ 07 JAN  Panificadora Pao de Queijo  R$ 49,75│
+│ 26 JAN  Mapfre Parcela 3/12        R$ 92,47 │
+│ 30 JAN  Panificadora Pao de Queijo  R$ 20,00│
+│ 31 JAN  On Fitness - Parcela 1/6   R$ 119,90│
+│ ─────────────────────────────────────────── │
+│ Total de compras: R$ 282,12                 │
+└─────────────────────────────────────────────┘
+```
+
+#### Seção C — Alternativas de Pagamento (substituindo botões simples)
+
+Substituir os 3 botões por um painel com 3 opções visualmente hierarquizadas, similar ao layout do banco:
+
+**Opção 1 — Total (recomendada)**
+```
+✓ Pagar Total: R$ 282,12
+  Sem juros. Melhor escolha.
+```
+
+**Opção 2 — Mínimo (com impacto calculado)**
+```
+⚠ Pagamento Mínimo: R$ 42,31
+  Saldo restante: R$ 239,80
+  Juros rotativos (16,1%/mês): +R$ 38,63
+  Próxima fatura: ~R$ 329,54
+```
+- Taxa de juros configurável no card
+- Cálculo: `saldoRestante × taxaRotativo`
+
+**Opção 3 — Parcelar fatura (simulação)**
+```
+◈ Parcelar em: [3x] [6x] [12x]
+  3x: R$ 100,70/mês · Total R$ 344,44 · Juros 12,86%/mês
+  6x: R$  59,08/mês · Total R$ 396,84 · Juros 12,86%/mês
+```
+- Taxas configuráveis no cadastro do cartão
+- Cálculo: tabela Price simples
+
+**Opção 4 — Valor customizado**
+- Input de valor + cálculo de impacto em tempo real
+
+---
+
+### Passo 3 — Expandir o modelo `CreditCardConfig` (L5, L6)
+
+**Arquivo: `src/types/finance.ts`**
+
+Adicionar campos opcionais à `CreditCardConfig`:
 
 ```typescript
-const usedAmount = Math.abs(Math.min(0, calculateBalanceUpToDate(...)));
+interface CreditCardConfig {
+  // ... campos existentes ...
+  interestRateMonthly?: number;       // Taxa rotativa (ex: 0.161 = 16,1%)
+  installmentRateMonthly?: number;    // Taxa parcelamento (ex: 0.1286 = 12,86%)
+  minimumPaymentPercent?: number;     // % do mínimo (default 0.15 = 15%)
+  previousCycleBalance?: number;      // Saldo do mês anterior (para cálculo do mínimo real)
+}
 ```
 
-`calculateBalanceUpToDate` calcula saldo acumulado desde a criacao da conta. Para cartao de credito, isso mistura faturas pagas, estornos e compras de todos os meses. O correto seria calcular apenas as transacoes do ciclo atual aberto (apos ultimo fechamento).
-
-### P4: Nao ha validacao de conflito ao pagar fatura
-
-Quando a fatura e marcada como paga via checkbox na lista, o `handleTogglePaid` no `BillsTrackerModal` tenta:
-- Buscar categoria (retorna null para `card_invoice` pois nao ha match de "fatura" nas categorias padrao)
-- O guard `if (!account || (!category && !isLoan))` bloqueia o pagamento com erro "Configure conta e categoria"
-
-**Impacto**: Faturas de cartao **nao podem ser pagas** pelo fluxo normal do tracker.
-
-### P5: Aba "Parceladas" nao fecha o modal apos gerar parcelas
-
-`PurchaseInstallmentTabContent` recebe `onClose={() => {}}`. Apos gerar parcelas, o usuario fica preso na mesma tela sem feedback de "voltar".
-
-### P6: Sidebar KPIs nao recebe `combinedBills` na pagina standalone
-
-Na pagina `BillsTracker.tsx` (linha 53-57), `BillsSidebarKPIs` nao recebe a prop `combinedBills`. Os calculos internos de pendentes/pagos/cartao ficam zerados.
+Todos opcionais com defaults (0.15 mínimo, sem juros se não configurado).
 
 ---
 
-## 3. PLANO DE MELHORIAS
+### Passo 4 — Criar lógica financeira (L2, L5, L6)
 
-### M1: Persistir fatura ao primeiro contato
+**Novo helper `src/lib/creditCardCalc.ts`** (ou dentro do FinanceContext):
 
-Quando `generateInvoiceBills` retorna faturas novas (nao presentes no tracker), salva-las automaticamente no `billsTracker` ao inves de apenas merge-las em memoria. Isso resolve P1 completamente.
+```typescript
+// Pagamento mínimo real (fórmula do banco)
+calculateMinimumPayment(invoiceAmount, config):
+  base = invoiceAmount * (config.minimumPaymentPercent || 0.15)
+  return Math.max(base, 10) // mínimo absoluto R$10
 
-**Tecnico**: No `BillsTrackerModal` e `BillsTracker.tsx`, ao detectar `newInvoiceBills.length > 0`, chamar `setBillsTracker(prev => [...prev, ...newInvoiceBills])` uma unica vez (com guard para nao duplicar).
+// Simulação rotativo
+calculateRevolvingImpact(remainingBalance, monthlyRate):
+  interest = remainingBalance * monthlyRate
+  return { interest, nextMonthEstimate: remainingBalance + interest }
 
-### M2: Corrigir fluxo de pagamento de fatura (P4)
-
-Adicionar tratamento especial em `handleTogglePaid` para `sourceType === 'card_invoice'`:
-- Nao exigir categoria (usar uma categoria padrao "Fatura Cartao" ou permitir null)
-- A transacao gerada deve ser do tipo `pagamento_fatura` (novo `OperationType`)
-- A conta de debito deve ser a `defaultPaymentAccountId` do cartao, nao a conta do cartao
-
-### M3: Adicionar botoes de acao na fatura (CreditCardTab)
-
-Dentro de cada card de cartao, apos mostrar o valor da fatura, adicionar:
-
+// Simulação parcelamento (Price)
+simulateInstallmentPlan(amount, months, monthlyRate):
+  if monthlyRate === 0: return { monthlyPayment: amount/months, total: amount, interest: 0 }
+  i = monthlyRate
+  pmt = amount * (i * (1+i)^n) / ((1+i)^n - 1)
+  return { monthlyPayment: pmt, total: pmt * months, interest: pmt*months - amount }
 ```
-[Pagar Total] [Pagar Minimo] [Valor Custom]
-```
-
-Ao clicar:
-1. Gera/atualiza o `BillTracker` da fatura com `paymentMode` e valor adequado
-2. Marca como pago
-3. Gera transacao automatica (debito na conta de pagamento, credito na conta do cartao)
-
-### M4: Corrigir calculo de uso do cartao (P3)
-
-Substituir `calculateBalanceUpToDate` por logica especifica:
-- Somar transacoes `flow === 'out'` da conta do cartao no ciclo aberto (fechamento anterior ate hoje)
-- Subtrair pagamentos recebidos no ciclo
-
-### M5: Corrigir pagina standalone `BillsTracker.tsx` (P2, P6)
-
-- Implementar `onTogglePaid` com a mesma logica do modal
-- Passar `combinedBills` para `BillsSidebarKPIs`
-
-### M6: Criar `CashFlowTimeline.tsx`
-
-Componente com recharts `AreaChart`:
-- Eixo X: dias do mes (ou 30/60/90 dias)
-- Eixo Y: saldo projetado
-- Linha de base: saldo atual
-- Decrementos: vencimentos futuros
-- Incrementos: receita prevista
-- Zona vermelha: area abaixo de zero
-- Integrar na sidebar do modal e na pagina standalone
-
-### M7: Alertas inteligentes na sidebar
-
-Adicionar secao no `BillsSidebarKPIs`:
-- Alerta "Fatura sem cobertura" (saldo da conta pagamento < valor fatura)
-- Alerta "Limite critico" (uso > 80%)
-- Alerta "Pagamento minimo recorrente" (historico de 2+ meses)
-
-### M8: Feedback apos gerar parcelas
-
-Ao gerar parcelas na aba "Parceladas", mostrar toast de sucesso e opcionalmente trocar para aba "Fixas" mostrando as novas parcelas incluidas.
 
 ---
 
-## 4. ORDEM DE IMPLEMENTACAO RECOMENDADA
+### Passo 5 — Integrar `CashFlowTimeline` na sidebar (L9)
 
-| Passo | Descricao | Prioridade |
-|-------|-----------|------------|
-| 1 | Corrigir persistencia de fatura (M1) | Critica |
-| 2 | Corrigir fluxo de pagamento de fatura (M2) | Critica |
-| 3 | Corrigir pagina standalone (M5) | Alta |
-| 4 | Corrigir calculo uso cartao (M4) | Alta |
-| 5 | Botoes de acao na fatura (M3) | Media |
-| 6 | Feedback parcelas (M8) | Baixa |
-| 7 | CashFlowTimeline (M6) | Media |
-| 8 | Alertas inteligentes (M7) | Media |
+**Arquivo: `src/components/bills/BillsSidebarKPIs.tsx`**
+
+Adicionar o componente `CashFlowTimeline` após a seção de alertas de cartão. O componente já existe e está completo, só precisa ser importado e renderizado dentro do `BillsSidebarKPIs`.
 
 ---
 
-## 5. RESUMO DE ARQUIVOS AFETADOS
+### Passo 6 — Resumo estruturado da fatura (L7)
 
-| Arquivo | Mudancas |
-|---------|----------|
-| `src/contexts/FinanceContext.tsx` | Logica de persistencia de fatura, novo OperationType, correcao calculo uso |
-| `src/components/bills/CreditCardTab.tsx` | Botoes Pagar Total/Minimo/Custom, correcao usedAmount |
-| `src/components/bills/BillsTrackerModal.tsx` | Guard especial para card_invoice em handleTogglePaid |
-| `src/pages/BillsTracker.tsx` | Implementar onTogglePaid, passar combinedBills na sidebar |
-| `src/components/bills/BillsSidebarKPIs.tsx` | Secao de alertas inteligentes |
-| `src/components/bills/CashFlowTimeline.tsx` | **NOVO** - Timeline de projecao |
-| `src/components/bills/tabs/PurchaseInstallmentTabContent.tsx` | Feedback apos gerar parcelas |
-| `src/types/finance.ts` | Novo OperationType `pagamento_fatura` se necessario |
+No `CreditCardTab`, adicionar painel "Resumo" estilo extrato bancário:
 
+```
+Fatura anterior         R$ 1.313,68
+Pagamento recebido     −R$ 1.313,68
+Compras do ciclo        R$ 282,12
+─────────────────────────────────
+Total a pagar           R$ 282,12
+```
+
+Para isso, o app precisará rastrear:
+- Valor da fatura do mês anterior (já existe em `billsTracker` como `card_invoice` do mês anterior)
+- Pagamentos realizados no ciclo (transações que quitaram a fatura anterior)
+
+---
+
+## Resumo de arquivos afetados
+
+| Arquivo | Ação |
+|---------|------|
+| `src/types/finance.ts` | Adicionar campos de taxa ao `CreditCardConfig` |
+| `src/contexts/FinanceContext.tsx` | Criar `getCardCurrentCycleUsage`, `getNextCycleBalance`, `getCardCycleTransactions` |
+| `src/components/bills/CreditCardTab.tsx` | Reestruturar completamente — breakdown, alternativas hierarquizadas, simulações |
+| `src/components/bills/BillsSidebarKPIs.tsx` | Integrar `CashFlowTimeline` |
+| `src/lib/creditCardCalc.ts` | **NOVO** — funções financeiras (mínimo, rotativo, parcelamento Price) |
+
+---
+
+## Ordem de implementação recomendada
+
+| Passo | Ação | Impacto |
+|-------|------|---------|
+| 1 | Expandir `CreditCardConfig` com campos de taxa | Base para os demais |
+| 2 | Criar helper `creditCardCalc.ts` | Lógica financeira isolada e testável |
+| 3 | Criar `getCardCurrentCycleUsage` e `getCardCycleTransactions` no Context | Corrige L1 e L3 |
+| 4 | Criar `getNextCycleBalance` no Context | Corrige L4 e L10 |
+| 5 | Reestruturar `CreditCardTab` com breakdown + alternativas + simulações | Experiência principal |
+| 6 | Integrar `CashFlowTimeline` na sidebar | Corrige L9 (imediato) |
+
+---
+
+## Limitações que não têm solução completa no app
+
+| Limitação | Por quê não resolve totalmente |
+|-----------|-------------------------------|
+| Mínimo real exato | O banco considera histórico de meses anteriores e lançamentos automáticos de juros que o app não lança. Faremos uma aproximação boa o suficiente. |
+| CET (Custo Efetivo Total) | Cálculo regulatório complexo que envolve IOF diário, taxa de abertura, etc. Será exibido como estimativa. |
+| Limite adicional dinâmico | O app usa limite fixo configurado pelo usuário. Não há API para consultar limite real do banco. |
+| Parcelamento de fatura pelo banco | A "entrada + parcelas" do Nubank é um produto do banco. O app simulará matematicamente mas não executa via banco. |
+| IOF automático | IOF em transações internacionais e saques não é calculado automaticamente pois o app não distingue tipo de compra. |

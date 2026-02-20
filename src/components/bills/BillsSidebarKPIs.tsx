@@ -21,6 +21,8 @@ import { cn, parseDateLocal } from "@/lib/utils";
 import { startOfMonth, subDays, format, isSameMonth } from "date-fns";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CashFlowTimeline } from "@/components/bills/CashFlowTimeline";
+
 
 interface BillsSidebarKPIsProps {
   currentDate: Date;
@@ -342,6 +344,16 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
 
         {/* M7: Smart Credit Card Alerts */}
         <SmartCardAlerts combinedBills={combinedBills} currentDate={currentDate} />
+
+        {/* CashFlow Timeline */}
+        {combinedBills.length > 0 && (
+          <>
+            <Separator className="opacity-20" />
+            <div className="px-1">
+              <CashFlowTimeline currentDate={currentDate} combinedBills={combinedBills} />
+            </div>
+          </>
+        )}
       </div>
     </ScrollArea>
   );

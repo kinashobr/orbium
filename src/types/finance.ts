@@ -378,6 +378,10 @@ export interface CreditCardConfig {
   closingDay: number;       // Dia de fechamento (1-31)
   dueDay: number;           // Dia de vencimento (1-31)
   defaultPaymentAccountId?: string; // Conta padrão para pagamento
+  // Taxas financeiras (opcionais - para cálculos de simulação)
+  interestRateMonthly?: number;     // Taxa rotativa ao mês (ex: 0.161 = 16,1%)
+  installmentRateMonthly?: number;  // Taxa de parcelamento ao mês (ex: 0.1286 = 12,86%)
+  minimumPaymentPercent?: number;   // % do mínimo (default 0.15 = 15%)
 }
 
 export function generateCreditCardConfigId(): string {
