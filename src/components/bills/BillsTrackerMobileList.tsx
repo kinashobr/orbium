@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useCallback } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillDisplayItem, BillSourceType, BillTracker, ExternalPaidBill, formatCurrency } from "@/types/finance";
@@ -13,6 +14,8 @@ import {
   ShoppingCart,
   CheckCircle2,
   CreditCard,
+  Trash2,
+  X,
 } from "lucide-react";
 import { differenceInCalendarDays, startOfDay } from "date-fns";
 
@@ -40,6 +43,7 @@ const SOURCE_CONFIG_MOBILE: Record<
 };
 
 const isExternalPaidBill = (bill: BillDisplayItem): bill is ExternalPaidBill => bill.type === "external_paid";
+const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === "tracker";
 
 const formatDateLabel = (dateStr: string) => {
   const d = parseDateLocal(dateStr);
@@ -49,9 +53,16 @@ const formatDateLabel = (dateStr: string) => {
 export function BillsTrackerMobileList({
   bills,
   onTogglePaid,
+  onDeleteBill,
+  onUpdateBill,
 }: BillsTrackerMobileListProps) {
   const { contasMovimento, categoriasV2 } = useFinance();
   const todayMid = startOfDay(new Date());
+
+  const handleExcludeBill = useCallback((bill: BillTracker) => {
+    if (bill.isPaid) return;
+    onUpdateBill(bill.id, { isExcluded: true });
+  }, [onUpdateBill]);
 
   const sections = useMemo(() => {
     const result: Record<
@@ -156,12 +167,25 @@ export function BillsTrackerMobileList({
                 </div>
 
                 <div className="flex flex-col items-end justify-between gap-2 self-stretch">
-                  <p className={cn(
-                    "text-sm font-black tabular-nums",
-                    isPaid ? "text-success" : key === 'overdue' ? "text-destructive" : "text-foreground"
-                  )}>
-                    {formatCurrency(bill.expectedAmount)}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    {!isPaid && !isExt && isBillTracker(bill) && (
+                      (bill.sourceType === 'ad_hoc' || bill.sourceType === 'card_invoice') ? (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground" onClick={() => onDeleteBill(bill.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground" onClick={() => handleExcludeBill(bill)}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      )
+                    )}
+                    <p className={cn(
+                      "text-sm font-black tabular-nums",
+                      isPaid ? "text-success" : key === 'overdue' ? "text-destructive" : "text-foreground"
+                    )}>
+                      {formatCurrency(bill.expectedAmount)}
+                    </p>
+                  </div>
 
                   {isExt ? (
                     <CheckCircle2 className="w-5 h-5 text-success/40" />

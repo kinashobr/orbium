@@ -85,10 +85,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
   const invoiceBills = useMemo(() => generateInvoiceBills(currentDate), [generateInvoiceBills, currentDate]);
-  const trackerBillIds = useMemo(() => new Set(trackerManagedBills.map(b => b.id)), [trackerManagedBills]);
-  const newInvoiceBills = useMemo(() => invoiceBills.filter(b => !trackerBillIds.has(b.id)), [invoiceBills, trackerBillIds]);
-
-  // M1: Persist generated invoice bills to tracker state
+  
+  // M1: Persist generated invoice bills to tracker state, respecting exclusions
+  const allTrackerIds = useMemo(() => new Set(billsTracker.map(b => b.id)), [billsTracker]);
+  const newInvoiceBills = useMemo(() => invoiceBills.filter(b => !allTrackerIds.has(b.id)), [invoiceBills, allTrackerIds]);
+  
   const newInvoiceIds = useMemo(() => newInvoiceBills.map(b => b.id).join(','), [newInvoiceBills]);
   useEffect(() => {
     if (newInvoiceBills.length > 0) {
@@ -98,13 +99,13 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
       });
     }
-  }, [newInvoiceIds]);
+  }, [newInvoiceIds, setBillsTracker, newInvoiceBills]);
 
   const combinedBills: BillDisplayItem[] = useMemo(() => {
     const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
     const externalBills: BillDisplayItem[] = externalPaidBills.filter(eb => !trackerPaidTxIds.has(eb.id));
-    return [...trackerManagedBills, ...newInvoiceBills, ...externalBills];
-  }, [trackerManagedBills, newInvoiceBills, externalPaidBills]);
+    return [...trackerManagedBills, ...externalBills];
+  }, [trackerManagedBills, externalPaidBills]);
 
   const totalUnpaidBills = useMemo(() => {
     const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
