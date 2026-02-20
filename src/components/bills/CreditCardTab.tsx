@@ -408,35 +408,69 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
       return;
     }
 
+    const cardAccount = contasMovimento.find(c => c.id === config.accountId);
+    if (!cardAccount) {
+      toast.error("Conta do cartão não encontrada.");
+      return;
+    }
+
     const invoiceId = `invoice_${config.id}_${format(currentDate, 'yyyy-MM')}`;
-    const txId = `bill_tx_${invoiceId}_${Date.now()}`;
-    const account = contasMovimento.find(a => a.id === config.accountId);
+    const transferGroupId = `invoice_transfer_${invoiceId}_${Date.now()}`;
+    const txSourceId = `bill_tx_src_${invoiceId}_${Date.now()}`;
+    const txDestId = `bill_tx_dest_${invoiceId}_${Date.now()}`;
+
     const invoiceAmount = getInvoiceForCard(config.id, currentDate);
     const dueDay = Math.min(config.dueDay, new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate());
     const dueDate = format(new Date(currentDate.getFullYear(), currentDate.getMonth(), dueDay), 'yyyy-MM-dd');
 
+    const description = `Pagamento Fatura ${cardAccount?.name || 'Cartão'}${mode !== 'total' ? ` (${mode === 'minimo' ? 'Mínimo' : 'Parcial'})` : ''}`;
+
+    // Transação de Saída (Conta Corrente)
     addTransacaoV2({
-      id: txId, date: dueDate, accountId: paymentAccount.id, flow: 'out',
-      operationType: 'despesa', domain: 'operational', amount,
+      id: txSourceId,
+      date: dueDate,
+      accountId: paymentAccount.id,
+      flow: 'transfer_out',
+      operationType: 'transferencia',
+      domain: 'operational',
+      amount,
       categoryId: null,
-      description: `Pagamento Fatura ${account?.name || 'Cartão'}${mode !== 'total' ? ` (${mode === 'minimo' ? 'Mínimo' : 'Parcial'})` : ''}`,
-      links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
-      conciliated: true, attachments: [],
+      description,
+      links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
+      conciliated: true,
+      attachments: [],
+      meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+    });
+
+    // Transação de Entrada (Cartão de Crédito)
+    addTransacaoV2({
+      id: txDestId,
+      date: dueDate,
+      accountId: cardAccount.id,
+      flow: 'transfer_in',
+      operationType: 'transferencia',
+      domain: 'operational',
+      amount,
+      categoryId: null,
+      description,
+      links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
+      conciliated: true,
+      attachments: [],
       meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
     });
 
     const existingBill = billsTracker.find(b => b.id === invoiceId);
     if (existingBill) {
       updateBill(invoiceId, {
-        isPaid: true, paymentDate: dueDate, transactionId: txId,
+        isPaid: true, paymentDate: dueDate, transactionId: transferGroupId,
         paymentMode: mode, customPaymentAmount: mode !== 'total' ? amount : undefined,
       });
     } else {
       setBillsTracker(prev => [...prev, {
         id: invoiceId, type: 'tracker' as const,
-        description: `Fatura ${account?.name || 'Cartão'}`,
+        description: `Fatura ${cardAccount?.name || 'Cartão'}`,
         dueDate, expectedAmount: invoiceAmount, isPaid: true,
-        paymentDate: dueDate, transactionId: txId,
+        paymentDate: dueDate, transactionId: transferGroupId,
         sourceType: 'card_invoice' as const, sourceRef: config.id, cardId: config.id,
         invoiceCycle: format(currentDate, 'yyyy-MM'), paymentMode: mode,
         customPaymentAmount: mode !== 'total' ? amount : undefined,
@@ -444,7 +478,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
       }]);
     }
 
-    toast.success(`Fatura paga: ${formatCurrency(amount)}`);
+    toast.success(`Fatura paga via transferência: ${formatCurrency(amount)}`);
     setPayingCardId(null);
   };
 

@@ -138,21 +138,66 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const cardConfig = creditCardConfigs.find(c => c.id === trackerBill.cardId);
         const paymentAccountId = cardConfig?.defaultPaymentAccountId || trackerBill.suggestedAccountId;
         const paymentAccount = contasMovimento.find(c => c.id === paymentAccountId);
+        
         if (!paymentAccount) {
           toast.error("Configure a conta de pagamento do cartão.");
           return;
         }
-        const txId = `bill_tx_${trackerBill.id}`;
-        addTransacaoV2({
-          id: txId, date: trackerBill.dueDate, accountId: paymentAccount.id, flow: 'out',
-          operationType: 'despesa', domain: 'operational', amount: trackerBill.expectedAmount,
-          categoryId: null, description: `Pagamento ${trackerBill.description}`,
-          links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
-          conciliated: true, attachments: [],
+
+        const cardAccount = contasMovimento.find(c => c.id === cardConfig?.accountId);
+        if (!cardAccount) {
+          toast.error("Conta do cartão não encontrada.");
+          return;
+        }
+
+        const transferGroupId = `invoice_transfer_${trackerBill.id}_${Date.now()}`;
+        const txSourceId = `bill_tx_src_${trackerBill.id}`;
+        const txDestId = `bill_tx_dest_${trackerBill.id}`;
+
+        // Transação de Saída (Conta Corrente)
+        const txSource = {
+          id: txSourceId,
+          date: trackerBill.dueDate,
+          accountId: paymentAccount.id,
+          flow: 'transfer_out' as const,
+          operationType: 'transferencia' as const,
+          domain: 'operational' as const,
+          amount: trackerBill.expectedAmount,
+          categoryId: null,
+          description: `Pagamento ${trackerBill.description}`,
+          links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
+          conciliated: true,
+          attachments: [],
           meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+        };
+
+        // Transação de Entrada (Cartão de Crédito)
+        const txDest = {
+          id: txDestId,
+          date: trackerBill.dueDate,
+          accountId: cardAccount.id,
+          flow: 'transfer_in' as const,
+          operationType: 'transferencia' as const,
+          domain: 'operational' as const,
+          amount: trackerBill.expectedAmount,
+          categoryId: null,
+          description: `Pagamento ${trackerBill.description}`,
+          links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
+          conciliated: true,
+          attachments: [],
+          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+        };
+
+        addTransacaoV2(txSource);
+        addTransacaoV2(txDest);
+
+        updateBill(trackerBill.id, {
+          isPaid: true,
+          paymentDate: trackerBill.dueDate,
+          transactionId: transferGroupId // Store the group ID as the transaction reference
         });
-        updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: txId });
-        toast.success("Fatura paga e lançada!");
+        
+        toast.success("Fatura paga via transferência!");
         return;
       }
 
@@ -204,7 +249,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       toast.success("Despesa paga e lançada!");
     } else {
       if (trackerBill.transactionId) {
-        setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId));
+        setTransacoesV2(prev => prev.filter(t =>
+          t.id !== trackerBill.transactionId &&
+          t.links?.transferGroupId !== trackerBill.transactionId
+        ));
       }
       if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
         unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef));

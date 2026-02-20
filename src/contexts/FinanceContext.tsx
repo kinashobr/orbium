@@ -578,8 +578,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         let amountChange = 0;
         if (isCreditCard) {
             // CC: Despesa (out) aumenta o saldo devedor (negativo), Receita (in) diminui o saldo devedor (positivo)
-            if (t.flow === 'out') amountChange = -t.amount;
-            else if (t.flow === 'in') amountChange = t.amount;
+            if (t.flow === 'out' || t.flow === 'transfer_out') amountChange = -t.amount;
+            else if (t.flow === 'in' || t.flow === 'transfer_in') amountChange = t.amount;
         } else {
             // Contas normais: In aumenta, Out diminui
             if (t.flow === 'in' || t.flow === 'transfer_in') amountChange = t.amount;
@@ -618,8 +618,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transactionsBeforeDate.forEach(t => {
         let amountChange = 0;
         if (isCreditCard) {
-            if (t.flow === 'out') amountChange = -t.amount;
-            else if (t.flow === 'in') amountChange = t.amount;
+            if (t.flow === 'out' || t.flow === 'transfer_out') amountChange = -t.amount;
+            else if (t.flow === 'in' || t.flow === 'transfer_in') amountChange = t.amount;
         } else {
             if (t.flow === 'in' || t.flow === 'transfer_in') amountChange = t.amount;
             else amountChange = -t.amount;
