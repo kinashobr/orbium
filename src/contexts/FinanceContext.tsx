@@ -38,7 +38,7 @@ import {
 	generateCreditCardConfigId,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, cn } from "@/lib/utils";
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -962,7 +962,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         return (
           isWithinInterval(transactionDate, { start: monthStart, end: monthEnd }) &&
           (t.flow === 'out' || t.flow === 'transfer_out') &&
-          (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado') &&
+          (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado' || t.operationType === 'transferencia') &&
           (t.meta.source !== 'import' || t.conciliated) &&
           !trackerTxIds.has(t.id) &&
           t.meta.source !== 'bill_tracker'
@@ -1457,26 +1457,52 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const year = monthDate.getFullYear();
       const month = monthDate.getMonth();
       const dueDay = Math.min(config.dueDay, new Date(year, month + 1, 0).getDate());
-      const dueDate = new Date(year, month, dueDay);
+      const dueDateStr = format(new Date(year, month, dueDay), 'yyyy-MM-dd');
       const account = contasMovimento.find(a => a.id === config.accountId);
       
+      // M3: Check if invoice is already paid via transfer (manual or imported)
+      const invoiceCycleKey = format(monthDate, 'yyyy-MM');
+      const existingPaidInvoice = billsTracker.find(b => b.sourceRef === config.id && b.invoiceCycle === invoiceCycleKey && b.isPaid);
+      
+      // If not marked as paid in tracker, check transactions for a matching transfer
+      let isPaid = existingPaidInvoice?.isPaid || false;
+      let paymentDate = existingPaidInvoice?.paymentDate;
+      let transactionId = existingPaidInvoice?.transactionId;
+
+      if (!isPaid) {
+        const cycleTransactions = transacoesV2.filter(t => 
+          t.accountId === config.accountId && 
+          t.flow === 'transfer_in' && 
+          isSameMonth(parseDateLocal(t.date), monthDate)
+        );
+        
+        if (cycleTransactions.length > 0) {
+          const match = cycleTransactions[0];
+          isPaid = true;
+          paymentDate = match.date;
+          transactionId = match.links?.transferGroupId || match.id;
+        }
+      }
+      
       return {
-        id: `invoice_${config.id}_${format(monthDate, 'yyyy-MM')}`,
+        id: `invoice_${config.id}_${invoiceCycleKey}`,
         type: 'tracker' as const,
         description: `Fatura ${account?.name || 'Cartão'}`,
-        dueDate: format(dueDate, 'yyyy-MM-dd'),
+        dueDate: dueDateStr,
         expectedAmount: invoiceAmount,
-        isPaid: false,
+        isPaid,
+        paymentDate,
+        transactionId,
         sourceType: 'card_invoice' as const,
         sourceRef: config.id,
         cardId: config.id,
-        invoiceCycle: format(monthDate, 'yyyy-MM'),
+        invoiceCycle: invoiceCycleKey,
         suggestedAccountId: config.defaultPaymentAccountId,
         suggestedCategoryId: null,
         isExcluded: false,
       };
     }).filter(Boolean) as BillTracker[];
-  }, [creditCardConfigs, getInvoiceForCard, contasMovimento]);
+  }, [creditCardConfigs, getInvoiceForCard, contasMovimento, billsTracker, transacoesV2]);
 
   const value = {
     emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo: (id: number) => setEmprestimos(p => p.filter(e => e.id !== id)), getPendingLoans: () => emprestimos.filter(e => e.status === 'pendente_config'), markLoanParcelPaid, unmarkLoanParcelPaid, calculateLoanSchedule, calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths,

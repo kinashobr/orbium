@@ -27,10 +27,10 @@ import {
   OperationType, 
   BillDisplayItem 
 } from "@/types/finance";
-import { format, startOfMonth, subMonths, addMonths } from "date-fns";
+import { format, startOfMonth, subMonths, addMonths, isSameMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { ResizableDialogContent } from "../ui/ResizableDialogContent";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -87,20 +87,26 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
   const invoiceBills = useMemo(() => generateInvoiceBills(currentDate), [generateInvoiceBills, currentDate]);
   
-  // M1: Persist generated invoice bills to tracker state, respecting exclusions
-  const allTrackerIds = useMemo(() => new Set(billsTracker.map(b => b.id)), [billsTracker]);
-  const newInvoiceBills = useMemo(() => invoiceBills.filter(b => !allTrackerIds.has(b.id)), [invoiceBills, allTrackerIds]);
-  
-  const newInvoiceIds = useMemo(() => newInvoiceBills.map(b => b.id).join(','), [newInvoiceBills]);
+  // Persist generated invoice bills to tracker state
   useEffect(() => {
-    if (newInvoiceBills.length > 0) {
+    if (invoiceBills.length > 0) {
       setBillsTracker(prev => {
         const existingIds = new Set(prev.map(b => b.id));
-        const toAdd = newInvoiceBills.filter(b => !existingIds.has(b.id));
-        return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+        const toAdd = invoiceBills.filter(b => !existingIds.has(b.id));
+        
+        // Also update existing ones if they detected auto-payment
+        const updated = prev.map(existing => {
+          const matchingInvoice = invoiceBills.find(ib => ib.id === existing.id);
+          if (matchingInvoice && matchingInvoice.isPaid && !existing.isPaid) {
+            return { ...existing, isPaid: true, paymentDate: matchingInvoice.paymentDate, transactionId: matchingInvoice.transactionId };
+          }
+          return existing;
+        });
+
+        return toAdd.length > 0 ? [...updated, ...toAdd] : updated;
       });
     }
-  }, [newInvoiceIds, setBillsTracker, newInvoiceBills]);
+  }, [invoiceBills, setBillsTracker]);
 
   const combinedBills: BillDisplayItem[] = useMemo(() => {
     const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
@@ -133,9 +139,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const handleTogglePaid = useCallback((bill: BillDisplayItem, isChecked: boolean) => {
     if (!isBillTracker(bill)) return;
     const trackerBill = bill as BillTracker;
+    
     if (isChecked) {
-      // M2: Special handling for card invoices
       const isCardInvoice = trackerBill.sourceType === 'card_invoice';
+      
       if (isCardInvoice) {
         const cardConfig = creditCardConfigs.find(c => c.id === trackerBill.cardId);
         const paymentAccountId = cardConfig?.defaultPaymentAccountId || trackerBill.suggestedAccountId;
@@ -157,7 +164,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const txDestId = `bill_tx_dest_${trackerBill.id}`;
 
         // Transação de Saída (Conta Corrente)
-        const txSource = {
+        addTransacaoV2({
           id: txSourceId,
           date: trackerBill.dueDate,
           accountId: paymentAccount.id,
@@ -171,10 +178,10 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           conciliated: true,
           attachments: [],
           meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
-        };
+        });
 
         // Transação de Entrada (Cartão de Crédito)
-        const txDest = {
+        addTransacaoV2({
           id: txDestId,
           date: trackerBill.dueDate,
           accountId: cardAccount.id,
@@ -188,17 +195,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           conciliated: true,
           attachments: [],
           meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
-        };
-
-        addTransacaoV2(txSource);
-        addTransacaoV2(txDest);
-
-        updateBill(trackerBill.id, {
-          isPaid: true,
-          paymentDate: trackerBill.dueDate,
-          transactionId: transferGroupId // Store the group ID as the transaction reference
         });
-        
+
+        updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: transferGroupId });
         toast.success("Fatura paga via transferência!");
         return;
       }
@@ -211,6 +210,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         toast.error("Configure conta e categoria antes de pagar.");
         return;
       }
+      
       const transactionId = `bill_tx_${trackerBill.id}`;
       const baseLinks: Partial<TransactionLinks> = {};
       let description = trackerBill.description;
@@ -253,7 +253,9 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       if (trackerBill.transactionId) {
         setTransacoesV2(prev => prev.filter(t =>
           t.id !== trackerBill.transactionId &&
-          t.links?.transferGroupId !== trackerBill.transactionId
+          t.links?.transferGroupId !== trackerBill.transactionId &&
+          t.id !== `bill_tx_src_${trackerBill.id}` &&
+          t.id !== `bill_tx_dest_${trackerBill.id}`
         ));
       }
       if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
@@ -265,7 +267,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
       toast.info("Pagamento desfeito.");
     }
-  }, [contasMovimento, categoriasV2, emprestimos, addTransacaoV2, updateBill, setTransacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
+  }, [contasMovimento, categoriasV2, emprestimos, addTransacaoV2, updateBill, setTransacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, creditCardConfigs]);
 
   const handleAmountChange = (value: string) => {
     const digits = value.replace(/\D/g, "");
@@ -335,19 +337,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </div>
           </main>
           <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
-          <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
-            <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
-              <DialogHeader className="p-6 bg-muted/50 border-b"><DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle></DialogHeader>
-              <div className="p-6 space-y-4">
-                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição</Label><Input placeholder="Ex: Manutenção" className="h-11 border-2 rounded-xl font-bold" value={newBillData.description} onChange={e => setNewBillData(prev => ({ ...prev, description: e.target.value }))} /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Valor</Label><Input type="text" inputMode="numeric" placeholder="0,00" className="h-11 border-2 rounded-xl font-black" value={newBillData.amount} onChange={e => handleAmountChange(e.target.value)} /></div>
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Vencimento</Label><Input type="date" className="h-11 border-2 rounded-xl font-bold" value={newBillData.dueDate} onChange={e => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} /></div>
-                </div>
-              </div>
-              <DialogFooter className="p-6 bg-muted/10 border-t flex flex-col sm:flex-row gap-3"><Button variant="ghost" onClick={() => setShowNewBillModal(false)} className="rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground order-2 sm:order-1">FECHAR</Button><Button className="flex-1 h-12 rounded-xl font-black order-1 sm:order-2" onClick={handleAddAdHocBill}>ADICIONAR CONTA</Button></DialogFooter>
-            </DialogContent>
-          </Dialog>
         </DialogContent>
       </Dialog>
     );

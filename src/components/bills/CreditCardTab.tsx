@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { CreditCardConfig, formatCurrency, TransacaoCompleta } from "@/types/finance";
+import { CreditCardConfig, formatCurrency, TransacaoCompleta, BillTracker } from "@/types/finance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, isSameMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseDateLocal } from "@/lib/utils";
 import {
@@ -414,20 +414,21 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
       return;
     }
 
-    const invoiceId = `invoice_${config.id}_${format(currentDate, 'yyyy-MM')}`;
+    const invoiceCycleKey = format(currentDate, 'yyyy-MM');
+    const invoiceId = `invoice_${config.id}_${invoiceCycleKey}`;
     const transferGroupId = `invoice_transfer_${invoiceId}_${Date.now()}`;
-    const txSourceId = `bill_tx_src_${invoiceId}_${Date.now()}`;
-    const txDestId = `bill_tx_dest_${invoiceId}_${Date.now()}`;
 
     const invoiceAmount = getInvoiceForCard(config.id, currentDate);
     const dueDay = Math.min(config.dueDay, new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate());
     const dueDate = format(new Date(currentDate.getFullYear(), currentDate.getMonth(), dueDay), 'yyyy-MM-dd');
 
-    const description = `Pagamento Fatura ${cardAccount?.name || 'Cartão'}${mode !== 'total' ? ` (${mode === 'minimo' ? 'Mínimo' : 'Parcial'})` : ''}`;
+    const cardName = cardAccount?.name || 'Cartão';
+    const modeSuffix = mode !== 'total' ? ` (${mode === 'minimo' ? 'Mínimo' : 'Parcial'})` : '';
+    const description = `Pagamento Fatura ${cardName}${modeSuffix}`;
 
     // Transação de Saída (Conta Corrente)
     addTransacaoV2({
-      id: txSourceId,
+      id: `bill_tx_src_${invoiceId}_${Date.now()}`,
       date: dueDate,
       accountId: paymentAccount.id,
       flow: 'transfer_out',
@@ -444,7 +445,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
 
     // Transação de Entrada (Cartão de Crédito)
     addTransacaoV2({
-      id: txDestId,
+      id: `bill_tx_dest_${invoiceId}_${Date.now()}`,
       date: dueDate,
       accountId: cardAccount.id,
       flow: 'transfer_in',
@@ -468,11 +469,11 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
     } else {
       setBillsTracker(prev => [...prev, {
         id: invoiceId, type: 'tracker' as const,
-        description: `Fatura ${cardAccount?.name || 'Cartão'}`,
+        description: `Fatura ${cardName}`,
         dueDate, expectedAmount: invoiceAmount, isPaid: true,
         paymentDate: dueDate, transactionId: transferGroupId,
         sourceType: 'card_invoice' as const, sourceRef: config.id, cardId: config.id,
-        invoiceCycle: format(currentDate, 'yyyy-MM'), paymentMode: mode,
+        invoiceCycle: invoiceCycleKey, paymentMode: mode,
         customPaymentAmount: mode !== 'total' ? amount : undefined,
         suggestedAccountId: config.defaultPaymentAccountId, suggestedCategoryId: null, isExcluded: false,
       }]);
