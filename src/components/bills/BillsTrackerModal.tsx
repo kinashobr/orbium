@@ -87,25 +87,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
   const invoiceBills = useMemo(() => generateInvoiceBills(currentDate), [generateInvoiceBills, currentDate]);
   
-  // Persist generated invoice bills to tracker state - Optimized to prevent infinite loop
   useEffect(() => {
     if (invoiceBills.length > 0) {
       setBillsTracker(prev => {
         const existingIds = new Set(prev.map(b => b.id));
         const toAdd = invoiceBills.filter(b => !existingIds.has(b.id));
-        
         let hasChanges = toAdd.length > 0;
-        
         const updated = prev.map(existing => {
           const matchingInvoice = invoiceBills.find(ib => ib.id === existing.id);
-          // Only update if status actually changed to paid
           if (matchingInvoice && matchingInvoice.isPaid && !existing.isPaid) {
             hasChanges = true;
             return { ...existing, isPaid: true, paymentDate: matchingInvoice.paymentDate, transactionId: matchingInvoice.transactionId };
           }
           return existing;
         });
-
         return hasChanges ? (toAdd.length > 0 ? [...updated, ...toAdd] : updated) : prev;
       });
     }
@@ -145,126 +140,49 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     
     if (isChecked) {
       const isCardInvoice = trackerBill.sourceType === 'card_invoice';
-      
       if (isCardInvoice) {
         const cardConfig = creditCardConfigs.find(c => c.id === trackerBill.cardId);
         const paymentAccountId = cardConfig?.defaultPaymentAccountId || trackerBill.suggestedAccountId;
         const paymentAccount = contasMovimento.find(c => c.id === paymentAccountId);
-        
-        if (!paymentAccount) {
-          toast.error("Configure a conta de pagamento do cartão.");
-          return;
-        }
-
+        if (!paymentAccount) { toast.error("Configure a conta de pagamento do cartão."); return; }
         const cardAccount = contasMovimento.find(c => c.id === cardConfig?.accountId);
-        if (!cardAccount) {
-          toast.error("Conta do cartão não encontrada.");
-          return;
-        }
-
+        if (!cardAccount) { toast.error("Conta do cartão não encontrada."); return; }
         const transferGroupId = `invoice_transfer_${trackerBill.id}_${Date.now()}`;
-        const txSourceId = `bill_tx_src_${trackerBill.id}`;
-        const txDestId = `bill_tx_dest_${trackerBill.id}`;
-
-        addTransacaoV2({
-          id: txSourceId,
-          date: trackerBill.dueDate,
-          accountId: paymentAccount.id,
-          flow: 'transfer_out' as const,
-          operationType: 'transferencia' as const,
-          domain: 'operational' as const,
-          amount: trackerBill.expectedAmount,
-          categoryId: null,
-          description: `Pagamento ${trackerBill.description}`,
-          links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
-          conciliated: true,
-          attachments: [],
-          meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
-        });
-
-        addTransacaoV2({
-          id: txDestId,
-          date: trackerBill.dueDate,
-          accountId: cardAccount.id,
-          flow: 'transfer_in' as const,
-          operationType: 'transferencia' as const,
-          domain: 'operational' as const,
-          amount: trackerBill.expectedAmount,
-          categoryId: null,
-          description: `Pagamento ${trackerBill.description}`,
-          links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
-          conciliated: true,
-          attachments: [],
-          meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
-        });
-
+        addTransacaoV2({ id: `bill_tx_src_${trackerBill.id}`, date: trackerBill.dueDate, accountId: paymentAccount.id, flow: 'transfer_out', operationType: 'transferencia', domain: 'operational', amount: trackerBill.expectedAmount, categoryId: null, description: `Pagamento ${trackerBill.description}`, links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null }, conciliated: true, attachments: [], meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() } });
+        addTransacaoV2({ id: `bill_tx_dest_${trackerBill.id}`, date: trackerBill.dueDate, accountId: cardAccount.id, flow: 'transfer_in', operationType: 'transferencia', domain: 'operational', amount: trackerBill.expectedAmount, categoryId: null, description: `Pagamento ${trackerBill.description}`, links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null }, conciliated: true, attachments: [], meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() } });
         updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: transferGroupId });
         toast.success("Fatura paga via transferência!");
         return;
       }
-
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
       const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
       const isLoan = trackerBill.sourceType === 'loan_installment';
-      
-      if (!account || (!category && !isLoan)) {
-        toast.error("Configure conta e categoria antes de pagar.");
-        return;
-      }
-      
+      if (!account || (!category && !isLoan)) { toast.error("Configure conta e categoria antes de pagar."); return; }
       const transactionId = `bill_tx_${trackerBill.id}`;
       const baseLinks: Partial<TransactionLinks> = {};
       let description = trackerBill.description;
       const operationType: OperationType = trackerBill.sourceType === 'loan_installment' ? 'pagamento_emprestimo' : 'despesa';
       const domain = trackerBill.sourceType === 'loan_installment' ? 'financing' : 'operational';
-
       if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
         const loanId = parseInt(trackerBill.sourceRef);
-        baseLinks.loanId = `loan_${loanId}`;
-        baseLinks.parcelaId = String(trackerBill.parcelaNumber);
+        baseLinks.loanId = `loan_${loanId}`; baseLinks.parcelaId = String(trackerBill.parcelaNumber);
         const loan = emprestimos.find(e => e.id === loanId);
         description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${trackerBill.parcelaNumber}/${loan?.meses || 'N/A'}`;
         markLoanParcelPaid(loanId, trackerBill.expectedAmount, trackerBill.dueDate, trackerBill.parcelaNumber);
       }
-
       if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
         baseLinks.vehicleTransactionId = `${trackerBill.sourceRef}_${trackerBill.parcelaNumber}`;
         markSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber, transactionId);
       }
-
-      addTransacaoV2({
-        id: transactionId,
-        date: trackerBill.dueDate,
-        accountId: account.id,
-        flow: 'out',
-        operationType,
-        domain: domain as any,
-        amount: trackerBill.expectedAmount,
-        categoryId: trackerBill.suggestedCategoryId || null,
-        description,
-        links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
-        conciliated: true,
-        attachments: [],
-        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
-      });
-
+      addTransacaoV2({ id: transactionId, date: trackerBill.dueDate, accountId: account.id, flow: 'out', operationType, domain: domain as any, amount: trackerBill.expectedAmount, categoryId: trackerBill.suggestedCategoryId || null, description, links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null }, conciliated: true, attachments: [], meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() } });
       updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
       toast.success("Despesa paga e lançada!");
     } else {
       if (trackerBill.transactionId) {
-        setTransacoesV2(prev => prev.filter(t =>
-          t.id !== trackerBill.transactionId &&
-          t.links?.transferGroupId !== trackerBill.transactionId &&
-          t.id !== `bill_tx_src_${trackerBill.id}` &&
-          t.id !== `bill_tx_dest_${trackerBill.id}`
-        ));
+        setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId && t.links?.transferGroupId !== trackerBill.transactionId && t.id !== `bill_tx_src_${trackerBill.id}` && t.id !== `bill_tx_dest_${trackerBill.id}`));
       }
-      if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
-        unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef));
-      }
-      if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
-        unmarkSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber);
-      }
+      if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) { unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef)); }
+      if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) { unmarkSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber); }
       updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
       toast.info("Pagamento desfeito.");
     }
@@ -279,10 +197,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
   const handleAddAdHocBill = () => {
     const amount = parseFloat(newBillData.amount.replace(/\./g, "").replace(",", "."));
-    if (!newBillData.description || isNaN(amount) || amount <= 0 || !newBillData.dueDate) {
-      toast.error("Preencha todos os campos corretamente.");
-      return;
-    }
+    if (!newBillData.description || isNaN(amount) || amount <= 0 || !newBillData.dueDate) { toast.error("Preencha todos os campos corretamente."); return; }
     setBillsTracker(prev => [...prev, { id: generateBillId(), type: 'tracker', description: newBillData.description, dueDate: newBillData.dueDate, expectedAmount: amount, sourceType: "ad_hoc", suggestedAccountId: contasMovimento.find(c => c.accountType === "corrente")?.id, suggestedCategoryId: null, isPaid: false, isExcluded: false }]);
     setNewBillData({ description: "", amount: "0,00", dueDate: format(currentDate, "yyyy-MM-dd") });
     setShowNewBillModal(false);
@@ -353,7 +268,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           initialWidth={1100} initialHeight={850} minWidth={1000} minHeight={600} hideCloseButton={true}
           className="rounded-[3rem] bg-card border-none shadow-2xl p-0 overflow-hidden"
         >
-          <div className="modal-viewport">
+          <div className="modal-viewport flex flex-col h-full">
             <DialogHeader className="px-8 pt-8 pb-6 bg-card shrink-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
@@ -370,64 +285,41 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
                 <div className="flex items-center flex-1 justify-center sm:justify-end gap-3">
                   <div className="flex items-center bg-muted/40 rounded-full p-1 border border-border/40 shadow-sm">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("prev")}>
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <div className="px-4 min-w-[140px] text-center">
-                      <span className="text-[11px] font-black uppercase tracking-widest text-foreground">
-                        {format(currentDate, "MMMM yyyy", { locale: ptBR })}
-                      </span>
-                    </div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("next")}>
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("prev")}><ChevronLeft className="w-4 h-4" /></Button>
+                    <div className="px-4 min-w-[140px] text-center"><span className="text-[11px] font-black uppercase tracking-widest text-foreground">{format(currentDate, "MMMM yyyy", { locale: ptBR })}</span></div>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("next")}><ChevronRight className="w-4 h-4" /></Button>
                   </div>
-
-                  <Button 
-                    onClick={() => setShowManageCommitments(true)} 
-                    className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"
-                  >
-                    <Settings className="w-4 h-4" /> Gerenciar Compromissos
-                  </Button>
+                  <Button onClick={() => setShowManageCommitments(true)} className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"><Settings className="w-4 h-4" /> Gerenciar Compromissos</Button>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="flex-1 flex overflow-hidden">
-              <div className="w-[280px] shrink-0 border-r border-border/40 bg-card p-6 flex flex-col h-full overflow-hidden">
+            {/* CORREÇÃO: Estrutura flexível para permitir scroll interno sem overflow-hidden restritivo */}
+            <div className="flex-1 flex min-h-0 overflow-hidden">
+              <aside className="w-[280px] shrink-0 border-r border-border/40 bg-card p-6 flex flex-col h-full overflow-hidden">
                 <BillsSidebarKPIs currentDate={currentDate} combinedBills={combinedBills} totalPendingBills={totalUnpaidBills} totalPaidBills={totalPaidBills} />
-              </div>
-              <div className="flex-1 p-3 sm:p-6 overflow-hidden bg-muted/5 dark:bg-card flex flex-col">
-                <div className="flex-1 overflow-hidden bg-card rounded-[2rem] border border-border/40 shadow-sm">
+              </aside>
+              <main className="flex-1 p-3 sm:p-6 bg-muted/5 dark:bg-card flex flex-col min-h-0">
+                <div className="flex-1 flex flex-col min-h-0 bg-card rounded-[2rem] border border-border/40 shadow-sm overflow-hidden">
                   <BillsTrackerList 
                     bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
                     onAddBill={handleAddBill} 
                     onTogglePaid={handleTogglePaid} currentDate={currentDate} 
                   />
                 </div>
-              </div>
+              </main>
             </div>
 
             <DialogFooter className="p-6 bg-muted/10 border-t shrink-0">
-              <Button 
-                variant="ghost" 
-                onClick={() => onOpenChange(false)}
-                className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-              >
-                FECHAR
-              </Button>
+              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-full h-12 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
             </DialogFooter>
           </div>
         </ResizableDialogContent>
       </Dialog>
-
       <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
-
       <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
         <DialogContent hideCloseButton className="max-w-[400px] rounded-[2rem] p-0 overflow-hidden z-[120]">
-          <DialogHeader className="p-6 bg-muted/50 border-b">
-            <DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle>
-          </DialogHeader>
+          <DialogHeader className="p-6 bg-muted/50 border-b"><DialogTitle className="text-xl font-black tracking-tight">Nova Despesa</DialogTitle></DialogHeader>
           <div className="p-6 space-y-4">
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição</Label><Input placeholder="Ex: Manutenção" className="h-11 border-2 rounded-xl font-bold" value={newBillData.description} onChange={e => setNewBillData(prev => ({ ...prev, description: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-4">
