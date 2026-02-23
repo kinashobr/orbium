@@ -6,7 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
+import { 
+  Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, 
+  Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, 
+  CreditCard, ChevronDown, ChevronUp 
+} from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -76,23 +80,56 @@ export function BillsTrackerList({
   const { categoriasV2, contasMovimento, setBillsTracker, setTransacoesV2 } = useFinance();
   const [newBillData, setNewBillData] = useState({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
   const [isNewBillOpen, setIsNewBillOpen] = useState(false);
+  
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
-
-    try { const saved = localStorage.getItem('bills_column_widths'); return saved ? JSON.parse(saved) : INITIAL_WIDTHS; } catch { return INITIAL_WIDTHS; }
+    try { 
+      const saved = localStorage.getItem('bills_column_widths'); 
+      return saved ? JSON.parse(saved) : INITIAL_WIDTHS; 
+    } catch { 
+      return INITIAL_WIDTHS; 
+    }
   });
   
-  useEffect(() => { localStorage.setItem('bills_column_widths', JSON.stringify(columnWidths)); }, [columnWidths]);
+  useEffect(() => { 
+    localStorage.setItem('bills_column_widths', JSON.stringify(columnWidths)); 
+  }, [columnWidths]);
+
   const [resizingColumn, setResizingColumn] = useState<ColumnKey | null>(null);
   const [startX, setStartX] = useState(0);
   const [startWidth, setStartWidth] = useState(0);
 
-  const handleMouseDown = (e: React.MouseEvent, key: ColumnKey) => { e.preventDefault(); setResizingColumn(key); setStartX(e.clientX); setStartWidth(columnWidths[key]); };
-  const handleMouseMove = useCallback((e: MouseEvent) => { if (!resizingColumn) return; const deltaX = e.clientX - startX; const newWidth = Math.max(30, startWidth + deltaX); setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth })); }, [resizingColumn, startX, startWidth]);
-  const handleMouseUp = useCallback(() => { setResizingColumn(null); }, []);
+  const handleMouseDown = (e: React.MouseEvent, key: ColumnKey) => { 
+    e.preventDefault(); 
+    setResizingColumn(key); 
+    setStartX(e.clientX); 
+    setStartWidth(columnWidths[key]); 
+  };
+
+  const handleMouseMove = useCallback((e: MouseEvent) => { 
+    if (!resizingColumn) return; 
+    const deltaX = e.clientX - startX; 
+    const newWidth = Math.max(30, startWidth + deltaX); 
+    setColumnWidths(prev => ({ ...prev, [resizingColumn]: newWidth })); 
+  }, [resizingColumn, startX, startWidth]);
+
+  const handleMouseUp = useCallback(() => { 
+    setResizingColumn(null); 
+  }, []);
+
   useEffect(() => {
-    if (resizingColumn) { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); document.body.style.cursor = 'col-resize'; } 
-    else { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); document.body.style.cursor = 'default'; }
-    return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); document.body.style.cursor = 'default'; };
+    if (resizingColumn) { 
+      window.addEventListener('mousemove', handleMouseMove); 
+      window.addEventListener('mouseup', handleMouseUp); 
+      document.body.style.cursor = 'col-resize'; 
+    } else { 
+      window.removeEventListener('mousemove', handleMouseMove); 
+      window.removeEventListener('mouseup', handleMouseUp); 
+      document.body.style.cursor = 'default'; 
+    }
+    return () => { 
+      window.removeEventListener('mousemove', handleMouseMove); 
+      window.removeEventListener('mouseup', handleMouseUp); 
+    };
   }, [resizingColumn, handleMouseMove, handleMouseUp]);
   
   const totalWidth = useMemo(() => Object.values(columnWidths).reduce((sum, w) => sum + w, 0), [columnWidths]);
@@ -102,8 +139,17 @@ export function BillsTrackerList({
   const handleAddAdHocBill = () => {
     const amount = parseAmount(newBillData.amount);
     if (!newBillData.description || amount <= 0 || !newBillData.dueDate) return;
-    onAddBill({ description: newBillData.description, dueDate: newBillData.dueDate, expectedAmount: amount, sourceType: 'ad_hoc', suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id, suggestedCategoryId: null });
+    onAddBill({ 
+      description: newBillData.description, 
+      dueDate: newBillData.dueDate, 
+      expectedAmount: amount, 
+      sourceType: 'ad_hoc', 
+      suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id, 
+      suggestedCategoryId: null 
+    });
     setNewBillData({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
+    setIsNewBillOpen(false); // Fecha ao adicionar
+    toast.success("Conta adicionada com sucesso!");
   };
   
   const handleExcludeBill = (bill: BillTracker) => { if (bill.isPaid) return; onUpdateBill(bill.id, { isExcluded: true }); };
@@ -112,7 +158,9 @@ export function BillsTrackerList({
   const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
     const s = categoriasV2.find(c => c.id === n);
     let type: BillSourceType = b.sourceType;
-    if (s && b.sourceType !== 'purchase_installment') { type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; }
+    if (s && b.sourceType !== 'purchase_installment') { 
+      type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; 
+    }
     onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
   };
   const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
@@ -144,70 +192,71 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      <Collapsible
-        open={isNewBillOpen}
-        onOpenChange={setIsNewBillOpen}
-        className="mx-4 mt-4"
-      >
-        <div className="glass-card p-4 shrink-0 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-2xl overflow-hidden">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between cursor-pointer group">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
-                  <Plus className="w-4 h-4" />
-                </div>
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity cursor-pointer">
-                  Nova Conta
-                </Label>
-              </div>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full">
-                {isNewBillOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            </div>
-          </CollapsibleTrigger>
-
-          <CollapsibleContent className="mt-4">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_140px_50px] gap-4 items-end animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Descrição</Label>
-                <Input
-                  value={newBillData.description}
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Descrição do lançamento..."
-                  className="h-10 text-sm font-bold rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Valor</Label>
-                <Input
-                  type="text"
-                  inputMode="decimal"
-                  value={newBillData.amount}
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))}
-                  placeholder="0,00"
-                  className="h-10 text-sm font-black rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Vencimento</Label>
-                <Input
-                  type="date"
-                  value={newBillData.dueDate}
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))}
-                  className="h-10 text-sm font-bold rounded-xl"
-                />
-              </div>
-              <Button
-                onClick={handleAddAdHocBill}
-                className="h-10 w-full p-0 rounded-xl"
-                disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
+      {/* Container do Botão Alinhado à Direita */}
+      <div className="px-4 mt-4">
+        <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen}>
+          <div className="flex justify-end mb-2">
+            <CollapsibleTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className={cn(
+                  "h-8 rounded-full gap-2 px-3 text-[10px] font-black uppercase tracking-widest transition-all",
+                  isNewBillOpen 
+                    ? "bg-destructive/10 text-destructive hover:bg-destructive hover:text-white" 
+                    : "bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                )}
               >
-                <Check className="w-5 h-5" />
+                {isNewBillOpen ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                {isNewBillOpen ? 'Fechar' : 'Nova Conta'}
               </Button>
+            </CollapsibleTrigger>
+          </div>
+
+          <CollapsibleContent>
+            <div className="glass-card p-4 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-2xl overflow-hidden mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_140px_50px] gap-4 items-end">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Descrição</Label>
+                  <Input 
+                    value={newBillData.description} 
+                    onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} 
+                    placeholder="Descrição do lançamento..." 
+                    className="h-10 text-sm font-bold rounded-xl" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Valor</Label>
+                  <Input 
+                    type="text" 
+                    inputMode="decimal" 
+                    value={newBillData.amount} 
+                    onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} 
+                    placeholder="0,00" 
+                    className="h-10 text-sm font-black rounded-xl" 
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Vencimento</Label>
+                  <Input 
+                    type="date" 
+                    value={newBillData.dueDate} 
+                    onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} 
+                    className="h-10 text-sm font-bold rounded-xl" 
+                  />
+                </div>
+                <Button 
+                  onClick={handleAddAdHocBill} 
+                  className="h-10 w-full p-0 rounded-xl" 
+                  disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
+                >
+                  <Check className="w-5 h-5" />
+                </Button>
+              </div>
             </div>
           </CollapsibleContent>
-        </div>
-      </Collapsible>
+        </Collapsible>
+      </div>
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
         <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
