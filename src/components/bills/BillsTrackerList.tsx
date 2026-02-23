@@ -159,8 +159,6 @@ export function BillsTrackerList({
   const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
     const s = categoriasV2.find(c => c.id === n);
     let type: BillSourceType = b.sourceType;
-    // IMPORTANTE: Preserva o tipo original para lançamentos vinculados (Empréstimos, Seguros, Compras)
-    // Somente altera se for um tipo flexível (ad-hoc ou recorrente genérico)
     const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(b.sourceType);
     if (s && isFlexibleType) { 
       type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; 
@@ -198,7 +196,6 @@ export function BillsTrackerList({
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4 pt-1 relative">
       <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen} className="w-full">
-        {/* Acionador com destaque de brilho sutil no hover */}
         <div className="flex justify-end pr-6 -mb-1 relative z-20">
           <CollapsibleTrigger asChild>
             <button 
@@ -262,7 +259,8 @@ export function BillsTrackerList({
       </Collapsible>
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
+        {/* CORREÇÃO: Mudança de overflow-x-auto para overflow-auto reintroduz o scroll vertical */}
+        <div className="flex-1 overflow-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
           <div className="min-w-max p-4 pt-2">
             <Table style={{ minWidth: `${totalWidth}px` }}>
               <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10">
