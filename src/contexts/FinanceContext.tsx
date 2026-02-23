@@ -66,6 +66,8 @@ const DEFAULT_RANGES: ComparisonDateRanges = {
     range2: calculateComparisonRange(calculateDefaultRange()),
 };
 
+const defaultAlertStartDate = subDays(new Date(), 30).toISOString().split('T')[0];
+
 export const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
   const startDate = parseDateLocal(startDateStr);
   const dueDate = new Date(startDate);
