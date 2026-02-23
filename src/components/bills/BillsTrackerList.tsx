@@ -192,23 +192,21 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      {/* Container do Botão Alinhado à Direita */}
-      <div className="px-4 mt-4">
-        <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen}>
-          <div className="flex justify-end mb-2">
+      {/* Container do Botão Chevron Minimalista Alinhado à Direita */}
+      <div className="px-4 mt-2 flex justify-end">
+        <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen} className="w-full">
+          <div className="flex justify-end mb-1">
             <CollapsibleTrigger asChild>
               <Button 
                 variant="ghost" 
-                size="sm" 
+                size="icon" 
                 className={cn(
-                  "h-8 rounded-full gap-2 px-3 text-[10px] font-black uppercase tracking-widest transition-all",
-                  isNewBillOpen 
-                    ? "bg-destructive/10 text-destructive hover:bg-destructive hover:text-white" 
-                    : "bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                  "h-7 w-7 rounded-full transition-all duration-300",
+                  isNewBillOpen ? "bg-destructive/10 text-destructive rotate-180" : "bg-primary/10 text-primary"
                 )}
+                title={isNewBillOpen ? "Fechar" : "Nova Conta"}
               >
-                {isNewBillOpen ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                {isNewBillOpen ? 'Fechar' : 'Nova Conta'}
+                <ChevronDown className="w-4 h-4" />
               </Button>
             </CollapsibleTrigger>
           </div>
