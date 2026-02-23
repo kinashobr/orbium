@@ -6,13 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, CreditCard } from "lucide-react";
+import { Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { EditableCell } from "../EditableCell";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface BillsTrackerListProps {
   bills: BillDisplayItem[];
@@ -74,7 +75,9 @@ export function BillsTrackerList({
 }: BillsTrackerListProps) {
   const { categoriasV2, contasMovimento, setBillsTracker, setTransacoesV2 } = useFinance();
   const [newBillData, setNewBillData] = useState({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
+  const [isNewBillOpen, setIsNewBillOpen] = useState(false);
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
+
     try { const saved = localStorage.getItem('bills_column_widths'); return saved ? JSON.parse(saved) : INITIAL_WIDTHS; } catch { return INITIAL_WIDTHS; }
   });
   
