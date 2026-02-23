@@ -191,72 +191,69 @@ export function BillsTrackerList({
   const expenseCategories = useMemo(() => categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'), [categoriasV2]);
 
   return (
-    <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      {/* Container do Botão Chevron Minimalista Alinhado à Direita */}
-      <div className="px-4 mt-2 flex justify-end">
-        <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen} className="w-full">
-          <div className="flex justify-end mb-1">
-            <CollapsibleTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className={cn(
-                  "h-7 w-7 rounded-full transition-all duration-300",
-                  isNewBillOpen ? "bg-destructive/10 text-destructive rotate-180" : "bg-primary/10 text-primary"
-                )}
-                title={isNewBillOpen ? "Fechar" : "Nova Conta"}
-              >
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </CollapsibleTrigger>
-          </div>
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4 pt-1 relative">
+      <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen} className="w-full">
+        {/* Acionador discreto integrado à linha superior */}
+        <div className="flex justify-end pr-6 -mb-2 relative z-20">
+          <CollapsibleTrigger asChild>
+            <button 
+              className={cn(
+                "p-1 hover:text-primary transition-all duration-500 text-muted-foreground/40",
+                isNewBillOpen && "rotate-180 text-destructive/60 hover:text-destructive"
+              )}
+              title={isNewBillOpen ? "Fechar" : "Nova Conta"}
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </CollapsibleTrigger>
+        </div>
 
-          <CollapsibleContent>
-            <div className="glass-card p-4 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-2xl overflow-hidden mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_140px_50px] gap-4 items-end">
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Descrição</Label>
-                  <Input 
-                    value={newBillData.description} 
-                    onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} 
-                    placeholder="Descrição do lançamento..." 
-                    className="h-10 text-sm font-bold rounded-xl" 
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Valor</Label>
-                  <Input 
-                    type="text" 
-                    inputMode="decimal" 
-                    value={newBillData.amount} 
-                    onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} 
-                    placeholder="0,00" 
-                    className="h-10 text-sm font-black rounded-xl" 
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Vencimento</Label>
-                  <Input 
-                    type="date" 
-                    value={newBillData.dueDate} 
-                    onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} 
-                    className="h-10 text-sm font-bold rounded-xl" 
-                  />
-                </div>
-                <Button 
-                  onClick={handleAddAdHocBill} 
-                  className="h-10 w-full p-0 rounded-xl" 
-                  disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
-                >
-                  <Check className="w-5 h-5" />
-                </Button>
+        <CollapsibleContent className="overflow-hidden">
+          <div className="mb-3 mt-1 glass-card p-3 bg-muted/20 dark:bg-white/[0.02] border border-border/40 dark:border-white/5 rounded-2xl animate-in fade-in slide-in-from-top-1 duration-300">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_100px_130px_40px] gap-3 items-end">
+              <div className="space-y-1">
+                <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50 px-1">Descrição</Label>
+                <Input 
+                  value={newBillData.description} 
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} 
+                  placeholder="Descrição..." 
+                  className="h-9 text-xs font-bold rounded-xl border-none bg-background/50" 
+                />
               </div>
+              <div className="space-y-1">
+                <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50 px-1">Valor</Label>
+                <Input 
+                  type="text" 
+                  inputMode="decimal" 
+                  value={newBillData.amount} 
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} 
+                  placeholder="0,00" 
+                  className="h-9 text-xs font-black rounded-xl border-none bg-background/50" 
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-50 px-1">Vencto</Label>
+                <Input 
+                  type="date" 
+                  value={newBillData.dueDate} 
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} 
+                  className="h-9 text-xs font-bold rounded-xl border-none bg-background/50" 
+                />
+              </div>
+              <Button 
+                onClick={handleAddAdHocBill} 
+                size="icon"
+                className="h-9 w-9 rounded-xl shadow-lg" 
+                disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
+              >
+                <Check className="w-4 h-4" />
+              </Button>
             </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
           <div className="min-w-max p-4 pt-2">
             <Table style={{ minWidth: `${totalWidth}px` }}>
