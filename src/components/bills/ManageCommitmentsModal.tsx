@@ -1,19 +1,13 @@
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, ArrowLeft, ShoppingCart, CreditCard, FastForward } from "lucide-react";
+import { Settings, ArrowLeft, CreditCard, Package } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
-import { useFinance } from "@/contexts/FinanceContext";
-import { PotentialFixedBill, BillTracker, generateBillId } from "@/types/finance";
-import { toast } from "sonner";
 
-// Sub-components reused from existing modals
-import { FixedBillsTabContent } from "./tabs/FixedBillsTabContent";
-import { PurchaseInstallmentTabContent } from "./tabs/PurchaseInstallmentTabContent";
-import { AdvanceInstallmentsTabContent } from "./tabs/AdvanceInstallmentsTabContent";
+import { CommitmentsTabContent } from "./tabs/CommitmentsTabContent";
 import { CreditCardTab } from "./CreditCardTab";
 
 interface ManageCommitmentsModalProps {
@@ -24,52 +18,6 @@ interface ManageCommitmentsModalProps {
 
 export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: ManageCommitmentsModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const {
-    getBillsForMonth,
-    getPotentialFixedBillsForMonth,
-    getFutureFixedBills,
-    setBillsTracker,
-    contasMovimento,
-    categoriasV2,
-  } = useFinance();
-
-  const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
-  
-  const potentialFixedBills = useMemo(() =>
-    getPotentialFixedBillsForMonth(currentDate, trackerManagedBills),
-    [getPotentialFixedBillsForMonth, currentDate, trackerManagedBills]
-  );
-
-  const futureFixedBills = useMemo(() =>
-    getFutureFixedBills(currentDate, trackerManagedBills),
-    [getFutureFixedBills, currentDate, trackerManagedBills]
-  );
-
-  const handleToggleFixedBill = useCallback((potentialBill: PotentialFixedBill, isChecked: boolean) => {
-    if (isChecked) {
-      const newBill: BillTracker = {
-        id: generateBillId(),
-        type: 'tracker',
-        description: potentialBill.description,
-        dueDate: potentialBill.dueDate,
-        expectedAmount: potentialBill.expectedAmount,
-        sourceType: potentialBill.sourceType,
-        sourceRef: potentialBill.sourceRef,
-        parcelaNumber: potentialBill.parcelaNumber,
-        isPaid: false,
-        isExcluded: false,
-        suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
-        suggestedCategoryId: categoriasV2.find(c => c.label.toLowerCase().includes(potentialBill.sourceType === 'loan_installment' ? 'emprestimo' : 'seguro'))?.id || null,
-      };
-      setBillsTracker(prev => [...prev, newBill]);
-      toast.success("Conta adicionada ao mês.");
-    } else {
-      setBillsTracker(prev => prev.filter(b =>
-        !(b.sourceType === potentialBill.sourceType && b.sourceRef === potentialBill.sourceRef && b.parcelaNumber === potentialBill.parcelaNumber)
-      ));
-      toast.info("Conta removida.");
-    }
-  }, [setBillsTracker, contasMovimento, categoriasV2]);
 
   // Body scroll lock for mobile fullscreen
   useEffect(() => {
@@ -109,63 +57,36 @@ export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: Mana
                 Gerenciar Compromissos
               </DialogTitle>
               <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
-                Fixas · Parceladas · Cartões · Adiantamentos
+                Compromissos · Cartões
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <Tabs defaultValue="fixas" className="flex-1 flex flex-col min-h-0">
+        <Tabs defaultValue="compromissos" className="flex-1 flex flex-col min-h-0">
           <div className="px-4 sm:px-8 pt-2 shrink-0">
-            <TabsList className="w-full grid grid-cols-4 h-10">
-              <TabsTrigger value="fixas" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
-                <Settings className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Fixas</span>
-                <span className="sm:hidden">Fix</span>
-              </TabsTrigger>
-              <TabsTrigger value="parceladas" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
-                <ShoppingCart className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Parcelas</span>
-                <span className="sm:hidden">Parc</span>
+            <TabsList className="w-full grid grid-cols-2 h-10">
+              <TabsTrigger value="compromissos" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
+                <Package className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Compromissos</span>
+                <span className="sm:hidden">Comp</span>
               </TabsTrigger>
               <TabsTrigger value="cartoes" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
                 <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Cartões</span>
                 <span className="sm:hidden">Cart</span>
               </TabsTrigger>
-              <TabsTrigger value="adiantamentos" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
-                <FastForward className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Adiantar</span>
-                <span className="sm:hidden">Adi</span>
-              </TabsTrigger>
             </TabsList>
           </div>
 
           <ScrollArea className="flex-1 scrollbar-material">
             <div className="p-4 sm:p-8 pb-32 sm:pb-8">
-              <TabsContent value="fixas" className="mt-0">
-                <FixedBillsTabContent
-                  potentialFixedBills={potentialFixedBills}
-                  onToggleFixedBill={handleToggleFixedBill}
-                />
-              </TabsContent>
-
-              <TabsContent value="parceladas" className="mt-0">
-                <PurchaseInstallmentTabContent
-                  currentDate={currentDate}
-                  onClose={() => {}}
-                />
+              <TabsContent value="compromissos" className="mt-0">
+                <CommitmentsTabContent currentDate={currentDate} />
               </TabsContent>
 
               <TabsContent value="cartoes" className="mt-0">
                 <CreditCardTab currentDate={currentDate} />
-              </TabsContent>
-
-              <TabsContent value="adiantamentos" className="mt-0">
-                <AdvanceInstallmentsTabContent
-                  potentialFixedBills={futureFixedBills}
-                  onToggleFixedBill={handleToggleFixedBill}
-                />
               </TabsContent>
             </div>
           </ScrollArea>

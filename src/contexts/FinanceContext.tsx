@@ -327,6 +327,7 @@ interface FinanceContextType {
   getPotentialFixedBillsForMonth: (date: Date, localBills: BillTracker[]) => PotentialFixedBill[];
   getFutureFixedBills: (referenceDate: Date, localBills: BillTracker[]) => PotentialFixedBill[];
   getOtherPaidExpensesForMonth: (date: Date) => ExternalPaidBill[];
+  autoPopulateFixedBills: (date: Date) => void;
   
   // Credit Card Configs
   creditCardConfigs: CreditCardConfig[];
@@ -948,6 +949,40 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }).map(t => ({ id: t.id, type: 'external_paid', dueDate: t.date, paymentDate: t.date, expectedAmount: t.amount, description: t.description, suggestedAccountId: t.accountId, suggestedCategoryId: t.categoryId, sourceType: 'external_expense', isPaid: true, isExcluded: false }));
   }, [billsTracker, transacoesV2]);
 
+  const autoPopulateFixedBills = useCallback((date: Date) => {
+    const currentBills = getBillsForMonth(date);
+    const potential = getPotentialFixedBillsForMonth(date, currentBills);
+    
+    const toAdd: BillTracker[] = [];
+    potential.forEach(pb => {
+      if (pb.isIncluded || pb.isPaid) return;
+      // Check if it was previously excluded
+      const wasExcluded = billsTracker.some(b =>
+        b.sourceType === pb.sourceType && b.sourceRef === pb.sourceRef && b.parcelaNumber === pb.parcelaNumber && b.isExcluded
+      );
+      if (wasExcluded) return;
+      
+      toAdd.push({
+        id: generateBillId(),
+        type: 'tracker',
+        description: pb.description,
+        dueDate: pb.dueDate,
+        expectedAmount: pb.expectedAmount,
+        sourceType: pb.sourceType,
+        sourceRef: pb.sourceRef,
+        parcelaNumber: pb.parcelaNumber,
+        isPaid: false,
+        isExcluded: false,
+        suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
+        suggestedCategoryId: null,
+      });
+    });
+    
+    if (toAdd.length > 0) {
+      setBillsTracker(prev => [...prev, ...toAdd]);
+    }
+  }, [getBillsForMonth, getPotentialFixedBillsForMonth, billsTracker, contasMovimento, setBillsTracker]);
+
   const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
     const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
     setEmprestimos([...emprestimos, { ...emprestimo, id: newId, status: emprestimo.status || 'ativo', parcelasPagas: 0 }]);
@@ -1348,7 +1383,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     terrenos, addTerreno, updateTerreno, deleteTerreno,
     segurosVeiculo, addSeguroVeiculo: (s: any) => setSegurosVeiculo(p => [...p, { ...s, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), markSeguroParcelPaid, unmarkSeguroParcelPaid,
     objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
-    billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth,
+    billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth, autoPopulateFixedBills,
     creditCardConfigs, addCreditCardConfig, updateCreditCardConfig, deleteCreditCardConfig, getInvoiceForCard, generateInvoiceBills, getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions,
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
@@ -1371,8 +1406,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAApropriar, getSegurosAPagar,
     processStatementFile, getTransactionsForReview, getBillsForMonth, getPotentialFixedBillsForMonth,
     getFutureFixedBills, getOtherPaidExpensesForMonth, getInvoiceForCard, generateInvoiceBills,
-    getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, getValorFipeTotal,
-    getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
+    getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
+    getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
     getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, exportData, importData
   ]);
 

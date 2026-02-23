@@ -61,6 +61,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     unmarkLoanParcelPaid,
     generateInvoiceBills,
     creditCardConfigs,
+    autoPopulateFixedBills,
   } = useFinance();
 
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -105,6 +106,11 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       });
     }
   }, [invoiceBills, setBillsTracker]);
+
+  // Auto-populate fixed bills when month changes
+  useEffect(() => {
+    autoPopulateFixedBills(currentDate);
+  }, [currentDate]);
 
   const combinedBills: BillDisplayItem[] = useMemo(() => {
     const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));

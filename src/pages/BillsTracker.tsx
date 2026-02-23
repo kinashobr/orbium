@@ -34,6 +34,7 @@ export default function BillsTracker() {
     unmarkSeguroParcelPaid,
     unmarkLoanParcelPaid,
     creditCardConfigs,
+    autoPopulateFixedBills,
   } = useFinance();
 
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
@@ -57,6 +58,11 @@ export default function BillsTracker() {
       });
     }
   }, [newInvoiceIds]);
+
+  // Auto-populate fixed bills when month changes
+  useEffect(() => {
+    autoPopulateFixedBills(currentDate);
+  }, [currentDate]);
 
   const combinedBills: BillDisplayItem[] = useMemo(() => {
     const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
