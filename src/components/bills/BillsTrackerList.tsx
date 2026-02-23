@@ -159,6 +159,8 @@ export function BillsTrackerList({
   const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
     const s = categoriasV2.find(c => c.id === n);
     let type: BillSourceType = b.sourceType;
+    // IMPORTANTE: Preserva o tipo original para lançamentos vinculados (Empréstimos, Seguros, Compras)
+    // Somente altera se for um tipo flexível (ad-hoc ou recorrente genérico)
     const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(b.sourceType);
     if (s && isFlexibleType) { 
       type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; 
@@ -196,6 +198,7 @@ export function BillsTrackerList({
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4 pt-1 relative">
       <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen} className="w-full">
+        {/* Acionador com destaque de brilho sutil no hover */}
         <div className="flex justify-end pr-6 -mb-1 relative z-20">
           <CollapsibleTrigger asChild>
             <button 
@@ -258,30 +261,16 @@ export function BillsTrackerList({
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Container Principal com Scroll Lateral Corrigido */}
-      <div className="flex-1 flex flex-col min-h-0 w-full overflow-hidden border border-border/40 rounded-[2rem] bg-card/50">
-        <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-material w-full">
-          <div className="p-4 pt-2" style={{ width: 'max-content', minWidth: '100%' }}>
-            <Table style={{ width: `${totalWidth}px`, tableLayout: 'fixed' }}>
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
+          <div className="min-w-max p-4 pt-2">
+            <Table style={{ minWidth: `${totalWidth}px` }}>
               <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10">
                 <TableRow className="border-border hover:bg-transparent h-12">
                   {columnHeaders.map((h) => (
-                    <TableHead 
-                      key={h.key} 
-                      className={cn(
-                        "text-muted-foreground p-3 text-[10px] font-black uppercase tracking-widest relative", 
-                        h.align === 'center' && 'text-center', 
-                        h.align === 'right' && 'text-right'
-                      )} 
-                      style={{ width: columnWidths[h.key] }}
-                    >
+                    <TableHead key={h.key} className={cn("text-muted-foreground p-3 text-[10px] font-black uppercase tracking-widest relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
                       {h.label}
-                      {h.key !== 'actions' && (
-                        <div 
-                          className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/20 transition-colors" 
-                          onMouseDown={(e) => handleMouseDown(e, h.key)} 
-                        />
-                      )}
+                      {h.key !== 'actions' && <div className="absolute right-0 top-0 h-full w-2 cursor-col-resize" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -296,15 +285,7 @@ export function BillsTrackerList({
                   const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                   
                   return (
-                    <TableRow 
-                      key={bill.id} 
-                      className={cn(
-                        "hover:bg-muted/30 transition-colors h-14 border-b border-border/20", 
-                        isExt && "opacity-60", 
-                        isOver && "bg-destructive/[0.03]", 
-                        isPaid && !isExt && "bg-success/[0.03]"
-                      )}
-                    >
+                    <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-14 border-b border-border/20", isExt && "opacity-60", isOver && "bg-destructive/[0.03]", isPaid && !isExt && "bg-success/[0.03]")}>
                       <TableCell className="text-center p-2" style={{ width: columnWidths.pay }}>
                         {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}
                       </TableCell>
@@ -314,9 +295,7 @@ export function BillsTrackerList({
                       <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>
                           {isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}
                       </TableCell>
-                      <TableCell className="text-xs p-3 font-black text-foreground truncate" style={{ width: columnWidths.description }}>
-                        {bill.description}
-                      </TableCell>
+                      <TableCell className="text-xs max-w-[250px] truncate p-3 font-black text-foreground" style={{ width: columnWidths.description }}>{bill.description}</TableCell>
                       <TableCell className="p-3" style={{ width: columnWidths.account }}>
                         {isExt || isPaid ? <span className="text-xs font-bold opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : 
                         <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent></Select>}
