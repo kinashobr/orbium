@@ -148,21 +148,26 @@ export function BillsTrackerList({
       suggestedCategoryId: null 
     });
     setNewBillData({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
-    setIsNewBillOpen(false); // Fecha ao adicionar
+    setIsNewBillOpen(false);
     toast.success("Conta adicionada com sucesso!");
   };
   
   const handleExcludeBill = (bill: BillTracker) => { if (bill.isPaid) return; onUpdateBill(bill.id, { isExcluded: true }); };
   const handleUpdateExpectedAmount = (b: BillTracker, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
   const handleUpdateSuggestedAccount = (b: BillTracker, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
+  
   const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
     const s = categoriasV2.find(c => c.id === n);
     let type: BillSourceType = b.sourceType;
-    if (s && b.sourceType !== 'purchase_installment') { 
+    // IMPORTANTE: Preserva o tipo original para lançamentos vinculados (Empréstimos, Seguros, Compras)
+    // Somente altera se for um tipo flexível (ad-hoc ou recorrente genérico)
+    const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(b.sourceType);
+    if (s && isFlexibleType) { 
       type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; 
     }
     onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
   };
+  
   const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
   
   const handleUpdatePaymentDate = (b: BillTracker, n: string) => {
@@ -193,61 +198,63 @@ export function BillsTrackerList({
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4 pt-1 relative">
       <Collapsible open={isNewBillOpen} onOpenChange={setIsNewBillOpen} className="w-full">
-        {/* Acionador discreto com realce no hover */}
+        {/* Acionador com destaque de brilho sutil no hover */}
         <div className="flex justify-end pr-6 -mb-1 relative z-20">
           <CollapsibleTrigger asChild>
             <button 
               className={cn(
-                "p-1.5 transition-all duration-300 rounded-md",
+                "p-1.5 transition-all duration-300 rounded-md group",
                 "text-muted-foreground/30 hover:text-primary hover:bg-primary/10",
+                "hover:shadow-[0_0_15px_-3px_rgba(59,130,246,0.3)]",
                 isNewBillOpen && "rotate-180 text-destructive/50 hover:text-destructive hover:bg-destructive/10"
               )}
               title={isNewBillOpen ? "Fechar" : "Nova Conta"}
             >
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-4 h-4 transition-transform group-hover:scale-110" />
             </button>
           </CollapsibleTrigger>
         </div>
 
         <CollapsibleContent className="overflow-hidden">
-          <div className="mb-4 mt-1 p-4 bg-muted/10 dark:bg-white/[0.01] border border-border/30 dark:border-white/5 rounded-[1.5rem] animate-in fade-in slide-in-from-top-1 duration-500 shadow-sm">
-            <div className="flex flex-col md:flex-row gap-4 items-end">
-              <div className="flex-[3] w-full space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground/40 px-1">Descrição do Lançamento</Label>
+          <div className="mb-4 mt-1 p-5 bg-muted/10 dark:bg-white/[0.01] border border-border/30 dark:border-white/5 rounded-[1.75rem] animate-in fade-in slide-in-from-top-1 duration-500 shadow-sm">
+            <div className="flex flex-col md:flex-row gap-5 items-end">
+              <div className="flex-[4] w-full space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50 px-1">Descrição</Label>
                 <Input 
                   value={newBillData.description} 
                   onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} 
-                  placeholder="Ex: Aluguel, Internet, etc..." 
-                  className="h-10 text-xs font-bold rounded-xl border-border/40 bg-background/40 focus:bg-background transition-all" 
+                  placeholder="Ex: Manutenção Escritório" 
+                  className="h-11 text-xs font-bold rounded-xl border-border/40 bg-background/50 focus:bg-background focus:ring-1 focus:ring-primary/20 transition-all placeholder:opacity-30" 
                 />
               </div>
-              <div className="flex-1 w-full space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground/40 px-1">Valor</Label>
-                <Input 
-                  type="text" 
-                  inputMode="decimal" 
-                  value={newBillData.amount} 
-                  onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} 
-                  placeholder="0,00" 
-                  className="h-10 text-xs font-black rounded-xl border-border/40 bg-background/40 focus:bg-background transition-all" 
-                />
+              <div className="flex-[1.5] w-full space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50 px-1">Valor</Label>
+                <div className="relative">
+                  <Input 
+                    type="text" 
+                    inputMode="decimal" 
+                    value={newBillData.amount} 
+                    onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} 
+                    placeholder="0,00" 
+                    className="h-11 text-xs font-black rounded-xl border-border/40 bg-background/50 focus:bg-background transition-all pl-3" 
+                  />
+                </div>
               </div>
-              <div className="flex-1 w-full space-y-1.5">
-                <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground/40 px-1">Vencimento</Label>
+              <div className="flex-[1.5] w-full space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50 px-1">Vencimento</Label>
                 <Input 
                   type="date" 
                   value={newBillData.dueDate} 
                   onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} 
-                  className="h-10 text-xs font-bold rounded-xl border-border/40 bg-background/40 focus:bg-background transition-all" 
+                  className="h-11 text-xs font-bold rounded-xl border-border/40 bg-background/50 focus:bg-background transition-all" 
                 />
               </div>
               <Button 
                 onClick={handleAddAdHocBill} 
-                size="icon"
-                className="h-10 w-10 shrink-0 rounded-xl shadow-md hover:scale-105 transition-transform" 
+                className="h-11 px-6 shrink-0 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all font-black text-[10px] uppercase tracking-widest gap-2" 
                 disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
               >
-                <Check className="w-5 h-5" />
+                <Plus className="w-4 h-4" /> Lançar
               </Button>
             </div>
           </div>
