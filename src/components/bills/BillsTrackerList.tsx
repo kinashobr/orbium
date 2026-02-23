@@ -144,23 +144,70 @@ export function BillsTrackerList({
 
   return (
     <div className="space-y-4 h-full flex flex-col overflow-hidden">
-      <div className="glass-card p-4 shrink-0 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-2xl mx-4 mt-4">
-        <div className="grid grid-cols-[1fr_120px_140px_50px] gap-4 items-end">
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Nova Conta</Label>
-            <Input value={newBillData.description} onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} placeholder="Descrição do lançamento..." className="h-10 text-sm font-bold rounded-xl" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Valor</Label>
-            <Input type="text" inputMode="decimal" value={newBillData.amount} onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} placeholder="0,00" className="h-10 text-sm font-black rounded-xl" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Vencimento</Label>
-            <Input type="date" value={newBillData.dueDate} onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} className="h-10 text-sm font-bold rounded-xl" />
-          </div>
-          <Button onClick={handleAddAdHocBill} className="h-10 w-full p-0 rounded-xl" disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}><Plus className="w-5 h-5" /></Button>
+      <Collapsible
+        open={isNewBillOpen}
+        onOpenChange={setIsNewBillOpen}
+        className="mx-4 mt-4"
+      >
+        <div className="glass-card p-4 shrink-0 bg-muted/30 dark:bg-white/5 border border-border/40 dark:border-white/5 rounded-2xl overflow-hidden">
+          <CollapsibleTrigger asChild>
+            <div className="flex items-center justify-between cursor-pointer group">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  Nova Conta
+                </Label>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 rounded-full">
+                {isNewBillOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            </div>
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_140px_50px] gap-4 items-end animate-in fade-in slide-in-from-top-2 duration-300">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Descrição</Label>
+                <Input
+                  value={newBillData.description}
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Descrição do lançamento..."
+                  className="h-10 text-sm font-bold rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Valor</Label>
+                <Input
+                  type="text"
+                  inputMode="decimal"
+                  value={newBillData.amount}
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))}
+                  placeholder="0,00"
+                  className="h-10 text-sm font-black rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground opacity-70">Vencimento</Label>
+                <Input
+                  type="date"
+                  value={newBillData.dueDate}
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))}
+                  className="h-10 text-sm font-bold rounded-xl"
+                />
+              </div>
+              <Button
+                onClick={handleAddAdHocBill}
+                className="h-10 w-full p-0 rounded-xl"
+                disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
+              >
+                <Check className="w-5 h-5" />
+              </Button>
+            </div>
+          </CollapsibleContent>
         </div>
-      </div>
+      </Collapsible>
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 pb-4">
         <div className="flex-1 overflow-x-auto scrollbar-material border border-border/40 rounded-[2rem] bg-card/50">
