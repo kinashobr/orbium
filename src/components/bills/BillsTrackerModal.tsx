@@ -294,19 +294,17 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
               </div>
             </DialogHeader>
 
-            {/* CORREÇÃO: Estrutura flexível para permitir scroll interno sem overflow-hidden restritivo */}
+            {/* ESTRUTURA UNIFICADA: Removido o container intermediário que causava a "caixa dentro de caixa" */}
             <div className="flex-1 flex min-h-0 overflow-hidden">
               <aside className="w-[280px] shrink-0 border-r border-border/40 bg-card p-6 flex flex-col h-full overflow-hidden">
                 <BillsSidebarKPIs currentDate={currentDate} combinedBills={combinedBills} totalPendingBills={totalUnpaidBills} totalPaidBills={totalPaidBills} />
               </aside>
-              <main className="flex-1 p-3 sm:p-6 bg-muted/5 dark:bg-card flex flex-col min-h-0">
-                <div className="flex-1 flex flex-col min-h-0 bg-card rounded-[2rem] border border-border/40 shadow-sm overflow-hidden">
-                  <BillsTrackerList 
-                    bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
-                    onAddBill={handleAddBill} 
-                    onTogglePaid={handleTogglePaid} currentDate={currentDate} 
-                  />
-                </div>
+              <main className="flex-1 flex flex-col min-h-0 bg-muted/5 dark:bg-card">
+                <BillsTrackerList 
+                  bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
+                  onAddBill={handleAddBill} 
+                  onTogglePaid={handleTogglePaid} currentDate={currentDate} 
+                />
               </main>
             </div>
 
