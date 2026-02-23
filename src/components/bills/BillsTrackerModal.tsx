@@ -87,23 +87,26 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
   const invoiceBills = useMemo(() => generateInvoiceBills(currentDate), [generateInvoiceBills, currentDate]);
   
-  // Persist generated invoice bills to tracker state
+  // Persist generated invoice bills to tracker state - Optimized to prevent infinite loop
   useEffect(() => {
     if (invoiceBills.length > 0) {
       setBillsTracker(prev => {
         const existingIds = new Set(prev.map(b => b.id));
         const toAdd = invoiceBills.filter(b => !existingIds.has(b.id));
         
-        // Also update existing ones if they detected auto-payment
+        let hasChanges = toAdd.length > 0;
+        
         const updated = prev.map(existing => {
           const matchingInvoice = invoiceBills.find(ib => ib.id === existing.id);
+          // Only update if status actually changed to paid
           if (matchingInvoice && matchingInvoice.isPaid && !existing.isPaid) {
+            hasChanges = true;
             return { ...existing, isPaid: true, paymentDate: matchingInvoice.paymentDate, transactionId: matchingInvoice.transactionId };
           }
           return existing;
         });
 
-        return toAdd.length > 0 ? [...updated, ...toAdd] : updated;
+        return hasChanges ? (toAdd.length > 0 ? [...updated, ...toAdd] : updated) : prev;
       });
     }
   }, [invoiceBills, setBillsTracker]);
@@ -163,7 +166,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         const txSourceId = `bill_tx_src_${trackerBill.id}`;
         const txDestId = `bill_tx_dest_${trackerBill.id}`;
 
-        // Transação de Saída (Conta Corrente)
         addTransacaoV2({
           id: txSourceId,
           date: trackerBill.dueDate,
@@ -180,7 +182,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() },
         });
 
-        // Transação de Entrada (Cartão de Crédito)
         addTransacaoV2({
           id: txDestId,
           date: trackerBill.dueDate,

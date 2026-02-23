@@ -354,7 +354,7 @@ interface FinanceContextType {
   // Standardization Rules
   standardizationRules: StandardizationRule[];
   addStandardizationRule: (rule: Omit<StandardizationRule, "id">) => void;
-  updateStandardizationRule: (id: string, updates: Partial<StandardizationRule>) => void; // ADDED
+  updateStandardizationRule: (id: string, updates: Partial<StandardizationRule>) => void;
   deleteStandardizationRule: (id: string) => void;
   
   // Imported Statements
@@ -387,7 +387,7 @@ interface FinanceContextType {
   
   // Cálculos avançados para relatórios
   getValorFipeTotal: (targetDate?: Date) => number;
-  getValorImoveisTerrenos: (targetDate?: Date) => number; // NOVO
+  getValorImoveisTerrenos: (targetDate?: Date) => number;
   getSaldoDevedor: (targetDate?: Date) => number;
   getLoanPrincipalRemaining: (targetDate?: Date) => number;
   getCreditCardDebt: (targetDate?: Date) => number;
@@ -440,7 +440,7 @@ const STORAGE_KEYS = {
   TERRENOS: "neon_finance_terrenos",
   METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
   CREDIT_CARD_CONFIGS: "fin_credit_card_configs_v1",
-  LAST_MODIFIED: "fin_last_modified_v1", // NOVO
+  LAST_MODIFIED: "fin_last_modified_v1",
 };
 
 const initialEmprestimos: Emprestimo[] = [];
@@ -454,9 +454,7 @@ const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
 const initialMetasPersonalizadas: MetaPersonalizada[] = [];
 const initialCreditCardConfigs: CreditCardConfig[] = [];
-const initialLastModified = new Date(0).toISOString(); // Ponto de partida
-
-const defaultAlertStartDate = subMonths(new Date(), 6).toISOString().split('T')[0];
+const initialLastModified = new Date(0).toISOString();
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
   try {
@@ -496,27 +494,18 @@ function saveToStorage<T>(key: string, data: T): void {
   }
 }
 
-// Normaliza o prazo da conta para manter compatibilidade com dados antigos
-// e garantir as regras de negócio:
-// - Contas "corrente" e "cartao_credito": sempre curto prazo
-// - Demais tipos: usuário pode escolher, mas se vier sem informação
-//   assumimos longo prazo por padrão (investimentos/objetivos típicos).
 function normalizeAccountTerm(account: ContaCorrente): ContaCorrente {
   if (account.accountTerm) return account;
-
-  const isShortTermForced =
-    account.accountType === "corrente" || account.accountType === "cartao_credito";
-
+  const isShortTermForced = account.accountType === "corrente" || account.accountType === "cartao_credito";
   const inferredTerm: AccountTerm = isShortTermForced ? "curto_prazo" : "longo_prazo";
-
   return { ...account, accountTerm: inferredTerm };
 }
 
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>(() => loadFromStorage(STORAGE_KEYS.EMPRESTIMOS, initialEmprestimos));
   const [veiculos, setVeiculos] = useState<Veiculo[]>(() => loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos));
-  const [imoveis, setImoveis] = useState<Imovel[]>(() => loadFromStorage(STORAGE_KEYS.IMOVEIS, initialImoveis)); // NOVO
-  const [terrenos, setTerrenos] = useState<Terreno[]>(() => loadFromStorage(STORAGE_KEYS.TERRENOS, initialTerrenos)); // NOVO
+  const [imoveis, setImoveis] = useState<Imovel[]>(() => loadFromStorage(STORAGE_KEYS.IMOVEIS, initialImoveis));
+  const [terrenos, setTerrenos] = useState<Terreno[]>(() => loadFromStorage(STORAGE_KEYS.TERRENOS, initialTerrenos));
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo));
   const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos));
   const [billsTracker, setBillsTracker] = useState<BillTracker[]>(() => loadFromStorage(STORAGE_KEYS.BILLS_TRACKER, initialBillsTracker));
@@ -532,33 +521,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
   const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
   const [creditCardConfigs, setCreditCardConfigs] = useState<CreditCardConfig[]>(() => loadFromStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, initialCreditCardConfigs));
-  const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified)); // NOVO
+  const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified));
 
-  // Função para atualizar o timestamp de última modificação
   const updateLastModified = useCallback(() => {
     const now = new Date().toISOString();
     setLastModified(now);
     saveToStorage(STORAGE_KEYS.LAST_MODIFIED, now);
   }, []);
 
-  // Efeitos para persistência e atualização do timestamp
-  useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); updateLastModified(); }, [emprestimos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); updateLastModified(); }, [veiculos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); updateLastModified(); }, [imoveis]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); updateLastModified(); }, [terrenos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); updateLastModified(); }, [segurosVeiculo]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); updateLastModified(); }, [objetivos]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); updateLastModified(); }, [billsTracker]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.STANDARDIZATION_RULES, standardizationRules); updateLastModified(); }, [standardizationRules]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); updateLastModified(); }, [importedStatements]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]); // Não altera o lastModified
-  useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]); // Não altera o lastModified
-  useEffect(() => { saveToStorage(STORAGE_KEYS.REVENUE_FORECASTS, revenueForecasts); }, [revenueForecasts]); // Não altera o lastModified
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); updateLastModified(); }, [contasMovimento]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); updateLastModified(); }, [categoriasV2]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, creditCardConfigs); updateLastModified(); }, [creditCardConfigs]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); updateLastModified(); }, [emprestimos, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); updateLastModified(); }, [veiculos, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); updateLastModified(); }, [imoveis, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); updateLastModified(); }, [terrenos, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); updateLastModified(); }, [segurosVeiculo, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); updateLastModified(); }, [objetivos, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); updateLastModified(); }, [billsTracker, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.STANDARDIZATION_RULES, standardizationRules); updateLastModified(); }, [standardizationRules, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); updateLastModified(); }, [importedStatements, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.REVENUE_FORECASTS, revenueForecasts); }, [revenueForecasts]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); updateLastModified(); }, [contasMovimento, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); updateLastModified(); }, [categoriasV2, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, creditCardConfigs); updateLastModified(); }, [creditCardConfigs, updateLastModified]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -570,7 +557,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
     const accountBalances: Record<string, number> = {};
     contasMovimento.forEach(account => {
-        accountBalances[account.id] = account.initialBalance; // Use initialBalance from account
+        accountBalances[account.id] = account.initialBalance;
     });
     sortedTransactions.forEach(t => {
         const account = contasMovimento.find(a => a.id === t.accountId);
@@ -579,11 +566,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const isCreditCard = account.accountType === 'cartao_credito';
         let amountChange = 0;
         if (isCreditCard) {
-            // CC: Despesa (out) aumenta o saldo devedor (negativo), Receita (in) diminui o saldo devedor (positivo)
             if (t.flow === 'out' || t.flow === 'transfer_out') amountChange = -t.amount;
             else if (t.flow === 'in' || t.flow === 'transfer_in') amountChange = t.amount;
         } else {
-            // Contas normais: In aumenta, Out diminui
             if (t.flow === 'in' || t.flow === 'transfer_in') amountChange = t.amount;
             else amountChange = -t.amount;
         }
@@ -599,12 +584,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const targetDate = date || new Date(9999, 11, 31);
     const targetDateStr = format(targetDate, 'yyyy-MM-dd');
     
-    // Optimization: Check cache for the exact date
     if (balanceCache.has(`${accountId}_${targetDateStr}`)) {
         return balanceCache.get(`${accountId}_${targetDateStr}`)!;
     }
 
-    // Fallback: Calculate manually if not in cache (should only happen for dates not matching a transaction date)
     let balance = account.initialBalance;
     const transactionsBeforeDate = allTransactions
         .filter(t => t.accountId === accountId && parseDateLocal(t.date) <= targetDate)
@@ -630,7 +613,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
 
     return balance;
-  }, [balanceCache, contasMovimento]);
+  }, [balanceCache]);
 
   const calculateTotalInvestmentBalanceAtDate = useCallback((date: Date | undefined): number => {
     const targetDate = date || new Date(9999, 11, 31);
@@ -781,7 +764,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const newRawTransactions = s.rawTransactions.map(t => {
                 if (t.contabilizedTransactionId === transactionId) {
 		        updated = true;
-		        // Reset fields to allow re-categorization
 		        return {
 		        	...t,
 		        	isContabilized: false,
@@ -885,11 +867,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const futureBills: PotentialFixedBill[] = [];
     const referenceMonthEnd = endOfMonth(referenceDate);
     
-    // Helper para verificar se a parcela já está no tracker (em qualquer mês)
     const isAlreadyInTracker = (sourceType: BillSourceType, sourceRef: string, parcelaNumber: number) =>
       billsTracker.some(b => b.sourceType === sourceType && b.sourceRef === sourceRef && b.parcelaNumber === parcelaNumber && !b.isExcluded);
 
-    // 1. Empréstimos
     emprestimos.filter(e => e.status === 'ativo').forEach(loan => {
         if (!loan.dataInicio) return;
         calculateLoanSchedule(loan.id).forEach(item => {
@@ -910,7 +890,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
     });
 
-    // 2. Seguros
     segurosVeiculo.forEach(seguro => {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
@@ -930,11 +909,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
     });
 
-    // 3. Compras Parceladas (já estão no billsTracker, mas em meses futuros)
     billsTracker.filter(b => b.sourceType === 'purchase_installment' && !b.isExcluded).forEach(bill => {
         const dueDate = parseDateLocal(bill.dueDate);
-        
-        // Se a data de vencimento for após o mês de referência, ela é uma candidata a adiantamento
         if (isAfter(dueDate, referenceMonthEnd)) {
             futureBills.push({
                 key: `purchase_${bill.sourceRef}_${bill.parcelaNumber}`,
@@ -945,11 +921,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 expectedAmount: bill.expectedAmount,
                 description: bill.description,
                 isPaid: bill.isPaid,
-                isIncluded: false, // Como está no futuro, não está "incluída" no mês de referência
+                isIncluded: false,
             });
         }
-        // Se a data de vencimento for NO mês de referência, verificamos se ela foi adiantada
-        // (Para compras parceladas, se ela está no mês atual, ela já aparece na lista principal)
     });
 
     return futureBills.sort((a, b) => parseDateLocal(a.dueDate).getTime() - parseDateLocal(b.dueDate).getTime());
@@ -986,33 +960,35 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setVeiculos([...veiculos, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
   };
   
-  const addImovel = (imovel: Omit<Imovel, "id">) => { // NOVO
+  const addImovel = (imovel: Omit<Imovel, "id">) => {
     const newId = generateImovelId();
     setImoveis([...imoveis, { ...imovel, id: newId, status: imovel.status || 'ativo' }]);
   };
   
-  const updateImovel = (id: number, updates: Partial<Imovel>) => { // NOVO
-    setImoveis(imoveis.map(i => i.id === id ? { ...i, ...updates } : i));
-  };
+  const updateImovel = useCallback((id: number, updates: Partial<Imovel>) => {
+    setImoveis(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
+  }, []);
   
-  const deleteImovel = (id: number) => { // NOVO
-    setImoveis(imoveis.filter(i => i.id !== id));
-  };
+  const deleteImovel = useCallback((id: number) => {
+    setImoveis(prev => prev.filter(i => i.id !== id));
+  }, []);
   
-  const addTerreno = (terreno: Omit<Terreno, "id">) => { // NOVO
+  const addTerreno = (terreno: Omit<Terreno, "id">) => {
     const newId = generateTerrenoId();
     setTerrenos([...terrenos, { ...terreno, id: newId, status: terreno.status || 'ativo' }]);
   };
   
-  const updateTerreno = (id: number, updates: Partial<Terreno>) => { // NOVO
-    setTerrenos(terrenos.map(t => t.id === id ? { ...t, ...updates } : t));
-  };
+  const updateTerreno = useCallback((id: number, updates: Partial<Terreno>) => {
+    setTerrenos(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+  }, []);
   
-  const deleteTerreno = (id: number) => { // NOVO
-    setTerrenos(terrenos.filter(t => t.id !== id));
-  };
+  const deleteTerreno = useCallback((id: number) => {
+    setTerrenos(prev => prev.filter(t => t.id !== id));
+  }, []);
 
-  const addTransacaoV2 = (transaction: TransacaoCompleta) => { setTransacoesV2(prev => [...prev, transaction]); };
+  const addTransacaoV2 = useCallback((transaction: TransacaoCompleta) => { 
+    setTransacoesV2(prev => [...prev, transaction]); 
+  }, []);
   
   const addStandardizationRule = useCallback((rule: Omit<StandardizationRule, "id">) => {
     setStandardizationRules(prev => [...prev, { ...rule, id: generateRuleId() }]);
@@ -1026,7 +1002,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setStandardizationRules(prev => prev.filter(r => r.id !== id));
   }, []);
 
-  const getValorImoveisTerrenos = useCallback((targetDate?: Date) => { // NOVO
+  const getValorImoveisTerrenos = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
     const imoveisValor = imoveis.filter(i => i.status === 'ativo' && parseDateLocal(i.dataAquisicao) <= date).reduce((acc, i) => acc + i.valorAvaliacao, 0);
     const terrenosValor = terrenos.filter(t => t.status === 'ativo' && parseDateLocal(t.dataAquisicao) <= date).reduce((acc, t) => acc + t.valorAvaliacao, 0);
@@ -1036,7 +1012,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const getAtivosTotal = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
     const saldoContas = contasMovimento.filter(c => c.accountType !== 'cartao_credito').reduce((acc, c) => acc + Math.max(0, calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento)), 0);
-    return saldoContas + veiculos.filter(v => v.status !== 'vendido' && parseDateLocal(v.dataCompra) <= date).reduce((acc, v) => acc + v.valorFipe, 0) + getSegurosAApropriar(date) + getValorImoveisTerrenos(date); // Adicionado Imóveis/Terrenos
+    return saldoContas + veiculos.filter(v => v.status !== 'vendido' && parseDateLocal(v.dataCompra) <= date).reduce((acc, v) => acc + v.valorFipe, 0) + getSegurosAApropriar(date) + getValorImoveisTerrenos(date);
   }, [contasMovimento, transacoesV2, veiculos, calculateBalanceUpToDate, getSegurosAApropriar, getValorImoveisTerrenos]);
 
   const getPassivosTotal = useCallback((targetDate?: Date) => {
@@ -1063,7 +1039,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }, 0);
   }, [emprestimos, calculatePaidInstallmentsUpToDate, calculateLoanSchedule]);
 
-  const exportData = () => {
+  const exportData = useCallback(() => {
     const data = { 
       schemaVersion: "2.0", 
       exportedAt: new Date().toISOString(), 
@@ -1085,24 +1061,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         metasPersonalizadas,
         creditCardConfigs,
       },
-      lastModified: lastModified, // Incluindo o timestamp local
+      lastModified: lastModified,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
-  };
+  }, [contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, creditCardConfigs, lastModified]);
 
-  const importData = async (file: File) => {
+  const importData = useCallback(async (file: File) => {
     try {
       const content = await file.text();
       const data = JSON.parse(content);
-      
-      if (data.schemaVersion !== '2.0') {
-        return { success: false, message: "Schema incompatível." };
-      }
-      
-      // Removida a checagem restritiva de timestamp para permitir a restauração manual
-
+      if (data.schemaVersion !== '2.0') return { success: false, message: "Schema incompatível." };
       if (data.data.accounts) setContasMovimento(data.data.accounts);
       if (data.data.categories) setCategoriasV2(data.data.categories);
       if (data.data.transactions) setTransacoesV2(data.data.transactions);
@@ -1119,48 +1089,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.terrenos) setTerrenos(data.data.terrenos);
       if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
       if (data.data.creditCardConfigs) setCreditCardConfigs(data.data.creditCardConfigs);
-      
-      // Atualiza o lastModified local para o valor importado ou agora
       const newTimestamp = data.lastModified || new Date().toISOString();
       setLastModified(newTimestamp);
       saveToStorage(STORAGE_KEYS.LAST_MODIFIED, newTimestamp);
-
       return { success: true, message: "Dados importados com sucesso!" };
     } catch (e) { 
-      console.error("Erro durante a importação:", e);
-      return { success: false, message: "Erro ao importar. Verifique se o arquivo está no formato correto." }; 
+      return { success: false, message: "Erro ao importar." }; 
     }
-  };
+  }, []);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {
       if (loan.id !== loanId) return loan;
-      
       const newParcelasPagas = loan.parcelasPagas || 0;
-      
       let targetParcelaNumber = parcelaNumber;
-      if (!targetParcelaNumber) {
-          targetParcelaNumber = newParcelasPagas + 1;
-      }
-      
+      if (!targetParcelaNumber) targetParcelaNumber = newParcelasPagas + 1;
       const updatedParcelasPagas = targetParcelaNumber === newParcelasPagas + 1 ? newParcelasPagas + 1 : newParcelasPagas;
-
-      return {
-        ...loan,
-        parcelasPagas: updatedParcelasPagas,
-      };
+      return { ...loan, parcelasPagas: updatedParcelasPagas };
     }));
-  }, [setEmprestimos]);
+  }, []);
 
   const unmarkLoanParcelPaid = useCallback((loanId: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {
       if (loan.id !== loanId) return loan;
-      return {
-        ...loan,
-        parcelasPagas: Math.max(0, (loan.parcelasPagas || 0) - 1),
-      };
+      return { ...loan, parcelasPagas: Math.max(0, (loan.parcelasPagas || 0) - 1) };
     }));
-  }, [setEmprestimos]);
+  }, []);
 
   const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
@@ -1174,7 +1128,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         ),
       };
     }));
-  }, [setSegurosVeiculo]);
+  }, []);
 
   const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
     setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
@@ -1188,7 +1142,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         ),
       };
     }));
-  }, [setSegurosVeiculo]);
+  }, []);
 
   const getValorFipeTotal = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
@@ -1213,15 +1167,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = subMonths(date, 1);
     const start = startOfMonth(prevMonth);
     const end = endOfMonth(prevMonth);
-
     return transacoesV2
       .filter(t => {
         try {
           const txDate = parseDateLocal(t.date);
           return isWithinInterval(txDate, { start, end }) && (t.operationType === 'receita' || t.operationType === 'rendimento');
-        } catch {
-          return false;
-        }
+        } catch { return false; }
       })
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesV2]);
@@ -1234,7 +1185,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setBillsTracker(prev => prev.filter(b => b.id !== id));
   }, []);
 
-  // Metas Personalizadas CRUD
   const addMetaPersonalizada = useCallback((meta: MetaPersonalizada) => {
     setMetasPersonalizadas(prev => [...prev, meta]);
   }, []);
@@ -1250,94 +1200,51 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const calcularProgressoMeta = useCallback((meta: MetaPersonalizada): MetaProgresso => {
     const now = new Date();
     let valorAtual = 0;
-    
-    // Determinar período de análise
     let txsPeriodo = transacoesV2;
-    if (meta.periodoAvaliacao === 'mensal') {
-      txsPeriodo = transacoesV2.filter(t => isSameMonth(parseDateLocal(t.date), now));
-    } else if (meta.periodoAvaliacao === 'trimestral') {
+    if (meta.periodoAvaliacao === 'mensal') txsPeriodo = transacoesV2.filter(t => isSameMonth(parseDateLocal(t.date), now));
+    else if (meta.periodoAvaliacao === 'trimestral') {
       const threeMonthsAgo = subMonths(now, 3);
-      txsPeriodo = transacoesV2.filter(t => {
-        const txDate = parseDateLocal(t.date);
-        return txDate >= threeMonthsAgo && txDate <= now;
-      });
-    } else if (meta.periodoAvaliacao === 'anual') {
-      txsPeriodo = transacoesV2.filter(t => isSameYear(parseDateLocal(t.date), now));
-    }
+      txsPeriodo = transacoesV2.filter(t => { const txDate = parseDateLocal(t.date); return txDate >= threeMonthsAgo && txDate <= now; });
+    } else if (meta.periodoAvaliacao === 'anual') txsPeriodo = transacoesV2.filter(t => isSameYear(parseDateLocal(t.date), now));
 
-    // Calcular valor atual baseado na métrica
     switch (meta.metrica) {
-      case 'receita':
-        valorAtual = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
-        break;
-      case 'despesa':
-        valorAtual = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0);
-        break;
-      case 'investimento':
-        valorAtual = txsPeriodo.filter(t => t.operationType === 'aplicacao').reduce((a, t) => a + t.amount, 0);
-        break;
-      case 'saldo':
-        valorAtual = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva'].includes(c.accountType)).reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0);
-        break;
-      case 'patrimonio':
-        valorAtual = getAtivosTotal(now) - getPassivosTotal(now);
-        break;
-      case 'categoria_especifica':
-        if (meta.categoriaId) {
-          valorAtual = txsPeriodo.filter(t => t.categoryId === meta.categoriaId).reduce((a, t) => a + t.amount, 0);
-        }
-        break;
+      case 'receita': valorAtual = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0); break;
+      case 'despesa': valorAtual = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0); break;
+      case 'investimento': valorAtual = txsPeriodo.filter(t => t.operationType === 'aplicacao').reduce((a, t) => a + t.amount, 0); break;
+      case 'saldo': valorAtual = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva'].includes(c.accountType)).reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0); break;
+      case 'patrimonio': valorAtual = getAtivosTotal(now) - getPassivosTotal(now); break;
+      case 'categoria_especifica': if (meta.categoriaId) valorAtual = txsPeriodo.filter(t => t.categoryId === meta.categoriaId).reduce((a, t) => a + t.amount, 0); break;
       case 'reserva_emergencia': {
-        // Valor atual = meses de cobertura da reserva, baseado na média de gastos dos últimos 3 meses.
-        const reserva = contasMovimento
-          .filter(c => c.accountType === 'reserva')
-          .reduce((a, c) => a + Math.max(0, calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento)), 0);
-
+        const reserva = contasMovimento.filter(c => c.accountType === 'reserva').reduce((a, c) => a + Math.max(0, calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento)), 0);
         const threeMonthsAgo = subMonths(now, 3);
-        const gastos3m = transacoesV2
-          .filter(t => {
-            try {
-              const d = parseDateLocal(t.date);
-              return d >= threeMonthsAgo && d <= now && t.flow === 'out';
-            } catch {
-              return false;
-            }
-          })
-          .reduce((acc, t) => acc + t.amount, 0);
-
+        const gastos3m = transacoesV2.filter(t => { try { const d = parseDateLocal(t.date); return d >= threeMonthsAgo && d <= now && t.flow === 'out'; } catch { return false; } }).reduce((acc, t) => acc + t.amount, 0);
         const gastoMensalMedio = gastos3m / 3;
         valorAtual = gastoMensalMedio > 0 ? reserva / gastoMensalMedio : 0;
         break;
       }
     }
 
-    // Para economia, calcular percentual
     if (meta.tipo === 'economia') {
       const receitas = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
       const despesas = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0);
       valorAtual = receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0;
     }
 
-    // Calcular percentual de progresso
     let percentual = meta.valorAlvo > 0 ? (valorAtual / meta.valorAlvo) * 100 : 0;
-    percentual = Math.min(percentual, 200); // Cap at 200%
-
-    // Determinar status
+    percentual = Math.min(percentual, 200);
     let status: 'sucesso' | 'alerta' | 'perigo' | 'neutro' = 'neutro';
     if (meta.logica === 'maior_melhor') {
       if (percentual >= 100) status = 'sucesso';
       else if (percentual >= 70) status = 'alerta';
       else status = 'perigo';
-    } else { // menor_melhor
+    } else {
       if (percentual <= 80) status = 'sucesso';
       else if (percentual <= 100) status = 'alerta';
       else status = 'perigo';
     }
-
     return { valorAtual, percentual, status };
   }, [transacoesV2, contasMovimento, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal]);
 
-  // Credit Card Config CRUD
   const addCreditCardConfig = useCallback((config: Omit<CreditCardConfig, 'id'>) => {
     setCreditCardConfigs(prev => [...prev, { ...config, id: generateCreditCardConfigId() }]);
   }, []);
@@ -1353,84 +1260,43 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const getInvoiceForCard = useCallback((cardId: string, monthDate: Date): number => {
     const config = creditCardConfigs.find(c => c.id === cardId);
     if (!config) return 0;
-    
-    // Determine billing cycle: from previous closing day to current closing day
     const closingDay = config.closingDay;
     const year = monthDate.getFullYear();
-    const month = monthDate.getMonth(); // 0-indexed
-    
-    // Current closing date
+    const month = monthDate.getMonth();
     const currentClosing = new Date(year, month, Math.min(closingDay, new Date(year, month + 1, 0).getDate()));
-    // Previous closing date
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevYear = month === 0 ? year - 1 : year;
     const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
-    
-    // Sum all outgoing transactions on this card account within the cycle
     return transacoesV2
-      .filter(t => {
-        if (t.accountId !== config.accountId) return false;
-        if (t.flow !== 'out') return false;
-        const txDate = parseDateLocal(t.date);
-        return txDate > prevClosing && txDate <= currentClosing;
-      })
+      .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > prevClosing && parseDateLocal(t.date) <= currentClosing)
       .reduce((acc, t) => acc + t.amount, 0);
   }, [creditCardConfigs, transacoesV2]);
 
-  /**
-   * Retorna o uso atual do cartão no ciclo aberto (após último fechamento até hoje).
-   * Corrige L1: evita somar todo o histórico.
-   */
   const getCardCurrentCycleUsage = useCallback((cardId: string, referenceDate?: Date): number => {
     const config = creditCardConfigs.find(c => c.id === cardId);
     if (!config) return 0;
     const today = referenceDate || new Date();
     const closingDay = config.closingDay;
-    // Calcular último fechamento (antes de hoje)
     const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
-    const lastClosing = today > thisMonthClosing
-      ? thisMonthClosing
-      : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
-
+    const lastClosing = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
     return transacoesV2
-      .filter(t => {
-        if (t.accountId !== config.accountId || t.flow !== 'out') return false;
-        const txDate = parseDateLocal(t.date);
-        return txDate > lastClosing && txDate <= today;
-      })
+      .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > lastClosing && parseDateLocal(t.date) <= today)
       .reduce((acc, t) => acc + t.amount, 0);
   }, [creditCardConfigs, transacoesV2]);
 
-  /**
-   * Retorna o saldo em aberto do próximo ciclo (compras após o último fechamento).
-   * Usado para exibir "Próxima fatura (em aberto)" – L4/L10.
-   */
   const getNextCycleBalance = useCallback((cardId: string, referenceDate?: Date): number => {
     const config = creditCardConfigs.find(c => c.id === cardId);
     if (!config) return 0;
     const today = referenceDate || new Date();
     const closingDay = config.closingDay;
-    // Fechamento atual deste mês (pode já ter passado)
     const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
-    // Se hoje passou do fechamento, o "próximo ciclo" começa a partir de hoje
     const cycleStart = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
-    const cycleEnd = today > thisMonthClosing
-      ? new Date(today.getFullYear(), today.getMonth() + 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate()))
-      : thisMonthClosing;
-
+    const cycleEnd = today > thisMonthClosing ? new Date(today.getFullYear(), today.getMonth() + 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate())) : thisMonthClosing;
     return transacoesV2
-      .filter(t => {
-        if (t.accountId !== config.accountId || t.flow !== 'out') return false;
-        const txDate = parseDateLocal(t.date);
-        return txDate > cycleStart && txDate <= cycleEnd && txDate > today;
-      })
+      .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > cycleStart && parseDateLocal(t.date) <= cycleEnd && parseDateLocal(t.date) > today)
       .reduce((acc, t) => acc + t.amount, 0);
   }, [creditCardConfigs, transacoesV2]);
 
-  /**
-   * Retorna as transações do ciclo de faturamento de um cartão para um mês.
-   * Usado para o breakdown de transações na aba Cartões – L3.
-   */
   const getCardCycleTransactions = useCallback((cardId: string, monthDate: Date) => {
     const config = creditCardConfigs.find(c => c.id === cardId);
     if (!config) return [];
@@ -1441,13 +1307,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevYear = month === 0 ? year - 1 : year;
     const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
-
     return transacoesV2
-      .filter(t => {
-        if (t.accountId !== config.accountId || t.flow !== 'out') return false;
-        const txDate = parseDateLocal(t.date);
-        return txDate > prevClosing && txDate <= currentClosing;
-      })
+      .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > prevClosing && parseDateLocal(t.date) <= currentClosing)
       .sort((a, b) => a.date.localeCompare(b.date));
   }, [creditCardConfigs, transacoesV2]);
 
@@ -1455,65 +1316,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     return creditCardConfigs.map(config => {
       const invoiceAmount = getInvoiceForCard(config.id, monthDate);
       if (invoiceAmount <= 0) return null;
-      
       const year = monthDate.getFullYear();
       const month = monthDate.getMonth();
       const dueDay = Math.min(config.dueDay, new Date(year, month + 1, 0).getDate());
       const dueDateStr = format(new Date(year, month, dueDay), 'yyyy-MM-dd');
       const account = contasMovimento.find(a => a.id === config.accountId);
-      
       const invoiceCycleKey = format(monthDate, 'yyyy-MM');
       const existingInTracker = billsTracker.find(b => b.sourceRef === config.id && b.invoiceCycle === invoiceCycleKey);
-      
-      // Se já existe no tracker e está excluído, não gerar novamente
       if (existingInTracker?.isExcluded) return null;
-
-      // M3: Check if invoice is already paid via transfer (manual or imported)
       let isPaid = existingInTracker?.isPaid || false;
       let paymentDate = existingInTracker?.paymentDate;
       let transactionId = existingInTracker?.transactionId;
-
       if (!isPaid) {
-        // Look for payments in a wider range: current month and previous month (for early payments)
         const prevMonthDate = subMonths(monthDate, 1);
-        
-        const cycleTransactions = transacoesV2.filter(t =>
-          t.accountId === config.accountId &&
-          (t.flow === 'transfer_in' || t.flow === 'in') &&
-          (isSameMonth(parseDateLocal(t.date), monthDate) || isSameMonth(parseDateLocal(t.date), prevMonthDate))
-        );
-        
+        const cycleTransactions = transacoesV2.filter(t => t.accountId === config.accountId && (t.flow === 'transfer_in' || t.flow === 'in') && (isSameMonth(parseDateLocal(t.date), monthDate) || isSameMonth(parseDateLocal(t.date), prevMonthDate)));
         if (cycleTransactions.length > 0) {
-          // Sort by date to get the one closest to or after the start of the cycle,
-          // but for simplicity we'll just take the first one found in the month of the invoice or the previous month's end
           const match = cycleTransactions.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime())[0];
-          isPaid = true;
-          paymentDate = match.date;
-          transactionId = match.links?.transferGroupId || match.id;
+          isPaid = true; paymentDate = match.date; transactionId = match.links?.transferGroupId || match.id;
         }
       }
-      
-      return {
-        id: existingInTracker?.id || `invoice_${config.id}_${invoiceCycleKey}`,
-        type: 'tracker' as const,
-        description: `Fatura ${account?.name || 'Cartão'}`,
-        dueDate: dueDateStr,
-        expectedAmount: invoiceAmount,
-        isPaid,
-        paymentDate,
-        transactionId,
-        sourceType: 'card_invoice' as const,
-        sourceRef: config.id,
-        cardId: config.id,
-        invoiceCycle: invoiceCycleKey,
-        suggestedAccountId: config.defaultPaymentAccountId,
-        suggestedCategoryId: null,
-        isExcluded: false,
-      };
+      return { id: existingInTracker?.id || `invoice_${config.id}_${invoiceCycleKey}`, type: 'tracker' as const, description: `Fatura ${account?.name || 'Cartão'}`, dueDate: dueDateStr, expectedAmount: invoiceAmount, isPaid, paymentDate, transactionId, sourceType: 'card_invoice' as const, sourceRef: config.id, cardId: config.id, invoiceCycle: invoiceCycleKey, suggestedAccountId: config.defaultPaymentAccountId, suggestedCategoryId: null, isExcluded: false };
     }).filter(Boolean) as BillTracker[];
   }, [creditCardConfigs, getInvoiceForCard, contasMovimento, billsTracker, transacoesV2]);
 
-  const value = {
+  const value = useMemo(() => ({
     emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo: (id: number) => setEmprestimos(p => p.filter(e => e.id !== id)), getPendingLoans: () => emprestimos.filter(e => e.status === 'pendente_config'), markLoanParcelPaid, unmarkLoanParcelPaid, calculateLoanSchedule, calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths,
     veiculos, addVeiculo, updateVeiculo: (id: number, u: any) => setVeiculos(p => p.map(v => v.id === id ? { ...v, ...u } : v)), deleteVeiculo: (id: number) => setVeiculos(p => p.filter(v => v.id !== id)), getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro'),
     imoveis, addImovel, updateImovel, deleteImovel,
@@ -1536,8 +1362,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
     lastModified,
     exportData, importData,
-  };
-
+  }), [
+    emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, 
+    contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges, 
+    alertStartDate, revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,
+    calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAApropriar, getSegurosAPagar,
+    processStatementFile, getTransactionsForReview, getBillsForMonth, getPotentialFixedBillsForMonth,
+    getFutureFixedBills, getOtherPaidExpensesForMonth, getInvoiceForCard, generateInvoiceBills,
+    getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, getValorFipeTotal,
+    getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
+    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, exportData, importData
+  ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
 }
