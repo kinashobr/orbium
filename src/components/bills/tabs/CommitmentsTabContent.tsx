@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Building2, Shield, ShoppingCart, Calendar, ChevronRight, Plus, FastForward, Package } from "lucide-react";
+import { Building2, Shield, ShoppingCart, Calendar, ChevronRight, Plus, FastForward, Package, Trash2 } from "lucide-react";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { format, isSameMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -104,6 +104,11 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
   const handleRestoreBill = useCallback((billId: string) => {
     setBillsTracker(prev => prev.map(b => b.id === billId ? { ...b, isExcluded: false } : b));
     toast.success("Compromisso restaurado.");
+  }, [setBillsTracker]);
+
+  const handleDeleteBill = useCallback((billId: string) => {
+    setBillsTracker(prev => prev.filter(b => b.id !== billId));
+    toast.success("Compromisso excluído permanentemente.");
   }, [setBillsTracker]);
 
   // Group future bills by sourceType, then by sourceRef
@@ -267,16 +272,20 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
             Removidos ({excludedBills.length})
           </p>
           {excludedBills.map(bill => (
-            <button
+            <div
               key={bill.id}
-              onClick={() => handleRestoreBill(bill.id)}
-              className="flex items-center gap-3 p-2.5 rounded-lg border border-dashed border-border/30 w-full text-left opacity-50 hover:opacity-80 transition-opacity"
+              className="flex items-center gap-3 p-2.5 rounded-lg border border-dashed border-border/30 w-full opacity-50 hover:opacity-80 transition-opacity"
             >
               <div className="flex-1 min-w-0">
                 <p className="text-[10px] font-bold truncate line-through">{bill.description}</p>
               </div>
-              <Badge variant="outline" className="text-[8px] font-black border-none bg-muted/50">Restaurar</Badge>
-            </button>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-[9px] font-black" onClick={() => handleRestoreBill(bill.id)}>
+                Restaurar
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive/60 hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteBill(bill.id)}>
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </div>
           ))}
         </div>
       )}

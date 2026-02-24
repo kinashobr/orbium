@@ -936,6 +936,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
     const trackerTxIds = new Set(billsTracker.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
+    // Excluir transações de contas cartão de crédito (já representadas nas faturas)
+    const creditCardAccountIds = new Set(
+      contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id)
+    );
     return transacoesV2.filter(t => {
         const transactionDate = parseDateLocal(t.date);
         return (
@@ -944,10 +948,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado' || t.operationType === 'transferencia') &&
           (t.meta.source !== 'import' || t.conciliated) &&
           !trackerTxIds.has(t.id) &&
-          t.meta.source !== 'bill_tracker'
+          t.meta.source !== 'bill_tracker' &&
+          !creditCardAccountIds.has(t.accountId)
         );
     }).map(t => ({ id: t.id, type: 'external_paid', dueDate: t.date, paymentDate: t.date, expectedAmount: t.amount, description: t.description, suggestedAccountId: t.accountId, suggestedCategoryId: t.categoryId, sourceType: 'external_expense', isPaid: true, isExcluded: false }));
-  }, [billsTracker, transacoesV2]);
+  }, [billsTracker, transacoesV2, contasMovimento]);
 
   const autoPopulateFixedBills = useCallback((date: Date) => {
     const currentBills = getBillsForMonth(date);
@@ -962,6 +967,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       );
       if (wasExcluded) return;
       
+      // Auto-atribuir categoria baseada no tipo
+      let suggestedCategoryId: string | null = null;
+      if (pb.sourceType === 'loan_installment') {
+        suggestedCategoryId = categoriasV2.find(c => 
+          c.label.toLowerCase().includes('empréstimo') || c.label.toLowerCase().includes('emprestimo') || c.label.toLowerCase().includes('financiamento')
+        )?.id || null;
+      } else if (pb.sourceType === 'insurance_installment') {
+        suggestedCategoryId = categoriasV2.find(c => 
+          c.label.toLowerCase().includes('seguro')
+        )?.id || null;
+      }
+      
       toAdd.push({
         id: generateBillId(),
         type: 'tracker',
@@ -974,14 +991,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         isPaid: false,
         isExcluded: false,
         suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
-        suggestedCategoryId: null,
+        suggestedCategoryId,
       });
     });
     
     if (toAdd.length > 0) {
       setBillsTracker(prev => [...prev, ...toAdd]);
     }
-  }, [getBillsForMonth, getPotentialFixedBillsForMonth, billsTracker, contasMovimento, setBillsTracker]);
+  }, [getBillsForMonth, getPotentialFixedBillsForMonth, billsTracker, contasMovimento, categoriasV2, setBillsTracker]);
 
   const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
     const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;

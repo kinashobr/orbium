@@ -150,13 +150,15 @@ export function BillsTrackerMobileList({
                 </div>
 
                 <div className="flex-1 min-w-0 space-y-0.5">
-                  {!isPaid && !isExt && isBillTracker(bill) ? (
-                    <EditableCell value={bill.description} type="text" onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} className="text-sm font-bold bg-transparent" />
-                  ) : (
-                    <p className="text-sm font-bold text-foreground truncate">
-                      {bill.description}
-                    </p>
-                  )}
+                  <div className="overflow-hidden max-w-[200px]">
+                    {!isPaid && !isExt && isBillTracker(bill) ? (
+                      <EditableCell value={bill.description} type="text" onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} className="text-sm font-bold bg-transparent truncate" />
+                    ) : (
+                      <p className="text-sm font-bold text-foreground truncate">
+                        {bill.description}
+                      </p>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground/70 truncate">
                     {cat && <span>{cat.icon} {cat.label}</span>}
                     {account && (

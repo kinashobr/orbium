@@ -1,138 +1,128 @@
 
 
-# Plano: Reestruturar Abas do Gerenciar Compromissos + Edição de Descrição
-
-## Resumo das mudanças
-
-O usuario pediu 3 coisas:
-1. Permitir edição da descrição dos lançamentos no modal Contas a Pagar
-2. As contas fixas (seguros, empréstimos) devem ser carregadas automaticamente nos meses — não exigir adição manual
-3. Unificar as abas "Fixas", "Parceladas" e "Adiantamentos" em uma única aba de "Contas Futuras" com listagem agrupada e botão de lançar nova compra parcelada
+# Plano: Correções de Transferências, Duplicação de Despesas CC, Overflow de Texto, Adiantamento e Categorias
 
 ---
 
-## 1. Edição da descrição no modal Contas a Pagar
+## Problema 1 — Transferências não geram partida dupla corretamente
 
-### Problema atual
-Na `BillsTrackerList` (desktop), linha 225, a descrição é exibida como texto estático (`bill.description`). No mobile (`BillsTrackerMobileList`), idem.
+### Diagnóstico
+No `handleTogglePaid` (BillsTrackerModal.tsx, linha 148-161), o pagamento de fatura (`card_invoice`) já gera corretamente duas transações: `transfer_out` na conta pagamento e `transfer_in` na conta do cartão, ambas com `transferGroupId`.
+
+Porém, para **outros tipos de despesas** (linha 163-184), o pagamento gera apenas **uma transação** com `flow: 'out'`. Quando o usuário paga uma conta via importação de extrato, não há mecanismo para vincular essa transação importada ao `BillTracker` correspondente.
 
 ### Solução
-Usar o componente `EditableCell` (que já existe e suporta `type="text"`) para a coluna de descrição quando o lançamento não está pago e não é externo.
-
-**Arquivo:** `src/components/bills/BillsTrackerList.tsx`
-- Linha 225: substituir o texto estático por `EditableCell` com `type="text"` e `onSave` chamando `onUpdateBill(bill.id, { description: newValue })`
-- Permitir edição para todos os sourceTypes (ad_hoc, purchase_installment, loan_installment, etc.)
-
-**Arquivo:** `src/components/bills/BillsTrackerMobileList.tsx`
-- Adicionar ação de edição na descrição (toque para editar com input inline ou um pequeno botão de editar)
+1. **Importação de extratos**: Ao contabilizar uma transação importada que corresponde a um `BillTracker` pendente (match por valor + data próxima + descrição similar), marcar automaticamente o bill como pago e vincular o `transactionId`.
+2. **Despesas normais com flow `out`**: Manter como está (partida simples) pois são despesas operacionais, não transferências entre contas. A partida dupla só se aplica a transferências reais (fatura, movimentação entre contas).
+3. **Reconciliação manual**: Adicionar na lista de contas a pagar um indicador visual quando uma transação importada corresponde a um bill pendente, com botão para vincular.
 
 ---
 
-## 2. Auto-carregar contas fixas do mês (sem exigir inclusão manual)
+## Problema 2 — Duplicação de despesas com cartão de crédito
 
-### Problema atual
-As contas fixas (empréstimos, seguros) são listadas na aba "Fixas" como `PotentialFixedBill` e o usuário precisa clicar em cada uma para incluí-la no tracker do mês. Isso é trabalhoso e reduz a visibilidade do fluxo de caixa.
+### Diagnóstico
+Este é o problema central: quando o usuário tem despesas pagas no cartão de crédito, elas aparecem duas vezes no fluxo financeiro:
+- **Momento 1**: A despesa individual aparece como lançamento na conta do cartão (ex: "Supermercado R$ 50")
+- **Momento 2**: No mês seguinte, o pagamento da fatura aparece como `transfer_out` da conta corrente
+
+Na função `getOtherPaidExpensesForMonth` (FinanceContext.tsx, linha 935-950), transações com `flow === 'out'` da conta do cartão são listadas como despesas pagas. E a fatura inteira também aparece como bill pago. Isso gera dupla contagem nos KPIs.
 
 ### Solução
-Mudar a lógica: ao abrir o mês, as contas fixas já devem vir **incluídas por padrão** no `billsTracker`. O usuário pode **remover** as que não quer.
+1. **Filtrar transações de contas cartão de crédito** no `getOtherPaidExpensesForMonth`: excluir transações cuja `accountId` pertença a uma conta `cartao_credito`. Essas despesas já estão representadas na fatura.
+2. **Nos KPIs do modal** (linhas 121-137): a lógica já tenta excluir cartão, mas de forma inconsistente. Centralizar a exclusão no `getOtherPaidExpensesForMonth`.
+3. **Marcar bills de `card_invoice`** com flag especial nos KPIs: o valor da fatura **não é despesa nova**, é liquidação de passivo. Deve ser excluído do "Total Pago" de despesas e contado separadamente como "Faturas Pagas".
 
-**Arquivo:** `src/contexts/FinanceContext.tsx`
-- Criar função `autoPopulateFixedBills(date)` que:
-  1. Chama `getPotentialFixedBillsForMonth(date, billsTracker)`
-  2. Para cada `PotentialFixedBill` que **não está incluída** e **não foi previamente excluída**, cria automaticamente um `BillTracker` e adiciona ao estado
-  3. Usa uma flag `isExcluded` para itens que o usuário removeu manualmente (já existe no tipo)
-- Essa função deve rodar quando o mês muda (no `BillsTrackerModal` e `BillsTracker.tsx`)
+**Alteração em `getOtherPaidExpensesForMonth`:**
+```
+// Excluir transações de contas cartão de crédito (já representadas nas faturas)
+const creditCardAccountIds = new Set(
+  contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id)
+);
+// Adicionar filtro: && !creditCardAccountIds.has(t.accountId)
+```
 
-**Arquivo:** `src/components/bills/BillsTrackerModal.tsx` e `src/pages/BillsTracker.tsx`
-- Adicionar `useEffect` que chama `autoPopulateFixedBills(currentDate)` quando `currentDate` muda
-- Guard para não duplicar (verificar por `sourceType + sourceRef + parcelaNumber` antes de adicionar)
-
-### Na aba unificada (item 3)
-- Os itens fixos já carregados aparecem na listagem com opção de **remover** (marca `isExcluded: true`)
-- Itens removidos podem ser restaurados com um clique
+**Alteração nos KPIs:**
+- "A Pagar": somar bills pendentes **exceto** `card_invoice` (pois a fatura é liquidação de passivo, não despesa nova)
+- "Pago": somar bills pagos **exceto** `card_invoice`
+- Criar indicador separado "Faturas" se houver faturas no mês
 
 ---
 
-## 3. Unificar abas em "Contas Futuras"
+## Problema 3 — Descrições estourando no modal
 
-### Estrutura atual (4 abas)
-1. Fixas — lista de PotentialFixedBill do mês (toggle incluir/remover)
-2. Parceladas — formulário de lançamento de compra parcelada
-3. Cartões — gestão de cartão de crédito
-4. Adiantamentos — lista de parcelas futuras para adiantar
+### Diagnóstico
+Na `BillsTrackerList.tsx` linha 225, a célula de descrição usa `max-w-[250px]` e `truncate`, mas o `EditableCell` pode não respeitar o truncamento. No mobile (`BillsTrackerMobileList.tsx`), o `EditableCell` para descrição não tem constraints de largura.
 
-### Nova estrutura (3 abas)
-
-| Aba | Nome | Conteudo |
-|-----|------|----------|
-| 1 | **Compromissos** | Lista unificada de todas as contas do mês + futuras, agrupadas por tipo, com botão de adiantar em cada item futuro e botão para lançar nova compra parcelada |
-| 2 | **Cartões** | Sem mudança — gestão de cartão de crédito |
-| 3 | *(removida)* | Adiantamentos absorvida pela aba 1 |
-
-### Detalhamento da aba "Compromissos"
-
-**Novo componente:** `src/components/bills/tabs/CommitmentsTabContent.tsx`
-
-Layout:
-
-```
-┌─ Botão [+ Nova Compra Parcelada] ───────────┐
-│                                               │
-│ ── EMPRÉSTIMOS ─────────────────────────────  │
-│ [✓] Empréstimo Banco X - P3/24    R$ 850,00  │
-│ [✓] Empréstimo Banco Y - P7/12    R$ 420,00  │
-│   ▸ Parcelas futuras (2)                      │
-│     P4/24 - Mar 2026  [Adiantar]              │
-│     P5/24 - Abr 2026  [Adiantar]              │
-│                                               │
-│ ── SEGUROS ─────────────────────────────────  │
-│ [✓] Seguro Porto - P5/12          R$ 92,47   │
-│   ▸ Parcelas futuras (7)                      │
-│     P6/12 - Mar 2026  [Adiantar]              │
-│                                               │
-│ ── COMPRAS PARCELADAS ──────────────────────  │
-│ [✓] iPhone 15 Pro 3/10            R$ 599,90  │
-│ [✓] On Fitness 1/6                R$ 119,90  │
-│   ▸ Parcelas futuras (5)                      │
-│     2/6 - Mar 2026  [Adiantar]                │
-└───────────────────────────────────────────────┘
-```
-
-Funcionalidades:
-- **Itens do mês atual** aparecem com checkbox (já incluídos automaticamente por padrão)
-- Desmarcar = `isExcluded: true` (remove do tracker)
-- Cada grupo mostra parcelas futuras em seção expansível (Collapsible)
-- Parcelas futuras têm botão "Adiantar" que adiciona ao mês atual
-- Botão "+ Nova Compra Parcelada" abre modal/drawer com o formulário existente (`PurchaseInstallmentTabContent`)
-
-**Arquivo:** `src/components/bills/ManageCommitmentsModal.tsx`
-- Reduzir de 4 abas para 2: "Compromissos" e "Cartões"
-- Aba "Compromissos" usa o novo `CommitmentsTabContent`
-- Remover imports de `FixedBillsTabContent`, `PurchaseInstallmentTabContent`, `AdvanceInstallmentsTabContent`
+### Solução
+1. **Desktop (`BillsTrackerList.tsx`)**: Envolver o `EditableCell` em um container com `overflow-hidden` e `truncate`, e passar `className` com `truncate max-w-full`.
+2. **Mobile (`BillsTrackerMobileList.tsx`)**: Adicionar `max-w-[180px]` ou `overflow-hidden truncate` no container da descrição editável.
+3. **Em ambos**: garantir que o texto renderizado (quando não em modo edição) use `truncate` consistentemente.
 
 ---
 
-## Resumo de arquivos
+## Problema 4 — Adiantamento de parcelas com ajuste de datas
 
-| Arquivo | Ação |
-|---------|------|
-| `src/components/bills/BillsTrackerList.tsx` | Tornar coluna descrição editável via EditableCell |
-| `src/components/bills/BillsTrackerMobileList.tsx` | Adicionar edição de descrição inline |
-| `src/contexts/FinanceContext.tsx` | Criar `autoPopulateFixedBills(date)`, expor no contexto |
-| `src/components/bills/tabs/CommitmentsTabContent.tsx` | **NOVO** — aba unificada com grupos, adiantamento inline e botão de nova compra |
-| `src/components/bills/ManageCommitmentsModal.tsx` | Reduzir para 2 abas (Compromissos + Cartões) |
-| `src/components/bills/BillsTrackerModal.tsx` | Chamar autoPopulateFixedBills no useEffect de currentDate |
-| `src/pages/BillsTracker.tsx` | Idem — autoPopulateFixedBills |
+### Diagnóstico
+Quando o usuário altera manualmente a data de vencimento de uma parcela de empréstimo/seguro no modal Contas a Pagar (antecipando o pagamento), as parcelas subsequentes não são afetadas. O sistema não pergunta se as próximas devem ser realinhadas.
+
+### Solução
+No `handleUpdateDueDate` da `BillsTrackerList.tsx` (linha 160), adicionar lógica condicional:
+1. Verificar se o bill é `loan_installment` ou `insurance_installment`
+2. Se a nova data for **anterior** à data original, mostrar um **dialog de confirmação** perguntando: "Deseja antecipar as próximas parcelas em X dias também?"
+3. Se confirmar, buscar todos os bills do mesmo `sourceRef` com `parcelaNumber` maior e subtrair a mesma diferença de dias
+4. Se recusar, alterar apenas a parcela selecionada
+
+**Novo componente**: Dialog simples de confirmação inline (pode usar o AlertDialog já importado).
+
+---
+
+## Problema 5 — Permitir exclusão (delete) dos itens removidos
+
+### Diagnóstico
+Na `CommitmentsTabContent.tsx` (linha 264-281), a seção "Removidos" só permite restaurar (`isExcluded: false`). Não há opção de excluir permanentemente.
+
+### Solução
+Adicionar botão de exclusão permanente (Trash2) ao lado do botão "Restaurar" em cada item removido. Ao clicar, chamar `setBillsTracker(prev => prev.filter(b => b.id !== billId))` para remover definitivamente.
+
+---
+
+## Problema 6 — Categorias para empréstimos e pagamento de fatura
+
+### Diagnóstico
+No `handleTogglePaid` (BillsTrackerModal.tsx):
+- **Empréstimos** (linha 166): o guard `!category && !isLoan` permite pagar sem categoria. Mas na lista, o select de categoria está vazio e pode confundir.
+- **Faturas** (linha 148): o pagamento de fatura não usa categoria nenhuma (`categoryId: null`), o que é correto para transferência, mas na lista aparece como "—" na coluna categoria.
+
+### Solução
+1. **Auto-atribuir categoria padrão para empréstimos**: Na `autoPopulateFixedBills`, buscar categoria que contenha "empréstimo" ou "financiamento" no label. Se não existir, criar uma categoria padrão "Financiamentos" com nature `despesa_fixa`.
+2. **Para faturas (`card_invoice`)**: Esconder o select de categoria na lista (mostrar badge "Transferência" ou "Fatura") pois não se aplica.
+3. **Para seguros**: Auto-atribuir categoria "Seguro" se existir.
+
+**Alteração em `BillsTrackerList.tsx`**: na coluna categoria (linha 228), se `sourceType === 'card_invoice'`, exibir badge "Fatura" ao invés do select. Se `sourceType === 'loan_installment'`, exibir badge "Financiamento".
+
+**Alteração em `autoPopulateFixedBills`**: pré-preencher `suggestedCategoryId` buscando por label matching.
+
+---
+
+## Resumo de arquivos afetados
+
+| Arquivo | Mudanças |
+|---------|----------|
+| `src/contexts/FinanceContext.tsx` | Filtrar CC no `getOtherPaidExpensesForMonth`, melhorar `autoPopulateFixedBills` com categoria auto |
+| `src/components/bills/BillsTrackerModal.tsx` | KPIs: separar fatura de despesa, dialog de adiantamento |
+| `src/components/bills/BillsTrackerList.tsx` | Overflow descrição, badge categoria para fatura/empréstimo, dialog adiantamento de parcelas |
+| `src/components/bills/BillsTrackerMobileList.tsx` | Overflow descrição |
+| `src/components/bills/tabs/CommitmentsTabContent.tsx` | Botão excluir permanente nos removidos |
 
 ---
 
 ## Ordem de implementação
 
-| Passo | Descrição |
-|-------|-----------|
-| 1 | Adicionar edição de descrição na `BillsTrackerList` e `BillsTrackerMobileList` |
-| 2 | Criar `autoPopulateFixedBills` no `FinanceContext` |
-| 3 | Integrar auto-populate nos modais/página com useEffect |
-| 4 | Criar `CommitmentsTabContent` com listagem agrupada + adiantamento + botão nova compra |
-| 5 | Refatorar `ManageCommitmentsModal` para 2 abas |
+| Passo | Descrição | Prioridade |
+|-------|-----------|------------|
+| 1 | Filtrar CC no `getOtherPaidExpensesForMonth` + ajustar KPIs para não duplicar | Critica |
+| 2 | Corrigir overflow de descrições (desktop + mobile) | Alta |
+| 3 | Badge de categoria para fatura e empréstimo + auto-categoria no populate | Alta |
+| 4 | Dialog de adiantamento de parcelas ao alterar data | Media |
+| 5 | Botão excluir permanente nos removidos | Media |
 

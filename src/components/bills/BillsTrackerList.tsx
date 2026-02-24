@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { EditableCell } from "../EditableCell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface BillsTrackerListProps {
   bills: BillDisplayItem[];
@@ -157,7 +158,40 @@ export function BillsTrackerList({
     onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
   };
   
-  const handleUpdateDueDate = (b: BillTracker, n: string) => { if (!b.isPaid) onUpdateBill(b.id, { dueDate: n }); };
+  const [advanceDialog, setAdvanceDialog] = useState<{ bill: BillTracker; newDate: string; daysDiff: number } | null>(null);
+
+  const handleUpdateDueDate = (b: BillTracker, n: string) => {
+    if (b.isPaid) return;
+    const isInstallment = b.sourceType === 'loan_installment' || b.sourceType === 'insurance_installment';
+    if (isInstallment) {
+      const oldDate = parseDateLocal(b.dueDate);
+      const newDate = parseDateLocal(n);
+      const daysDiff = Math.round((oldDate.getTime() - newDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff > 0) {
+        setAdvanceDialog({ bill: b, newDate: n, daysDiff });
+        return;
+      }
+    }
+    onUpdateBill(b.id, { dueDate: n });
+  };
+
+  const handleConfirmAdvance = (advanceAll: boolean) => {
+    if (!advanceDialog) return;
+    const { bill, newDate, daysDiff } = advanceDialog;
+    onUpdateBill(bill.id, { dueDate: newDate });
+    if (advanceAll && bill.sourceRef) {
+      setBillsTracker(prev => prev.map(b => {
+        if (b.sourceType === bill.sourceType && b.sourceRef === bill.sourceRef && b.parcelaNumber && bill.parcelaNumber && b.parcelaNumber > bill.parcelaNumber && !b.isPaid) {
+          const oldDue = parseDateLocal(b.dueDate);
+          const shifted = new Date(oldDue.getTime() - daysDiff * 24 * 60 * 60 * 1000);
+          return { ...b, dueDate: format(shifted, 'yyyy-MM-dd') };
+        }
+        return b;
+      }));
+      toast.success(`Parcelas subsequentes antecipadas em ${daysDiff} dias.`);
+    }
+    setAdvanceDialog(null);
+  };
   const handleUpdatePaymentDate = (b: BillTracker, n: string) => { if (b.isPaid) { onUpdateBill(b.id, { paymentDate: n }); if (b.transactionId) { setTransacoesV2(prev => prev.map(t => (t.id === b.transactionId || (t.links?.transferGroupId && t.links.transferGroupId === b.transactionId)) ? { ...t, date: n } : t)); } } };
 
   const sortedBills = useMemo(() => {
@@ -222,10 +256,10 @@ export function BillsTrackerList({
                       <TableCell className="text-center p-2" style={{ width: columnWidths.pay }}>{isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}</TableCell>
                       <TableCell className={cn("text-xs font-bold p-3", isOver && "text-destructive")} style={{ width: columnWidths.due }}>{isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}</TableCell>
                       <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>{isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}</TableCell>
-                      <TableCell className="text-xs max-w-[250px] p-3 font-black text-foreground" style={{ width: columnWidths.description }}>{isExt || isPaid ? <span className="truncate">{bill.description}</span> : <EditableCell value={bill.description} type="text" onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} className="text-xs h-9 font-black bg-muted/20" />}</TableCell>
+                      <TableCell className="text-xs p-3 font-black text-foreground" style={{ width: columnWidths.description }}><div className="overflow-hidden max-w-full">{isExt || isPaid ? <span className="block truncate">{bill.description}</span> : <EditableCell value={bill.description} type="text" onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} className="text-xs h-9 font-black bg-muted/20 truncate max-w-full" />}</div></TableCell>
                       <TableCell className="p-3" style={{ width: columnWidths.account }}>{isExt || isPaid ? <span className="text-xs font-bold opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent></Select>}</TableCell>
                       <TableCell className="p-2 text-center" style={{ width: columnWidths.type }}><Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)}><Icon className="w-4 h-4 mr-1.5" /> {cfg.label.substring(0, 4)}</Badge></TableCell>
-                      <TableCell className="p-3" style={{ width: columnWidths.category }}>{isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}</TableCell>
+                      <TableCell className="p-3" style={{ width: columnWidths.category }}>{bill.sourceType === 'card_invoice' ? <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-violet-500/10 text-violet-500"><CreditCard className="w-3 h-3 mr-1" />Fatura</Badge> : bill.sourceType === 'loan_installment' ? <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-orange-500/10 text-orange-500"><Building2 className="w-3 h-3 mr-1" />Financiam.</Badge> : bill.sourceType === 'insurance_installment' ? <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-blue-500/10 text-blue-500"><Shield className="w-3 h-3 mr-1" />Seguro</Badge> : isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}</TableCell>
                       <TableCell className={cn("text-right font-black text-sm p-3 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>{!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-9 text-xs text-right font-black bg-muted/20" /> : formatCurrency(bill.expectedAmount)}</TableCell>
                       <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>{!isExt && !isPaid && (bill.sourceType === 'ad_hoc' ? <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => onDeleteBill(bill.id)}><Trash2 className="w-4 h-4" /></Button> : <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>)}</TableCell>
                     </TableRow>
@@ -236,6 +270,21 @@ export function BillsTrackerList({
           </div>
         </div>
       </div>
+      {/* Dialog de adiantamento de parcelas */}
+      <AlertDialog open={!!advanceDialog} onOpenChange={(open) => !open && setAdvanceDialog(null)}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-black">Antecipar parcelas?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Você antecipou o vencimento em <strong>{advanceDialog?.daysDiff} dias</strong>. Deseja antecipar as próximas parcelas deste mesmo compromisso também?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => handleConfirmAdvance(false)} className="rounded-xl">Apenas esta</AlertDialogCancel>
+            <AlertDialogAction onClick={() => handleConfirmAdvance(true)} className="rounded-xl">Antecipar todas</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

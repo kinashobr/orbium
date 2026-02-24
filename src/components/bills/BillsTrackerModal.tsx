@@ -119,22 +119,22 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   }, [trackerManagedBills, externalPaidBills]);
 
   const totalUnpaidBills = useMemo(() => {
-    const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
     return combinedBills.reduce((acc, b) => {
-      const isCC = b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId);
-      if (!b.isPaid || isCC) return acc + b.expectedAmount;
-      return acc;
+      if (b.isPaid) return acc;
+      // Faturas de cartão são liquidação de passivo, não despesa nova — excluir dos KPIs
+      if (b.sourceType === 'card_invoice') return acc;
+      return acc + b.expectedAmount;
     }, 0);
-  }, [combinedBills, contasMovimento]);
+  }, [combinedBills]);
 
   const totalPaidBills = useMemo(() => {
-    const creditCardAccountIds = new Set(contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id));
     return combinedBills.reduce((acc, b) => {
-      const isCC = b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId);
-      if (b.isPaid && !isCC) return acc + b.expectedAmount;
-      return acc;
+      if (!b.isPaid) return acc;
+      // Faturas de cartão são liquidação de passivo — excluir dos KPIs de despesas pagas
+      if (b.sourceType === 'card_invoice') return acc;
+      return acc + b.expectedAmount;
     }, 0);
-  }, [combinedBills, contasMovimento]);
+  }, [combinedBills]);
 
   const handleMonthChange = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1));
