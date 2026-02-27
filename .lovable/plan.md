@@ -1,128 +1,84 @@
 
+# Plano: Formato de Moeda, Cores "Nova Conta", Botao "Fechar" e Relatorio PDF/OFX
 
-# Plano: Correções de Transferências, Duplicação de Despesas CC, Overflow de Texto, Adiantamento e Categorias
+## 1. Valor da fatura com formato 0,000 (3 decimais)
 
----
-
-## Problema 1 — Transferências não geram partida dupla corretamente
-
-### Diagnóstico
-No `handleTogglePaid` (BillsTrackerModal.tsx, linha 148-161), o pagamento de fatura (`card_invoice`) já gera corretamente duas transações: `transfer_out` na conta pagamento e `transfer_in` na conta do cartão, ambas com `transferGroupId`.
-
-Porém, para **outros tipos de despesas** (linha 163-184), o pagamento gera apenas **uma transação** com `flow: 'out'`. Quando o usuário paga uma conta via importação de extrato, não há mecanismo para vincular essa transação importada ao `BillTracker` correspondente.
-
-### Solução
-1. **Importação de extratos**: Ao contabilizar uma transação importada que corresponde a um `BillTracker` pendente (match por valor + data próxima + descrição similar), marcar automaticamente o bill como pago e vincular o `transactionId`.
-2. **Despesas normais com flow `out`**: Manter como está (partida simples) pois são despesas operacionais, não transferências entre contas. A partida dupla só se aplica a transferências reais (fatura, movimentação entre contas).
-3. **Reconciliação manual**: Adicionar na lista de contas a pagar um indicador visual quando uma transação importada corresponde a um bill pendente, com botão para vincular.
-
----
-
-## Problema 2 — Duplicação de despesas com cartão de crédito
-
-### Diagnóstico
-Este é o problema central: quando o usuário tem despesas pagas no cartão de crédito, elas aparecem duas vezes no fluxo financeiro:
-- **Momento 1**: A despesa individual aparece como lançamento na conta do cartão (ex: "Supermercado R$ 50")
-- **Momento 2**: No mês seguinte, o pagamento da fatura aparece como `transfer_out` da conta corrente
-
-Na função `getOtherPaidExpensesForMonth` (FinanceContext.tsx, linha 935-950), transações com `flow === 'out'` da conta do cartão são listadas como despesas pagas. E a fatura inteira também aparece como bill pago. Isso gera dupla contagem nos KPIs.
-
-### Solução
-1. **Filtrar transações de contas cartão de crédito** no `getOtherPaidExpensesForMonth`: excluir transações cuja `accountId` pertença a uma conta `cartao_credito`. Essas despesas já estão representadas na fatura.
-2. **Nos KPIs do modal** (linhas 121-137): a lógica já tenta excluir cartão, mas de forma inconsistente. Centralizar a exclusão no `getOtherPaidExpensesForMonth`.
-3. **Marcar bills de `card_invoice`** com flag especial nos KPIs: o valor da fatura **não é despesa nova**, é liquidação de passivo. Deve ser excluído do "Total Pago" de despesas e contado separadamente como "Faturas Pagas".
-
-**Alteração em `getOtherPaidExpensesForMonth`:**
+**Causa raiz:** No `EditableCell.tsx` (linha 55), o `formatDisplay` para tipo `currency` usa:
 ```
-// Excluir transações de contas cartão de crédito (já representadas nas faturas)
-const creditCardAccountIds = new Set(
-  contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id)
-);
-// Adicionar filtro: && !creditCardAccountIds.has(t.accountId)
+Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })
 ```
+Falta `maximumFractionDigits: 2`, permitindo que valores com flutuacao de ponto flutuante exibam 3+ casas decimais.
 
-**Alteração nos KPIs:**
-- "A Pagar": somar bills pendentes **exceto** `card_invoice` (pois a fatura é liquidação de passivo, não despesa nova)
-- "Pago": somar bills pagos **exceto** `card_invoice`
-- Criar indicador separado "Faturas" se houver faturas no mês
-
----
-
-## Problema 3 — Descrições estourando no modal
-
-### Diagnóstico
-Na `BillsTrackerList.tsx` linha 225, a célula de descrição usa `max-w-[250px]` e `truncate`, mas o `EditableCell` pode não respeitar o truncamento. No mobile (`BillsTrackerMobileList.tsx`), o `EditableCell` para descrição não tem constraints de largura.
-
-### Solução
-1. **Desktop (`BillsTrackerList.tsx`)**: Envolver o `EditableCell` em um container com `overflow-hidden` e `truncate`, e passar `className` com `truncate max-w-full`.
-2. **Mobile (`BillsTrackerMobileList.tsx`)**: Adicionar `max-w-[180px]` ou `overflow-hidden truncate` no container da descrição editável.
-3. **Em ambos**: garantir que o texto renderizado (quando não em modo edição) use `truncate` consistentemente.
+**Arquivo:** `src/components/EditableCell.tsx` (linha 55)
+- Adicionar `maximumFractionDigits: 2` ao `toLocaleString`
 
 ---
 
-## Problema 4 — Adiantamento de parcelas com ajuste de datas
+## 2. Cores apagadas no "Nova Conta"
 
-### Diagnóstico
-Quando o usuário altera manualmente a data de vencimento de uma parcela de empréstimo/seguro no modal Contas a Pagar (antecipando o pagamento), as parcelas subsequentes não são afetadas. O sistema não pergunta se as próximas devem ser realinhadas.
+**Causa:** No `BillsTrackerList.tsx` (linha 229), o container do formulario nova conta usa:
+- `from-primary/[0.05] to-primary/[0.01]` -- opacidades muito baixas (5% e 1%)
+- `border-primary/20` -- borda fraca
 
-### Solução
-No `handleUpdateDueDate` da `BillsTrackerList.tsx` (linha 160), adicionar lógica condicional:
-1. Verificar se o bill é `loan_installment` ou `insurance_installment`
-2. Se a nova data for **anterior** à data original, mostrar um **dialog de confirmação** perguntando: "Deseja antecipar as próximas parcelas em X dias também?"
-3. Se confirmar, buscar todos os bills do mesmo `sourceRef` com `parcelaNumber` maior e subtrair a mesma diferença de dias
-4. Se recusar, alterar apenas a parcela selecionada
-
-**Novo componente**: Dialog simples de confirmação inline (pode usar o AlertDialog já importado).
+**Correcao:** Aumentar opacidades para valores mais visiveis e consistentes com o design system M3:
+- Gradiente: `from-primary/[0.12] to-primary/[0.04]`
+- Borda: `border-primary/30`
+- Sombra mais presente
 
 ---
 
-## Problema 5 — Permitir exclusão (delete) dos itens removidos
+## 3. Botao "FECHAR JANELA" para "FECHAR"
 
-### Diagnóstico
-Na `CommitmentsTabContent.tsx` (linha 264-281), a seção "Removidos" só permite restaurar (`isExcluded: false`). Não há opção de excluir permanentemente.
-
-### Solução
-Adicionar botão de exclusão permanente (Trash2) ao lado do botão "Restaurar" em cada item removido. Ao clicar, chamar `setBillsTracker(prev => prev.filter(b => b.id !== billId))` para remover definitivamente.
+**Arquivo:** `src/components/bills/BillsTrackerModal.tsx` (linha 433)
+- Trocar texto de `FECHAR JANELA` para `FECHAR`
 
 ---
 
-## Problema 6 — Categorias para empréstimos e pagamento de fatura
+## 4. Relatorio impresso/PDF/OFX dos extratos
 
-### Diagnóstico
-No `handleTogglePaid` (BillsTrackerModal.tsx):
-- **Empréstimos** (linha 166): o guard `!category && !isLoan` permite pagar sem categoria. Mas na lista, o select de categoria está vazio e pode confundir.
-- **Faturas** (linha 148): o pagamento de fatura não usa categoria nenhuma (`categoryId: null`), o que é correto para transferência, mas na lista aparece como "—" na coluna categoria.
+Implementar exportacao no `AccountStatementDialog.tsx`, adicionando 3 opcoes de exportacao:
 
-### Solução
-1. **Auto-atribuir categoria padrão para empréstimos**: Na `autoPopulateFixedBills`, buscar categoria que contenha "empréstimo" ou "financiamento" no label. Se não existir, criar uma categoria padrão "Financiamentos" com nature `despesa_fixa`.
-2. **Para faturas (`card_invoice`)**: Esconder o select de categoria na lista (mostrar badge "Transferência" ou "Fatura") pois não se aplica.
-3. **Para seguros**: Auto-atribuir categoria "Seguro" se existir.
+### 4a. Imprimir/PDF
+Usar `window.print()` com CSS `@media print` dedicado. Criar funcao que:
+1. Gera uma janela de impressao com layout formatado (cabecalho com nome da conta, periodo, resumo, tabela de transacoes)
+2. O navegador permite salvar como PDF nativamente
 
-**Alteração em `BillsTrackerList.tsx`**: na coluna categoria (linha 228), se `sourceType === 'card_invoice'`, exibir badge "Fatura" ao invés do select. Se `sourceType === 'loan_installment'`, exibir badge "Financiamento".
+### 4b. Exportar OFX
+Gerar arquivo OFX (Open Financial Exchange) a partir das transacoes filtradas. O formato OFX e texto estruturado usado por bancos. Criar funcao `generateOFX(account, transactions)` que:
+1. Monta o header OFX com dados da conta
+2. Lista cada transacao como `<STMTTRN>` com data, valor, descricao
+3. Gera download do arquivo `.ofx`
 
-**Alteração em `autoPopulateFixedBills`**: pré-preencher `suggestedCategoryId` buscando por label matching.
+### 4c. Exportar CSV (bonus simples)
+Gerar CSV com colunas: Data, Descricao, Valor, Tipo, Categoria, Conciliado
+
+**Arquivos:**
+- `src/components/transactions/AccountStatementDialog.tsx` -- Adicionar botoes de exportacao no header e criar funcoes de geracao
+- Nao precisa de dependencia externa (tudo nativo)
+
+### Layout dos botoes de exportacao
+Adicionar ao lado do botao "Conciliar Tudo" um dropdown com opcoes:
+- Imprimir
+- Exportar PDF
+- Exportar OFX
+- Exportar CSV
 
 ---
 
-## Resumo de arquivos afetados
+## Resumo de arquivos
 
-| Arquivo | Mudanças |
-|---------|----------|
-| `src/contexts/FinanceContext.tsx` | Filtrar CC no `getOtherPaidExpensesForMonth`, melhorar `autoPopulateFixedBills` com categoria auto |
-| `src/components/bills/BillsTrackerModal.tsx` | KPIs: separar fatura de despesa, dialog de adiantamento |
-| `src/components/bills/BillsTrackerList.tsx` | Overflow descrição, badge categoria para fatura/empréstimo, dialog adiantamento de parcelas |
-| `src/components/bills/BillsTrackerMobileList.tsx` | Overflow descrição |
-| `src/components/bills/tabs/CommitmentsTabContent.tsx` | Botão excluir permanente nos removidos |
+| Arquivo | Mudanca |
+|---------|---------|
+| `src/components/EditableCell.tsx` | Adicionar `maximumFractionDigits: 2` no formatDisplay |
+| `src/components/bills/BillsTrackerList.tsx` | Aumentar opacidades do gradiente/borda do "Nova Conta" |
+| `src/components/bills/BillsTrackerModal.tsx` | Trocar "FECHAR JANELA" por "FECHAR" |
+| `src/components/transactions/AccountStatementDialog.tsx` | Adicionar exportacao Print/PDF/OFX/CSV |
 
----
+## Ordem
 
-## Ordem de implementação
-
-| Passo | Descrição | Prioridade |
-|-------|-----------|------------|
-| 1 | Filtrar CC no `getOtherPaidExpensesForMonth` + ajustar KPIs para não duplicar | Critica |
-| 2 | Corrigir overflow de descrições (desktop + mobile) | Alta |
-| 3 | Badge de categoria para fatura e empréstimo + auto-categoria no populate | Alta |
-| 4 | Dialog de adiantamento de parcelas ao alterar data | Media |
-| 5 | Botão excluir permanente nos removidos | Media |
-
+| # | Acao | Prioridade |
+|---|------|------------|
+| 1 | Corrigir formato moeda (maximumFractionDigits) | Critica |
+| 2 | Texto botao "FECHAR" | Alta |
+| 3 | Cores "Nova Conta" | Alta |
+| 4 | Exportacao de extratos (Print/OFX/CSV) | Media |

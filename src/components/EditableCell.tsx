@@ -52,7 +52,7 @@ export function EditableCell({ value, onSave, type = "text", options = [], class
 
   const formatDisplay = () => {
     if (type === "currency") {
-      return `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+      return `R$ ${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
     if (type === "date" && value) {
       const dateStr = String(value);
@@ -109,10 +109,12 @@ export function EditableCell({ value, onSave, type = "text", options = [], class
   return (
     <span
       onClick={() => !disabled && setIsEditing(true)} // Prevent editing if disabled
-      className={`cursor-pointer px-2 py-1 rounded transition-colors min-h-[32px] inline-flex items-center ${className} ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-muted/50'}`}
-      title={disabled ? "Edição desabilitada" : "Clique para editar"}
+      className={`cursor-pointer px-2 py-1 rounded transition-colors min-h-[32px] flex items-center w-full min-w-0 ${className} ${disabled ? 'opacity-60 cursor-not-allowed' : 'hover:bg-muted/50'}`}
+      title={disabled ? "Edição desabilitada" : String(value)}
     >
-      {formatDisplay()}
+      <span className="truncate w-full block">
+        {formatDisplay()}
+      </span>
     </span>
   );
 }

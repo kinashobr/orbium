@@ -38,9 +38,12 @@ import {
 	AccountTerm,
 	CreditCardConfig,
 	generateCreditCardConfigId,
+  getDomainFromOperation,
+  generateTransferGroupId,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -366,6 +369,7 @@ interface FinanceContextType {
   deleteImportedStatement: (statementId: string) => void;
   getTransactionsForReview: (accountId: string, range: DateRange) => ImportedTransaction[];
   updateImportedStatement: (statementId: string, updates: Partial<ImportedStatement>) => void;
+  contabilizeImportedTransaction: (statementId: string, transactionId: string, data: Partial<ImportedTransaction>) => void;
   uncontabilizeImportedTransaction: (transactionId: string) => void;
   
   // Data Filtering
@@ -531,6 +535,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setLastModified(now);
     saveToStorage(STORAGE_KEYS.LAST_MODIFIED, now);
   }, []);
+
+  // 1. Definição básica de updaters de estado para evitar erros de referência circular/ordem
+  const addTransacaoV2 = useCallback((transaction: TransacaoCompleta) => { 
+    setTransacoesV2(prev => [...prev, transaction]); 
+  }, []);
+
+  const updateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
+    setBillsTracker(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+  }, []);
+
+  const deleteBill = useCallback((id: string) => {
+    setBillsTracker(prev => prev.filter(b => b.id !== id));
+  }, []);
+
+  // Higienização de integridade de dados na inicialização
+  useEffect(() => {
+    const validAccountIds = new Set(contasMovimento.map(a => a.id));
+    const invalidConfigs = creditCardConfigs.filter(cfg => !validAccountIds.has(cfg.accountId));
+    
+    if (invalidConfigs.length > 0) {
+      console.warn("Limpando configurações de cartões órfãos:", invalidConfigs.length);
+      setCreditCardConfigs(prev => prev.filter(cfg => validAccountIds.has(cfg.accountId)));
+      toast.error(`${invalidConfigs.length} configuração(ões) de cartão inválidas foram removidas.`);
+    }
+  }, [contasMovimento, creditCardConfigs]);
 
   useEffect(() => { saveToStorage(STORAGE_KEYS.EMPRESTIMOS, emprestimos); updateLastModified(); }, [emprestimos, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.VEICULOS, veiculos); updateLastModified(); }, [veiculos, updateLastModified]);
@@ -800,21 +829,177 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     importedStatements.filter(s => s.accountId === accountId).forEach(s => {
         s.rawTransactions.filter(t => !t.isContabilized).forEach(t => allRawTransactions.push(t));
     });
+    
+    // Identificar se a conta é de cartão de crédito
+    const targetAccount = contasMovimento.find(acc => acc.id === accountId);
+    const isCreditCardAccount = targetAccount?.accountType === 'cartao_credito';
+
     if (!range.from || !range.to) return allRawTransactions;
     const rangeFrom = startOfDay(range.from);
     const rangeTo = endOfDay(range.to);
+    
     let filteredTxs = allRawTransactions.filter(t => isWithinInterval(parseDateLocal(t.date), { start: rangeFrom, end: rangeTo }));
     filteredTxs = applyRules(filteredTxs, standardizationRules);
+    
     return filteredTxs.map(importedTx => {
+        // Melhora na detecção de duplicidade
         const isDuplicate = transacoesV2.find(manualTx => 
             manualTx.accountId === importedTx.accountId && Math.abs(manualTx.amount - importedTx.amount) < 0.01 &&
-            Math.abs(differenceInDays(parseDateLocal(importedTx.date), parseDateLocal(manualTx.date))) <= 1 &&
+            Math.abs(differenceInDays(parseDateLocal(importedTx.date), parseDateLocal(manualTx.date))) <= 2 &&
             manualTx.operationType !== 'initial_balance'
         );
-        if (isDuplicate) return { ...importedTx, isPotentialDuplicate: true, duplicateOfTxId: isDuplicate.id, operationType: isDuplicate.operationType, categoryId: isDuplicate.categoryId, description: isDuplicate.description };
-        return importedTx;
+
+        let finalTx = { ...importedTx };
+        
+        if (isDuplicate) {
+            finalTx = { 
+                ...finalTx, 
+                isPotentialDuplicate: true, 
+                duplicateOfTxId: isDuplicate.id, 
+                operationType: isDuplicate.operationType, 
+                categoryId: isDuplicate.categoryId, 
+                description: isDuplicate.description 
+            };
+        }
+
+        // Sugestão inteligente para entradas em conta de cartão
+        if (isCreditCardAccount && (importedTx.operationType === 'receita' || importedTx.amount > 0)) {
+            // Entradas em cartão são quase sempre pagamentos de fatura (transferências)
+            finalTx.operationType = 'transferencia';
+            finalTx.isTransfer = true;
+            // Tenta sugerir a conta corrente padrão do cartão como origem se possível
+            const cardConfig = creditCardConfigs.find(c => c.accountId === accountId);
+            if (cardConfig?.defaultPaymentAccountId) {
+                finalTx.destinationAccountId = cardConfig.defaultPaymentAccountId;
+            }
+        }
+
+        // Sugestão inteligente para pagamentos de fatura detectados em conta CORRENTE
+        const descLower = importedTx.originalDescription.toLowerCase();
+        const keywords = ['fatura', 'cartao', 'itaucard', 'nubank', 'santander', 'pagamento', 'liquidacao'];
+        
+        if (!isCreditCardAccount && importedTx.amount > 0 && importedTx.operationType === 'despesa') {
+            const hasKeyword = keywords.some(k => descLower.includes(k));
+            if (hasKeyword) {
+                // Tenta encontrar qual cartão está sendo pago baseando-se no nome da conta ou instituição
+                const cardAccount = contasMovimento.find(acc => 
+                    acc.accountType === 'cartao_credito' && 
+                    (descLower.includes(acc.name.toLowerCase()) || (acc.institution && descLower.includes(acc.institution.toLowerCase())))
+                );
+                
+                if (cardAccount) {
+                    finalTx.operationType = 'transferencia';
+                    finalTx.isTransfer = true;
+                    finalTx.destinationAccountId = cardAccount.id;
+                    finalTx.description = `Pagamento Fatura ${cardAccount.name}`;
+                }
+            }
+        }
+
+        return finalTx;
     });
-  }, [importedStatements, transacoesV2, standardizationRules, applyRules]);
+  }, [importedStatements, transacoesV2, standardizationRules, applyRules, contasMovimento, creditCardConfigs]);
+
+  const contabilizeImportedTransaction = useCallback((statementId: string, transactionId: string, data: Partial<ImportedTransaction>) => {
+    const statement = importedStatements.find(s => s.id === statementId);
+    if (!statement) return;
+
+    const importedTx = statement.rawTransactions.find(t => t.id === transactionId);
+    if (!importedTx) return;
+
+    const finalTx: ImportedTransaction = { ...importedTx, ...data };
+    const domain = finalTx.operationType ? getDomainFromOperation(finalTx.operationType) : 'operational';
+    const flow = finalTx.operationType ? getFlowTypeFromOperation(finalTx.operationType, finalTx.tempAssetOperation) : 'out';
+
+    // 1. Criar a transação principal
+    const transactionIdV2 = generateTransactionId();
+    const transferGroupId = finalTx.isTransfer ? generateTransferGroupId() : null;
+
+    const newTx: TransacaoCompleta = {
+      id: transactionIdV2,
+      date: finalTx.date,
+      accountId: finalTx.accountId,
+      flow: flow,
+      operationType: finalTx.operationType || 'despesa',
+      domain: domain,
+      amount: finalTx.amount,
+      categoryId: finalTx.categoryId,
+      description: finalTx.description,
+      links: {
+        investmentId: finalTx.tempInvestmentId,
+        loanId: finalTx.tempLoanId,
+        transferGroupId: transferGroupId,
+        parcelaId: finalTx.tempParcelaId,
+        vehicleTransactionId: null,
+      },
+      conciliated: true,
+      attachments: [],
+      meta: {
+        createdBy: 'system',
+        source: 'import',
+        createdAt: new Date().toISOString(),
+        originalDescription: finalTx.originalDescription,
+      }
+    };
+
+    // 2. Se for transferência, criar a contrapartida (PARTIDA DUPLA)
+    const counterpartTxs: TransacaoCompleta[] = [];
+    if (finalTx.isTransfer && finalTx.destinationAccountId) {
+      const counterpartId = generateTransactionId();
+      
+      // Inverte o fluxo para a contrapartida
+      const counterFlow = (flow === 'out' || flow === 'transfer_out') ? 'transfer_in' : 'transfer_out';
+
+      counterpartTxs.push({
+        ...newTx,
+        id: counterpartId,
+        accountId: finalTx.destinationAccountId,
+        flow: counterFlow,
+        meta: {
+          ...newTx.meta,
+          notes: `Contrapartida de transferência via importação`
+        }
+      });
+    }
+
+    // 3. Persistir transações
+    setTransacoesV2(prev => [...prev, newTx, ...counterpartTxs]);
+
+    // 4. Atualizar o estado do extrato importado
+    setImportedStatements(prev => prev.map(s => {
+      if (s.id === statementId) {
+        const updatedRaw = s.rawTransactions.map(t => {
+          if (t.id === transactionId) {
+            return { ...t, ...data, isContabilized: true, contabilizedTransactionId: transactionIdV2 };
+          }
+          return t;
+        });
+        const allDone = updatedRaw.every(t => t.isContabilized);
+        return { ...s, rawTransactions: updatedRaw, status: allDone ? 'complete' : 'partial' };
+      }
+      return s;
+    }));
+
+    // 5. Vincular ao Bill Tracker se houver correspondência
+    const matchingBill = billsTracker.find(b => 
+      !b.isPaid && 
+      Math.abs(b.expectedAmount - finalTx.amount) < 2 &&
+      isSameMonth(parseDateLocal(b.dueDate), parseDateLocal(finalTx.date)) &&
+      (b.description.toLowerCase().includes(finalTx.description.toLowerCase()) || 
+       finalTx.description.toLowerCase().includes(b.description.toLowerCase()))
+    );
+
+    if (matchingBill) {
+      updateBill(matchingBill.id, {
+        isPaid: true,
+        paymentDate: finalTx.date,
+        transactionId: transferGroupId || transactionIdV2
+      });
+      toast.info(`Vínculo automático com conta pendente: "${matchingBill.description}"`);
+    }
+
+    toast.success("Transação contabilizada com sucesso.");
+  }, [importedStatements, contasMovimento, setTransacoesV2, billsTracker, updateBill]);
 
   const addPurchaseInstallments = useCallback((data: any) => {
     const { description, totalAmount, installments, firstDueDate, suggestedAccountId, suggestedCategoryId } = data;
@@ -936,7 +1121,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
     const trackerTxIds = new Set(billsTracker.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
-    // Excluir transações de contas cartão de crédito (já representadas nas faturas)
     const creditCardAccountIds = new Set(
       contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id)
     );
@@ -961,13 +1145,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const toAdd: BillTracker[] = [];
     potential.forEach(pb => {
       if (pb.isIncluded || pb.isPaid) return;
-      // Check if it was previously excluded
       const wasExcluded = billsTracker.some(b =>
         b.sourceType === pb.sourceType && b.sourceRef === pb.sourceRef && b.parcelaNumber === pb.parcelaNumber && b.isExcluded
       );
       if (wasExcluded) return;
       
-      // Auto-atribuir categoria baseada no tipo
       let suggestedCategoryId: string | null = null;
       if (pb.sourceType === 'loan_installment') {
         suggestedCategoryId = categoriasV2.find(c => 
@@ -998,7 +1180,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     if (toAdd.length > 0) {
       setBillsTracker(prev => [...prev, ...toAdd]);
     }
-  }, [getBillsForMonth, getPotentialFixedBillsForMonth, billsTracker, contasMovimento, categoriasV2, setBillsTracker]);
+  }, [getBillsForMonth, getPotentialFixedBillsForMonth, billsTracker, contasMovimento, categoriasV2]);
 
   const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
     const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
@@ -1040,10 +1222,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setTerrenos(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const addTransacaoV2 = useCallback((transaction: TransacaoCompleta) => { 
-    setTransacoesV2(prev => [...prev, transaction]); 
-  }, []);
-  
   const addStandardizationRule = useCallback((rule: Omit<StandardizationRule, "id">) => {
     setStandardizationRules(prev => [...prev, { ...rule, id: generateRuleId() }]);
   }, []);
@@ -1231,14 +1409,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesV2]);
 
-  const updateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
-    setBillsTracker(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
-  }, []);
-
-  const deleteBill = useCallback((id: string) => {
-    setBillsTracker(prev => prev.filter(b => b.id !== id));
-  }, []);
-
   const addMetaPersonalizada = useCallback((meta: MetaPersonalizada) => {
     setMetasPersonalizadas(prev => [...prev, meta]);
   }, []);
@@ -1273,7 +1443,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const threeMonthsAgo = subMonths(now, 3);
         const gastos3m = transacoesV2.filter(t => { try { const d = parseDateLocal(t.date); return d >= threeMonthsAgo && d <= now && t.flow === 'out'; } catch { return false; } }).reduce((acc, t) => acc + t.amount, 0);
         const gastoMensalMedio = gastos3m / 3;
-        valorAtual = gastoMensalMedio > 0 ? reserva / gastoMensalMedio : 0;
+        valorAtual = reserva / gastoMensalMedio;
         break;
       }
     }
@@ -1321,9 +1491,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevYear = month === 0 ? year - 1 : year;
     const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
-    return transacoesV2
+    const rawAmount = transacoesV2
       .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > prevClosing && parseDateLocal(t.date) <= currentClosing)
       .reduce((acc, t) => acc + t.amount, 0);
+    
+    return Math.round(rawAmount * 100) / 100;
   }, [creditCardConfigs, transacoesV2]);
 
   const getCardCurrentCycleUsage = useCallback((cardId: string, referenceDate?: Date): number => {
@@ -1333,9 +1505,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const closingDay = config.closingDay;
     const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
     const lastClosing = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
-    return transacoesV2
+    const rawAmount = transacoesV2
       .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > lastClosing && parseDateLocal(t.date) <= today)
       .reduce((acc, t) => acc + t.amount, 0);
+    
+    return Math.round(rawAmount * 100) / 100;
   }, [creditCardConfigs, transacoesV2]);
 
   const getNextCycleBalance = useCallback((cardId: string, referenceDate?: Date): number => {
@@ -1346,9 +1520,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
     const cycleStart = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
     const cycleEnd = today > thisMonthClosing ? new Date(today.getFullYear(), today.getMonth() + 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate())) : thisMonthClosing;
-    return transacoesV2
+    const rawAmount = transacoesV2
       .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > cycleStart && parseDateLocal(t.date) <= cycleEnd && parseDateLocal(t.date) > today)
       .reduce((acc, t) => acc + t.amount, 0);
+    
+    return Math.round(rawAmount * 100) / 100;
   }, [creditCardConfigs, transacoesV2]);
 
   const getCardCycleTransactions = useCallback((cardId: string, monthDate: Date) => {
@@ -1368,28 +1544,57 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const generateInvoiceBills = useCallback((monthDate: Date): BillTracker[] => {
     return creditCardConfigs.map(config => {
+      const account = contasMovimento.find(a => a.id === config.accountId);
+      if (!account) return null;
+
       const invoiceAmount = getInvoiceForCard(config.id, monthDate);
       if (invoiceAmount <= 0) return null;
+      
       const year = monthDate.getFullYear();
       const month = monthDate.getMonth();
       const dueDay = Math.min(config.dueDay, new Date(year, month + 1, 0).getDate());
       const dueDateStr = format(new Date(year, month, dueDay), 'yyyy-MM-dd');
-      const account = contasMovimento.find(a => a.id === config.accountId);
       const invoiceCycleKey = format(monthDate, 'yyyy-MM');
+      
       const existingInTracker = billsTracker.find(b => b.sourceRef === config.id && b.invoiceCycle === invoiceCycleKey);
       if (existingInTracker?.isExcluded) return null;
+
+      const prevMonthDate = subMonths(monthDate, 1);
+      const inflowsToCard = transacoesV2.filter(t => 
+        t.accountId === config.accountId && 
+        (t.flow === 'in' || t.flow === 'transfer_in') &&
+        (isSameMonth(parseDateLocal(t.date), monthDate) || isSameMonth(parseDateLocal(t.date), prevMonthDate)) &&
+        Math.abs(t.amount - invoiceAmount) < 2
+      );
+
       let isPaid = existingInTracker?.isPaid || false;
       let paymentDate = existingInTracker?.paymentDate;
       let transactionId = existingInTracker?.transactionId;
-      if (!isPaid) {
-        const prevMonthDate = subMonths(monthDate, 1);
-        const cycleTransactions = transacoesV2.filter(t => t.accountId === config.accountId && (t.flow === 'transfer_in' || t.flow === 'in') && (isSameMonth(parseDateLocal(t.date), monthDate) || isSameMonth(parseDateLocal(t.date), prevMonthDate)));
-        if (cycleTransactions.length > 0) {
-          const match = cycleTransactions.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime())[0];
-          isPaid = true; paymentDate = match.date; transactionId = match.links?.transferGroupId || match.id;
-        }
+
+      if (inflowsToCard.length > 0) {
+        const match = inflowsToCard.sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime())[0];
+        isPaid = true; 
+        paymentDate = match.date; 
+        transactionId = match.links?.transferGroupId || match.id;
       }
-      return { id: existingInTracker?.id || `invoice_${config.id}_${invoiceCycleKey}`, type: 'tracker' as const, description: `Fatura ${account?.name || 'Cartão'}`, dueDate: dueDateStr, expectedAmount: invoiceAmount, isPaid, paymentDate, transactionId, sourceType: 'card_invoice' as const, sourceRef: config.id, cardId: config.id, invoiceCycle: invoiceCycleKey, suggestedAccountId: config.defaultPaymentAccountId, suggestedCategoryId: null, isExcluded: false };
+
+      return { 
+        id: existingInTracker?.id || `invoice_${config.id}_${invoiceCycleKey}`, 
+        type: 'tracker' as const, 
+        description: `Fatura ${account.name}`, 
+        dueDate: dueDateStr, 
+        expectedAmount: Math.round(invoiceAmount * 100) / 100, 
+        isPaid, 
+        paymentDate, 
+        transactionId, 
+        sourceType: 'card_invoice' as const, 
+        sourceRef: config.id, 
+        cardId: config.id, 
+        invoiceCycle: invoiceCycleKey, 
+        suggestedAccountId: config.defaultPaymentAccountId, 
+        suggestedCategoryId: null, 
+        isExcluded: false 
+      };
     }).filter(Boolean) as BillTracker[];
   }, [creditCardConfigs, getInvoiceForCard, contasMovimento, billsTracker, transacoesV2]);
 
@@ -1405,7 +1610,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,
-    importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, uncontabilizeImportedTransaction,
+    importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction,
     dateRanges, setDateRanges, alertStartDate, setAlertStartDate, revenueForecasts, setMonthlyRevenueForecast: (k: string, v: number) => setRevenueForecasts(p => ({ ...p, [k]: v })), getRevenueForPreviousMonth,
     getTotalReceitas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
     getTotalDespesas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
@@ -1425,7 +1630,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getFutureFixedBills, getOtherPaidExpensesForMonth, getInvoiceForCard, generateInvoiceBills,
     getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
-    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, exportData, importData
+    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction, 
+    addTransacaoV2, updateBill, deleteBill, exportData, importData
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

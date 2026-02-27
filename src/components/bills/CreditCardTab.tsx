@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { format, isSameMonth } from "date-fns";
+import { format, isSameMonth, subDays, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { parseDateLocal } from "@/lib/utils";
 import {
@@ -301,6 +301,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
     billsTracker,
     updateBill,
     addTransacaoV2,
+    transacoesV2,
   } = useFinance();
 
   const [showForm, setShowForm] = useState(false);
@@ -402,12 +403,6 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
   };
 
   const handlePayInvoice = (config: CreditCardConfig, mode: 'total' | 'minimo' | 'custom', amount: number) => {
-    const paymentAccount = contasMovimento.find(c => c.id === config.defaultPaymentAccountId);
-    if (!paymentAccount) {
-      toast.error("Configure uma conta de pagamento padrão para este cartão.");
-      return;
-    }
-
     const cardAccount = contasMovimento.find(c => c.id === config.accountId);
     if (!cardAccount) {
       toast.error("Conta do cartão não encontrada.");
@@ -416,12 +411,47 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
 
     const invoiceCycleKey = format(currentDate, 'yyyy-MM');
     const invoiceId = `invoice_${config.id}_${invoiceCycleKey}`;
-    const transferGroupId = `invoice_transfer_${invoiceId}_${Date.now()}`;
-
-    const invoiceAmount = getInvoiceForCard(config.id, currentDate);
+    
+    // PRE-CHECK: Verificar se já existe uma transação de entrada na conta do cartão com valor similar (+- 2 reais) e data próxima (+- 3 dias)
     const dueDay = Math.min(config.dueDay, new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate());
-    const dueDate = format(new Date(currentDate.getFullYear(), currentDate.getMonth(), dueDay), 'yyyy-MM-dd');
+    const dueDateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), dueDay);
+    const dueDateStr = format(dueDateObj, 'yyyy-MM-dd');
+    
+    const existingInflow = transacoesV2.find(t => 
+      t.accountId === config.accountId && 
+      (t.flow === 'in' || t.flow === 'transfer_in') &&
+      Math.abs(t.amount - amount) < 2 &&
+      Math.abs(differenceInDays(parseDateLocal(t.date), dueDateObj)) <= 3
+    );
 
+    if (existingInflow) {
+      // Já existe um lançamento compatível. Apenas vinculamos o BillTracker a ele para evitar duplicidade.
+      const invoiceAmount = getInvoiceForCard(config.id, currentDate);
+      const cardName = cardAccount?.name || 'Cartão';
+      
+      updateBill(invoiceId, {
+        isPaid: true,
+        paymentDate: existingInflow.date,
+        transactionId: existingInflow.links?.transferGroupId || existingInflow.id,
+        paymentMode: mode,
+        customPaymentAmount: mode !== 'total' ? amount : undefined,
+        isExcluded: false,
+      });
+      
+      toast.success(`Pagamento detectado e vinculado: ${formatCurrency(existingInflow.amount)}. Nenhuma nova transação foi criada.`);
+      setPayingCardId(null);
+      return;
+    }
+
+    // Se não existir, procede com o lançamento normal
+    const paymentAccount = contasMovimento.find(c => c.id === config.defaultPaymentAccountId);
+    if (!paymentAccount) {
+      toast.error("Configure uma conta de pagamento padrão para este cartão.");
+      return;
+    }
+
+    const transferGroupId = `invoice_transfer_${invoiceId}_${Date.now()}`;
+    const invoiceAmount = getInvoiceForCard(config.id, currentDate);
     const cardName = cardAccount?.name || 'Cartão';
     const modeSuffix = mode !== 'total' ? ` (${mode === 'minimo' ? 'Mínimo' : 'Parcial'})` : '';
     const description = `Pagamento Fatura ${cardName}${modeSuffix}`;
@@ -429,7 +459,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
     // Transação de Saída (Conta Corrente)
     addTransacaoV2({
       id: `bill_tx_src_${invoiceId}_${Date.now()}`,
-      date: dueDate,
+      date: dueDateStr,
       accountId: paymentAccount.id,
       flow: 'transfer_out',
       operationType: 'transferencia',
@@ -446,7 +476,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
     // Transação de Entrada (Cartão de Crédito)
     addTransacaoV2({
       id: `bill_tx_dest_${invoiceId}_${Date.now()}`,
-      date: dueDate,
+      date: dueDateStr,
       accountId: cardAccount.id,
       flow: 'transfer_in',
       operationType: 'transferencia',
@@ -463,15 +493,16 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
     const existingBill = billsTracker.find(b => b.id === invoiceId);
     if (existingBill) {
       updateBill(invoiceId, {
-        isPaid: true, paymentDate: dueDate, transactionId: transferGroupId,
+        isPaid: true, paymentDate: dueDateStr, transactionId: transferGroupId,
         paymentMode: mode, customPaymentAmount: mode !== 'total' ? amount : undefined,
+        isExcluded: false,
       });
     } else {
       setBillsTracker(prev => [...prev, {
         id: invoiceId, type: 'tracker' as const,
         description: `Fatura ${cardName}`,
-        dueDate, expectedAmount: invoiceAmount, isPaid: true,
-        paymentDate: dueDate, transactionId: transferGroupId,
+        dueDate: dueDateStr, expectedAmount: invoiceAmount, isPaid: true,
+        paymentDate: dueDateStr, transactionId: transferGroupId,
         sourceType: 'card_invoice' as const, sourceRef: config.id, cardId: config.id,
         invoiceCycle: invoiceCycleKey, paymentMode: mode,
         customPaymentAmount: mode !== 'total' ? amount : undefined,
@@ -481,6 +512,11 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
 
     toast.success(`Fatura paga via transferência: ${formatCurrency(amount)}`);
     setPayingCardId(null);
+  };
+
+  // Helper function to calculate difference in days
+  const differenceInDays = (d1: Date, d2: Date) => {
+    return Math.abs(Math.round((d1.getTime() - d2.getTime()) / (1000 * 60 * 60 * 24)));
   };
 
   const toggleTransactions = (id: string) => {

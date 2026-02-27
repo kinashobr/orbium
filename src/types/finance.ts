@@ -601,12 +601,15 @@ export function generateTerrenoId(): number {
 }
 
 export function formatCurrency(value: number, currency = 'BRL'): string {
+  // Garantir arredondamento matemático para 2 casas decimais antes de qualquer formatação
+  const roundedValue = Number((Math.round((value || 0) * 100) / 100).toFixed(2));
+  
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 2, // Garante 2 casas
-    maximumFractionDigits: 2, // Limita a 2 casas
-  }).format(value);
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(roundedValue);
 }
 
 export function getFlowTypeFromOperation(op: OperationType, assetOperation?: 'compra' | 'venda'): FlowType {

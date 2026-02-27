@@ -5,7 +5,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, 
   Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, 
@@ -19,6 +18,8 @@ import { format } from "date-fns";
 import { EditableCell } from "../EditableCell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { CategorySearchSelector } from "./CategorySearchSelector";
+import { AccountSearchSelector } from "./AccountSearchSelector";
 
 interface BillsTrackerListProps {
   bills: BillDisplayItem[];
@@ -134,8 +135,13 @@ export function BillsTrackerList({
   }, [resizingColumn, handleMouseMove, handleMouseUp]);
   
   const totalWidth = useMemo(() => Object.values(columnWidths).reduce((sum, w) => sum + w, 0), [columnWidths]);
-  const formatAmount = (v: string) => { const c = v.replace(/[^\d,]/g, ''); const p = c.split(','); return p.length > 2 ? v : c; };
-  const parseAmount = (v: string): number => { const p = parseFloat(v.replace('.', '').replace(',', '.')); return isNaN(p) ? 0 : p; };
+  const formatAmountInput = (v: string) => { 
+    const digits = v.replace(/\D/g, "");
+    if (!digits) return "";
+    const val = parseInt(digits) / 100;
+    return val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+  const parseAmount = (v: string): number => { const p = parseFloat(v.replace(/\./g, '').replace(',', '.')); return isNaN(p) ? 0 : p; };
 
   const handleAddAdHocBill = () => {
     const amount = parseAmount(newBillData.amount);
@@ -150,12 +156,15 @@ export function BillsTrackerList({
   const handleUpdateExpectedAmount = (b: BillTracker, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
   const handleUpdateSuggestedAccount = (b: BillTracker, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
   
-  const handleUpdateSuggestedCategory = (b: BillTracker, n: string) => {
-    const s = categoriasV2.find(c => c.id === n);
-    let type: BillSourceType = b.sourceType;
-    const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(b.sourceType);
+  const handleUpdateSuggestedCategory = (id: string, categoryId: string) => {
+    const s = categoriasV2.find(c => c.id === categoryId);
+    const bill = bills.find(b => b.id === id) as BillTracker;
+    if (!bill) return;
+
+    let type: BillSourceType = bill.sourceType;
+    const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(bill.sourceType);
     if (s && isFlexibleType) { type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; }
-    onUpdateBill(b.id, { suggestedCategoryId: n, sourceType: type });
+    onUpdateBill(id, { suggestedCategoryId: categoryId, sourceType: type });
   };
   
   const [advanceDialog, setAdvanceDialog] = useState<{ bill: BillTracker; newDate: string; daysDiff: number } | null>(null);
@@ -203,7 +212,7 @@ export function BillsTrackerList({
   }, [bills]);
   
   const formatDate = (dateStr: string) => { const date = parseDateLocal(dateStr); return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }); };
-  const accountOptions = useMemo(() => contasMovimento.filter(c => c.accountType === 'corrente' || c.accountType === 'cartao_credito').map(a => ({ value: a.id, label: a.name })), [contasMovimento]);
+  const accountOptions = useMemo(() => contasMovimento.filter(c => c.accountType === 'corrente' || c.accountType === 'cartao_credito'), [contasMovimento]);
   const expenseCategories = useMemo(() => categoriasV2.filter(c => c.nature === 'despesa_fixa' || c.nature === 'despesa_variavel'), [categoriasV2]);
 
   return (
@@ -217,28 +226,63 @@ export function BillsTrackerList({
           </CollapsibleTrigger>
         </div>
         <CollapsibleContent className="overflow-hidden">
-          <div className="mb-4 mt-1 p-5 bg-muted/10 dark:bg-white/[0.01] border border-border/30 dark:border-white/5 rounded-[1.75rem] animate-in fade-in slide-in-from-top-1 duration-500 shadow-sm">
-            <div className="flex flex-col md:flex-row gap-5 items-end">
-              <div className="flex-[4] w-full space-y-2"><Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50 px-1">Descrição</Label><Input value={newBillData.description} onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} placeholder="Ex: Manutenção Escritório" className="h-11 text-xs font-bold rounded-xl border-border/40 bg-background/50 focus:bg-background transition-all" /></div>
-              <div className="flex-[1.5] w-full space-y-2"><Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50 px-1">Valor</Label><Input type="text" inputMode="decimal" value={newBillData.amount} onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmount(e.target.value) }))} placeholder="0,00" className="h-11 text-xs font-black rounded-xl border-border/40 bg-background/50 focus:bg-background transition-all" /></div>
-              <div className="flex-[1.5] w-full space-y-2"><Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground/50 px-1">Vencimento</Label><Input type="date" value={newBillData.dueDate} onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} className="h-11 text-xs font-bold rounded-xl border-border/40 bg-background/50 focus:bg-background transition-all" /></div>
-              <Button onClick={handleAddAdHocBill} className="h-11 px-6 shrink-0 rounded-xl shadow-lg font-black text-[10px] uppercase tracking-widest gap-2" disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}><Plus className="w-4 h-4" /> Lançar</Button>
+          <div className="mb-4 mt-1 p-5 bg-gradient-to-r from-primary/[0.12] to-primary/[0.04] border border-primary/30 dark:border-primary/20 rounded-[2rem] animate-in fade-in slide-in-from-top-1 duration-500 shadow-md relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-[0.03] pointer-events-none">
+              <Plus className="w-24 h-24 rotate-12" />
+            </div>
+            
+            <div className="flex flex-col md:flex-row gap-5 items-end relative z-10">
+              <div className="flex-[4] w-full space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 px-1">Descrição</Label>
+                <Input 
+                  value={newBillData.description} 
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, description: e.target.value }))} 
+                  placeholder="Ex: Manutenção Escritório" 
+                  className="h-11 text-xs font-bold rounded-xl border-primary/20 bg-card/80 focus:bg-card focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40" 
+                />
+              </div>
+              <div className="flex-[1.5] w-full space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 px-1">Valor</Label>
+                <Input 
+                  type="text" 
+                  inputMode="decimal" 
+                  value={newBillData.amount} 
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, amount: formatAmountInput(e.target.value) }))} 
+                  placeholder="0,00" 
+                  className="h-11 text-xs font-black rounded-xl border-primary/20 bg-card/80 focus:bg-card focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/40 text-right" 
+                />
+              </div>
+              <div className="flex-[1.5] w-full space-y-2">
+                <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60 px-1">Vencimento</Label>
+                <Input 
+                  type="date" 
+                  value={newBillData.dueDate} 
+                  onChange={(e) => setNewBillData(prev => ({ ...prev, dueDate: e.target.value }))} 
+                  className="h-11 text-xs font-bold rounded-xl border-primary/20 bg-card/80 focus:bg-card focus:border-primary/50 focus:ring-1 focus:ring-primary/20 transition-all" 
+                />
+              </div>
+              <Button 
+                onClick={handleAddAdHocBill} 
+                className="h-11 px-8 shrink-0 rounded-xl shadow-lg shadow-primary/20 font-black text-[10px] uppercase tracking-[0.2em] gap-2 bg-primary hover:bg-primary/90 transition-all active:scale-95" 
+                disabled={!newBillData.description || parseAmount(newBillData.amount) <= 0}
+              >
+                <Plus className="w-4 h-4" /> LANÇAR
+              </Button>
             </div>
           </div>
         </CollapsibleContent>
       </Collapsible>
 
-      {/* CORREÇÃO: Container flex-1 com min-h-0 e overflow-auto para permitir rolagem vertical e horizontal */}
-      <div className="flex-1 flex flex-col min-h-0 bg-card/50 border border-border/40 rounded-[2rem] overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-0 bg-card/50 border border-border/40 rounded-[2rem] overflow-hidden shadow-inner">
         <div className="flex-1 overflow-auto scrollbar-material">
           <div className="p-4 pt-2" style={{ minWidth: `${totalWidth + 32}px` }}>
-            <Table>
-              <TableHeader className="sticky top-0 bg-card/95 dark:bg-[hsl(24_8%_14%)] backdrop-blur-sm z-10 shadow-sm">
-                <TableRow className="border-border hover:bg-transparent h-12">
+            <Table className="table-fixed border-separate border-spacing-y-1.5">
+              <TableHeader className="relative z-10">
+                <TableRow className="border-none hover:bg-transparent h-12">
                   {columnHeaders.map((h) => (
-                    <TableHead key={h.key} className={cn("text-muted-foreground p-3 text-[10px] font-black uppercase tracking-widest relative", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
+                    <TableHead key={h.key} className={cn("sticky top-0 bg-card/95 backdrop-blur-md text-muted-foreground px-4 py-3 text-[10px] font-black uppercase tracking-widest relative border-none shadow-sm z-20", h.align === 'center' && 'text-center', h.align === 'right' && 'text-right')} style={{ width: columnWidths[h.key] }}>
                       {h.label}
-                      {h.key !== 'actions' && <div className="absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-primary/20 transition-colors" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
+                      {h.key !== 'actions' && <div className="absolute right-0 top-1/2 -translate-y-1/2 h-6 w-1 cursor-col-resize hover:bg-primary/40 rounded-full transition-colors" onMouseDown={(e) => handleMouseDown(e, h.key)} />}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -252,16 +296,133 @@ export function BillsTrackerList({
                   const isPaid = bill.isPaid;
                   const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                   return (
-                    <TableRow key={bill.id} className={cn("hover:bg-muted/30 transition-colors h-14 border-b border-border/20", isExt && "opacity-60", isOver && "bg-destructive/[0.03]", isPaid && !isExt && "bg-success/[0.03]")}>
-                      <TableCell className="text-center p-2" style={{ width: columnWidths.pay }}>{isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg" />}</TableCell>
-                      <TableCell className={cn("text-xs font-bold p-3", isOver && "text-destructive")} style={{ width: columnWidths.due }}>{isExt || isPaid ? formatDate(bill.dueDate) : <EditableCell value={bill.dueDate} type="date" onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} className="text-xs h-9 bg-muted/20" />}</TableCell>
-                      <TableCell className="text-xs font-bold p-3" style={{ width: columnWidths.paymentDate }}>{isPaid && bill.paymentDate ? (isExt ? formatDate(bill.paymentDate) : <EditableCell value={bill.paymentDate} type="date" onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} className="text-xs text-success h-9 bg-success/5" />) : <span className="opacity-20">—</span>}</TableCell>
-                      <TableCell className="text-xs p-3 font-black text-foreground" style={{ width: columnWidths.description }}><div className="overflow-hidden max-w-full">{isExt || isPaid ? <span className="block truncate">{bill.description}</span> : <EditableCell value={bill.description} type="text" onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} className="text-xs h-9 font-black bg-muted/20 truncate max-w-full" />}</div></TableCell>
-                      <TableCell className="p-3" style={{ width: columnWidths.account }}>{isExt || isPaid ? <span className="text-xs font-bold opacity-80">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span> : <Select value={bill.suggestedAccountId || ''} onValueChange={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent>{accountOptions.map(o => <SelectItem key={o.value} value={o.value} className="text-[10px] font-black uppercase">{o.label}</SelectItem>)}</SelectContent></Select>}</TableCell>
-                      <TableCell className="p-2 text-center" style={{ width: columnWidths.type }}><Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)}><Icon className="w-4 h-4 mr-1.5" /> {cfg.label.substring(0, 4)}</Badge></TableCell>
-                      <TableCell className="p-3" style={{ width: columnWidths.category }}>{bill.sourceType === 'card_invoice' ? <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-violet-500/10 text-violet-500"><CreditCard className="w-3 h-3 mr-1" />Fatura</Badge> : bill.sourceType === 'loan_installment' ? <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-orange-500/10 text-orange-500"><Building2 className="w-3 h-3 mr-1" />Financiam.</Badge> : bill.sourceType === 'insurance_installment' ? <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-blue-500/10 text-blue-500"><Shield className="w-3 h-3 mr-1" />Seguro</Badge> : isExt || isPaid ? <span className="text-xs font-bold opacity-70">{cat?.icon} {cat?.label || '—'}</span> : <Select value={bill.suggestedCategoryId || ''} onValueChange={(v) => handleUpdateSuggestedCategory(bill as BillTracker, v)}><SelectTrigger className="h-9 text-[10px] font-black uppercase px-3 rounded-xl border-none bg-muted/30"><SelectValue placeholder="..." /></SelectTrigger><SelectContent className="max-h-60">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="text-[10px] font-black uppercase">{c.icon} {c.label}</SelectItem>)}</SelectContent></Select>}</TableCell>
-                      <TableCell className={cn("text-right font-black text-sm p-3 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>{!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? <EditableCell value={bill.expectedAmount} type="currency" onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} className="h-9 text-xs text-right font-black bg-muted/20" /> : formatCurrency(bill.expectedAmount)}</TableCell>
-                      <TableCell className="text-center p-2" style={{ width: columnWidths.actions }}>{!isExt && !isPaid && (bill.sourceType === 'ad_hoc' ? <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => onDeleteBill(bill.id)}><Trash2 className="w-4 h-4" /></Button> : <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleExcludeBill(bill as BillTracker)}><X className="w-4 h-4" /></Button>)}</TableCell>
+                    <TableRow
+                      key={bill.id}
+                      className={cn(
+                        "group transition-all duration-200 h-12 border-none rounded-xl",
+                        isExt && "opacity-60",
+                        isOver && "bg-destructive/[0.04] hover:bg-destructive/[0.08]",
+                        isPaid && !isExt && "bg-success/[0.04] hover:bg-success/[0.08]",
+                        !isPaid && !isOver && "bg-muted/20 hover:bg-muted/40"
+                      )}
+                    >
+                      <TableCell className="text-center px-4 py-1 first:rounded-l-xl" style={{ width: columnWidths.pay }}>
+                        {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg border-2" />}
+                      </TableCell>
+                      
+                      <TableCell className={cn("text-xs font-bold px-4 py-1", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
+                        {isExt || isPaid ? (
+                          <div className="h-8 flex items-center px-3">{formatDate(bill.dueDate)}</div>
+                        ) : (
+                          <EditableCell 
+                            value={bill.dueDate} 
+                            type="date" 
+                            onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} 
+                            className="text-xs h-8 bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3" 
+                          />
+                        )}
+                      </TableCell>
+                      
+                      <TableCell className="text-xs font-bold px-4 py-1" style={{ width: columnWidths.paymentDate }}>
+                        {isPaid && bill.paymentDate ? (
+                          isExt ? (
+                            <div className="h-8 flex items-center px-3">{formatDate(bill.paymentDate)}</div>
+                          ) : (
+                            <EditableCell 
+                              value={bill.paymentDate} 
+                              type="date" 
+                              onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} 
+                              className="text-xs text-success h-8 bg-success/10 border-none shadow-none hover:bg-success/20 rounded-xl px-3 font-black" 
+                            />
+                          )
+                        ) : <div className="h-8 flex items-center px-3 opacity-20">—</div>}
+                      </TableCell>
+                      
+                      <TableCell className="text-xs px-4 py-1 font-black text-foreground" style={{ width: columnWidths.description }}>
+                        <div className="w-full">
+                          {isExt || isPaid ? (
+                            <div className="h-8 flex items-center px-3 truncate">{bill.description}</div>
+                          ) : (
+                            <EditableCell 
+                              value={bill.description} 
+                              type="text" 
+                              onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} 
+                              className="text-xs h-8 font-black bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3 w-full truncate" 
+                            />
+                          )}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="px-4 py-1" style={{ width: columnWidths.account }}>
+                        {isExt || isPaid ? (
+                          <div className="h-8 flex items-center px-3 text-xs font-bold opacity-80 truncate">
+                            {contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}
+                          </div>
+                        ) : (
+                          <AccountSearchSelector
+                            value={bill.suggestedAccountId}
+                            accounts={accountOptions}
+                            onSelect={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}
+                          />
+                        )}
+                      </TableCell>
+                      
+                      <TableCell className="px-4 py-1 text-center" style={{ width: columnWidths.type }}>
+                        <div className="h-8 flex items-center justify-center">
+                          <Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)}>
+                            <Icon className="w-3.5 h-3.5 mr-1" /> {cfg.label.substring(0, 4)}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="px-4 py-1" style={{ width: columnWidths.category }}>
+                        <div className="h-8 flex items-center">
+                          {bill.sourceType === 'card_invoice' ? (
+                            <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-violet-500/10 text-violet-500 px-3" title="Fatura consolida todas as compras do ciclo"><CreditCard className="w-3 h-3 mr-1" />Fatura</Badge>
+                          ) : bill.sourceType === 'loan_installment' ? (
+                            <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-orange-500/10 text-orange-500 px-3"><Building2 className="w-3 h-3 mr-1" />Financiam.</Badge>
+                          ) : bill.sourceType === 'insurance_installment' ? (
+                            <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-blue-500/10 text-blue-500 px-3"><Shield className="w-3 h-3 mr-1" />Seguro</Badge>
+                          ) : isExt || isPaid ? (
+                            <div className="text-xs font-bold opacity-70 flex items-center gap-1.5 px-3">{cat?.icon} {cat?.label || '—'}</div>
+                          ) : (
+                            <CategorySearchSelector
+                              value={bill.suggestedCategoryId}
+                              categories={expenseCategories}
+                              onSelect={(v) => handleUpdateSuggestedCategory(bill.id, v)}
+                            />
+                          )}
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className={cn("text-right font-black text-xs px-4 py-1 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
+                        {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? (
+                          <EditableCell 
+                            value={bill.expectedAmount} 
+                            type="currency" 
+                            onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} 
+                            className="h-8 text-xs text-right font-black bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3" 
+                          />
+                        ) : (
+                          <div className="h-8 flex items-center justify-end px-3">{formatCurrency(bill.expectedAmount)}</div>
+                        )}
+                      </TableCell>
+                      
+                      <TableCell className="text-center px-4 py-1 last:rounded-r-xl" style={{ width: columnWidths.actions }}>
+                        <div className="h-8 flex items-center justify-center">
+                          {!isExt && !isPaid && (
+                            bill.sourceType === 'ad_hoc' ? (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => onDeleteBill(bill.id)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            ) : (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => handleExcludeBill(bill as BillTracker)}>
+                                <X className="w-3.5 h-3.5" />
+                              </Button>
+                            )
+                          )}
+                        </div>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -270,7 +431,7 @@ export function BillsTrackerList({
           </div>
         </div>
       </div>
-      {/* Dialog de adiantamento de parcelas */}
+
       <AlertDialog open={!!advanceDialog} onOpenChange={(open) => !open && setAdvanceDialog(null)}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>

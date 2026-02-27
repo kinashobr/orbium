@@ -47,17 +47,50 @@ export default function BillsTracker() {
   const trackerBillIds = useMemo(() => new Set(trackerManagedBills.map(b => b.id)), [trackerManagedBills]);
   const newInvoiceBills = useMemo(() => invoiceBills.filter(b => !trackerBillIds.has(b.id)), [invoiceBills, trackerBillIds]);
 
-  // M1: Persist generated invoice bills
-  const newInvoiceIds = useMemo(() => newInvoiceBills.map(b => b.id).join(','), [newInvoiceBills]);
+  // Persist generated invoice bills and sync existing unpaid amounts
+  const invoiceSyncKey = useMemo(() =>
+    invoiceBills.map(b => `${b.id}:${b.expectedAmount}:${b.isPaid}`).join('|'),
+    [invoiceBills]
+  );
+
   useEffect(() => {
-    if (newInvoiceBills.length > 0) {
-      setBillsTracker(prev => {
-        const existingIds = new Set(prev.map(b => b.id));
-        const toAdd = newInvoiceBills.filter(b => !existingIds.has(b.id));
-        return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+    if (invoiceBills.length === 0) return;
+
+    setBillsTracker(prev => {
+      let updated = false;
+      const next = [...prev];
+      const existingIds = new Set(prev.map(b => b.id));
+
+      invoiceBills.forEach(invBill => {
+        const existingIdx = next.findIndex(b => b.id === invBill.id);
+        
+        if (existingIdx === -1) {
+          // Add new
+          next.push(invBill);
+          updated = true;
+        } else {
+          // Sync existing if UNPAID and amount changed
+          const existing = next[existingIdx];
+          if (!existing.isPaid && existing.expectedAmount !== invBill.expectedAmount) {
+            next[existingIdx] = { ...existing, expectedAmount: invBill.expectedAmount };
+            updated = true;
+          }
+          // Also sync payment status if it was detected in context (e.g. transfer detected)
+          if (!existing.isPaid && invBill.isPaid) {
+            next[existingIdx] = {
+              ...existing,
+              isPaid: true,
+              paymentDate: invBill.paymentDate,
+              transactionId: invBill.transactionId
+            };
+            updated = true;
+          }
+        }
       });
-    }
-  }, [newInvoiceIds]);
+
+      return updated ? next : prev;
+    });
+  }, [invoiceSyncKey, setBillsTracker]);
 
   // Auto-populate fixed bills when month changes
   useEffect(() => {
@@ -65,10 +98,21 @@ export default function BillsTracker() {
   }, [currentDate]);
 
   const combinedBills: BillDisplayItem[] = useMemo(() => {
-    const trackerPaidTxIds = new Set(trackerManagedBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
+    // Use fresh invoice amounts for unpaid tracker bills
+    const syncedTrackerBills = trackerManagedBills.map(b => {
+      if (b.type === 'tracker' && b.sourceType === 'card_invoice' && !b.isPaid) {
+        const freshInvoice = invoiceBills.find(inv => inv.id === b.id);
+        if (freshInvoice && freshInvoice.expectedAmount !== b.expectedAmount) {
+          return { ...b, expectedAmount: freshInvoice.expectedAmount };
+        }
+      }
+      return b;
+    });
+
+    const trackerPaidTxIds = new Set(syncedTrackerBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
     const filtered = externalPaidBills.filter(eb => !trackerPaidTxIds.has(eb.id));
-    return [...trackerManagedBills, ...newInvoiceBills, ...filtered];
-  }, [trackerManagedBills, newInvoiceBills, externalPaidBills]);
+    return [...syncedTrackerBills, ...newInvoiceBills, ...filtered];
+  }, [trackerManagedBills, newInvoiceBills, externalPaidBills, invoiceBills]);
 
   // M5: Full onTogglePaid implementation (same logic as modal)
   const handleTogglePaid = useCallback((bill: BillDisplayItem, isChecked: boolean) => {

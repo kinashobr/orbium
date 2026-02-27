@@ -211,17 +211,17 @@ export function TransactionReviewTable({
   return (
     <div className="overflow-x-auto scrollbar-material">
       <div className="min-w-[1000px]">
-        <Table>
+        <Table className="table-fixed">
           <TableHeader className="bg-card sticky top-0 z-30">
             <TableRow className="hover:bg-transparent border-b border-border/40 h-12">
-              <TableHead className="w-8"></TableHead>
+              <TableHead className="w-10"></TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] pl-2 w-[140px]">Data & Valor</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[200px]">Descrição Original</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[180px]">Operação</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[180px]">Categoria</TableHead>
               <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[220px]">Vínculo</TableHead>
-              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em]">Descrição Final</TableHead>
-              <TableHead className="w-12 text-center pr-6"></TableHead>
+              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] w-[280px]">Descrição Final</TableHead>
+              <TableHead className="w-16 text-center pr-6"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

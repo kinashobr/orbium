@@ -160,22 +160,29 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
         .reduce((acc, t) => acc + t.amount, 0);
 
     // 3. Divisão de Saídas
-    // Pendentes (não pagos e não são de cartão de crédito como fonte sugerida)
+    // Pendentes (excluir card_invoice — fatura é liquidação de passivo, não despesa nova)
     const pendingAmount = combinedBills
-        .filter(b => !b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .filter(b => !b.isPaid && b.sourceType !== 'card_invoice' && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
-    // Pagos com Cartão de Crédito
-    const paidViaCreditCard = combinedBills
-        .filter(b => b.isPaid && b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId))
-        .reduce((acc, b) => acc + b.expectedAmount, 0);
+    // Pagos com Cartão de Crédito: somar transações reais flow='out' da conta CC no mês
+    const paidViaCreditCard = transacoesV2
+        .filter(t => 
+          creditCardAccountIds.has(t.accountId) && 
+          t.flow === 'out' && 
+          isSameMonth(parseDateLocal(t.date), currentDate)
+        )
+        .reduce((acc, t) => acc + t.amount, 0);
     
-    // Já Pagos (Caixa/Débito)
+    // Já Pagos (Caixa/Débito) — excluir card_invoice e pagos via CC
     const paidDirectly = combinedBills
-        .filter(b => b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .filter(b => b.isPaid && b.sourceType !== 'card_invoice' && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
-    const totalExpenses = combinedBills.reduce((acc, b) => acc + b.expectedAmount, 0);
+    // Total Despesas: excluir card_invoice (é liquidação de passivo, não despesa)
+    const totalExpenses = combinedBills
+        .filter(b => b.sourceType !== 'card_invoice')
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
 
     // 4. Saldo (Receita Prevista - Despesas)
     const monthBalance = currentForecast - totalExpenses;

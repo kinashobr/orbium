@@ -5,9 +5,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   Building2, TrendingUp, TrendingDown, 
-  CheckCircle2, AlertTriangle, Download, RefreshCw, X, ArrowRight, ArrowLeft
+  CheckCircle2, AlertTriangle, Download, RefreshCw, X, ArrowRight, ArrowLeft,
+  Printer, FileText, FileSpreadsheet
 } from "lucide-react";
 import { 
   ContaCorrente, TransacaoCompleta, Categoria, AccountSummary, 
@@ -16,8 +23,150 @@ import {
 import { TransactionTable } from "./TransactionTable";
 import { PeriodSelector } from "../dashboard/PeriodSelector";
 import { cn, parseDateLocal } from "@/lib/utils";
-import { isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth } from "date-fns";
+import { isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, format } from "date-fns";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+
+// --- Export helpers ---
+
+function generatePrintHTML(account: ContaCorrente, transactions: TransacaoCompleta[], summary: { totalIn: number; totalOut: number; initialBalance: number; finalBalance: number }, dateRange: { from?: Date; to?: Date }) {
+  const periodStr = dateRange.from && dateRange.to
+    ? `${format(dateRange.from, 'dd/MM/yyyy')} a ${format(dateRange.to, 'dd/MM/yyyy')}`
+    : 'Período completo';
+
+  const rows = transactions.map(t => {
+    const date = parseDateLocal(t.date);
+    const isOut = t.flow === 'out' || t.flow === 'transfer_out';
+    return `<tr>
+      <td>${format(date, 'dd/MM/yyyy')}</td>
+      <td>${t.description}</td>
+      <td style="color:${isOut ? '#dc2626' : '#16a34a'};text-align:right">${isOut ? '-' : '+'}${Number(t.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+      <td>${t.categoryId || '-'}</td>
+      <td style="text-align:center">${t.conciliated ? '✓' : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Extrato - ${account.name}</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:2rem;color:#1a1a1a}
+  h1{font-size:1.4rem;margin-bottom:.25rem}
+  .meta{color:#666;font-size:.85rem;margin-bottom:1.5rem}
+  .summary{display:flex;gap:2rem;margin-bottom:1.5rem;padding:1rem;background:#f5f5f5;border-radius:8px}
+  .summary div{text-align:center}
+  .summary .label{font-size:.7rem;text-transform:uppercase;color:#888;letter-spacing:.05em}
+  .summary .value{font-size:1.1rem;font-weight:700;margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:.85rem}
+  th{text-align:left;border-bottom:2px solid #e5e5e5;padding:.5rem;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:#888}
+  td{padding:.4rem .5rem;border-bottom:1px solid #f0f0f0}
+  @media print{body{margin:1rem}button{display:none!important}}
+</style></head><body>
+<h1>${account.name}</h1>
+<p class="meta">${ACCOUNT_TYPE_LABELS[account.accountType]} · ${periodStr} · ${transactions.length} transações</p>
+<div class="summary">
+  <div><span class="label">Saldo Inicial</span><div class="value">${formatCurrency(summary.initialBalance)}</div></div>
+  <div><span class="label">Entradas</span><div class="value" style="color:#16a34a">${formatCurrency(summary.totalIn)}</div></div>
+  <div><span class="label">Saídas</span><div class="value" style="color:#dc2626">${formatCurrency(summary.totalOut)}</div></div>
+  <div><span class="label">Saldo Final</span><div class="value">${formatCurrency(summary.finalBalance)}</div></div>
+</div>
+<table><thead><tr><th>Data</th><th>Descrição</th><th style="text-align:right">Valor</th><th>Categoria</th><th style="text-align:center">Conc.</th></tr></thead><tbody>${rows}</tbody></table>
+<script>window.onload=()=>window.print()</script>
+</body></html>`;
+}
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function generateOFX(account: ContaCorrente, transactions: TransacaoCompleta[], dateRange: { from?: Date; to?: Date }): string {
+  const now = new Date();
+  const dtServer = format(now, 'yyyyMMddHHmmss');
+  const dtStart = dateRange.from ? format(dateRange.from, 'yyyyMMdd') : format(now, 'yyyyMMdd');
+  const dtEnd = dateRange.to ? format(dateRange.to, 'yyyyMMdd') : format(now, 'yyyyMMdd');
+
+  const stmtTrns = transactions.map(t => {
+    const isOut = t.flow === 'out' || t.flow === 'transfer_out';
+    const amount = isOut ? -t.amount : t.amount;
+    const dtPosted = format(parseDateLocal(t.date), 'yyyyMMdd') + '120000';
+    const trnType = isOut ? 'DEBIT' : 'CREDIT';
+    return `<STMTTRN>
+<TRNTYPE>${trnType}
+<DTPOSTED>${dtPosted}
+<TRNAMT>${amount.toFixed(2)}
+<FITID>${t.id}
+<MEMO>${t.description}
+</STMTTRN>`;
+  }).join('\n');
+
+  return `OFXHEADER:100
+DATA:OFXSGML
+VERSION:102
+SECURITY:NONE
+ENCODING:USASCII
+CHARSET:1252
+COMPRESSION:NONE
+OLDFILEUID:NONE
+NEWFILEUID:NONE
+
+<OFX>
+<SIGNONMSGSRSV1>
+<SONRS>
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+<DTSERVER>${dtServer}
+<LANGUAGE>POR
+</SONRS>
+</SIGNONMSGSRSV1>
+<BANKMSGSRSV1>
+<STMTTRNRS>
+<TRNUID>1
+<STATUS>
+<CODE>0
+<SEVERITY>INFO
+</STATUS>
+<STMTRS>
+<CURDEF>BRL
+<BANKACCTFROM>
+<BANKID>0000
+<ACCTID>${account.name.replace(/\s/g, '_')}
+<ACCTTYPE>CHECKING
+</BANKACCTFROM>
+<BANKTRANLIST>
+<DTSTART>${dtStart}120000
+<DTEND>${dtEnd}235959
+${stmtTrns}
+</BANKTRANLIST>
+<LEDGERBAL>
+<BALAMT>${(account.initialBalance || 0).toFixed(2)}
+<DTASOF>${dtEnd}235959
+</LEDGERBAL>
+</STMTRS>
+</STMTTRNRS>
+</BANKMSGSRSV1>
+</OFX>`;
+}
+
+function generateCSV(transactions: TransacaoCompleta[]): string {
+  const header = 'Data;Descrição;Valor;Tipo;Categoria;Conciliado';
+  const rows = transactions.map(t => {
+    const date = format(parseDateLocal(t.date), 'dd/MM/yyyy');
+    const isOut = t.flow === 'out' || t.flow === 'transfer_out';
+    const valor = `${isOut ? '-' : ''}${t.amount.toFixed(2).replace('.', ',')}`;
+    const tipo = t.flow === 'in' ? 'Entrada' : t.flow === 'out' ? 'Saída' : t.flow === 'transfer_in' ? 'Transf. Entrada' : 'Transf. Saída';
+    return `${date};"${t.description}";${valor};${tipo};${t.categoryId || ''};${t.conciliated ? 'Sim' : 'Não'}`;
+  });
+  return [header, ...rows].join('\n');
+}
+
+// --- Component ---
 
 interface AccountStatementDialogProps {
   open: boolean;
@@ -85,14 +234,12 @@ export function AccountStatementDialog({
     };
   }, [isMobile, open]);
 
-  // Salvar tamanho no localStorage
   useEffect(() => {
     if (!isMobile && !isTablet) {
       localStorage.setItem('extrato-dialog-size', JSON.stringify(size));
     }
   }, [size, isMobile, isTablet]);
 
-  // Handlers de redimensionamento
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     if (isMobile || isTablet) return;
     e.preventDefault();
@@ -107,13 +254,10 @@ export function AccountStatementDialog({
 
   const onMouseMove = useCallback((e: MouseEvent) => {
     if (!isResizing || !resizeRef.current) return;
-
     const deltaX = e.clientX - resizeRef.current.startX;
     const deltaY = e.clientY - resizeRef.current.startY;
-
     const newWidth = Math.min(2000, Math.max(600, resizeRef.current.startWidth + deltaX * 2));
     const newHeight = Math.min(1200, Math.max(400, resizeRef.current.startHeight + deltaY * 2));
-
     setSize({ width: newWidth, height: newHeight });
   }, [isResizing]);
 
@@ -159,12 +303,10 @@ export function AccountStatementDialog({
       .sort((a, b) => parseDateLocal(b.date).getTime() - parseDateLocal(a.date).getTime());
   }, [transactions, localDateRanges.range1]);
 
-  // Calcular sumário do período selecionado baseado nas transações FILTRADAS
   const periodSummary = useMemo(() => {
     const conciliatedCount = filteredTransactions.filter(t => t.conciliated).length;
     const pendingCount = filteredTransactions.length - conciliatedCount;
     
-    // Calcular entradas e saídas do período filtrado
     let totalIn = 0;
     let totalOut = 0;
     
@@ -189,7 +331,26 @@ export function AccountStatementDialog({
 
   const statusColor = periodSummary.pendingCount === 0 ? 'text-success' : 'text-warning';
 
-  // Estilos responsivos para o dialog
+  // --- Export handlers ---
+  const handlePrint = useCallback(() => {
+    const html = generatePrintHTML(account, filteredTransactions, periodSummary, localDateRanges.range1);
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }, [account, filteredTransactions, periodSummary, localDateRanges.range1]);
+
+  const handleExportOFX = useCallback(() => {
+    const ofx = generateOFX(account, filteredTransactions, localDateRanges.range1);
+    downloadFile(ofx, `extrato_${account.name.replace(/\s/g, '_')}.ofx`, 'application/x-ofx');
+  }, [account, filteredTransactions, localDateRanges.range1]);
+
+  const handleExportCSV = useCallback(() => {
+    const csv = generateCSV(filteredTransactions);
+    downloadFile(csv, `extrato_${account.name.replace(/\s/g, '_')}.csv`, 'text/csv;charset=utf-8');
+  }, [account, filteredTransactions]);
+
   const dialogStyles = isMobile
     ? {}
     : isTablet
@@ -230,6 +391,24 @@ export function AccountStatementDialog({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-9 rounded-full text-xs font-bold gap-2 px-4 border-border/40 bg-card/50">
+                    <Download className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Exportar</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-xl">
+                  <DropdownMenuItem onClick={handlePrint} className="gap-2 cursor-pointer">
+                    <Printer className="w-4 h-4" /> Imprimir / PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportOFX} className="gap-2 cursor-pointer">
+                    <FileText className="w-4 h-4" /> Exportar OFX
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                    <FileSpreadsheet className="w-4 h-4" /> Exportar CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="outline" size="sm" onClick={onReconcileAll} className="h-9 rounded-full text-xs font-bold gap-2 px-4 border-border/40 bg-card/50">
                 <RefreshCw className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Conciliar Tudo</span>
               </Button>
@@ -294,7 +473,6 @@ export function AccountStatementDialog({
           </DialogFooter>
         )}
         
-        {/* Resizer handle (Bottom Right) - Hidden on mobile/tablet */}
         {!isMobile && !isTablet && (
           <div
             className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-[100] group"

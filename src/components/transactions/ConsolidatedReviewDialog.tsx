@@ -340,14 +340,14 @@ export function ConsolidatedReviewDialog({
                         <p className="font-black uppercase tracking-widest text-[10px]">Filtrando dados...</p>
                       </div>
                     ) : (
-                      <ScrollArea className="flex-1 scrollbar-material">
+                      <div className="flex-1 overflow-auto scrollbar-material">
                         <div className="p-4 sm:p-6 min-w-full">
                           <TransactionReviewTable
                             transactions={transactionsToReview} accounts={accounts} categories={categories}
                             investments={investments} loans={loans} onUpdateTransaction={handleUpdateTransaction} onCreateRule={handleCreateRule}
                           />
                         </div>
-                      </ScrollArea>
+                      </div>
                     )}
                   </div>
                 )}
