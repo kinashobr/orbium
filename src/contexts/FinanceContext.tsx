@@ -40,6 +40,10 @@ import {
 	generateCreditCardConfigId,
   getDomainFromOperation,
   generateTransferGroupId,
+  FutureIncome,
+  IncomeSettlement,
+  generateFutureIncomeId,
+  generateSettlementId,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, cn } from "@/lib/utils";
@@ -343,6 +347,16 @@ interface FinanceContextType {
   getNextCycleBalance: (cardId: string, referenceDate?: Date) => number;
   getCardCycleTransactions: (cardId: string, monthDate: Date) => TransacaoCompleta[];
   
+  // Future Incomes (Receitas e Recebíveis)
+  futureIncomes: FutureIncome[];
+  incomeSettlements: IncomeSettlement[];
+  addFutureIncome: (income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateFutureIncome: (id: string, updates: Partial<FutureIncome>) => void;
+  deleteFutureIncome: (id: string) => void;
+  addIncomeSettlement: (settlement: Omit<IncomeSettlement, 'id'>) => void;
+  deleteIncomeSettlement: (id: string) => void;
+  getFutureIncomesForMonth: (date: Date) => FutureIncome[];
+  
   // Contas Movimento
   contasMovimento: ContaCorrente[];
   setContasMovimento: Dispatch<SetStateAction<ContaCorrente[]>>;
@@ -447,6 +461,8 @@ const STORAGE_KEYS = {
   TERRENOS: "neon_finance_terrenos",
   METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
   CREDIT_CARD_CONFIGS: "fin_credit_card_configs_v1",
+  FUTURE_INCOMES: "fin_future_incomes_v1",
+  INCOME_SETTLEMENTS: "fin_income_settlements_v1",
   LAST_MODIFIED: "fin_last_modified_v1",
 };
 
@@ -461,6 +477,8 @@ const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
 const initialMetasPersonalizadas: MetaPersonalizada[] = [];
 const initialCreditCardConfigs: CreditCardConfig[] = [];
+const initialFutureIncomes: FutureIncome[] = [];
+const initialIncomeSettlements: IncomeSettlement[] = [];
 const initialLastModified = new Date(0).toISOString();
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -528,6 +546,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
   const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
   const [creditCardConfigs, setCreditCardConfigs] = useState<CreditCardConfig[]>(() => loadFromStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, initialCreditCardConfigs));
+  const [futureIncomes, setFutureIncomes] = useState<FutureIncome[]>(() => loadFromStorage(STORAGE_KEYS.FUTURE_INCOMES, initialFutureIncomes));
+  const [incomeSettlements, setIncomeSettlements] = useState<IncomeSettlement[]>(() => loadFromStorage(STORAGE_KEYS.INCOME_SETTLEMENTS, initialIncomeSettlements));
   const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified));
 
   const updateLastModified = useCallback(() => {
@@ -578,6 +598,70 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, creditCardConfigs); updateLastModified(); }, [creditCardConfigs, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.FUTURE_INCOMES, futureIncomes); updateLastModified(); }, [futureIncomes, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.INCOME_SETTLEMENTS, incomeSettlements); updateLastModified(); }, [incomeSettlements, updateLastModified]);
+
+  // Auto-status: mark overdue incomes
+  useEffect(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    setFutureIncomes(prev => {
+      let changed = false;
+      const next = prev.map(fi => {
+        if ((fi.status === 'previsto' || fi.status === 'cobrado_ou_faturado') && fi.expectedDueDate < today) {
+          changed = true;
+          return { ...fi, status: 'atrasado' as const, updatedAt: new Date().toISOString() };
+        }
+        return fi;
+      });
+      return changed ? next : prev;
+    });
+  }, []);
+
+  // Future Income CRUD
+  const addFutureIncome = useCallback((income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    setFutureIncomes(prev => [...prev, { ...income, id: generateFutureIncomeId(), createdAt: now, updatedAt: now }]);
+  }, []);
+
+  const updateFutureIncome = useCallback((id: string, updates: Partial<FutureIncome>) => {
+    setFutureIncomes(prev => prev.map(fi => fi.id === id ? { ...fi, ...updates, updatedAt: new Date().toISOString() } : fi));
+  }, []);
+
+  const deleteFutureIncome = useCallback((id: string) => {
+    setFutureIncomes(prev => prev.filter(fi => fi.id !== id));
+    setIncomeSettlements(prev => prev.filter(s => s.futureIncomeId !== id));
+  }, []);
+
+  const addIncomeSettlement = useCallback((settlement: Omit<IncomeSettlement, 'id'>) => {
+    const newSettlement = { ...settlement, id: generateSettlementId() };
+    setIncomeSettlements(prev => [...prev, newSettlement]);
+    setFutureIncomes(prev => prev.map(fi => {
+      if (fi.id !== settlement.futureIncomeId) return fi;
+      const allSettlements = [...incomeSettlements.filter(s => s.futureIncomeId === fi.id), newSettlement];
+      const totalReceived = allSettlements.reduce((acc, s) => acc + s.receivedAmount, 0);
+      const newStatus = totalReceived >= fi.netExpectedAmount ? 'recebido' : 'recebido_parcial';
+      return { ...fi, status: newStatus as any, updatedAt: new Date().toISOString() };
+    }));
+  }, [incomeSettlements]);
+
+  const deleteIncomeSettlement = useCallback((id: string) => {
+    const settlement = incomeSettlements.find(s => s.id === id);
+    setIncomeSettlements(prev => prev.filter(s => s.id !== id));
+    if (settlement) {
+      setFutureIncomes(prev => prev.map(fi => {
+        if (fi.id !== settlement.futureIncomeId) return fi;
+        const remaining = incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.id !== id);
+        const totalReceived = remaining.reduce((acc, s) => acc + s.receivedAmount, 0);
+        let newStatus: FutureIncome['status'] = totalReceived > 0 ? 'recebido_parcial' : 'previsto';
+        if (fi.expectedDueDate < format(new Date(), 'yyyy-MM-dd') && newStatus === 'previsto') newStatus = 'atrasado';
+        return { ...fi, status: newStatus, updatedAt: new Date().toISOString() };
+      }));
+    }
+  }, [incomeSettlements]);
+
+  const getFutureIncomesForMonth = useCallback((date: Date): FutureIncome[] => {
+    return futureIncomes.filter(fi => isSameMonth(parseDateLocal(fi.expectedDueDate), date));
+  }, [futureIncomes]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -1292,13 +1376,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         terrenos,
         metasPersonalizadas,
         creditCardConfigs,
+        futureIncomes,
+        incomeSettlements,
       },
       lastModified: lastModified,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
-  }, [contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, creditCardConfigs, lastModified]);
+  }, [contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, creditCardConfigs, futureIncomes, incomeSettlements, lastModified]);
 
   const importData = useCallback(async (file: File) => {
     try {
@@ -1321,6 +1407,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.terrenos) setTerrenos(data.data.terrenos);
       if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
       if (data.data.creditCardConfigs) setCreditCardConfigs(data.data.creditCardConfigs);
+      if (data.data.futureIncomes) setFutureIncomes(data.data.futureIncomes);
+      if (data.data.incomeSettlements) setIncomeSettlements(data.data.incomeSettlements);
       const newTimestamp = data.lastModified || new Date().toISOString();
       setLastModified(newTimestamp);
       saveToStorage(STORAGE_KEYS.LAST_MODIFIED, newTimestamp);
@@ -1619,10 +1707,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPatrimonioLiquido: (d?: Date) => getAtivosTotal(d) - getPassivosTotal(d), getAtivosTotal, getPassivosTotal, getSegurosAApropriar, getSegurosAPagar,
     calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate,
     metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
+    futureIncomes, incomeSettlements, addFutureIncome, updateFutureIncome, deleteFutureIncome, addIncomeSettlement, deleteIncomeSettlement, getFutureIncomesForMonth,
     lastModified,
     exportData, importData,
   }), [
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, 
+    futureIncomes, incomeSettlements,
     contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges, 
     alertStartDate, revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,
     calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAApropriar, getSegurosAPagar,
@@ -1631,7 +1721,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
     getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction, 
-    addTransacaoV2, updateBill, deleteBill, exportData, importData
+    addTransacaoV2, updateBill, deleteBill, addFutureIncome, updateFutureIncome, deleteFutureIncome,
+    addIncomeSettlement, deleteIncomeSettlement, getFutureIncomesForMonth, exportData, importData
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

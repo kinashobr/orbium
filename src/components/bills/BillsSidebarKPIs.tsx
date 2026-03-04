@@ -121,6 +121,8 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
     calculateBalanceUpToDate,
     contasMovimento,
     transacoesV2,
+    futureIncomes,
+    incomeSettlements,
   } = useFinance();
   
   const monthKey = useMemo(() => format(currentDate, 'yyyy-MM'), [currentDate]);
@@ -160,12 +162,12 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
         .reduce((acc, t) => acc + t.amount, 0);
 
     // 3. Divisão de Saídas
-    // Pendentes (excluir card_invoice — fatura é liquidação de passivo, não despesa nova)
+    // Pendentes (incluir card_invoice — fatura é a saída real de caixa)
     const pendingAmount = combinedBills
-        .filter(b => !b.isPaid && b.sourceType !== 'card_invoice' && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .filter(b => !b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
-    // Pagos com Cartão de Crédito: somar transações reais flow='out' da conta CC no mês
+    // Pagos com Cartão de Crédito: somar transações reais flow='out' da conta CC no mês (indicador DRE)
     const paidViaCreditCard = transacoesV2
         .filter(t => 
           creditCardAccountIds.has(t.accountId) && 
@@ -174,14 +176,13 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
         )
         .reduce((acc, t) => acc + t.amount, 0);
     
-    // Já Pagos (Caixa/Débito) — excluir card_invoice e pagos via CC
+    // Já Pagos (Caixa/Débito) — incluir card_invoice paga (saída de caixa efetivada)
     const paidDirectly = combinedBills
-        .filter(b => b.isPaid && b.sourceType !== 'card_invoice' && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .filter(b => b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
-    // Total Despesas: excluir card_invoice (é liquidação de passivo, não despesa)
+    // Total Despesas: incluir card_invoice (fatura = desembolso real no fluxo de caixa)
     const totalExpenses = combinedBills
-        .filter(b => b.sourceType !== 'card_invoice')
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
     // 4. Saldo (Receita Prevista - Despesas)
@@ -348,6 +349,41 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
             </div>
           </div>
         )}
+
+        {/* Income KPIs */}
+        {(() => {
+          const monthFI = futureIncomes.filter(fi => isSameMonth(parseDateLocal(fi.expectedDueDate), currentDate) && fi.status !== 'cancelado');
+          const totalPrevisto = monthFI.reduce((acc, fi) => acc + fi.netExpectedAmount, 0);
+          const totalRecebido = incomeSettlements
+            .filter(s => isSameMonth(parseDateLocal(s.receivedDate), currentDate))
+            .reduce((acc, s) => acc + s.receivedAmount, 0);
+          if (totalPrevisto === 0 && totalRecebido === 0) return null;
+          return (
+            <>
+              <Separator className="opacity-20" />
+              <div className="px-1 space-y-3">
+                <div className="flex items-center gap-2 opacity-60">
+                  <TrendingUp className="w-3.5 h-3.5 text-success" />
+                  <p className="text-[9px] font-black uppercase tracking-widest">Receitas Previstas</p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Previsto</span>
+                  <span className="text-xs font-black text-primary tabular-nums">{formatCurrency(totalPrevisto)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Recebido</span>
+                  <span className="text-xs font-black text-success tabular-nums">{formatCurrency(totalRecebido)}</span>
+                </div>
+                {totalPrevisto - totalRecebido > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pendente</span>
+                    <span className="text-xs font-black text-warning tabular-nums">{formatCurrency(totalPrevisto - totalRecebido)}</span>
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
 
         {/* M7: Smart Credit Card Alerts */}
         <SmartCardAlerts combinedBills={combinedBills} currentDate={currentDate} />

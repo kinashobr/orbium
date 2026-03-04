@@ -479,6 +479,171 @@ export interface ImportedStatement {
   rawTransactions: ImportedTransaction[]; // Transações brutas do arquivo
 }
 
+// ============================================
+// RECEITAS E RECEBÍVEIS (Income & Receivables)
+// ============================================
+
+export type IncomeFinancialNature =
+  | 'receita' | 'aporte' | 'emprestimo_recebido'
+  | 'reembolso' | 'repasse_terceiros' | 'doacao' | 'outras_entradas';
+
+export const INCOME_FINANCIAL_NATURE_LABELS: Record<IncomeFinancialNature, string> = {
+  receita: 'Receita',
+  aporte: 'Aporte Pessoal',
+  emprestimo_recebido: 'Empréstimo Recebido',
+  reembolso: 'Reembolso',
+  repasse_terceiros: 'Repasse de Terceiros',
+  doacao: 'Doação / Ajuda',
+  outras_entradas: 'Outras Entradas',
+};
+
+export type IncomeSourceType =
+  | 'clt_salario' | 'clt_13' | 'clt_ferias' | 'clt_plr' | 'clt_beneficio' | 'clt_adiantamento'
+  | 'autonomo_projeto' | 'autonomo_milestone' | 'autonomo_comissao' | 'autonomo_freelance'
+  | 'mei_servico' | 'mei_venda' | 'mei_prolabore' | 'mei_lucro'
+  | 'bico' | 'renda_extra' | 'informal'
+  | 'emprestimo_pessoal' | 'repasse' | 'reembolso' | 'rateio'
+  | 'doacao' | 'venda_ativo' | 'indenizacao' | 'outros';
+
+export const INCOME_SOURCE_TYPE_LABELS: Record<IncomeSourceType, string> = {
+  clt_salario: 'Salário (CLT)',
+  clt_13: '13º Salário',
+  clt_ferias: 'Férias',
+  clt_plr: 'PLR / Bônus',
+  clt_beneficio: 'Benefício',
+  clt_adiantamento: 'Adiantamento',
+  autonomo_projeto: 'Projeto (Autônomo)',
+  autonomo_milestone: 'Milestone / Entrega',
+  autonomo_comissao: 'Comissão',
+  autonomo_freelance: 'Freelance',
+  mei_servico: 'Serviço (MEI)',
+  mei_venda: 'Venda (MEI)',
+  mei_prolabore: 'Pró-labore',
+  mei_lucro: 'Retirada de Lucro',
+  bico: 'Bico / Trabalho Avulso',
+  renda_extra: 'Renda Extra',
+  informal: 'Informal / Sem Nota',
+  emprestimo_pessoal: 'Empréstimo Pessoal',
+  repasse: 'Repasse de Projeto',
+  reembolso: 'Reembolso',
+  rateio: 'Rateio a Receber',
+  doacao: 'Doação / Ajuda',
+  venda_ativo: 'Venda de Ativo',
+  indenizacao: 'Indenização',
+  outros: 'Outros',
+};
+
+export type IncomeStatus =
+  | 'previsto' | 'cobrado_ou_faturado' | 'recebido_parcial'
+  | 'recebido' | 'atrasado' | 'renegociado' | 'cancelado';
+
+export const INCOME_STATUS_LABELS: Record<IncomeStatus, string> = {
+  previsto: 'Previsto',
+  cobrado_ou_faturado: 'Cobrado / Faturado',
+  recebido_parcial: 'Recebido Parcial',
+  recebido: 'Recebido',
+  atrasado: 'Atrasado',
+  renegociado: 'Renegociado',
+  cancelado: 'Cancelado',
+};
+
+export interface IncomeRecurrenceRule {
+  id: string;
+  frequency: 'semanal' | 'quinzenal' | 'mensal' | 'trimestral' | 'anual' | 'personalizado';
+  interval: number;
+  dayOfMonth?: number;
+  endsAt?: string;
+  maxOccurrences?: number;
+}
+
+export interface FutureIncome {
+  id: string;
+  description: string;
+  sourceType: IncomeSourceType;
+  financialNature: IncomeFinancialNature;
+  counterparty?: string;
+  grossAmount: number;
+  fees: number;
+  discounts: number;
+  taxWithheld: number;
+  netExpectedAmount: number;
+  competenceDate: string;
+  expectedDueDate: string;
+  expectedCreditDate?: string;
+  status: IncomeStatus;
+  confidence: number;
+  recurrenceRule?: IncomeRecurrenceRule;
+  accountId?: string;
+  categoryId?: string;
+  isTaxable: boolean;
+  isThirdPartyMoney: boolean;
+  requiresLiabilityTracking: boolean;
+  tags: string[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface IncomeSettlement {
+  id: string;
+  futureIncomeId: string;
+  receivedAmount: number;
+  receivedDate: string;
+  accountId: string;
+  feesApplied: number;
+  taxWithheldApplied: number;
+  transactionId?: string;
+  notes?: string;
+}
+
+export function generateFutureIncomeId(): string {
+  return `fi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function generateSettlementId(): string {
+  return `stl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Defaults inteligentes por sourceType
+export function getIncomeSourceDefaults(sourceType: IncomeSourceType): {
+  financialNature: IncomeFinancialNature;
+  confidence: number;
+  isTaxable: boolean;
+  isThirdPartyMoney: boolean;
+  requiresLiabilityTracking: boolean;
+} {
+  switch (sourceType) {
+    case 'clt_salario': case 'clt_13': case 'clt_ferias': case 'clt_adiantamento':
+      return { financialNature: 'receita', confidence: 95, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'clt_plr': case 'clt_beneficio':
+      return { financialNature: 'receita', confidence: 70, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'autonomo_projeto': case 'autonomo_milestone':
+      return { financialNature: 'receita', confidence: 75, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'autonomo_comissao': case 'autonomo_freelance':
+      return { financialNature: 'receita', confidence: 60, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'mei_servico': case 'mei_venda':
+      return { financialNature: 'receita', confidence: 65, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'mei_prolabore': case 'mei_lucro':
+      return { financialNature: 'receita', confidence: 80, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'bico': case 'renda_extra': case 'informal':
+      return { financialNature: 'receita', confidence: 40, isTaxable: false, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'emprestimo_pessoal':
+      return { financialNature: 'emprestimo_recebido', confidence: 80, isTaxable: false, isThirdPartyMoney: false, requiresLiabilityTracking: true };
+    case 'repasse':
+      return { financialNature: 'repasse_terceiros', confidence: 85, isTaxable: false, isThirdPartyMoney: true, requiresLiabilityTracking: true };
+    case 'reembolso': case 'rateio':
+      return { financialNature: 'reembolso', confidence: 70, isTaxable: false, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'doacao':
+      return { financialNature: 'doacao', confidence: 50, isTaxable: false, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'venda_ativo':
+      return { financialNature: 'receita', confidence: 60, isTaxable: true, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    case 'indenizacao':
+      return { financialNature: 'outras_entradas', confidence: 50, isTaxable: false, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+    default:
+      return { financialNature: 'receita', confidence: 50, isTaxable: false, isThirdPartyMoney: false, requiresLiabilityTracking: false };
+  }
+}
+
 // Schema de Exportação V2 (Completo e Explícito)
 export interface FinanceExportV2 {
   schemaVersion: '2.0';
@@ -502,6 +667,8 @@ export interface FinanceExportV2 {
     terrenos: Terreno[];
     metasPersonalizadas: MetaPersonalizada[];
     creditCardConfigs: CreditCardConfig[]; // NOVO
+    futureIncomes: FutureIncome[];
+    incomeSettlements: IncomeSettlement[];
     
     // Configuration/Context States
     monthlyRevenueForecast: number;

@@ -156,7 +156,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const totalUnpaidBills = useMemo(() => {
     return combinedBills.reduce((acc, b) => {
       if (b.isPaid) return acc;
-      if (b.sourceType === 'card_invoice') return acc;
       return acc + b.expectedAmount;
     }, 0);
   }, [combinedBills]);
@@ -164,7 +163,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const totalPaidBills = useMemo(() => {
     return combinedBills.reduce((acc, b) => {
       if (!b.isPaid) return acc;
-      if (b.sourceType === 'card_invoice') return acc;
       return acc + b.expectedAmount;
     }, 0);
   }, [combinedBills]);

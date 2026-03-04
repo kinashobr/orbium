@@ -218,7 +218,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto no-scrollbar py-2 px-2 space-y-0.5">
+      <div className="flex-1 overflow-y-auto scrollbar-material py-2 px-2 space-y-0.5">
         {mainNavItems.map(item => <NavItem key={item.path} item={item} />)}
       </div>
 

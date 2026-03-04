@@ -33,6 +33,8 @@ export function GoogleDriveSync() {
         terrenos: finance.terrenos,
         metasPersonalizadas: finance.metasPersonalizadas,
         creditCardConfigs: finance.creditCardConfigs,
+        futureIncomes: finance.futureIncomes,
+        incomeSettlements: finance.incomeSettlements,
       },
       lastModified: finance.lastModified,
     };

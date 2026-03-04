@@ -4,9 +4,10 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { BillsTrackerList } from "@/components/bills/BillsTrackerList";
 import { BillsSidebarKPIs } from "@/components/bills/BillsSidebarKPIs";
 import { ManageCommitmentsModal } from "@/components/bills/ManageCommitmentsModal";
+import { IncomeReceivablesModal } from "@/components/bills/IncomeReceivablesModal";
 import { CashFlowTimeline } from "@/components/bills/CashFlowTimeline";
 import { Button } from "@/components/ui/button";
-import { Settings, ChevronLeft, ChevronRight } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
 import { format, startOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
@@ -39,6 +40,7 @@ export default function BillsTracker() {
 
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
   const [isManageModalOpen, setIsManageModalOpen] = useState(false);
+  const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
 
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
@@ -210,6 +212,9 @@ export default function BillsTracker() {
           <p className="text-xs md:text-base text-muted-foreground">Gerenciamento de despesas e parcelas</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Button onClick={() => setIsIncomeModalOpen(true)} variant="outline" className="gap-2 text-xs md:text-sm h-8 md:h-10 px-3 md:px-4 border-success/30 text-success hover:bg-success/5">
+            <TrendingUp className="w-4 h-4" /> <span className="hidden sm:inline">Receitas e Recebimentos</span><span className="sm:hidden">Receitas</span>
+          </Button>
           <Button onClick={() => setIsManageModalOpen(true)} className="gap-2 text-xs md:text-sm h-8 md:h-10 px-3 md:px-4">
             <Settings className="w-4 h-4" /> <span className="hidden sm:inline">Gerenciar Compromissos</span><span className="sm:hidden">Gerenciar</span>
           </Button>
@@ -256,6 +261,11 @@ export default function BillsTracker() {
       <ManageCommitmentsModal
         open={isManageModalOpen}
         onOpenChange={setIsManageModalOpen}
+        currentDate={currentDate}
+      />
+      <IncomeReceivablesModal
+        open={isIncomeModalOpen}
+        onOpenChange={setIsIncomeModalOpen}
         currentDate={currentDate}
       />
     </div>
