@@ -1,24 +1,29 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
   CheckCircle2, Clock, AlertTriangle, Ban, ArrowDownCircle, 
-  MoreHorizontal, FileCheck, Percent
+  MoreHorizontal, FileCheck, Percent, ChevronDown, ChevronUp,
+  History, AlertCircle, Landmark
 } from "lucide-react";
 import { 
-  FutureIncome, IncomeSettlement, IncomeStatus, 
+  FutureIncome, IncomeSettlement, IncomeEvent, IncomeStatus, 
   INCOME_STATUS_LABELS, INCOME_SOURCE_TYPE_LABELS, 
-  INCOME_FINANCIAL_NATURE_LABELS, formatCurrency 
+  INCOME_FINANCIAL_NATURE_LABELS, INCOME_EVENT_TYPE_LABELS,
+  INCOME_SETTLEMENT_METHOD_LABELS,
+  formatCurrency, isOperationalIncome
 } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 const STATUS_CONFIG: Record<IncomeStatus, { icon: React.ElementType; color: string; bg: string }> = {
   previsto: { icon: Clock, color: "text-muted-foreground", bg: "bg-muted/50" },
@@ -30,18 +35,31 @@ const STATUS_CONFIG: Record<IncomeStatus, { icon: React.ElementType; color: stri
   cancelado: { icon: Ban, color: "text-muted-foreground/50", bg: "bg-muted/30" },
 };
 
+const EVENT_ICONS: Record<string, React.ElementType> = {
+  created: CheckCircle2,
+  status_changed: ArrowDownCircle,
+  settlement_added: CheckCircle2,
+  settlement_removed: Ban,
+  edited: FileCheck,
+  renegotiated: Clock,
+  cancelled: Ban,
+};
+
 interface IncomeReceivableCardProps {
   income: FutureIncome;
   settlements: IncomeSettlement[];
+  events: IncomeEvent[];
   onMarkCobrado?: () => void;
   onReceiveTotal?: () => void;
+  onReceivePartial?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }
 
 export function IncomeReceivableCard({ 
-  income, settlements, onMarkCobrado, onReceiveTotal, onEdit, onDelete 
+  income, settlements, events, onMarkCobrado, onReceiveTotal, onReceivePartial, onEdit, onDelete 
 }: IncomeReceivableCardProps) {
+  const [historyOpen, setHistoryOpen] = useState(false);
   const statusConfig = STATUS_CONFIG[income.status];
   const StatusIcon = statusConfig.icon;
 
@@ -52,6 +70,14 @@ export function IncomeReceivableCard({
 
   const remainingAmount = income.netExpectedAmount - totalReceived;
   const isActionable = income.status !== 'recebido' && income.status !== 'cancelado';
+  const isNonOperational = !isOperationalIncome(income);
+  const isInformal = income.sourceType === 'informal' && !income.notes;
+  const hasLiability = income.requiresLiabilityTracking;
+
+  const sortedEvents = useMemo(() => 
+    [...events].sort((a, b) => b.timestamp.localeCompare(a.timestamp)), 
+    [events]
+  );
 
   return (
     <div className={cn(
@@ -69,14 +95,38 @@ export function IncomeReceivableCard({
             {income.counterparty && (
               <p className="text-[10px] text-muted-foreground truncate">{income.counterparty}</p>
             )}
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
               <Badge variant="outline" className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0 h-4">
                 {INCOME_SOURCE_TYPE_LABELS[income.sourceType]}
               </Badge>
-              {income.financialNature !== 'receita' && (
-                <Badge variant="secondary" className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0 h-4">
+              {isNonOperational && (
+                <Badge variant="secondary" className="text-[8px] font-black uppercase tracking-wider px-1.5 py-0 h-4 bg-amber-500/10 text-amber-600 border-amber-500/20">
                   {INCOME_FINANCIAL_NATURE_LABELS[income.financialNature]}
                 </Badge>
+              )}
+              {isInformal && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="destructive" className="text-[7px] font-black uppercase tracking-wider px-1 py-0 h-3.5 gap-0.5">
+                      <AlertCircle className="w-2 h-2" /> Pendência
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="z-[160]">
+                    <p className="text-xs">Entrada informal sem observação/nota preenchida</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {hasLiability && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Badge variant="outline" className="text-[7px] font-black uppercase tracking-wider px-1 py-0 h-3.5 gap-0.5 border-orange-500/30 text-orange-600">
+                      <Landmark className="w-2 h-2" /> Passivo
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent className="z-[160]">
+                    <p className="text-xs">Esta entrada gera obrigação futura (passivo)</p>
+                  </TooltipContent>
+                </Tooltip>
               )}
             </div>
           </div>
@@ -122,9 +172,14 @@ export function IncomeReceivableCard({
               <FileCheck className="w-3 h-3" /> Cobrado
             </Button>
           )}
+          {onReceivePartial && (
+            <Button variant="ghost" size="sm" className="h-7 text-[9px] font-black uppercase tracking-wider gap-1 px-2 text-warning hover:text-warning" onClick={onReceivePartial}>
+              <ArrowDownCircle className="w-3 h-3" /> Parcial
+            </Button>
+          )}
           {onReceiveTotal && (
             <Button variant="ghost" size="sm" className="h-7 text-[9px] font-black uppercase tracking-wider gap-1 px-2 text-success hover:text-success" onClick={onReceiveTotal}>
-              <CheckCircle2 className="w-3 h-3" /> Receber Total
+              <CheckCircle2 className="w-3 h-3" /> Total
             </Button>
           )}
           <div className="flex-1" />
@@ -132,12 +187,70 @@ export function IncomeReceivableCard({
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="h-7 w-7"><MoreHorizontal className="w-3.5 h-3.5" /></Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="z-[140]">
               {onEdit && <DropdownMenuItem onClick={onEdit}>Editar</DropdownMenuItem>}
               {onDelete && <DropdownMenuItem className="text-destructive" onClick={onDelete}>Excluir</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      )}
+
+      {/* History section */}
+      {(sortedEvents.length > 0 || settlements.length > 0) && (
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full mt-2 h-6 text-[8px] font-black uppercase tracking-widest gap-1 text-muted-foreground hover:text-foreground">
+              <History className="w-3 h-3" /> Histórico ({sortedEvents.length})
+              {historyOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-2">
+            {/* Settlements */}
+            {settlements.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/60">Recebimentos</p>
+                {settlements.map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-2 rounded-xl bg-success/5 border border-success/10 text-[9px]">
+                    <div>
+                      <span className="font-black text-success">{formatCurrency(s.receivedAmount)}</span>
+                      <span className="text-muted-foreground ml-2">{format(parseDateLocal(s.receivedDate), 'dd/MM/yy')}</span>
+                      {s.method && (
+                        <Badge variant="outline" className="ml-1.5 text-[7px] px-1 py-0 h-3.5">
+                          {INCOME_SETTLEMENT_METHOD_LABELS[s.method]}
+                        </Badge>
+                      )}
+                    </div>
+                    {s.transactionId && (
+                      <Badge variant="outline" className="text-[7px] px-1 py-0 h-3.5 text-primary">Vinculado</Badge>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Events timeline */}
+            {sortedEvents.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground/60">Eventos</p>
+                {sortedEvents.slice(0, 10).map(event => {
+                  const EventIcon = EVENT_ICONS[event.type] || Clock;
+                  return (
+                    <div key={event.id} className="flex items-start gap-2 py-1 text-[9px]">
+                      <EventIcon className="w-3 h-3 text-muted-foreground/50 mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-bold text-muted-foreground">{INCOME_EVENT_TYPE_LABELS[event.type]}</span>
+                        <span className="text-muted-foreground/60 ml-1.5">{event.details}</span>
+                      </div>
+                      <span className="text-[8px] text-muted-foreground/40 shrink-0 tabular-nums">
+                        {format(new Date(event.timestamp), 'dd/MM HH:mm')}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
       )}
     </div>
   );

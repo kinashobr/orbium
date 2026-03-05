@@ -35,6 +35,7 @@ export function GoogleDriveSync() {
         creditCardConfigs: finance.creditCardConfigs,
         futureIncomes: finance.futureIncomes,
         incomeSettlements: finance.incomeSettlements,
+        incomeEvents: finance.incomeEvents,
       },
       lastModified: finance.lastModified,
     };

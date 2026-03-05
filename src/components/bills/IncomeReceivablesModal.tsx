@@ -7,16 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { 
   ArrowLeft, TrendingUp, Plus, ListFilter, 
-  Wallet, Clock, CheckCircle2, AlertTriangle, Ban
+  Wallet
 } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 import { 
   FutureIncome, IncomeStatus, INCOME_STATUS_LABELS, formatCurrency,
-  IncomeFinancialNature, INCOME_FINANCIAL_NATURE_LABELS
 } from "@/types/finance";
 import { format, isSameMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +23,7 @@ import { toast } from "sonner";
 
 import { IncomeReceivableCard } from "./IncomeReceivableCard";
 import { IncomeFormSheet } from "./IncomeFormSheet";
+import { IncomeSettlementDialog } from "./IncomeSettlementDialog";
 
 const STATUS_ORDER: IncomeStatus[] = ['atrasado', 'previsto', 'cobrado_ou_faturado', 'recebido_parcial', 'recebido', 'renegociado', 'cancelado'];
 
@@ -36,14 +35,15 @@ interface IncomeReceivablesModalProps {
 
 export function IncomeReceivablesModal({ open, onOpenChange, currentDate }: IncomeReceivablesModalProps) {
   const { 
-    futureIncomes, incomeSettlements, 
-    updateFutureIncome, deleteFutureIncome, addIncomeSettlement,
-    getFutureIncomesForMonth, contasMovimento 
+    futureIncomes, incomeSettlements, incomeEvents,
+    updateFutureIncome, deleteFutureIncome,
+    getFutureIncomesForMonth, getIncomeEventsForIncome, contasMovimento 
   } = useFinance();
 
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [activeTab, setActiveTab] = useState("pipeline");
   const [editingIncome, setEditingIncome] = useState<FutureIncome | undefined>();
+  const [settlementTarget, setSettlementTarget] = useState<{ income: FutureIncome; mode: 'partial' | 'total' } | null>(null);
 
   useEffect(() => {
     if (isMobile && open) {
@@ -80,19 +80,9 @@ export function IncomeReceivablesModal({ open, onOpenChange, currentDate }: Inco
     toast.success("Status atualizado para Cobrado.");
   }, [updateFutureIncome]);
 
-  const handleReceiveTotal = useCallback((income: FutureIncome) => {
-    const defaultAccount = income.accountId || contasMovimento.find(c => c.accountType === 'corrente')?.id;
-    if (!defaultAccount) { toast.error("Cadastre uma conta de recebimento."); return; }
-    addIncomeSettlement({
-      futureIncomeId: income.id,
-      receivedAmount: income.netExpectedAmount,
-      receivedDate: format(new Date(), 'yyyy-MM-dd'),
-      accountId: defaultAccount,
-      feesApplied: income.fees,
-      taxWithheldApplied: income.taxWithheld,
-    });
-    toast.success("Recebimento registrado!");
-  }, [addIncomeSettlement, contasMovimento]);
+  const handleOpenSettlement = useCallback((income: FutureIncome, mode: 'partial' | 'total') => {
+    setSettlementTarget({ income, mode });
+  }, []);
 
   const handleDelete = useCallback((id: string) => {
     if (confirm("Excluir este recebível?")) {
@@ -153,8 +143,10 @@ export function IncomeReceivablesModal({ open, onOpenChange, currentDate }: Inco
                   key={income.id}
                   income={income}
                   settlements={incomeSettlements.filter(s => s.futureIncomeId === income.id)}
+                  events={getIncomeEventsForIncome(income.id)}
                   onMarkCobrado={() => handleMarkCobrado(income.id)}
-                  onReceiveTotal={() => handleReceiveTotal(income)}
+                  onReceiveTotal={() => handleOpenSettlement(income, 'total')}
+                  onReceivePartial={() => handleOpenSettlement(income, 'partial')}
                   onEdit={() => { setEditingIncome(income); setActiveTab("registrar"); }}
                   onDelete={() => handleDelete(income.id)}
                 />
@@ -207,78 +199,94 @@ export function IncomeReceivablesModal({ open, onOpenChange, currentDate }: Inco
     </Tabs>
   );
 
+  const settlementDialog = settlementTarget && (
+    <IncomeSettlementDialog
+      open={!!settlementTarget}
+      onOpenChange={(v) => { if (!v) setSettlementTarget(null); }}
+      income={settlementTarget.income}
+      settlements={incomeSettlements.filter(s => s.futureIncomeId === settlementTarget.income.id)}
+      mode={settlementTarget.mode}
+    />
+  );
+
   if (isMobile && open) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent hideCloseButton fullscreen className="p-0 flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]">
-          <header className="shrink-0 bg-card border-b px-6 pb-4 shadow-sm z-10 dark:bg-black/30 dark:border-white/5" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/30" onClick={() => onOpenChange(false)}>
-                <ArrowLeft className="w-6 h-6" />
-              </Button>
-              <div className="w-11 h-11 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-success/10 text-success shadow-success/5">
-                <TrendingUp className="w-5 h-5" />
+      <>
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent hideCloseButton fullscreen className="p-0 flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]">
+            <header className="shrink-0 bg-card border-b px-6 pb-4 shadow-sm z-10 dark:bg-black/30 dark:border-white/5" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
+              <div className="flex items-center gap-4">
+                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/30" onClick={() => onOpenChange(false)}>
+                  <ArrowLeft className="w-6 h-6" />
+                </Button>
+                <div className="w-11 h-11 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-success/10 text-success shadow-success/5">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black tracking-tight">Receitas e Recebimentos</h2>
+                  <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest capitalize">
+                    {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-black tracking-tight">Receitas e Recebimentos</h2>
-                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest capitalize">
-                  {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-                </p>
+            </header>
+            {modalContent}
+            {activeTab === 'pipeline' && (
+              <div className="fixed bottom-24 right-6 z-[60]">
+                <Button size="icon" className="h-14 w-14 rounded-2xl shadow-2xl bg-success text-success-foreground hover:scale-105 active:scale-95 transition-all" onClick={handleNewIncome}>
+                  <Plus className="w-7 h-7" />
+                </Button>
               </div>
-            </div>
-          </header>
-          {modalContent}
-          {activeTab === 'pipeline' && (
-            <div className="fixed bottom-24 right-6 z-[60]">
-              <Button size="icon" className="h-14 w-14 rounded-2xl shadow-2xl bg-success text-success-foreground hover:scale-105 active:scale-95 transition-all" onClick={handleNewIncome}>
-                <Plus className="w-7 h-7" />
-              </Button>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            )}
+          </DialogContent>
+        </Dialog>
+        {settlementDialog}
+      </>
     );
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        hideCloseButton
-        className={cn(
-          "p-0 shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]",
-          "max-w-[min(95vw,60rem)] h-[min(90vh,850px)] rounded-[2rem]"
-        )}
-      >
-        <DialogHeader
-          className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5 bg-success/5"
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          hideCloseButton
+          className={cn(
+            "p-0 shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]",
+            "max-w-[min(95vw,60rem)] h-[min(90vh,850px)] rounded-[2rem]"
+          )}
         >
-          <div className="flex items-center gap-4 sm:gap-5">
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-success/10 text-success shadow-success/5">
-              <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7" />
-            </div>
-            <div>
-              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
-                Receitas e Recebimentos
-              </DialogTitle>
-              <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5 capitalize">
-                {format(currentDate, 'MMMM yyyy', { locale: ptBR })} · Pipeline
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        {modalContent}
-
-        <DialogFooter className="p-4 sm:p-6 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0">
-          <Button
-            onClick={() => onOpenChange(false)}
-            className="w-full h-12 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-            variant="ghost"
+          <DialogHeader
+            className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5 bg-success/5"
           >
-            FECHAR
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <div className="flex items-center gap-4 sm:gap-5">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-success/10 text-success shadow-success/5">
+                <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
+                  Receitas e Recebimentos
+                </DialogTitle>
+                <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5 capitalize">
+                  {format(currentDate, 'MMMM yyyy', { locale: ptBR })} · Pipeline
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {modalContent}
+
+          <DialogFooter className="p-4 sm:p-6 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0">
+            <Button
+              onClick={() => onOpenChange(false)}
+              className="w-full h-12 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+              variant="ghost"
+            >
+              FECHAR
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {settlementDialog}
+    </>
   );
 }

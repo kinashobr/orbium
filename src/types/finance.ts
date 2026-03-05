@@ -584,6 +584,17 @@ export interface FutureIncome {
   updatedAt: string;
 }
 
+export type IncomeSettlementMethod = 'pix' | 'ted' | 'boleto' | 'dinheiro' | 'cartao' | 'outro';
+
+export const INCOME_SETTLEMENT_METHOD_LABELS: Record<IncomeSettlementMethod, string> = {
+  pix: 'PIX',
+  ted: 'TED',
+  boleto: 'Boleto',
+  dinheiro: 'Dinheiro',
+  cartao: 'Cartão',
+  outro: 'Outro',
+};
+
 export interface IncomeSettlement {
   id: string;
   futureIncomeId: string;
@@ -592,8 +603,30 @@ export interface IncomeSettlement {
   accountId: string;
   feesApplied: number;
   taxWithheldApplied: number;
+  method?: IncomeSettlementMethod;
   transactionId?: string;
   notes?: string;
+}
+
+export type IncomeEventType = 'created' | 'status_changed' | 'settlement_added' | 'settlement_removed' | 'edited' | 'renegotiated' | 'cancelled';
+
+export const INCOME_EVENT_TYPE_LABELS: Record<IncomeEventType, string> = {
+  created: 'Criado',
+  status_changed: 'Status Alterado',
+  settlement_added: 'Recebimento Registrado',
+  settlement_removed: 'Recebimento Removido',
+  edited: 'Editado',
+  renegotiated: 'Renegociado',
+  cancelled: 'Cancelado',
+};
+
+export interface IncomeEvent {
+  id: string;
+  futureIncomeId: string;
+  type: IncomeEventType;
+  timestamp: string;
+  details: string;
+  metadata?: Record<string, any>;
 }
 
 export function generateFutureIncomeId(): string {
@@ -602,6 +635,14 @@ export function generateFutureIncomeId(): string {
 
 export function generateSettlementId(): string {
   return `stl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function generateIncomeEventId(): string {
+  return `ie_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function isOperationalIncome(fi: FutureIncome): boolean {
+  return fi.financialNature === 'receita';
 }
 
 // Defaults inteligentes por sourceType
@@ -669,6 +710,7 @@ export interface FinanceExportV2 {
     creditCardConfigs: CreditCardConfig[]; // NOVO
     futureIncomes: FutureIncome[];
     incomeSettlements: IncomeSettlement[];
+    incomeEvents: IncomeEvent[];
     
     // Configuration/Context States
     monthlyRevenueForecast: number;
