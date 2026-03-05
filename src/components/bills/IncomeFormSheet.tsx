@@ -138,7 +138,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
             <SelectTrigger className="h-10 rounded-xl">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[150]">
               {SOURCE_TYPE_GROUPS.map(group => (
                 <div key={group.label}>
                   <div className="px-2 py-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">{group.label}</div>
@@ -233,7 +233,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
             <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Conta de Recebimento</Label>
             <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecionar conta" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[150]">
                 {liquidAccounts.map(acc => (
                   <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
                 ))}
@@ -244,7 +244,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
             <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Categoria</Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
               <SelectTrigger className="rounded-xl"><SelectValue placeholder="Selecionar" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[150]">
                 {incomeCategories.map(cat => (
                   <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.label}</SelectItem>
                 ))}
@@ -265,7 +265,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
               <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Natureza Financeira</Label>
               <Select value={financialNature} onValueChange={(v) => setFinancialNature(v as IncomeFinancialNature)}>
                 <SelectTrigger className="rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[150]">
                   {(Object.keys(INCOME_FINANCIAL_NATURE_LABELS) as IncomeFinancialNature[]).map(key => (
                     <SelectItem key={key} value={key}>{INCOME_FINANCIAL_NATURE_LABELS[key]}</SelectItem>
                   ))}
