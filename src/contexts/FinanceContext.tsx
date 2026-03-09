@@ -47,7 +47,6 @@ import {
   generateFutureIncomeId,
   generateSettlementId,
   generateIncomeEventId,
-  isOperationalIncome,
   formatCurrency,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
@@ -356,10 +355,10 @@ interface FinanceContextType {
   futureIncomes: FutureIncome[];
   incomeSettlements: IncomeSettlement[];
   incomeEvents: IncomeEvent[];
-  addFutureIncome: (income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  addFutureIncome: (income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => FutureIncome;
   updateFutureIncome: (id: string, updates: Partial<FutureIncome>) => void;
   deleteFutureIncome: (id: string) => void;
-  addIncomeSettlement: (settlement: Omit<IncomeSettlement, 'id'>, options?: { generateTransaction?: boolean }) => void;
+  addIncomeSettlement: (settlement: Omit<IncomeSettlement, 'id'>, options?: { generateTransaction?: boolean; categoryId?: string }) => void;
   deleteIncomeSettlement: (id: string) => void;
   getFutureIncomesForMonth: (date: Date) => FutureIncome[];
   getIncomeEventsForIncome: (incomeId: string) => IncomeEvent[];
@@ -618,7 +617,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setFutureIncomes(prev => {
       let changed = false;
       const next = prev.map(fi => {
-        if ((fi.status === 'previsto' || fi.status === 'cobrado_ou_faturado') && fi.expectedDueDate < today) {
+        if ((fi.status === 'previsto' || fi.status === 'cobrado_ou_faturado') && fi.expectedReceiptDate < today) {
           changed = true;
           return { ...fi, status: 'atrasado' as const, updatedAt: new Date().toISOString() };
         }
@@ -641,8 +640,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const addFutureIncome = useCallback((income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const id = generateFutureIncomeId();
-    setFutureIncomes(prev => [...prev, { ...income, id, createdAt: now, updatedAt: now }]);
+    const newIncome = { ...income, id, createdAt: now, updatedAt: now };
+    setFutureIncomes(prev => [...prev, newIncome]);
     emitIncomeEvent({ futureIncomeId: id, type: 'created', timestamp: now, details: `Recebível criado: ${income.description}` });
+    return newIncome;
   }, [emitIncomeEvent]);
 
   const updateFutureIncome = useCallback((id: string, updates: Partial<FutureIncome>) => {
@@ -665,10 +666,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setIncomeEvents(prev => prev.filter(e => e.futureIncomeId !== id));
   }, []);
 
-  const addIncomeSettlement = useCallback((settlement: Omit<IncomeSettlement, 'id'>, options?: { generateTransaction?: boolean }) => {
+  const addIncomeSettlement = useCallback((settlement: Omit<IncomeSettlement, 'id'>, options?: { generateTransaction?: boolean; categoryId?: string }) => {
     const now = new Date().toISOString();
     const newSettlement: IncomeSettlement = { ...settlement, id: generateSettlementId() };
     
+    // Infer competence month if not provided
+    if (!newSettlement.competenceMonth) {
+      newSettlement.competenceMonth = format(parseDateLocal(settlement.receivedDate), 'yyyy-MM');
+    }
+
     // Optionally generate a real transaction
     if (options?.generateTransaction) {
       const fi = futureIncomes.find(f => f.id === settlement.futureIncomeId);
@@ -683,7 +689,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           operationType: 'receita',
           domain: getDomainFromOperation('receita'),
           amount: settlement.receivedAmount,
-          categoryId: fi.categoryId || null,
+          categoryId: options.categoryId || fi.categoryId || null,
           description: `Recebimento: ${fi.description}`,
           links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
           conciliated: true,
@@ -699,15 +705,30 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     emitIncomeEvent({ 
       futureIncomeId: settlement.futureIncomeId, type: 'settlement_added', timestamp: now, 
       details: `Recebimento de ${formatCurrency(settlement.receivedAmount)} registrado`,
-      metadata: { settlementId: newSettlement.id, amount: settlement.receivedAmount }
+      metadata: { settlementId: newSettlement.id, amount: settlement.receivedAmount, month: newSettlement.competenceMonth }
     });
     
     setFutureIncomes(prev => prev.map(fi => {
       if (fi.id !== settlement.futureIncomeId) return fi;
-      const allSettlements = [...incomeSettlements.filter(s => s.futureIncomeId === fi.id), newSettlement];
+      
+      const monthKey = newSettlement.competenceMonth!;
+      const allSettlements = [...incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.competenceMonth === monthKey), newSettlement];
       const totalReceived = allSettlements.reduce((acc, s) => acc + s.receivedAmount, 0);
-      const newStatus = totalReceived >= fi.netExpectedAmount ? 'recebido' : 'recebido_parcial';
-      return { ...fi, status: newStatus as any, updatedAt: now };
+      
+      // If recurring, update override. If single, update status.
+      if (fi.recurrenceRule) {
+        const updatedOverrides = { ...(fi.overrides || {}) };
+        const currentOverride = updatedOverrides[monthKey] || {};
+        const expected = currentOverride.netExpectedAmount || fi.netExpectedAmount;
+        updatedOverrides[monthKey] = {
+          ...currentOverride,
+          status: totalReceived >= expected ? 'recebido' : 'recebido_parcial'
+        };
+        return { ...fi, overrides: updatedOverrides, updatedAt: now };
+      } else {
+        const newStatus = totalReceived >= fi.netExpectedAmount ? 'recebido' : 'recebido_parcial';
+        return { ...fi, status: newStatus as any, updatedAt: now };
+      }
     }));
   }, [incomeSettlements, futureIncomes, contasMovimento, addTransacaoV2, emitIncomeEvent]);
 
@@ -725,15 +746,66 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const remaining = incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.id !== id);
         const totalReceived = remaining.reduce((acc, s) => acc + s.receivedAmount, 0);
         let newStatus: FutureIncome['status'] = totalReceived > 0 ? 'recebido_parcial' : 'previsto';
-        if (fi.expectedDueDate < format(new Date(), 'yyyy-MM-dd') && newStatus === 'previsto') newStatus = 'atrasado';
+        if (fi.expectedReceiptDate < format(new Date(), 'yyyy-MM-dd') && newStatus === 'previsto') newStatus = 'atrasado';
         return { ...fi, status: newStatus, updatedAt: now };
       }));
     }
   }, [incomeSettlements, emitIncomeEvent]);
 
   const getFutureIncomesForMonth = useCallback((date: Date): FutureIncome[] => {
-    return futureIncomes.filter(fi => isSameMonth(parseDateLocal(fi.expectedDueDate), date));
-  }, [futureIncomes]);
+    const monthKey = format(date, 'yyyy-MM');
+    
+    // 1. Single entries
+    const singleEntries = futureIncomes.filter(fi => 
+      !fi.recurrenceRule && !fi.isProvisioned && isSameMonth(parseDateLocal(fi.expectedReceiptDate), date)
+    );
+    
+    // 1.5 Provisioned entries
+    const provisionedEntries = futureIncomes.filter(fi => 
+      fi.isProvisioned && isSameMonth(parseDateLocal(fi.expectedReceiptDate), date)
+    );
+    
+    // 2. Recurring entries projection
+    const recurringEntries = futureIncomes.filter(fi => {
+      if (!fi.recurrenceRule) return false;
+      const start = startOfMonth(parseDateLocal(fi.competenceDate));
+      const end = fi.recurrenceRule.endsAt ? endOfMonth(parseDateLocal(fi.recurrenceRule.endsAt)) : new Date(9999, 11, 31);
+      return (isSameMonth(date, start) || isAfter(date, start)) && (isSameMonth(date, end) || isBefore(date, end));
+    }).map(fi => {
+      const override = fi.overrides?.[monthKey];
+      const dayOfReceipt = format(parseDateLocal(fi.expectedReceiptDate), 'dd');
+      
+      if (override) {
+        return { 
+          ...fi, 
+          ...override,
+          isOverride: true,
+          isRecurringInstance: true,
+          competenceDate: `${monthKey}-01`,
+          expectedReceiptDate: override.expectedReceiptDate || `${monthKey}-${dayOfReceipt}`,
+        };
+      }
+      
+      // Calculate status for this month based on settlements if no override
+      const monthSettlements = incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.competenceMonth === monthKey);
+      const totalReceived = monthSettlements.reduce((acc, s) => acc + s.receivedAmount, 0);
+      let status = fi.status;
+      if (totalReceived >= fi.netExpectedAmount) status = 'recebido';
+      else if (totalReceived > 0) status = 'recebido_parcial';
+      else if (parseDateLocal(`${monthKey}-${dayOfReceipt}`) < startOfDay(new Date())) status = 'atrasado';
+
+      return {
+        ...fi,
+        status,
+        isOverride: false,
+        isRecurringInstance: true,
+        competenceDate: `${monthKey}-01`,
+        expectedReceiptDate: `${monthKey}-${dayOfReceipt}`,
+      };
+    });
+
+    return [...singleEntries, ...provisionedEntries, ...recurringEntries];
+  }, [futureIncomes, incomeSettlements]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -1796,7 +1868,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
     getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction, 
     addTransacaoV2, updateBill, deleteBill, addFutureIncome, updateFutureIncome, deleteFutureIncome,
-    addIncomeSettlement, deleteIncomeSettlement, getFutureIncomesForMonth, getIncomeEventsForIncome, exportData, importData
+    addIncomeSettlement, deleteIncomeSettlement, getFutureIncomesForMonth, getIncomeEventsForIncome, exportData, importData,
+    addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
+    calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
+    deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,
+    uncontabilizeImportedTransaction, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
+    updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

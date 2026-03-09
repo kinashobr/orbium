@@ -35,7 +35,7 @@ export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: Mana
         hideCloseButton
         fullscreen={isMobile}
         className={cn(
-          "p-0 shadow-2xl flex flex-col z-[130] dark:bg-[hsl(24_8%_10%)]",
+          "p-0 shadow-2xl flex flex-col dark:bg-[hsl(24_8%_10%)]",
           !isMobile && "max-w-[min(95vw,60rem)] h-[min(90vh,850px)] rounded-[2rem]"
         )}
       >

@@ -51,7 +51,7 @@ function SmartCardAlerts({ combinedBills, currentDate }: { combinedBills: BillDi
       
       // 1. Invoice without coverage
       const invoiceBill = combinedBills.find(b => 
-        b.type === 'tracker' && (b as any).sourceType === 'card_invoice' && (b as any).cardId === config.id && !b.isPaid
+        b.type === 'tracker' && (b as unknown as BillTracker).sourceType === 'card_invoice' && (b as unknown as BillTracker).cardId === config.id && !b.isPaid
       );
       if (invoiceBill && config.defaultPaymentAccountId) {
         const paymentBalance = calculateBalanceUpToDate(config.defaultPaymentAccountId, undefined, transacoesV2, contasMovimento);
@@ -162,9 +162,9 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
         .reduce((acc, t) => acc + t.amount, 0);
 
     // 3. Divisão de Saídas
-    // Pendentes (incluir card_invoice — fatura é a saída real de caixa)
+    // Pendentes (incluir todos, inclusive cartões de crédito)
     const pendingAmount = combinedBills
-        .filter(b => !b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .filter(b => !b.isPaid)
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
     // Pagos com Cartão de Crédito: somar transações reais flow='out' da conta CC no mês (indicador DRE)
@@ -176,7 +176,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
         )
         .reduce((acc, t) => acc + t.amount, 0);
     
-    // Já Pagos (Caixa/Débito) — incluir card_invoice paga (saída de caixa efetivada)
+    // Já Pagos (Caixa/Débito)
     const paidDirectly = combinedBills
         .filter(b => b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
@@ -352,43 +352,34 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
 
         {/* Income KPIs */}
         {(() => {
-          const monthFI = futureIncomes.filter(fi => isSameMonth(parseDateLocal(fi.expectedDueDate), currentDate) && fi.status !== 'cancelado');
-          const operationalFI = monthFI.filter(fi => fi.financialNature === 'receita');
-          const nonOperationalFI = monthFI.filter(fi => fi.financialNature !== 'receita');
-          const totalOperacional = operationalFI.reduce((acc, fi) => acc + fi.netExpectedAmount, 0);
-          const totalNaoOperacional = nonOperationalFI.reduce((acc, fi) => acc + fi.netExpectedAmount, 0);
+          const monthFI = futureIncomes.filter(fi => isSameMonth(parseDateLocal(fi.expectedReceiptDate), currentDate) && fi.status !== 'cancelado');
+          const totalPrevisto = monthFI.reduce((acc, fi) => acc + fi.netExpectedAmount, 0);
           const totalRecebido = incomeSettlements
             .filter(s => isSameMonth(parseDateLocal(s.receivedDate), currentDate))
             .reduce((acc, s) => acc + s.receivedAmount, 0);
-          if (totalOperacional === 0 && totalNaoOperacional === 0 && totalRecebido === 0) return null;
+          
+          if (totalPrevisto === 0 && totalRecebido === 0) return null;
+          
           return (
             <>
               <Separator className="opacity-20" />
               <div className="px-1 space-y-3">
                 <div className="flex items-center gap-2 opacity-60">
                   <TrendingUp className="w-3.5 h-3.5 text-success" />
-                  <p className="text-[9px] font-black uppercase tracking-widest">Receitas Previstas</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest">Receitas e Recebimentos</p>
                 </div>
-                {totalOperacional > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Operacional</span>
-                    <span className="text-xs font-black text-primary tabular-nums">{formatCurrency(totalOperacional)}</span>
-                  </div>
-                )}
-                {totalNaoOperacional > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Outras Entradas</span>
-                    <span className="text-xs font-black text-amber-500 tabular-nums">{formatCurrency(totalNaoOperacional)}</span>
-                  </div>
-                )}
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Recebido</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total Previsto</span>
+                  <span className="text-xs font-black text-primary tabular-nums">{formatCurrency(totalPrevisto)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total Recebido</span>
                   <span className="text-xs font-black text-success tabular-nums">{formatCurrency(totalRecebido)}</span>
                 </div>
-                {(totalOperacional + totalNaoOperacional) - totalRecebido > 0 && (
+                {totalPrevisto - totalRecebido > 0 && (
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pendente</span>
-                    <span className="text-xs font-black text-warning tabular-nums">{formatCurrency((totalOperacional + totalNaoOperacional) - totalRecebido)}</span>
+                    <span className="text-xs font-black text-warning tabular-nums">{formatCurrency(totalPrevisto - totalRecebido)}</span>
                   </div>
                 )}
               </div>

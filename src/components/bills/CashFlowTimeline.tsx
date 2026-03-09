@@ -18,7 +18,7 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
     contasMovimento,
     calculateBalanceUpToDate,
     transacoesV2,
-    revenueForecasts,
+    getFutureIncomesForMonth,
   } = useFinance();
 
   const data = useMemo(() => {
@@ -33,39 +33,30 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
       .filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType))
       .map(c => c.id);
 
-    // 1. Calculate Realized Revenue for the month so far
-    const monthKey = format(currentDate, 'yyyy-MM');
-    const totalForecastedRevenue = revenueForecasts[monthKey] || 0;
-    
-    const realizedRevenueSoFar = transacoesV2
-      .filter(t => 
-        isSameMonth(parseDateLocal(t.date), currentDate) && 
-        (t.operationType === 'receita' || t.operationType === 'rendimento') &&
-        !isAfter(parseDateLocal(t.date), today)
-      )
-      .reduce((acc, t) => acc + t.amount, 0);
-
-    const remainingRevenue = Math.max(0, totalForecastedRevenue - realizedRevenueSoFar);
-
-    // 2. Map UNPAID bills to their due dates
+    // 1. Map UNPAID bills to their due dates
     const unpaidBillsByDay = new Map<number, number>();
     combinedBills
       .filter(b => !b.isPaid)
       .forEach(b => {
-        try {
-          const dueDate = parseDateLocal(b.dueDate);
-          const day = dueDate.getDate();
-          unpaidBillsByDay.set(day, (unpaidBillsByDay.get(day) || 0) + b.expectedAmount);
-        } catch {}
+        const dueDate = parseDateLocal(b.dueDate);
+        const day = dueDate.getDate();
+        unpaidBillsByDay.set(day, (unpaidBillsByDay.get(day) || 0) + b.expectedAmount);
+      });
+
+    // 2. Map EXPECTED incomes to their receipt dates
+    const expectedIncomesByDay = new Map<number, number>();
+    getFutureIncomesForMonth(currentDate)
+      .filter(inc => inc.status !== 'recebido')
+      .forEach(inc => {
+        const receiptDate = parseDateLocal(inc.expectedReceiptDate);
+        const day = receiptDate.getDate();
+        const amount = inc.netExpectedAmount;
+        expectedIncomesByDay.set(day, (expectedIncomesByDay.get(day) || 0) + amount);
       });
 
     // 3. Build daily timeline
-    const points: any[] = [];
+    const points: CashFlowPoint[] = [];
     let runningBalance = 0;
-
-    const lastHistoricalDay = isCurrentMonth ? today.getDate() : (currentDate < today ? totalDays : 0);
-    const futureDaysCount = totalDays - lastHistoricalDay;
-    const dailyRemainingRevenue = futureDaysCount > 0 ? remainingRevenue / futureDaysCount : 0;
 
     for (let i = 1; i <= totalDays; i++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), i);
@@ -81,13 +72,14 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
           day: format(date, 'dd'),
           saldo: Math.round(runningBalance * 100) / 100,
           saldoReal: Math.round(runningBalance * 100) / 100,
-          saldoProj: i === lastHistoricalDay ? Math.round(runningBalance * 100) / 100 : null,
+          saldoProj: i === today.getDate() ? Math.round(runningBalance * 100) / 100 : null,
           isFuture: false,
           label: format(date, "dd/MM")
         });
       } else {
+        const income = expectedIncomesByDay.get(i) || 0;
         const expense = unpaidBillsByDay.get(i) || 0;
-        runningBalance += dailyRemainingRevenue - expense;
+        runningBalance += income - expense;
         
         points.push({
           day: format(date, 'dd'),
@@ -101,7 +93,7 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
     }
 
     return points;
-  }, [currentDate, combinedBills, contasMovimento, calculateBalanceUpToDate, transacoesV2, revenueForecasts]);
+  }, [currentDate, combinedBills, contasMovimento, calculateBalanceUpToDate, transacoesV2, getFutureIncomesForMonth]);
 
   const minBalance = useMemo(() => Math.min(...data.map(d => d.saldo)), [data]);
   const hasNegative = minBalance < 0;
@@ -111,7 +103,7 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
 
   if (data.length === 0) return null;
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: { payload: CashFlowPoint }[] }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (

@@ -92,7 +92,7 @@ export default function BillsTracker() {
 
       return updated ? next : prev;
     });
-  }, [invoiceSyncKey, setBillsTracker]);
+  }, [invoiceSyncKey, setBillsTracker, invoiceBills]);
 
   // Auto-populate fixed bills when month changes
   useEffect(() => {
@@ -267,6 +267,7 @@ export default function BillsTracker() {
         open={isIncomeModalOpen}
         onOpenChange={setIsIncomeModalOpen}
         currentDate={currentDate}
+        onDateChange={setCurrentDate}
       />
     </div>
     </MainLayout>

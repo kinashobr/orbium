@@ -131,7 +131,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
       return updated ? next : prev;
     });
-  }, [invoiceSyncKey, setBillsTracker]);
+  }, [invoiceSyncKey, setBillsTracker, invoiceBills]);
 
   useEffect(() => {
     autoPopulateFixedBills(currentDate);
@@ -440,7 +440,12 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </ResizableDialogContent>
       </Dialog>
       <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
-      <IncomeReceivablesModal open={showIncomeReceivables} onOpenChange={setShowIncomeReceivables} currentDate={currentDate} />
+      <IncomeReceivablesModal 
+        open={showIncomeReceivables} 
+        onOpenChange={setShowIncomeReceivables} 
+        currentDate={currentDate} 
+        onDateChange={setCurrentDate}
+      />
       <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
         <DialogContent hideCloseButton className="max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden z-[120] border-none shadow-2xl">
           <DialogHeader className="p-8 bg-gradient-to-br from-primary to-primary-dark text-white border-none">

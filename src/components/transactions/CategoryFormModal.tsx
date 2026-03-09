@@ -18,6 +18,8 @@ interface CategoryFormModalProps {
   onSubmit: (category: Categoria) => void;
   onDelete?: (categoryId: string) => void;
   hasTransactions?: boolean;
+  defaultNature?: CategoryNature;
+  defaultLabel?: string;
 }
 
 const EMOJI_BY_CATEGORY = {
@@ -32,12 +34,14 @@ export function CategoryFormModal({
   category,
   onSubmit,
   onDelete,
-  hasTransactions = false
+  hasTransactions = false,
+  defaultNature = "despesa_variavel",
+  defaultLabel = ""
 }: CategoryFormModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [label, setLabel] = useState("");
   const [icon, setIcon] = useState("📦");
-  const [nature, setNature] = useState<CategoryNature>("despesa_variavel");
+  const [nature, setNature] = useState<CategoryNature>(defaultNature);
 
   const isEditing = !!category;
 
@@ -57,13 +61,13 @@ export function CategoryFormModal({
     if (open && category) {
       setLabel(category.label);
       setIcon(category.icon || "📦");
-      setNature(category.nature || "despesa_variavel");
+      setNature(category.nature || defaultNature);
     } else if (open) {
-      setLabel("");
+      setLabel(defaultLabel);
       setIcon("📦");
-      setNature("despesa_variavel");
+      setNature(defaultNature);
     }
-  }, [open, category]);
+  }, [open, category, defaultNature, defaultLabel]);
 
   const handleSubmit = () => {
     if (!label.trim()) {
