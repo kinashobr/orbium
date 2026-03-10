@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { CreditCardConfig, formatCurrency, TransacaoCompleta, BillTracker } from "@/types/finance";
+import { CreditCardConfig, formatCurrency, TransacaoCompleta, BillTracker, generateTransactionId } from "@/types/finance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -458,7 +458,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
 
     // Transação de Saída (Conta Corrente)
     addTransacaoV2({
-      id: `bill_tx_src_${invoiceId}_${Date.now()}`,
+      id: generateTransactionId(),
       date: dueDateStr,
       accountId: paymentAccount.id,
       flow: 'transfer_out',
@@ -475,7 +475,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
 
     // Transação de Entrada (Cartão de Crédito)
     addTransacaoV2({
-      id: `bill_tx_dest_${invoiceId}_${Date.now()}`,
+      id: generateTransactionId(),
       date: dueDateStr,
       accountId: cardAccount.id,
       flow: 'transfer_in',
@@ -522,7 +522,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
   const toggleTransactions = (id: string) => {
     setExpandedTransactions(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
@@ -530,7 +530,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
   const toggleRates = (id: string) => {
     setExpandedPaymentRates(prev => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   };
