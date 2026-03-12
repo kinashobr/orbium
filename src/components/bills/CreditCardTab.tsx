@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { CreditCardConfig, formatCurrency, TransacaoCompleta, BillTracker, generateTransactionId } from "@/types/finance";
+import { CreditCardConfig, formatCurrency, TransacaoCompleta, BillTracker, generateTransactionId, generateTransferGroupId } from "@/types/finance";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -302,6 +302,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
     updateBill,
     addTransacaoV2,
     transacoesV2,
+    setTransacoesV2,
   } = useFinance();
 
   const [showForm, setShowForm] = useState(false);
@@ -450,45 +451,45 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
       return;
     }
 
-    const transferGroupId = `invoice_transfer_${invoiceId}_${Date.now()}`;
+    const transferGroupId = generateTransferGroupId();
     const invoiceAmount = getInvoiceForCard(config.id, currentDate);
     const cardName = cardAccount?.name || 'Cartão';
     const modeSuffix = mode !== 'total' ? ` (${mode === 'minimo' ? 'Mínimo' : 'Parcial'})` : '';
     const description = `Pagamento Fatura ${cardName}${modeSuffix}`;
 
-    // Transação de Saída (Conta Corrente)
-    addTransacaoV2({
+    const txSrc = {
       id: generateTransactionId(),
       date: dueDateStr,
       accountId: paymentAccount.id,
-      flow: 'transfer_out',
-      operationType: 'transferencia',
-      domain: 'operational',
+      flow: 'transfer_out' as const,
+      operationType: 'transferencia' as const,
+      domain: 'operational' as const,
       amount,
       categoryId: null,
       description,
       links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
       conciliated: true,
       attachments: [],
-      meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
-    });
+      meta: { createdBy: 'user', source: 'manual' as const, createdAt: new Date().toISOString() },
+    };
 
-    // Transação de Entrada (Cartão de Crédito)
-    addTransacaoV2({
+    const txDest = {
       id: generateTransactionId(),
       date: dueDateStr,
       accountId: cardAccount.id,
-      flow: 'transfer_in',
-      operationType: 'transferencia',
-      domain: 'operational',
+      flow: 'in' as const,
+      operationType: 'transferencia' as const,
+      domain: 'operational' as const,
       amount,
       categoryId: null,
       description,
       links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null },
-      conciliated: true,
+      conciliated: false,
       attachments: [],
-      meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
-    });
+      meta: { createdBy: 'user', source: 'manual' as const, createdAt: new Date().toISOString() },
+    };
+
+    setTransacoesV2(prev => [...prev, txSrc, txDest]);
 
     const existingBill = billsTracker.find(b => b.id === invoiceId);
     if (existingBill) {

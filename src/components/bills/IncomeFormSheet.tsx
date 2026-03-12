@@ -179,7 +179,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
         toast.success("Série de receita atualizada!");
       }
     } else {
-      const newIncome = addFutureIncome(incomeData);
+      const newIncome = addFutureIncome(incomeData as Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>);
       
       // Provisioning logic
       if (specificType === 'clt' && layoutMode === 'advanced') {
@@ -198,7 +198,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
             expectedReceiptDate: nextReceipt,
             isProvisioned: true,
             parentIncomeId: newIncome?.id
-          });
+          } as Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>);
           provCount++;
         }
         
@@ -212,7 +212,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
           expectedReceiptDate: nextReceipt13,
           isProvisioned: true,
           parentIncomeId: newIncome?.id
-        });
+        } as Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>);
         provCount++;
         
         toast.success(`Receita cadastrada e provisionada até o fim do ano (incluindo 13º)!`);
@@ -226,7 +226,7 @@ export function IncomeFormSheet({ editingIncome, onSave }: IncomeFormSheetProps)
             expectedReceiptDate: nextReceipt,
             isProvisioned: true,
             parentIncomeId: newIncome.id
-          });
+          } as Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>);
         }
         toast.success(`Receita cadastrada e provisionada por ${provisionMonths} meses!`);
       } else {

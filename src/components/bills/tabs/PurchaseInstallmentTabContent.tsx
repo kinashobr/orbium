@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useImperativeHandle, forwardRef } from "react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency } from "@/types/finance";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,16 @@ import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { getDueDate } from "@/lib/utils";
 
+export interface PurchaseInstallmentRef {
+  submit: () => void;
+}
+
 interface PurchaseInstallmentTabContentProps {
   currentDate: Date;
   onClose: () => void;
 }
 
-export function PurchaseInstallmentTabContent({ currentDate, onClose }: PurchaseInstallmentTabContentProps) {
+export const PurchaseInstallmentTabContent = forwardRef<PurchaseInstallmentRef, PurchaseInstallmentTabContentProps>(({ currentDate, onClose }, ref) => {
   const { contasMovimento, categoriasV2, addPurchaseInstallments } = useFinance();
 
   const [formData, setFormData] = useState({
@@ -62,11 +66,17 @@ export function PurchaseInstallmentTabContent({ currentDate, onClose }: Purchase
       firstDueDate: formData.firstDueDate,
       suggestedAccountId: formData.accountId || undefined,
       suggestedCategoryId: formData.categoryId || undefined,
+      isRecurring: false,
     });
     toast.success(`${installmentsCount} parcelas geradas com sucesso!`);
     setFormData({ description: "", totalAmount: "0,00", installments: "12", firstDueDate: format(new Date(), 'yyyy-MM-dd'), accountId: "", categoryId: "" });
     onClose();
   };
+
+  useImperativeHandle(ref, () => ({
+    submit: handleSubmit,
+    formData
+  }));
 
   const installmentPreview = useMemo(() => {
     const amount = parseBrlValue(formData.totalAmount);
@@ -82,53 +92,51 @@ export function PurchaseInstallmentTabContent({ currentDate, onClose }: Purchase
 
   return (
     <div className="space-y-6">
-      {/* Amount */}
-      <div className="text-center space-y-2">
-        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor Total da Compra</Label>
-        <div className="relative max-w-xs mx-auto">
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xl font-black text-muted-foreground/30">R$</span>
+      <div className="text-center space-y-0.5">
+        <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor Total da Compra</Label>
+        <div className="relative max-w-[220px] mx-auto group">
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/20">R$</span>
           <Input
             type="text"
             inputMode="numeric"
-            placeholder="0,00"
             value={formData.totalAmount}
             onChange={(e) => handleAmountChange(e.target.value)}
-            className="h-16 text-3xl sm:text-4xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0"
+            className="h-12 text-2xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
           />
-          <div className="h-1 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent mt-1"></div>
+          <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Descrição</Label>
-            <Input placeholder="Ex: iPhone 15 Pro" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className="h-10 rounded-xl font-bold border-2 dark:bg-white/5 dark:border-white/10" />
+            <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Descrição</Label>
+            <Input placeholder="Ex: iPhone 15 Pro" value={formData.description} onChange={e => setFormData(p => ({ ...p, description: e.target.value }))} className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Parcelas</Label>
-              <Input type="number" min="1" value={formData.installments} onChange={e => setFormData(p => ({ ...p, installments: e.target.value }))} className="h-10 rounded-xl font-black text-lg border-2 dark:bg-white/5 dark:border-white/10" />
+              <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Parcelas</Label>
+              <Input type="number" min="1" value={formData.installments} onChange={e => setFormData(p => ({ ...p, installments: e.target.value }))} className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">1º Vencimento</Label>
-              <Input type="date" value={formData.firstDueDate} onChange={e => setFormData(p => ({ ...p, firstDueDate: e.target.value }))} className="h-10 rounded-xl font-bold border-2 dark:bg-white/5 dark:border-white/10" />
+              <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">1º Vencimento</Label>
+              <Input type="date" value={formData.firstDueDate} onChange={e => setFormData(p => ({ ...p, firstDueDate: e.target.value }))} className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm" />
             </div>
           </div>
         </div>
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Conta de Débito</Label>
+            <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Conta de Débito</Label>
             <Select value={formData.accountId} onValueChange={v => setFormData(p => ({ ...p, accountId: v }))}>
-              <SelectTrigger className="h-10 rounded-xl font-bold border-2 dark:bg-white/5 dark:border-white/10"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent className="z-[210]">{availableAccounts.map(a => <SelectItem key={a.id} value={a.id} className="font-medium">{a.name}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+              <SelectContent className="z-[210] rounded-xl shadow-2xl border-none p-1">{availableAccounts.map(a => <SelectItem key={a.id} value={a.id} className="rounded-lg font-bold py-2 text-sm">{a.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Categoria</Label>
+            <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Categoria</Label>
             <Select value={formData.categoryId} onValueChange={v => setFormData(p => ({ ...p, categoryId: v }))}>
-              <SelectTrigger className="h-10 rounded-xl font-bold border-2 dark:bg-white/5 dark:border-white/10"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-              <SelectContent className="z-[210]">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="font-medium">{c.icon} {c.label}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+              <SelectContent className="z-[210] rounded-xl shadow-2xl border-none p-1">{expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="rounded-lg font-bold py-2 text-sm">{c.icon} {c.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
         </div>
@@ -151,10 +159,6 @@ export function PurchaseInstallmentTabContent({ currentDate, onClose }: Purchase
           </div>
         </div>
       )}
-
-      <Button onClick={handleSubmit} disabled={!formData.description || parseBrlValue(formData.totalAmount) <= 0} className="w-full h-12 rounded-xl font-black text-sm gap-2 shadow-xl shadow-primary/20">
-        GERAR {formData.installments} PARCELAS <ArrowRight className="w-5 h-5" />
-      </Button>
     </div>
   );
-}
+});

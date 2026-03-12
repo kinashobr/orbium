@@ -1,14 +1,17 @@
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, ArrowLeft, CreditCard, Package } from "lucide-react";
+import { Settings, ArrowLeft, CreditCard, Package, Plus } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
+import { ResizableDialogContent } from "@/components/ui/ResizableDialogContent";
 
 import { CommitmentsTabContent } from "./tabs/CommitmentsTabContent";
 import { CreditCardTab } from "./CreditCardTab";
+import { PurchaseInstallmentTabContent } from "./tabs/PurchaseInstallmentTabContent";
+import { RecurringExpenseTabContent } from "./tabs/RecurringExpenseTabContent";
 
 interface ManageCommitmentsModalProps {
   open: boolean;
@@ -18,6 +21,8 @@ interface ManageCommitmentsModalProps {
 
 export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: ManageCommitmentsModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
 
   // Body scroll lock for mobile fullscreen
   useEffect(() => {
@@ -43,22 +48,34 @@ export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: Mana
           className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5 bg-primary/5"
           style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
         >
-          <div className="flex items-center gap-4 sm:gap-5">
-            {isMobile && (
-              <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
-                <ArrowLeft className="w-6 h-6" />
-              </Button>
-            )}
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-primary/10 text-primary shadow-primary/5">
-              <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 sm:gap-5">
+              {isMobile && (
+                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
+                  <ArrowLeft className="w-6 h-6" />
+                </Button>
+              )}
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-primary/10 text-primary shadow-primary/5">
+                <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
+                  Gerenciar Compromissos
+                </DialogTitle>
+                <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                  Compromissos · Cartões
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
-                Gerenciar Compromissos
-              </DialogTitle>
-              <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
-                Compromissos · Cartões
-              </DialogDescription>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowPurchaseModal(true)} size="sm" className="rounded-xl font-black text-[10px] uppercase tracking-widest gap-1.5">
+                <Plus className="w-3 h-3" />
+                Compra Parcelada
+              </Button>
+              <Button onClick={() => setShowRecurringModal(true)} size="sm" className="rounded-xl font-black text-[10px] uppercase tracking-widest gap-1.5">
+                <Plus className="w-3 h-3" />
+                Despesa Recorrente
+              </Button>
             </div>
           </div>
         </DialogHeader>
@@ -110,6 +127,49 @@ export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: Mana
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* Modals */}
+      <Dialog open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
+        <ResizableDialogContent 
+          storageKey="purchase_installment_modal"
+          initialWidth={500}
+          initialHeight={650}
+          minWidth={400}
+          minHeight={550}
+          maxWidth={800}
+          maxHeight={900}
+          hideCloseButton
+          className="rounded-[2.25rem] bg-card border-none shadow-2xl p-0 overflow-hidden flex flex-col"
+        >
+          <DialogHeader className="px-6 pt-6 pb-3 shrink-0 bg-card">
+            <DialogTitle className="text-xl font-black tracking-tight">Nova Compra Parcelada</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <PurchaseInstallmentTabContent currentDate={currentDate} onClose={() => setShowPurchaseModal(false)} />
+          </div>
+        </ResizableDialogContent>
+      </Dialog>
+
+      <Dialog open={showRecurringModal} onOpenChange={setShowRecurringModal}>
+        <ResizableDialogContent 
+          storageKey="recurring_expense_modal"
+          initialWidth={500}
+          initialHeight={600}
+          minWidth={400}
+          minHeight={550}
+          maxWidth={800}
+          maxHeight={900}
+          hideCloseButton
+          className="rounded-[2.25rem] bg-card border-none shadow-2xl p-0 overflow-hidden flex flex-col"
+        >
+          <DialogHeader className="px-6 pt-6 pb-3 shrink-0 bg-card">
+            <DialogTitle className="text-xl font-black tracking-tight">Nova Despesa Recorrente</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
+            <RecurringExpenseTabContent currentDate={currentDate} onClose={() => setShowRecurringModal(false)} />
+          </div>
+        </ResizableDialogContent>
+      </Dialog>
     </Dialog>
   );
 }

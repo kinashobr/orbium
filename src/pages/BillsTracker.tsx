@@ -11,7 +11,7 @@ import { Settings, ChevronLeft, ChevronRight, TrendingUp } from "lucide-react";
 import { format, startOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { 
-  BillTracker, BillDisplayItem, generateBillId, TransactionLinks, OperationType 
+  BillTracker, BillDisplayItem, generateBillId, TransactionLinks, OperationType, generateTransactionId, generateTransferGroupId, TransactionDomain 
 } from "@/types/finance";
 import { toast } from "sonner";
 
@@ -128,21 +128,50 @@ export default function BillsTracker() {
         const cardConfig = creditCardConfigs.find(c => c.id === trackerBill.cardId);
         const paymentAccountId = cardConfig?.defaultPaymentAccountId || trackerBill.suggestedAccountId;
         const paymentAccount = contasMovimento.find(c => c.id === paymentAccountId);
-        if (!paymentAccount) {
-          toast.error("Configure a conta de pagamento do cartão.");
+        const cardAccount = contasMovimento.find(c => c.id === cardConfig?.accountId);
+        
+        if (!paymentAccount || !cardAccount) {
+          toast.error("Configure as contas de pagamento e do cartão.");
           return;
         }
-        const txId = `bill_tx_${trackerBill.id}`;
-        addTransacaoV2({
-          id: txId, date: trackerBill.dueDate, accountId: paymentAccount.id, flow: 'out',
-          operationType: 'despesa', domain: 'operational', amount: trackerBill.expectedAmount,
-          categoryId: null, description: `Pagamento ${trackerBill.description}`,
-          links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
-          conciliated: true, attachments: [],
-          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
-        });
-        updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: txId });
-        toast.success("Fatura paga e lançada!");
+
+        const transferGroupId = generateTransferGroupId();
+        
+        const txSrc = { 
+          id: generateTransactionId(), 
+          date: trackerBill.dueDate, 
+          accountId: paymentAccount.id, 
+          flow: 'transfer_out' as const, 
+          operationType: 'transferencia' as const, 
+          domain: 'operational' as const, 
+          amount: trackerBill.expectedAmount, 
+          categoryId: null, 
+          description: `Pagamento ${trackerBill.description}`, 
+          links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null }, 
+          conciliated: true, 
+          attachments: [], 
+          meta: { createdBy: 'user', source: 'manual' as const, createdAt: new Date().toISOString() } 
+        };
+
+        const txDest = { 
+          id: generateTransactionId(), 
+          date: trackerBill.dueDate, 
+          accountId: cardAccount.id, 
+          flow: 'in' as const, 
+          operationType: 'transferencia' as const, 
+          domain: 'operational' as const, 
+          amount: trackerBill.expectedAmount, 
+          categoryId: null, 
+          description: `Pagamento ${trackerBill.description}`, 
+          links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null }, 
+          conciliated: false, 
+          attachments: [], 
+          meta: { createdBy: 'user', source: 'manual' as const, createdAt: new Date().toISOString() } 
+        };
+
+        setTransacoesV2(prev => [...prev, txSrc, txDest]);
+        updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId: transferGroupId });
+        toast.success("Fatura paga via transferência!");
         return;
       }
 
@@ -176,17 +205,17 @@ export default function BillsTracker() {
 
       addTransacaoV2({
         id: transactionId, date: trackerBill.dueDate, accountId: account.id, flow: 'out',
-        operationType, domain: domain as any, amount: trackerBill.expectedAmount,
+        operationType, domain: domain as TransactionDomain, amount: trackerBill.expectedAmount,
         categoryId: trackerBill.suggestedCategoryId || null, description,
         links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
         conciliated: true, attachments: [],
-        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+        meta: { createdBy: 'user', source: 'manual', createdAt: new Date().toISOString() },
       });
       updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
       toast.success("Despesa paga e lançada!");
     } else {
       if (trackerBill.transactionId) {
-        setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId));
+        setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId && t.links?.transferGroupId !== trackerBill.transactionId));
       }
       if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
         unmarkLoanParcelPaid(parseInt(trackerBill.sourceRef));

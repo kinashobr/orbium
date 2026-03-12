@@ -333,6 +333,7 @@ interface FinanceContextType {
     firstDueDate: string;
     suggestedAccountId?: string;
     suggestedCategoryId?: string;
+    isRecurring?: boolean;
   }) => void;
   getBillsForMonth: (date: Date) => BillTracker[];
   getPotentialFixedBillsForMonth: (date: Date, localBills: BillTracker[]) => PotentialFixedBill[];
@@ -1230,15 +1231,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [importedStatements, contasMovimento, setTransacoesV2, billsTracker, updateBill]);
 
   const addPurchaseInstallments = useCallback((data: any) => {
-    const { description, totalAmount, installments, firstDueDate, suggestedAccountId, suggestedCategoryId } = data;
-    const installmentAmount = Math.round((totalAmount / installments) * 100) / 100;
+    const { description, totalAmount, installments, firstDueDate, suggestedAccountId, suggestedCategoryId, isRecurring } = data;
+    const installmentAmount = isRecurring ? totalAmount : Math.round((totalAmount / installments) * 100) / 100;
     const purchaseGroupId = `purchase_${Date.now()}`;
     const newBills: BillTracker[] = [];
     for (let i = 1; i <= installments; i++) {
         const dueDate = getDueDate(firstDueDate, i);
         newBills.push({
-            id: generateBillId(), type: 'tracker', description: `${description} (${i}/${installments})`,
-            dueDate: format(dueDate, 'yyyy-MM-dd'), expectedAmount: i === installments ? totalAmount - (installmentAmount * (installments - 1)) : installmentAmount,
+            id: generateBillId(), type: 'tracker', description: isRecurring ? `${description} (${i}/${installments})` : `${description} (${i}/${installments})`,
+            dueDate: format(dueDate, 'yyyy-MM-dd'), expectedAmount: isRecurring ? installmentAmount : (i === installments ? totalAmount - (installmentAmount * (installments - 1)) : installmentAmount),
             isPaid: false, sourceType: 'purchase_installment', sourceRef: purchaseGroupId, parcelaNumber: i, totalInstallments: installments, suggestedAccountId, suggestedCategoryId, isExcluded: false,
         });
     }

@@ -13,6 +13,15 @@ interface CashFlowTimelineProps {
   combinedBills: BillDisplayItem[];
 }
 
+interface CashFlowPoint {
+  day: string;
+  saldo: number;
+  saldoReal: number | null;
+  saldoProj: number | null;
+  isFuture: boolean;
+  label: string;
+}
+
 export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelineProps) {
   const {
     contasMovimento,

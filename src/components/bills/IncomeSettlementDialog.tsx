@@ -235,7 +235,7 @@ export function IncomeSettlementDialog({ open, onOpenChange, income, settlements
                       <SelectItem key={acc.id} value={acc.id} className="font-bold text-sm">
                         <div className="flex items-center justify-between w-full gap-4">
                           <span>{acc.name}</span>
-                          <span className="text-[10px] opacity-50">{formatCurrency(acc.currentBalance)}</span>
+                          <span className="text-[10px] opacity-50">{formatCurrency(acc.initialBalance)}</span>
                         </div>
                       </SelectItem>
                     ))}
