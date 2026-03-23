@@ -27,7 +27,6 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
     contasMovimento,
     calculateBalanceUpToDate,
     transacoesV2,
-    getFutureIncomesForMonth,
   } = useFinance();
 
   const data = useMemo(() => {
@@ -52,16 +51,6 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
         unpaidBillsByDay.set(day, (unpaidBillsByDay.get(day) || 0) + b.expectedAmount);
       });
 
-    // 2. Map EXPECTED incomes to their receipt dates
-    const expectedIncomesByDay = new Map<number, number>();
-    getFutureIncomesForMonth(currentDate)
-      .filter(inc => inc.status !== 'recebido')
-      .forEach(inc => {
-        const receiptDate = parseDateLocal(inc.expectedReceiptDate);
-        const day = receiptDate.getDate();
-        const amount = inc.netExpectedAmount;
-        expectedIncomesByDay.set(day, (expectedIncomesByDay.get(day) || 0) + amount);
-      });
 
     // 3. Build daily timeline
     const points: CashFlowPoint[] = [];
@@ -86,9 +75,8 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
           label: format(date, "dd/MM")
         });
       } else {
-        const income = expectedIncomesByDay.get(i) || 0;
         const expense = unpaidBillsByDay.get(i) || 0;
-        runningBalance += income - expense;
+        runningBalance -= expense;
         
         points.push({
           day: format(date, 'dd'),
@@ -102,7 +90,7 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
     }
 
     return points;
-  }, [currentDate, combinedBills, contasMovimento, calculateBalanceUpToDate, transacoesV2, getFutureIncomesForMonth]);
+  }, [currentDate, combinedBills, contasMovimento, calculateBalanceUpToDate, transacoesV2]);
 
   const minBalance = useMemo(() => Math.min(...data.map(d => d.saldo)), [data]);
   const hasNegative = minBalance < 0;

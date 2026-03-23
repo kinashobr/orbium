@@ -10,12 +10,14 @@ import { FastForward, Trash2, History, Zap, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
+const isBillTracker = (bill: BillTracker | PotentialFixedBill): bill is BillTracker => 'id' in bill && bill.type === 'tracker';
+
 interface CommitmentDetailsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
   installments: (BillTracker | PotentialFixedBill)[];
-  onToggleBill: (bill: BillTracker | PotentialFixedBill, include: boolean) => void;
+  onAdvanceBill: (bill: PotentialFixedBill) => void;
   onExcludeBill: (billId: string) => void;
   onDeleteBill: (billId: string) => void;
 }
@@ -25,7 +27,7 @@ export function CommitmentDetailsModal({
   onOpenChange,
   title,
   installments,
-  onToggleBill,
+  onAdvanceBill,
   onExcludeBill,
   onDeleteBill
 }: CommitmentDetailsModalProps) {
@@ -76,7 +78,7 @@ export function CommitmentDetailsModal({
         <ScrollArea className="flex-1 px-6">
           <div className="py-6 space-y-4">
             {sortedInstallments.map((bill, idx) => {
-              const isTracker = 'id' in bill;
+              const isTracker = isBillTracker(bill);
               const isPaid = bill.isPaid;
               const isIncluded = isTracker ? !bill.isExcluded : bill.isIncluded;
               const dueDate = parseDateLocal(bill.dueDate);
@@ -94,11 +96,16 @@ export function CommitmentDetailsModal({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <p className="text-sm font-black tracking-tight truncate">
-                        {isTracker ? bill.description : (bill as PotentialFixedBill).description}
+                        {bill.description}
                       </p>
                       {isPaid && (
                         <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">
                           PAGO
+                        </span>
+                      )}
+                      {isTracker && !isPaid && (
+                        <span className="text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                          NO MÊS
                         </span>
                       )}
                     </div>
@@ -117,21 +124,25 @@ export function CommitmentDetailsModal({
                     
                     {!isPaid && (
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="h-9 px-4 text-[10px] font-black uppercase tracking-widest gap-2 rounded-2xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border-none"
-                          onClick={() => onToggleBill(bill, true)}
-                        >
-                          <FastForward className="w-4 h-4" />
-                          Adiantar
-                        </Button>
+                        {/* Adiantar: only for PotentialFixedBill (future, not yet in tracker) */}
+                        {!isTracker && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="h-9 px-4 text-[10px] font-black uppercase tracking-widest gap-2 rounded-2xl bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all shadow-sm border-none"
+                            onClick={() => onAdvanceBill(bill as PotentialFixedBill)}
+                          >
+                            <FastForward className="w-4 h-4" />
+                            Adiantar
+                          </Button>
+                        )}
+                        {/* Excluir: for BillTracker items already in the month */}
                         {isTracker && (
                           <Button 
                             variant="ghost" 
                             size="icon" 
                             className="h-9 w-9 text-destructive/40 hover:text-destructive hover:bg-destructive/10 rounded-2xl transition-colors"
-                            onClick={() => onExcludeBill(bill.id)}
+                            onClick={() => onDeleteBill(bill.id)}
                           >
                             <Trash2 className="w-4.5 h-4.5" />
                           </Button>

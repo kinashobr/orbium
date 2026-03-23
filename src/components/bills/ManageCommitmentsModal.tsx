@@ -1,17 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Settings, ArrowLeft, CreditCard, Package, Plus } from "lucide-react";
+import { Settings, ArrowLeft, CreditCard, Package, Plus, ShoppingCart, Repeat, Sparkles } from "lucide-react";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
-import { ResizableDialogContent } from "@/components/ui/ResizableDialogContent";
 
 import { CommitmentsTabContent } from "./tabs/CommitmentsTabContent";
 import { CreditCardTab } from "./CreditCardTab";
-import { PurchaseInstallmentTabContent } from "./tabs/PurchaseInstallmentTabContent";
-import { RecurringExpenseTabContent } from "./tabs/RecurringExpenseTabContent";
+import { PurchaseInstallmentTabContent, PurchaseInstallmentRef } from "./tabs/PurchaseInstallmentTabContent";
+import { RecurringExpenseTabContent, RecurringExpenseRef } from "./tabs/RecurringExpenseTabContent";
 
 interface ManageCommitmentsModalProps {
   open: boolean;
@@ -23,8 +22,9 @@ export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: Mana
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const purchaseRef = useRef<PurchaseInstallmentRef>(null);
+  const recurringRef = useRef<RecurringExpenseRef>(null);
 
-  // Body scroll lock for mobile fullscreen
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -35,141 +35,229 @@ export function ManageCommitmentsModal({ open, onOpenChange, currentDate }: Mana
   }, [isMobile, open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        hideCloseButton
-        fullscreen={isMobile}
-        className={cn(
-          "p-0 shadow-2xl flex flex-col dark:bg-[hsl(24_8%_10%)]",
-          !isMobile && "max-w-[min(95vw,60rem)] h-[min(90vh,850px)] rounded-[2rem]"
-        )}
-      >
-        <DialogHeader
-          className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5 bg-primary/5"
-          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          hideCloseButton
+          fullscreen={isMobile}
+          className={cn(
+            "p-0 shadow-2xl flex flex-col dark:bg-[hsl(24_8%_10%)]",
+            !isMobile && "max-w-[min(95vw,60rem)] h-[min(90vh,850px)] rounded-[2rem]"
+          )}
         >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 sm:gap-5">
-              {isMobile && (
-                <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
-                  <ArrowLeft className="w-6 h-6" />
+          <DialogHeader
+            className="px-6 sm:px-8 pt-6 sm:pt-8 pb-4 shrink-0 relative dark:bg-black/30 dark:border-b dark:border-white/5 bg-primary/5"
+            style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4 sm:gap-5">
+                {isMobile && (
+                  <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)} className="rounded-full h-10 w-10 shrink-0">
+                    <ArrowLeft className="w-6 h-6" />
+                  </Button>
+                )}
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-primary/10 text-primary shadow-primary/5">
+                  <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
+                    Gerenciar Compromissos
+                  </DialogTitle>
+                  <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
+                    Compromissos · Cartões
+                  </DialogDescription>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => setShowPurchaseModal(true)} 
+                  size="sm" 
+                  className="rounded-xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest gap-1.5 h-10 px-4"
+                >
+                  <Plus className="w-3 h-3" />
+                  Compra Parcelada
                 </Button>
-              )}
-              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.25rem] flex items-center justify-center shadow-lg bg-primary/10 text-primary shadow-primary/5">
-                <Settings className="w-6 h-6 sm:w-7 sm:h-7" />
+                <Button 
+                  onClick={() => setShowRecurringModal(true)} 
+                  size="sm" 
+                  className="rounded-xl font-black text-[9px] sm:text-[10px] uppercase tracking-widest gap-1.5 h-10 px-4"
+                >
+                  <Plus className="w-3 h-3" />
+                  Despesa Recorrente
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <Tabs defaultValue="compromissos" className="flex-1 flex flex-col min-h-0">
+            <div className="px-4 sm:px-8 pt-2 shrink-0">
+              <TabsList className="w-full grid grid-cols-2 h-10">
+                <TabsTrigger value="compromissos" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
+                  <Package className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">Compromissos</span>
+                  <span className="sm:hidden">Comp</span>
+                </TabsTrigger>
+                <TabsTrigger value="cartoes" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
+                  <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">Cartões</span>
+                  <span className="sm:hidden">Cart</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <ScrollArea className="flex-1 scrollbar-material">
+              <div className="p-4 sm:p-8 pb-32 sm:pb-8">
+                <TabsContent value="compromissos" className="mt-0">
+                  <CommitmentsTabContent currentDate={currentDate} />
+                </TabsContent>
+                <TabsContent value="cartoes" className="mt-0">
+                  <CreditCardTab currentDate={currentDate} />
+                </TabsContent>
+              </div>
+            </ScrollArea>
+          </Tabs>
+
+          <DialogFooter
+            className={cn(
+              "p-4 sm:p-6 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0",
+              isMobile && "fixed bottom-0 left-0 right-0 bg-card"
+            )}
+            style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+          >
+            {!isMobile && (
+              <Button
+                onClick={() => onOpenChange(false)}
+                className="w-full h-12 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+                variant="ghost"
+              >
+                FECHAR
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Compra Parcelada Modal - Design Orbium */}
+      <Dialog open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
+        <DialogContent 
+          hideCloseButton 
+          fullscreen={isMobile}
+          className={cn(
+            "p-0 overflow-hidden flex flex-col shadow-2xl bg-card border-none z-[120]",
+            !isMobile && "max-w-[36.4rem] max-h-[90vh] rounded-[2.5rem]"
+          )}
+        >
+          <DialogHeader className={cn(
+            "p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-dark text-white border-none shrink-0 relative",
+            isMobile && "pt-12"
+          )}>
+            {isMobile && (
+              <Button variant="ghost" size="icon" onClick={() => setShowPurchaseModal(false)} className="absolute left-4 top-4 rounded-full h-10 w-10 text-white/70 hover:text-white">
+                <ArrowLeft className="h-6 w-6" />
+              </Button>
+            )}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 flex items-center justify-center shadow-xl">
+                <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7" />
               </div>
               <div>
-                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tighter">
-                  Gerenciar Compromissos
-                </DialogTitle>
-                <DialogDescription className="text-[10px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest mt-0.5">
-                  Compromissos · Cartões
-                </DialogDescription>
+                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight leading-tight">Nova Compra Parcelada</DialogTitle>
+                <p className="text-[9px] sm:text-[10px] font-bold text-white/60 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" /> Provisionamento Inteligente
+                </p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Button onClick={() => setShowPurchaseModal(true)} size="sm" className="rounded-xl font-black text-[10px] uppercase tracking-widest gap-1.5">
-                <Plus className="w-3 h-3" />
-                Compra Parcelada
-              </Button>
-              <Button onClick={() => setShowRecurringModal(true)} size="sm" className="rounded-xl font-black text-[10px] uppercase tracking-widest gap-1.5">
-                <Plus className="w-3 h-3" />
-                Despesa Recorrente
-              </Button>
-            </div>
-          </div>
-        </DialogHeader>
+          </DialogHeader>
 
-        <Tabs defaultValue="compromissos" className="flex-1 flex flex-col min-h-0">
-          <div className="px-4 sm:px-8 pt-2 shrink-0">
-            <TabsList className="w-full grid grid-cols-2 h-10">
-              <TabsTrigger value="compromissos" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
-                <Package className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Compromissos</span>
-                <span className="sm:hidden">Comp</span>
-              </TabsTrigger>
-              <TabsTrigger value="cartoes" className="text-[10px] sm:text-xs font-black uppercase tracking-wider gap-1.5 px-1 sm:px-3">
-                <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
-                <span className="hidden sm:inline">Cartões</span>
-                <span className="sm:hidden">Cart</span>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <ScrollArea className="flex-1 scrollbar-material">
-            <div className="p-4 sm:p-8 pb-32 sm:pb-8">
-              <TabsContent value="compromissos" className="mt-0">
-                <CommitmentsTabContent currentDate={currentDate} />
-              </TabsContent>
-
-              <TabsContent value="cartoes" className="mt-0">
-                <CreditCardTab currentDate={currentDate} />
-              </TabsContent>
+          <ScrollArea className="flex-1">
+            <div className="p-6 sm:p-8 pb-32 sm:pb-8">
+              <PurchaseInstallmentTabContent ref={purchaseRef} currentDate={currentDate} onClose={() => setShowPurchaseModal(false)} />
             </div>
           </ScrollArea>
-        </Tabs>
 
-        <DialogFooter
-          className={cn(
-            "p-4 sm:p-6 bg-muted/10 dark:bg-black/30 border-t dark:border-white/5 shrink-0",
-            isMobile && "fixed bottom-0 left-0 right-0 bg-card"
-          )}
-          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
-        >
-          {!isMobile && (
-            <Button
-              onClick={() => onOpenChange(false)}
-              className="w-full h-12 rounded-[1.25rem] font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
-              variant="ghost"
+          <DialogFooter className={cn(
+            "p-6 sm:p-8 pt-2 bg-card flex flex-col sm:flex-row gap-3 border-t border-border/10",
+            isMobile && "fixed bottom-0 left-0 right-0 p-4"
+          )}>
+            {!isMobile && (
+              <Button 
+                variant="ghost" 
+                onClick={() => setShowPurchaseModal(false)} 
+                className="rounded-2xl h-12 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+              >
+                CANCELAR
+              </Button>
+            )}
+            <Button 
+              className="flex-1 h-12 sm:h-14 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-[0.2em] shadow-xl shadow-primary/20 gap-2 hover:scale-[1.02] transition-transform" 
+              onClick={() => purchaseRef.current?.submit()}
             >
-              FECHAR
+              CRIAR PARCELAMENTO
             </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-
-      {/* Modals */}
-      <Dialog open={showPurchaseModal} onOpenChange={setShowPurchaseModal}>
-        <ResizableDialogContent 
-          storageKey="purchase_installment_modal"
-          initialWidth={500}
-          initialHeight={650}
-          minWidth={400}
-          minHeight={550}
-          maxWidth={800}
-          maxHeight={900}
-          hideCloseButton
-          className="rounded-[2.25rem] bg-card border-none shadow-2xl p-0 overflow-hidden flex flex-col"
-        >
-          <DialogHeader className="px-6 pt-6 pb-3 shrink-0 bg-card">
-            <DialogTitle className="text-xl font-black tracking-tight">Nova Compra Parcelada</DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <PurchaseInstallmentTabContent currentDate={currentDate} onClose={() => setShowPurchaseModal(false)} />
-          </div>
-        </ResizableDialogContent>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
 
+      {/* Despesa Recorrente Modal - Design Orbium */}
       <Dialog open={showRecurringModal} onOpenChange={setShowRecurringModal}>
-        <ResizableDialogContent 
-          storageKey="recurring_expense_modal"
-          initialWidth={500}
-          initialHeight={600}
-          minWidth={400}
-          minHeight={550}
-          maxWidth={800}
-          maxHeight={900}
-          hideCloseButton
-          className="rounded-[2.25rem] bg-card border-none shadow-2xl p-0 overflow-hidden flex flex-col"
+        <DialogContent 
+          hideCloseButton 
+          fullscreen={isMobile}
+          className={cn(
+            "p-0 overflow-hidden flex flex-col shadow-2xl bg-card border-none z-[120]",
+            !isMobile && "max-w-[36.4rem] max-h-[90vh] rounded-[2.5rem]"
+          )}
         >
-          <DialogHeader className="px-6 pt-6 pb-3 shrink-0 bg-card">
-            <DialogTitle className="text-xl font-black tracking-tight">Nova Despesa Recorrente</DialogTitle>
+          <DialogHeader className={cn(
+            "p-6 sm:p-8 bg-gradient-to-br from-primary to-primary-dark text-white border-none shrink-0 relative",
+            isMobile && "pt-12"
+          )}>
+            {isMobile && (
+              <Button variant="ghost" size="icon" onClick={() => setShowRecurringModal(false)} className="absolute left-4 top-4 rounded-full h-10 w-10 text-white/70 hover:text-white">
+                <ArrowLeft className="h-6 w-6" />
+              </Button>
+            )}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 flex items-center justify-center shadow-xl">
+                <Repeat className="w-6 h-6 sm:w-7 sm:h-7" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight leading-tight">Nova Despesa Recorrente</DialogTitle>
+                <p className="text-[9px] sm:text-[10px] font-bold text-white/60 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                  <Sparkles className="w-3 h-3" /> Valor Fixo Mensal
+                </p>
+              </div>
+            </div>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 pb-6">
-            <RecurringExpenseTabContent currentDate={currentDate} onClose={() => setShowRecurringModal(false)} />
-          </div>
-        </ResizableDialogContent>
+
+          <ScrollArea className="flex-1">
+            <div className="p-6 sm:p-8 pb-32 sm:pb-8">
+              <RecurringExpenseTabContent ref={recurringRef} currentDate={currentDate} onClose={() => setShowRecurringModal(false)} />
+            </div>
+          </ScrollArea>
+
+          <DialogFooter className={cn(
+            "p-6 sm:p-8 pt-2 bg-card flex flex-col sm:flex-row gap-3 border-t border-border/10",
+            isMobile && "fixed bottom-0 left-0 right-0 p-4"
+          )}>
+            {!isMobile && (
+              <Button 
+                variant="ghost" 
+                onClick={() => setShowRecurringModal(false)} 
+                className="rounded-2xl h-12 px-8 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground"
+              >
+                CANCELAR
+              </Button>
+            )}
+            <Button 
+              className="flex-1 h-12 sm:h-14 rounded-2xl font-black text-[11px] sm:text-xs uppercase tracking-[0.2em] shadow-xl shadow-primary/20 gap-2 hover:scale-[1.02] transition-transform" 
+              onClick={() => recurringRef.current?.submit()}
+            >
+              CADASTRAR RECORRÊNCIA
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
-    </Dialog>
+    </>
   );
 }

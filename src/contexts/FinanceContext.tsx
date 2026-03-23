@@ -40,14 +40,10 @@ import {
 	generateCreditCardConfigId,
   getDomainFromOperation,
   generateTransferGroupId,
-  FutureIncome,
-  IncomeSettlement,
-  IncomeEvent,
-  IncomeSettlementMethod,
-  generateFutureIncomeId,
-  generateSettlementId,
-  generateIncomeEventId,
   formatCurrency,
+  CltContract,
+  CltCompetencia,
+  CltLegislacaoConfig,
 } from "@/types/finance";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, cn } from "@/lib/utils";
@@ -352,17 +348,7 @@ interface FinanceContextType {
   getNextCycleBalance: (cardId: string, referenceDate?: Date) => number;
   getCardCycleTransactions: (cardId: string, monthDate: Date) => TransacaoCompleta[];
   
-  // Future Incomes (Receitas e Recebíveis)
-  futureIncomes: FutureIncome[];
-  incomeSettlements: IncomeSettlement[];
-  incomeEvents: IncomeEvent[];
-  addFutureIncome: (income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => FutureIncome;
-  updateFutureIncome: (id: string, updates: Partial<FutureIncome>) => void;
-  deleteFutureIncome: (id: string) => void;
-  addIncomeSettlement: (settlement: Omit<IncomeSettlement, 'id'>, options?: { generateTransaction?: boolean; categoryId?: string }) => void;
-  deleteIncomeSettlement: (id: string) => void;
-  getFutureIncomesForMonth: (date: Date) => FutureIncome[];
-  getIncomeEventsForIncome: (incomeId: string) => IncomeEvent[];
+  
   
   // Contas Movimento
   contasMovimento: ContaCorrente[];
@@ -440,6 +426,20 @@ interface FinanceContextType {
   deleteMetaPersonalizada: (id: string) => void;
   calcularProgressoMeta: (meta: MetaPersonalizada) => MetaProgresso;
 
+  // CLT
+  cltContracts: CltContract[];
+  addCltContract: (contract: CltContract) => void;
+  updateCltContract: (id: string, contract: Partial<CltContract>) => void;
+  deleteCltContract: (id: string) => void;
+  cltCompetencias: CltCompetencia[];
+  addCltCompetencia: (comp: CltCompetencia) => void;
+  updateCltCompetencia: (id: string, updates: Partial<CltCompetencia>) => void;
+  deleteCltCompetenciasByContract: (contractId: string) => void;
+  cltLegislacaoConfigs: CltLegislacaoConfig[];
+  addCltLegislacaoConfig: (config: CltLegislacaoConfig) => void;
+  updateCltLegislacaoConfig: (id: string, updates: Partial<CltLegislacaoConfig>) => void;
+  deleteCltLegislacaoConfig: (id: string) => void;
+
   // Controle de Versão
   lastModified: string;
   
@@ -468,9 +468,8 @@ const STORAGE_KEYS = {
   TERRENOS: "neon_finance_terrenos",
   METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
   CREDIT_CARD_CONFIGS: "fin_credit_card_configs_v1",
-  FUTURE_INCOMES: "fin_future_incomes_v1",
-  INCOME_SETTLEMENTS: "fin_income_settlements_v1",
-  INCOME_EVENTS: "fin_income_events_v1",
+  CLT_CONTRACTS: "fin_clt_contracts_v1",
+  CLT_COMPETENCIAS: "fin_clt_competencias_v1",
   LAST_MODIFIED: "fin_last_modified_v1",
 };
 
@@ -485,9 +484,6 @@ const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
 const initialMetasPersonalizadas: MetaPersonalizada[] = [];
 const initialCreditCardConfigs: CreditCardConfig[] = [];
-const initialFutureIncomes: FutureIncome[] = [];
-const initialIncomeSettlements: IncomeSettlement[] = [];
-const initialIncomeEvents: IncomeEvent[] = [];
 const initialLastModified = new Date(0).toISOString();
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -555,9 +551,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
   const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
   const [creditCardConfigs, setCreditCardConfigs] = useState<CreditCardConfig[]>(() => loadFromStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, initialCreditCardConfigs));
-  const [futureIncomes, setFutureIncomes] = useState<FutureIncome[]>(() => loadFromStorage(STORAGE_KEYS.FUTURE_INCOMES, initialFutureIncomes));
-  const [incomeSettlements, setIncomeSettlements] = useState<IncomeSettlement[]>(() => loadFromStorage(STORAGE_KEYS.INCOME_SETTLEMENTS, initialIncomeSettlements));
-  const [incomeEvents, setIncomeEvents] = useState<IncomeEvent[]>(() => loadFromStorage(STORAGE_KEYS.INCOME_EVENTS, initialIncomeEvents));
+  const [cltContracts, setCltContracts] = useState<CltContract[]>(() => loadFromStorage(STORAGE_KEYS.CLT_CONTRACTS, []));
+  const [cltCompetencias, setCltCompetencias] = useState<CltCompetencia[]>(() => loadFromStorage(STORAGE_KEYS.CLT_COMPETENCIAS, []));
+  const [cltLegislacaoConfigs, setCltLegislacaoConfigs] = useState<CltLegislacaoConfig[]>(() => loadFromStorage('fin_clt_legislacao_v1', []));
   const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified));
 
   const updateLastModified = useCallback(() => {
@@ -608,205 +604,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, creditCardConfigs); updateLastModified(); }, [creditCardConfigs, updateLastModified]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.FUTURE_INCOMES, futureIncomes); updateLastModified(); }, [futureIncomes, updateLastModified]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.INCOME_SETTLEMENTS, incomeSettlements); updateLastModified(); }, [incomeSettlements, updateLastModified]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.INCOME_EVENTS, incomeEvents); updateLastModified(); }, [incomeEvents, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_CONTRACTS, cltContracts); updateLastModified(); }, [cltContracts, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_COMPETENCIAS, cltCompetencias); updateLastModified(); }, [cltCompetencias, updateLastModified]);
+  useEffect(() => { saveToStorage('fin_clt_legislacao_v1', cltLegislacaoConfigs); updateLastModified(); }, [cltLegislacaoConfigs, updateLastModified]);
 
-  // Auto-status: mark overdue incomes
-  useEffect(() => {
-    const today = format(new Date(), 'yyyy-MM-dd');
-    setFutureIncomes(prev => {
-      let changed = false;
-      const next = prev.map(fi => {
-        if ((fi.status === 'previsto' || fi.status === 'cobrado_ou_faturado') && fi.expectedReceiptDate < today) {
-          changed = true;
-          return { ...fi, status: 'atrasado' as const, updatedAt: new Date().toISOString() };
-        }
-        return fi;
-      });
-      return changed ? next : prev;
-    });
-  }, []);
-
-  // Income Event helper
-  const emitIncomeEvent = useCallback((event: Omit<IncomeEvent, 'id'>) => {
-    setIncomeEvents(prev => [...prev, { ...event, id: generateIncomeEventId() }]);
-  }, []);
-
-  const getIncomeEventsForIncome = useCallback((incomeId: string): IncomeEvent[] => {
-    return incomeEvents.filter(e => e.futureIncomeId === incomeId).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  }, [incomeEvents]);
-
-  // Future Income CRUD
-  const addFutureIncome = useCallback((income: Omit<FutureIncome, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const now = new Date().toISOString();
-    const id = generateFutureIncomeId();
-    const newIncome = { ...income, id, createdAt: now, updatedAt: now };
-    setFutureIncomes(prev => [...prev, newIncome]);
-    emitIncomeEvent({ futureIncomeId: id, type: 'created', timestamp: now, details: `Recebível criado: ${income.description}` });
-    return newIncome;
-  }, [emitIncomeEvent]);
-
-  const updateFutureIncome = useCallback((id: string, updates: Partial<FutureIncome>) => {
-    const now = new Date().toISOString();
-    setFutureIncomes(prev => prev.map(fi => {
-      if (fi.id !== id) return fi;
-      const statusChanged = updates.status && updates.status !== fi.status;
-      if (statusChanged) {
-        emitIncomeEvent({ futureIncomeId: id, type: 'status_changed', timestamp: now, details: `Status: ${fi.status} → ${updates.status}` });
-      } else {
-        emitIncomeEvent({ futureIncomeId: id, type: 'edited', timestamp: now, details: `Recebível editado` });
-      }
-      return { ...fi, ...updates, updatedAt: now };
-    }));
-  }, [emitIncomeEvent]);
-
-  const deleteFutureIncome = useCallback((id: string) => {
-    setFutureIncomes(prev => prev.filter(fi => fi.id !== id));
-    setIncomeSettlements(prev => prev.filter(s => s.futureIncomeId !== id));
-    setIncomeEvents(prev => prev.filter(e => e.futureIncomeId !== id));
-  }, []);
-
-  const addIncomeSettlement = useCallback((settlement: Omit<IncomeSettlement, 'id'>, options?: { generateTransaction?: boolean; categoryId?: string }) => {
-    const now = new Date().toISOString();
-    const newSettlement: IncomeSettlement = { ...settlement, id: generateSettlementId() };
-    
-    // Infer competence month if not provided
-    if (!newSettlement.competenceMonth) {
-      newSettlement.competenceMonth = format(parseDateLocal(settlement.receivedDate), 'yyyy-MM');
-    }
-
-    // Optionally generate a real transaction
-    if (options?.generateTransaction) {
-      const fi = futureIncomes.find(f => f.id === settlement.futureIncomeId);
-      const account = contasMovimento.find(c => c.id === settlement.accountId);
-      if (fi && account) {
-        const txId = generateTransactionId();
-        const tx: TransacaoCompleta = {
-          id: txId,
-          date: settlement.receivedDate,
-          accountId: settlement.accountId,
-          flow: 'in',
-          operationType: 'receita',
-          domain: getDomainFromOperation('receita'),
-          amount: settlement.receivedAmount,
-          categoryId: options.categoryId || fi.categoryId || null,
-          description: `Recebimento: ${fi.description}`,
-          links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
-          conciliated: true,
-          attachments: [],
-          meta: { createdBy: 'system', source: 'bill_tracker', createdAt: now },
-        };
-        addTransacaoV2(tx);
-        newSettlement.transactionId = txId;
-      }
-    }
-
-    setIncomeSettlements(prev => [...prev, newSettlement]);
-    emitIncomeEvent({ 
-      futureIncomeId: settlement.futureIncomeId, type: 'settlement_added', timestamp: now, 
-      details: `Recebimento de ${formatCurrency(settlement.receivedAmount)} registrado`,
-      metadata: { settlementId: newSettlement.id, amount: settlement.receivedAmount, month: newSettlement.competenceMonth }
-    });
-    
-    setFutureIncomes(prev => prev.map(fi => {
-      if (fi.id !== settlement.futureIncomeId) return fi;
-      
-      const monthKey = newSettlement.competenceMonth!;
-      const allSettlements = [...incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.competenceMonth === monthKey), newSettlement];
-      const totalReceived = allSettlements.reduce((acc, s) => acc + s.receivedAmount, 0);
-      
-      // If recurring, update override. If single, update status.
-      if (fi.recurrenceRule) {
-        const updatedOverrides = { ...(fi.overrides || {}) };
-        const currentOverride = updatedOverrides[monthKey] || {};
-        const expected = currentOverride.netExpectedAmount || fi.netExpectedAmount;
-        updatedOverrides[monthKey] = {
-          ...currentOverride,
-          status: totalReceived >= expected ? 'recebido' : 'recebido_parcial'
-        };
-        return { ...fi, overrides: updatedOverrides, updatedAt: now };
-      } else {
-        const newStatus = totalReceived >= fi.netExpectedAmount ? 'recebido' : 'recebido_parcial';
-        return { ...fi, status: newStatus as any, updatedAt: now };
-      }
-    }));
-  }, [incomeSettlements, futureIncomes, contasMovimento, addTransacaoV2, emitIncomeEvent]);
-
-  const deleteIncomeSettlement = useCallback((id: string) => {
-    const settlement = incomeSettlements.find(s => s.id === id);
-    const now = new Date().toISOString();
-    setIncomeSettlements(prev => prev.filter(s => s.id !== id));
-    if (settlement) {
-      emitIncomeEvent({ 
-        futureIncomeId: settlement.futureIncomeId, type: 'settlement_removed', timestamp: now, 
-        details: `Recebimento de ${formatCurrency(settlement.receivedAmount)} removido` 
-      });
-      setFutureIncomes(prev => prev.map(fi => {
-        if (fi.id !== settlement.futureIncomeId) return fi;
-        const remaining = incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.id !== id);
-        const totalReceived = remaining.reduce((acc, s) => acc + s.receivedAmount, 0);
-        let newStatus: FutureIncome['status'] = totalReceived > 0 ? 'recebido_parcial' : 'previsto';
-        if (fi.expectedReceiptDate < format(new Date(), 'yyyy-MM-dd') && newStatus === 'previsto') newStatus = 'atrasado';
-        return { ...fi, status: newStatus, updatedAt: now };
-      }));
-    }
-  }, [incomeSettlements, emitIncomeEvent]);
-
-  const getFutureIncomesForMonth = useCallback((date: Date): FutureIncome[] => {
-    const monthKey = format(date, 'yyyy-MM');
-    
-    // 1. Single entries
-    const singleEntries = futureIncomes.filter(fi => 
-      !fi.recurrenceRule && !fi.isProvisioned && isSameMonth(parseDateLocal(fi.expectedReceiptDate), date)
-    );
-    
-    // 1.5 Provisioned entries
-    const provisionedEntries = futureIncomes.filter(fi => 
-      fi.isProvisioned && isSameMonth(parseDateLocal(fi.expectedReceiptDate), date)
-    );
-    
-    // 2. Recurring entries projection
-    const recurringEntries = futureIncomes.filter(fi => {
-      if (!fi.recurrenceRule) return false;
-      const start = startOfMonth(parseDateLocal(fi.competenceDate));
-      const end = fi.recurrenceRule.endsAt ? endOfMonth(parseDateLocal(fi.recurrenceRule.endsAt)) : new Date(9999, 11, 31);
-      return (isSameMonth(date, start) || isAfter(date, start)) && (isSameMonth(date, end) || isBefore(date, end));
-    }).map(fi => {
-      const override = fi.overrides?.[monthKey];
-      const dayOfReceipt = format(parseDateLocal(fi.expectedReceiptDate), 'dd');
-      
-      if (override) {
-        return { 
-          ...fi, 
-          ...override,
-          isOverride: true,
-          isRecurringInstance: true,
-          competenceDate: `${monthKey}-01`,
-          expectedReceiptDate: override.expectedReceiptDate || `${monthKey}-${dayOfReceipt}`,
-        };
-      }
-      
-      // Calculate status for this month based on settlements if no override
-      const monthSettlements = incomeSettlements.filter(s => s.futureIncomeId === fi.id && s.competenceMonth === monthKey);
-      const totalReceived = monthSettlements.reduce((acc, s) => acc + s.receivedAmount, 0);
-      let status = fi.status;
-      if (totalReceived >= fi.netExpectedAmount) status = 'recebido';
-      else if (totalReceived > 0) status = 'recebido_parcial';
-      else if (parseDateLocal(`${monthKey}-${dayOfReceipt}`) < startOfDay(new Date())) status = 'atrasado';
-
-      return {
-        ...fi,
-        status,
-        isOverride: false,
-        isRecurringInstance: true,
-        competenceDate: `${monthKey}-01`,
-        expectedReceiptDate: `${monthKey}-${dayOfReceipt}`,
-      };
-    });
-
-    return [...singleEntries, ...provisionedEntries, ...recurringEntries];
-  }, [futureIncomes, incomeSettlements]);
 
   const balanceCache = useMemo(() => {
     const cache = new Map<string, number>();
@@ -1521,16 +1322,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         terrenos,
         metasPersonalizadas,
         creditCardConfigs,
-        futureIncomes,
-        incomeSettlements,
-        incomeEvents,
+        cltContracts,
+        cltCompetencias,
       },
       lastModified: lastModified,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
-  }, [contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, creditCardConfigs, futureIncomes, incomeSettlements, incomeEvents, lastModified]);
+  }, [contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, creditCardConfigs, cltContracts, cltCompetencias, lastModified]);
 
   const importData = useCallback(async (file: File) => {
     try {
@@ -1553,9 +1353,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.terrenos) setTerrenos(data.data.terrenos);
       if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
       if (data.data.creditCardConfigs) setCreditCardConfigs(data.data.creditCardConfigs);
-      if (data.data.futureIncomes) setFutureIncomes(data.data.futureIncomes);
-      if (data.data.incomeSettlements) setIncomeSettlements(data.data.incomeSettlements);
-      if (data.data.incomeEvents) setIncomeEvents(data.data.incomeEvents);
+      if (data.data.cltContracts) setCltContracts(data.data.cltContracts);
+      if (data.data.cltCompetencias) setCltCompetencias(data.data.cltCompetencias);
       const newTimestamp = data.lastModified || new Date().toISOString();
       setLastModified(newTimestamp);
       saveToStorage(STORAGE_KEYS.LAST_MODIFIED, newTimestamp);
@@ -1854,12 +1653,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getPatrimonioLiquido: (d?: Date) => getAtivosTotal(d) - getPassivosTotal(d), getAtivosTotal, getPassivosTotal, getSegurosAApropriar, getSegurosAPagar,
     calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate,
     metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
-    futureIncomes, incomeSettlements, incomeEvents, addFutureIncome, updateFutureIncome, deleteFutureIncome, addIncomeSettlement, deleteIncomeSettlement, getFutureIncomesForMonth, getIncomeEventsForIncome,
+    
+    cltContracts,
+    addCltContract: (c: CltContract) => setCltContracts(p => [...p, c]),
+    updateCltContract: (id: string, u: Partial<CltContract>) => setCltContracts(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
+    deleteCltContract: (id: string) => setCltContracts(p => p.filter(c => c.id !== id)),
+    cltCompetencias,
+    addCltCompetencia: (c: CltCompetencia) => setCltCompetencias(p => [...p, c]),
+    updateCltCompetencia: (id: string, u: Partial<CltCompetencia>) => setCltCompetencias(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
+    deleteCltCompetenciasByContract: (contractId: string) => setCltCompetencias(p => p.filter(c => c.contractId !== contractId)),
+    cltLegislacaoConfigs,
+    addCltLegislacaoConfig: (c: CltLegislacaoConfig) => setCltLegislacaoConfigs(p => [...p, c]),
+    updateCltLegislacaoConfig: (id: string, u: Partial<CltLegislacaoConfig>) => setCltLegislacaoConfigs(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
+    deleteCltLegislacaoConfig: (id: string) => setCltLegislacaoConfigs(p => p.filter(c => c.id !== id)),
+
     lastModified,
     exportData, importData,
   }), [
-    emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, 
-    futureIncomes, incomeSettlements, incomeEvents,
+    emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
+    
     contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges, 
     alertStartDate, revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,
     calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAApropriar, getSegurosAPagar,
@@ -1868,8 +1680,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
     getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction, 
-    addTransacaoV2, updateBill, deleteBill, addFutureIncome, updateFutureIncome, deleteFutureIncome,
-    addIncomeSettlement, deleteIncomeSettlement, getFutureIncomesForMonth, getIncomeEventsForIncome, exportData, importData,
+    addTransacaoV2, updateBill, deleteBill, exportData, importData,
     addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,

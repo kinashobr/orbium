@@ -480,144 +480,117 @@ export interface ImportedStatement {
 }
 
 // ============================================
-// RECEITAS E RECEBÍVEIS (Income & Receivables)
+// CLT - Gestão de Receitas de Vínculo Empregatício
 // ============================================
 
-export type IncomeStatus =
-  | 'previsto' | 'cobrado_ou_faturado' | 'recebido_parcial'
-  | 'recebido' | 'atrasado' | 'renegociado' | 'cancelado';
+export type CltCompetenciaTipo = 'normal' | '13_primeira' | '13_segunda';
+export type CltCompetenciaStatus = 'pendente' | 'recebido';
+export type CltRecebimentoStatus = 'antecipado' | 'no_prazo' | 'atrasado';
 
-export const INCOME_STATUS_LABELS: Record<IncomeStatus, string> = {
-  previsto: 'Previsto',
-  cobrado_ou_faturado: 'Cobrado / Faturado',
-  recebido_parcial: 'Recebido Parcial',
-  recebido: 'Recebido',
-  atrasado: 'Atrasado',
-  renegociado: 'Renegociado',
-  cancelado: 'Cancelado',
-};
-
-export interface IncomeRecurrenceRule {
-  id: string;
-  frequency: 'semanal' | 'quinzenal' | 'mensal' | 'trimestral' | 'anual' | 'personalizado';
-  interval: number;
-  dayOfMonth?: number;
-  endsAt?: string;
-  maxOccurrences?: number;
-}
-
-export interface IncomeDiscount {
-  label: string;
-  amount: number;
-}
-
-export type IncomeLayoutMode = 'basic' | 'advanced';
-export type IncomeSpecificType = 'clt' | 'freelance' | 'sales' | 'loan' | 'generic';
-
-export interface IncomeOverride {
-  netExpectedAmount?: number;
-  grossAmount?: number;
-  status?: IncomeStatus;
-  expectedReceiptDate?: string;
-  notes?: string;
-  discounts?: IncomeDiscount[];
-}
-
-export interface FutureIncome {
-  id: string;
-  description: string;
-  categoryId: string; // Obrigatório agora
-  counterparty?: string;
-  grossAmount: number;
-  fees: number;
-  discounts: IncomeDiscount[]; // Segregado
-  taxWithheld: number;
-  netExpectedAmount: number;
-  competenceDate: string;
-  expectedReceiptDate: string; // Renomeado
-  expectedCreditDate?: string;
-  status: IncomeStatus;
-  layoutMode: IncomeLayoutMode;
-  specificType: IncomeSpecificType;
-  recurrenceRule?: IncomeRecurrenceRule;
-  overrides?: Record<string, IncomeOverride>; // Overrides por competência (YYYY-MM)
-  accountId?: string;
-  tags: string[];
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-  isOverride?: boolean;
-  isRecurringInstance?: boolean;
-  isProvisioned?: boolean;
-  parentIncomeId?: string;
-  
-  // Campos para templates especializados
-  loanAdjustmentIndex?: string; // IGPM, SELIC, etc
-  
-  // NOVO: CLT Cockpit
-  vinculeId?: string;
-  vacationPeriods?: { start: string; end: string; bonus: number }[];
-}
-
-export type IncomeSettlementMethod = 'pix' | 'ted' | 'boleto' | 'dinheiro' | 'cartao' | 'outro';
-
-export const INCOME_SETTLEMENT_METHOD_LABELS: Record<IncomeSettlementMethod, string> = {
-  pix: 'PIX',
-  ted: 'TED',
-  boleto: 'Boleto',
-  dinheiro: 'Dinheiro',
-  cartao: 'Cartão',
-  outro: 'Outro',
-};
-
-export interface IncomeSettlement {
-  id: string;
-  futureIncomeId: string;
-  receivedAmount: number;
-  receivedDate: string;
-  competenceMonth?: string; // YYYY-MM
-  accountId: string;
-  feesApplied: number;
-  taxWithheldApplied: number;
-  method?: IncomeSettlementMethod;
-  transactionId?: string;
-  notes?: string;
-}
-
-export type IncomeEventType = 'created' | 'status_changed' | 'settlement_added' | 'settlement_removed' | 'edited' | 'renegotiated' | 'cancelled';
-
-export const INCOME_EVENT_TYPE_LABELS: Record<IncomeEventType, string> = {
-  created: 'Criado',
-  status_changed: 'Status Alterado',
-  settlement_added: 'Recebimento Registrado',
-  settlement_removed: 'Recebimento Removido',
-  edited: 'Editado',
-  renegotiated: 'Renegociado',
-  cancelled: 'Cancelado',
-};
-
-export interface IncomeEvent {
-  id: string;
-  futureIncomeId: string;
-  type: IncomeEventType;
+export interface CltAuditLogEntry {
   timestamp: string;
-  details: string;
-  metadata?: Record<string, unknown>;
+  campo: string;
+  valorAnterior: unknown;
+  valorNovo: unknown;
 }
 
-export function generateFutureIncomeId(): string {
-  return `fi_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export interface CltLegislacaoConfig {
+  id: string;
+  nome: string;
+  vigencia: string; // YYYY
+  inssFaixas: { ate: number; aliquota: number }[];
+  irrfFaixas: { ate: number; aliquota: number; deducao: number }[];
+  deducaoPorDependente: number;
+  descontoSimplificado: number;
+  fgtsAliquota: number;
+  reducaoLimiteZero: number;
+  reducaoLimiteMaximo: number;
+  reducaoValorFixo: number;
+  reducaoFator: number;
+  isDefault: boolean;
 }
 
-export function generateSettlementId(): string {
-  return `stl_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export interface CltContract {
+  id: string;
+  empresa: string;
+  dataAdmissao: string; // YYYY-MM-DD
+  salarioBrutoAtual: number;
+  dependentes: number;
+  pensaoAlimenticia: number;
+  dataInicioGestao: string; // YYYY-MM-DD
+  status: 'ativo' | 'encerrado';
+  legislacaoConfigId?: string;
+  createdAt: string;
+  auditLog: CltAuditLogEntry[];
 }
 
-export function generateIncomeEventId(): string {
-  return `ie_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+export interface CltCompetencia {
+  id: string;
+  contractId: string;
+  mesAno: string; // YYYY-MM
+  tipo: CltCompetenciaTipo;
+  
+  // Snapshot de cálculo
+  salarioBruto: number;
+  dependentes: number;
+  
+  // INSS
+  inssTotal: number;
+  inssDetalhePorFaixa: {
+    faixa: number;
+    de: number;
+    ate: number;
+    aliquota: number;
+    baseCalculo: number;
+    contribuicao: number;
+  }[];
+  inssAliquotaEfetiva: number;
+  
+  // IRRF
+  baseIR: number;
+  metodoIR: 'deducoes_legais' | 'desconto_simplificado';
+  irrfFinal: number;
+  baseDeducoesLegais: number;
+  baseDescontoSimplificado: number;
+  irrfDeducoesLegais: number;
+  irrfDescontoSimplificado: number;
+  reducaoLei15270: number;
+  diferencaMetodos: number;
+  impostoProgressivoDeducoes: number;
+  impostoProgressivoSimplificado: number;
+  reducaoDeducoes: number;
+  reducaoSimplificado: number;
+  deducaoDependentes: number;
+  deducaoPensao: number;
+  
+  // FGTS
+  fgts: number;
+  
+  // Resultado
+  salarioLiquido: number;
+  
+  // Estado
+  isManualOverride: boolean;
+  status: CltCompetenciaStatus;
+  dataPrevistaRecebimento: string;
+  dataRecebimento?: string;
+  statusRecebimento?: CltRecebimentoStatus;
+  transactionId?: string;
+  
+  // Audit
+  auditLog: CltAuditLogEntry[];
+  createdAt: string;
 }
 
-// Schema de Exportação V2 (Completo e Explícito)
+export function generateCltContractId(): string {
+  return `clt_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+export function generateCltCompetenciaId(): string {
+  return `comp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+
 export interface FinanceExportV2 {
   schemaVersion: '2.0';
   exportedAt: string;
@@ -639,10 +612,9 @@ export interface FinanceExportV2 {
     imoveis: Imovel[];
     terrenos: Terreno[];
     metasPersonalizadas: MetaPersonalizada[];
-    creditCardConfigs: CreditCardConfig[]; // NOVO
-    futureIncomes: FutureIncome[];
-    incomeSettlements: IncomeSettlement[];
-    incomeEvents: IncomeEvent[];
+    creditCardConfigs: CreditCardConfig[];
+    cltContracts: CltContract[];
+    cltCompetencias: CltCompetencia[];
     
     // Configuration/Context States
     monthlyRevenueForecast: number;

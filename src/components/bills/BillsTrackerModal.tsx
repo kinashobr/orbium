@@ -6,7 +6,7 @@ import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
 import { BillsSidebarKPIs } from "./BillsSidebarKPIs";
 import { ManageCommitmentsModal } from "./ManageCommitmentsModal";
-import { IncomeReceivablesModal } from "./IncomeReceivablesModal";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -70,7 +70,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [currentDate, setCurrentDate] = useState(startOfMonth(new Date()));
   const [showManageCommitments, setShowManageCommitments] = useState(false);
-  const [showIncomeReceivables, setShowIncomeReceivables] = useState(false);
+  
   const [showNewBillModal, setShowNewBillModal] = useState(false);
 
   const [newBillData, setNewBillData] = useState({
@@ -412,9 +412,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
                     <div className="px-4 min-w-[140px] text-center"><span className="text-[11px] font-black uppercase tracking-widest text-foreground">{format(currentDate, "MMMM yyyy", { locale: ptBR })}</span></div>
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("next")}><ChevronRight className="w-4 h-4" /></Button>
                   </div>
-                  <Button onClick={() => setShowIncomeReceivables(true)} variant="outline" className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 border-success/30 text-success hover:bg-success/5 shadow-lg shadow-success/5">
-                    <TrendingUp className="w-4 h-4" /> Receitas e Recebimentos
-                  </Button>
                   <Button onClick={() => setShowManageCommitments(true)} className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"><Settings className="w-4 h-4" /> Gerenciar Compromissos</Button>
                 </div>
               </div>
@@ -440,12 +437,6 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         </ResizableDialogContent>
       </Dialog>
       <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
-      <IncomeReceivablesModal 
-        open={showIncomeReceivables} 
-        onOpenChange={setShowIncomeReceivables} 
-        currentDate={currentDate} 
-        onDateChange={setCurrentDate}
-      />
       <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
         <DialogContent hideCloseButton className="max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden z-[120] border-none shadow-2xl">
           <DialogHeader className="p-8 bg-gradient-to-br from-primary to-primary-dark text-white border-none">

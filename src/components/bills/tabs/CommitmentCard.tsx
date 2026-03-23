@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { LucideIcon, Calendar, ArrowRight } from "lucide-react";
+import { LucideIcon, Calendar, ArrowRight, CheckCircle2, PartyPopper } from "lucide-react";
 
 interface CommitmentCardProps {
   title: string;
@@ -15,6 +15,7 @@ interface CommitmentCardProps {
   totalRemainingValue: number;
   paidCount: number;
   totalCount: number;
+  totalPaidValue?: number;
   onClick: () => void;
   onAdvance?: () => void;
 }
@@ -29,10 +30,66 @@ export function CommitmentCard({
   totalRemainingValue,
   paidCount,
   totalCount,
+  totalPaidValue,
   onClick,
   onAdvance
 }: CommitmentCardProps) {
   const progress = totalCount > 0 ? (paidCount / totalCount) * 100 : 0;
+  const isCompleted = totalCount > 0 && paidCount === totalCount;
+
+  if (isCompleted) {
+    return (
+      <Card 
+        className="group cursor-pointer transition-all duration-500 bg-emerald-500/5 border-emerald-500/20 rounded-[2rem] shadow-sm hover:shadow-soft-lg hover:-translate-y-1 overflow-hidden relative"
+        onClick={onClick}
+      >
+        <CheckCircle2 className="absolute -right-4 -bottom-4 w-24 h-24 text-emerald-500 opacity-[0.06] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
+
+        <CardContent className="p-5 space-y-4 relative z-10">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-[1.25rem] flex items-center justify-center shrink-0 shadow-sm bg-emerald-500/15 group-hover:scale-110 transition-transform duration-500">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-base font-black tracking-tight truncate leading-tight">{title}</h4>
+                <p className="text-[9px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-[0.15em] mt-0.5 flex items-center gap-1">
+                  <PartyPopper className="w-3 h-3" /> QUITADO
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 py-1">
+            <div className="space-y-1">
+              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-emerald-600/60 dark:text-emerald-400/60">Total pago</p>
+              <p className="text-xl font-black tabular-nums tracking-tighter leading-none text-emerald-600 dark:text-emerald-400">
+                {formatCurrency(totalPaidValue ?? 0)}
+              </p>
+            </div>
+            <div className="space-y-1 text-right">
+              <p className="text-[8px] font-black uppercase tracking-[0.15em] text-muted-foreground/50">Parcelas</p>
+              <p className="text-xl font-black tabular-nums tracking-tighter leading-none text-emerald-600 dark:text-emerald-400">
+                {paidCount}/{totalCount}
+              </p>
+            </div>
+          </div>
+
+          <Progress value={100} className="h-2 bg-emerald-500/10 rounded-full [&>div]:bg-emerald-500" />
+
+          <div className="pt-3 border-t border-emerald-500/10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60 dark:text-emerald-400/60">Concluído</span>
+            </div>
+            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
+              HISTÓRICO <ArrowRight className="w-3.5 h-3.5" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card 

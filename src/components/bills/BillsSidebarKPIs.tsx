@@ -121,8 +121,6 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
     calculateBalanceUpToDate,
     contasMovimento,
     transacoesV2,
-    futureIncomes,
-    incomeSettlements,
   } = useFinance();
   
   const monthKey = useMemo(() => format(currentDate, 'yyyy-MM'), [currentDate]);
@@ -350,42 +348,6 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
           </div>
         )}
 
-        {/* Income KPIs */}
-        {(() => {
-          const monthFI = futureIncomes.filter(fi => isSameMonth(parseDateLocal(fi.expectedReceiptDate), currentDate) && fi.status !== 'cancelado');
-          const totalPrevisto = monthFI.reduce((acc, fi) => acc + fi.netExpectedAmount, 0);
-          const totalRecebido = incomeSettlements
-            .filter(s => isSameMonth(parseDateLocal(s.receivedDate), currentDate))
-            .reduce((acc, s) => acc + s.receivedAmount, 0);
-          
-          if (totalPrevisto === 0 && totalRecebido === 0) return null;
-          
-          return (
-            <>
-              <Separator className="opacity-20" />
-              <div className="px-1 space-y-3">
-                <div className="flex items-center gap-2 opacity-60">
-                  <TrendingUp className="w-3.5 h-3.5 text-success" />
-                  <p className="text-[9px] font-black uppercase tracking-widest">Receitas e Recebimentos</p>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total Previsto</span>
-                  <span className="text-xs font-black text-primary tabular-nums">{formatCurrency(totalPrevisto)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total Recebido</span>
-                  <span className="text-xs font-black text-success tabular-nums">{formatCurrency(totalRecebido)}</span>
-                </div>
-                {totalPrevisto - totalRecebido > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pendente</span>
-                    <span className="text-xs font-black text-warning tabular-nums">{formatCurrency(totalPrevisto - totalRecebido)}</span>
-                  </div>
-                )}
-              </div>
-            </>
-          );
-        })()}
 
         {/* M7: Smart Credit Card Alerts */}
         <SmartCardAlerts combinedBills={combinedBills} currentDate={currentDate} />

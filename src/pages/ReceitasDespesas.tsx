@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Tags, Plus, CalendarCheck, Receipt, Sparkles, Filter, LayoutDashboard, FileText, ArrowRight } from "lucide-react";
+import { RefreshCw, Tags, Plus, CalendarCheck, Receipt, Sparkles, Filter, LayoutDashboard, FileText, ArrowRight, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, format } from "date-fns";
 import { ContaCorrente, Categoria, TransacaoCompleta, TransferGroup, AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, generateTransactionId, formatCurrency, generateTransferGroupId, DateRange, ComparisonDateRanges, TransactionLinks, Veiculo, Imovel, Terreno } from "@/types/finance";
@@ -20,6 +20,7 @@ import { StatementManagerDialog } from "@/components/transactions/StatementManag
 import { ConsolidatedReviewDialog } from "@/components/transactions/ConsolidatedReviewDialog";
 import { StandardizationRuleManagerModal } from "@/components/transactions/StandardizationRuleManagerModal";
 import { useFinance } from "@/contexts/FinanceContext";
+import { CltModule } from "@/components/clt/CltModule";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -73,6 +74,7 @@ const ReceitasDespesas = () => {
   const [showConsolidatedReview, setShowConsolidatedReview] = useState(false);
   const [accountForConsolidatedReview, setAccountForConsolidatedReview] = useState<string | null>(null);
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
+  const [showCltModule, setShowCltModule] = useState(false);
 
   const transactions = transacoesV2;
   const transacoesPeriodo1 = useMemo(() => {
@@ -416,6 +418,7 @@ const ReceitasDespesas = () => {
 
         <section className="flex flex-wrap gap-2 px-1 animate-fade-in-up">
           <Button variant="outline" onClick={() => setShowBillsTrackerModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm hidden sm:inline">Contas a Pagar</span><span className="font-bold text-sm sm:hidden">Contas</span></Button>
+          <Button variant="outline" onClick={() => setShowCltModule(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Briefcase className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Recebimentos</span></Button>
           <Button variant="outline" onClick={() => setShowCategoryListModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Tags className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Categorias</span></Button>
         </section>
 
@@ -495,6 +498,7 @@ const ReceitasDespesas = () => {
       <StatementManagerDialog open={showStatementManagerDialog} onOpenChange={setShowStatementManagerDialog} initialAccountId={viewingAccountId || undefined} onStartConsolidatedReview={id => { setAccountForConsolidatedReview(id); setShowConsolidatedReview(true); }} onManageRules={handleManageRules} />
       {accountForConsolidatedReview && <ConsolidatedReviewDialog open={showConsolidatedReview} onOpenChange={setShowConsolidatedReview} accountId={accountForConsolidatedReview} accounts={contasMovimento} categories={categories} investments={contasMovimento.filter(c => ['renda_fixa', 'poupanca', 'reserva', 'objetivo'].includes(c.accountType)).map(i => ({ id: i.id, name: i.name }))} loans={emprestimos.map(e => ({ id: `loan_${e.id}`, institution: e.contrato, numeroContrato: e.contrato, parcelas: [], valorParcela: e.parcela, totalParcelas: e.meses }))} />}
       <StandardizationRuleManagerModal open={showRuleManagerModal} onOpenChange={setShowRuleManagerModal} rules={standardizationRules} onDeleteRule={deleteStandardizationRule} categories={categories} />
+      <CltModule open={showCltModule} onOpenChange={setShowCltModule} />
     </MainLayout>
   );
 };
