@@ -11,7 +11,7 @@ import { calcularINSS, calcularIRRF, calcularFGTS, DEFAULT_CONFIG_2026 } from "@
 import { cn } from "@/lib/utils";
 import {
   RotateCcw, ChevronDown, Shield, Landmark,
-  Sparkles, Scale
+  Sparkles
 } from "lucide-react";
 import { CltCalculationBlock } from "./CltCalculationBlock";
 
@@ -28,7 +28,6 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
   const [simPensao, setSimPensao] = useState(contract?.pensaoAlimenticia?.toString() || "0");
   const [showInss, setShowInss] = useState(true);
   const [showIrrf, setShowIrrf] = useState(true);
-  const [showLegislation, setShowLegislation] = useState(false);
 
   const formatInputDisplay = (val: number) => {
     if (val === Infinity) return "∞";
@@ -85,6 +84,7 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
 
   const handleIrrfChange = (index: number, field: 'ate' | 'aliquota' | 'deducao', displayValue: string) => {
     const numericValue = parseInputValue(displayValue);
+    const updated = { ...localConfig };
     updated.irrfFaixas = [...updated.irrfFaixas];
     updated.irrfFaixas[index] = {
       ...updated.irrfFaixas[index],
@@ -92,8 +92,6 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
     };
     setLocalConfig(updated);
   };
-
-  const updated = { ...localConfig };
 
   return (
     <div className="space-y-10">
@@ -103,34 +101,11 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
           <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-widest mt-1">Configuração: {localConfig.nome} • {localConfig.vigencia}</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowLegislation(!showLegislation)}
-            className="gap-2 text-[10px] font-black uppercase tracking-widest h-8 rounded-lg border-primary/20 text-primary"
-          >
-            [ LEGISLAÇÃO ]
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => setLocalConfig({ ...DEFAULT_CONFIG_2026, id: localConfig.id, nome: localConfig.nome, isDefault: false })} className="gap-2 text-[10px] font-black uppercase tracking-widest h-8 rounded-lg">
             <RotateCcw className="w-3.5 h-3.5" /> Restaurar Padrão
           </Button>
         </div>
       </div>
-
-      {showLegislation && (
-        <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-2 duration-300">
-          <div className="flex items-start gap-3">
-            <Scale className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase text-primary">Detalhamento Normativo</p>
-              <p className="text-[9px] font-medium text-muted-foreground leading-relaxed">
-                As regras aplicadas seguem a Portaria MPS/MF nº 13/2026 para INSS e a Lei nº 15.191/2025 para IRRF, 
-                incluindo os ajustes de progressividade da Lei nº 15.270/2025.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div className="space-y-6">

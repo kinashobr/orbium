@@ -13,7 +13,7 @@ import { CltCompetencia, ContaCorrente } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2, AlertTriangle, ChevronDown,
-  FileText, ArrowLeft, Building2, Check, Scale
+  FileText, ArrowLeft, Building2, Check
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -45,7 +45,6 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia: com
     inssTotal: competencia.inssTotal.toString(),
     irrfFinal: (competencia.irrfFinal || 0).toString(),
   });
-  const [showLegislation, setShowLegislation] = useState(false);
 
   const contasRecebiveis = accounts.filter(a => a.accountType === 'corrente' || a.accountType === 'poupanca');
   const isRecebido = competencia.status === 'recebido';
@@ -108,34 +107,11 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia: com
                 </DialogTitle>
                 <div className="flex items-center gap-2 mt-1">
                    <Badge variant="outline" className="bg-primary/10 text-primary border-none font-black text-[10px] uppercase tracking-widest rounded-lg px-2.5 py-1">{competencia.mesAno}</Badge>
-                   <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setShowLegislation(!showLegislation)}
-                    className="h-6 px-2 text-[8px] font-black uppercase tracking-widest border border-primary/20 text-primary hover:bg-primary/5"
-                   >
-                     [ LEGISLAÇÃO ]
-                   </Button>
                 </div>
               </div>
             </div>
           </div>
         </DialogHeader>
-
-        {showLegislation && (
-          <div className="mx-6 sm:mx-8 mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-2 duration-300">
-            <div className="flex items-start gap-3">
-              <Scale className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-              <div className="space-y-1">
-                <p className="text-[10px] font-black uppercase text-primary">Detalhamento Normativo</p>
-                <p className="text-[9px] font-medium text-muted-foreground leading-relaxed">
-                  As regras aplicadas seguem a Portaria MPS/MF nº 13/2026 para INSS e a Lei nº 15.191/2025 para IRRF, 
-                  incluindo os ajustes de progressividade da Lei nº 15.270/2025.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         <Tabs defaultValue="detalhes" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 sm:px-8 py-2 border-b border-border/40 shrink-0">
