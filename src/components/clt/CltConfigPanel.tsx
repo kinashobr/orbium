@@ -60,6 +60,7 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
     return {
       bruto,
       inss: inss.total,
+      inssDetalhe: inss.detalhePorFaixa,
       baseIR: irrf.baseTributavel,
       impostoBruto: irrf.impostoBruto,
       ajustes: irrf.redutor,
@@ -84,7 +85,6 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
 
   const handleIrrfChange = (index: number, field: 'ate' | 'aliquota' | 'deducao', displayValue: string) => {
     const numericValue = parseInputValue(displayValue);
-    const updated = { ...localConfig };
     updated.irrfFaixas = [...updated.irrfFaixas];
     updated.irrfFaixas[index] = {
       ...updated.irrfFaixas[index],
@@ -92,6 +92,8 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
     };
     setLocalConfig(updated);
   };
+
+  const updated = { ...localConfig };
 
   return (
     <div className="space-y-10">
