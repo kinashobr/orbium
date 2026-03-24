@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { CltContract, CltLegislacaoConfig, generateCltContractId, formatCurrency } from "@/types/finance";
 import { calcularINSS, calcularIRRF, calcularFGTS, DEFAULT_CONFIG_2026 } from "@/lib/cltCalc";
 import { Info, Sparkles, Building2, Check, ArrowLeft, Briefcase } from "lucide-react";
@@ -85,16 +84,6 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
     onOpenChange(false);
   };
 
-  const handleDateChange = (setter: (val: string) => void, val: string) => {
-    if (!val) {
-      setter(val);
-      return;
-    }
-    const [year] = val.split('-');
-    if (year && year.length > 4) return;
-    setter(val);
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <ResizableDialogContent 
@@ -125,7 +114,7 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
                 {editingContract ? "Editar Vínculo" : "Novo Vínculo de Recebimento"}
               </DialogTitle>
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-1.5 mt-1">
-                <Sparkles className="w-3.5 h-3.5 text-primary" /> Vínculo Profissional
+                <Sparkles className="w-3.5 h-3.5 text-primary" /> Inteligência de Receitas
               </p>
             </div>
           </div>
@@ -144,23 +133,11 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2 p-1">
                 <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Data de Início</Label>
-                <Input 
-                  type="date" 
-                  max="9999-12-31"
-                  value={dataAdmissao} 
-                  onChange={e => handleDateChange(setDataAdmissao, e.target.value)} 
-                  className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner text-sm px-4" 
-                />
+                <Input type="date" value={dataAdmissao} onChange={e => setDataAdmissao(e.target.value)} className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner text-sm px-4" />
               </div>
               <div className="space-y-2 p-1">
                 <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Início do Monitoramento</Label>
-                <Input 
-                  type="date" 
-                  max="9999-12-31"
-                  value={dataInicioGestao} 
-                  onChange={e => handleDateChange(setDataInicioGestao, e.target.value)} 
-                  className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner text-sm px-4" 
-                />
+                <Input type="date" value={dataInicioGestao} onChange={e => setDataInicioGestao(e.target.value)} className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner text-sm px-4" />
               </div>
             </div>
 
@@ -168,7 +145,7 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2 p-1">
-                <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Valor Bruto Mensal</Label>
+                <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Salário Bruto</Label>
                 <div className="relative">
                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/40">R$</span>
                    <Input type="number" step="0.01" value={salarioBruto} onChange={e => setSalarioBruto(e.target.value)} placeholder="0,00" className="h-12 pl-10 text-lg font-black rounded-2xl border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner tabular-nums" />
@@ -192,15 +169,15 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
               <div className="rounded-[2rem] bg-primary/[0.03] border-2 border-dashed border-primary/20 p-6 space-y-4 animate-in fade-in zoom-in duration-500">
                 <div className="flex items-center gap-2">
                   <Info className="w-4 h-4 text-primary" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Projeção do Sistema (Lei 15.270)</span>
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Memória de Cálculo</span>
                 </div>
                 <div className="flex justify-between items-end pt-1">
                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Líquido Estimado</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Salário Líquido Estimado</span>
                       <p className="text-3xl font-black tabular-nums text-primary leading-none tracking-tighter">{formatCurrency(preview.liquido)}</p>
                    </div>
                    <div className="text-right pb-1">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">FGTS (DEP.)</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">FGTS</span>
                       <span className="font-black text-base tabular-nums">{formatCurrency(preview.fgts)}</span>
                    </div>
                 </div>
