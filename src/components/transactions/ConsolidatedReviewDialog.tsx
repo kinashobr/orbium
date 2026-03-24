@@ -118,15 +118,15 @@ export function ConsolidatedReviewDialog({
   const handleContabilize = () => {
     const txsToContabilize = transactionsToReview.filter(tx => {
       if (tx.isPotentialDuplicate) return false; 
-      return (
-        tx.categoryId ||
-        tx.isTransfer ||
-        tx.tempInvestmentId ||
-        tx.tempLoanId ||
-        tx.tempVehicleOperation ||
-        tx.tempAssetOperation ||
-        tx.operationType === 'liberacao_emprestimo'
-      );
+      
+      const basicCat = !!tx.categoryId;
+      const isTransf = tx.operationType === 'transferencia' && !!tx.destinationAccountId;
+      const isInvest = (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && !!tx.tempInvestmentId;
+      const isLoan = tx.operationType === 'pagamento_emprestimo' && !!tx.tempLoanId && !!tx.tempParcelaId;
+      const isLiberation = tx.operationType === 'liberacao_emprestimo';
+      const isAsset = (tx.operationType === 'veiculo' || tx.operationType === 'imobilizado') && !!tx.tempAssetOperation;
+
+      return basicCat || isTransf || isInvest || isLoan || isLiberation || isAsset;
     });
     
     if (txsToContabilize.length === 0) {
@@ -146,8 +146,12 @@ export function ConsolidatedReviewDialog({
         tx.operationType!,
         tx.tempVehicleOperation || tx.tempAssetOperation || undefined
       );
+      
+      // Ajuste para fluxo de cartão de crédito
       const isCreditCard = accounts.find(a => a.id === tx.accountId)?.accountType === 'cartao_credito';
       if (isCreditCard) flow = tx.operationType === 'despesa' ? 'out' : 'in';
+
+      const transferGroupId = (tx.isTransfer || tx.operationType === 'aplicacao' || tx.operationType === 'resgate') ? generateTransferGroupId() : null;
 
       const baseTx: TransacaoCompleta = {
         id: transactionId,
@@ -160,9 +164,9 @@ export function ConsolidatedReviewDialog({
         categoryId: tx.categoryId || null,
         description: tx.description,
         links: {
-          investmentId: tx.tempInvestmentId || null,
+          investmentId: (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') ? tx.tempInvestmentId : tx.tempInvestmentId,
           loanId: tx.tempLoanId || null,
-          transferGroupId: null,
+          transferGroupId,
           parcelaId: tx.tempParcelaId || null,
           vehicleTransactionId: null,
         },
@@ -173,29 +177,42 @@ export function ConsolidatedReviewDialog({
           source: "import",
           createdAt: new Date().toISOString(),
           originalDescription: tx.originalDescription,
-          vehicleOperation:
-            tx.operationType === "veiculo"
-              ? tx.tempVehicleOperation || undefined
-              : undefined,
+          vehicleOperation: tx.operationType === "veiculo" ? tx.tempVehicleOperation || undefined : undefined,
           assetType: tx.tempAssetType,
           assetId: tx.tempAssetId,
           assetOperation: tx.tempAssetOperation,
         },
       };
       
-      if (tx.isTransfer && tx.destinationAccountId) {
-        const groupId = generateTransferGroupId();
-        baseTx.links.transferGroupId = groupId;
-        newTransactions.push({ ...baseTx, flow: 'transfer_out' });
-        const toAcc = accounts.find(a => a.id === tx.destinationAccountId);
-        newTransactions.push({ ...baseTx, id: generateTransactionId(), accountId: tx.destinationAccountId, flow: toAcc?.accountType === 'cartao_credito' ? 'in' : 'transfer_in', description: tx.description || `Transferência para ${toAcc?.name}`, links: { ...baseTx.links, transferGroupId: groupId }, conciliated: false });
-      } else if (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') {
-        const isApp = tx.operationType === 'aplicacao';
-        const gid = `app_${Date.now()}`; baseTx.links.transferGroupId = gid;
-        newTransactions.push(baseTx);
-        newTransactions.push({ ...baseTx, id: generateTransactionId(), accountId: tx.tempInvestmentId!, flow: isApp ? 'in' : 'out', operationType: isApp ? 'aplicacao' : 'resgate', domain: 'investment', links: { ...baseTx.links, investmentId: baseTx.accountId }, conciliated: false });
+      if (transferGroupId) {
+        const targetId = tx.isTransfer ? tx.destinationAccountId : tx.tempInvestmentId;
+        if (targetId && targetId !== tx.accountId) {
+          newTransactions.push(baseTx);
+          
+          // Inverte o fluxo para a contrapartida
+          const counterFlow = (flow === 'out' || flow === 'transfer_out') ? 'transfer_in' : 'transfer_out';
+          const counterDomain = (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') ? 'investment' : baseTx.domain;
+
+          newTransactions.push({ 
+            ...baseTx, 
+            id: generateTransactionId(), 
+            accountId: targetId, 
+            flow: counterFlow, 
+            domain: counterDomain as any,
+            description: tx.description || (tx.isTransfer ? "Transferência" : (tx.operationType === 'aplicacao' ? 'Aplicação' : 'Resgate')),
+            links: { 
+              ...baseTx.links, 
+              investmentId: (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') ? baseTx.accountId : baseTx.links.investmentId 
+            }, 
+            conciliated: false 
+          });
+        } else {
+          newTransactions.push(baseTx);
+        }
       } else {
         newTransactions.push(baseTx);
+        
+        // Lógica de Ativos Específicos
         if (tx.operationType === 'liberacao_emprestimo') addEmprestimo({ contrato: tx.description, valorTotal: tx.amount, parcela: 0, meses: 0, taxaMensal: 0, status: 'ativo', liberacaoTransactionId: baseTx.id, contaCorrenteId: baseTx.accountId, dataInicio: baseTx.date });
         if (tx.operationType === 'pagamento_emprestimo' && tx.tempLoanId) markLoanParcelPaid(parseInt(tx.tempLoanId.replace('loan_', '')), tx.amount, tx.date, tx.tempParcelaId ? parseInt(tx.tempParcelaId) : undefined);
         if (tx.operationType === 'veiculo' && tx.tempVehicleOperation === 'compra') addVeiculo({ modelo: tx.description, marca: '', tipo: 'carro', ano: 0, dataCompra: tx.date, valorVeiculo: tx.amount, valorSeguro: 0, vencimentoSeguro: "", parcelaSeguro: 0, valorFipe: 0, compraTransactionId: baseTx.id, status: 'ativo' });
@@ -220,29 +237,33 @@ export function ConsolidatedReviewDialog({
    const readyCount = useMemo(
      () =>
        transactionsToReview.filter(
-         (tx) =>
-           !tx.isPotentialDuplicate &&
-           (tx.categoryId ||
-             tx.isTransfer ||
-             tx.tempInvestmentId ||
-             tx.tempLoanId ||
-             tx.tempVehicleOperation ||
-             tx.tempAssetOperation ||
-             tx.operationType === "liberacao_emprestimo")
+         (tx) => {
+           if (tx.isPotentialDuplicate) return false;
+           
+           const basicCat = !!tx.categoryId;
+           const isTransf = tx.operationType === 'transferencia' && !!tx.destinationAccountId;
+           const isInvest = (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && !!tx.tempInvestmentId;
+           const isLoan = tx.operationType === 'pagamento_emprestimo' && !!tx.tempLoanId && !!tx.tempParcelaId;
+           const isLiberation = tx.operationType === 'liberacao_emprestimo';
+           const isAsset = (tx.operationType === 'veiculo' || tx.operationType === 'imobilizado') && !!tx.tempAssetOperation;
+
+           return basicCat || isTransf || isInvest || isLoan || isLiberation || isAsset;
+         }
        ).length,
      [transactionsToReview]
    );
+
    const pendingCount = useMemo(
      () =>
        transactionsToReview.filter(
          (tx) =>
            !tx.isPotentialDuplicate &&
            !(tx.categoryId ||
-             tx.isTransfer ||
-             tx.tempInvestmentId ||
-             tx.tempLoanId ||
-             tx.tempVehicleOperation ||
-             tx.tempAssetOperation ||
+             (tx.operationType === 'transferencia' && tx.destinationAccountId) ||
+             ((tx.operationType === 'aplicacao' || tx.operationType === 'resgate') && tx.tempInvestmentId) ||
+             (tx.operationType === 'pagamento_emprestimo' && tx.tempLoanId && tx.tempParcelaId) ||
+             (tx.operationType === 'veiculo' && tx.tempAssetOperation) ||
+             (tx.operationType === 'imobilizado' && tx.tempAssetOperation) ||
              tx.operationType === "liberacao_emprestimo")
        ).length,
      [transactionsToReview]

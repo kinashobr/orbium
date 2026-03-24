@@ -943,7 +943,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     // 1. Criar a transação principal
     const transactionIdV2 = generateTransactionId();
-    const transferGroupId = finalTx.isTransfer ? generateTransferGroupId() : null;
+    const transferGroupId = (finalTx.isTransfer || finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') ? generateTransferGroupId() : null;
 
     const newTx: TransacaoCompleta = {
       id: transactionIdV2,
@@ -956,7 +956,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       categoryId: finalTx.categoryId,
       description: finalTx.description,
       links: {
-        investmentId: finalTx.tempInvestmentId,
+        investmentId: (finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') ? finalTx.tempInvestmentId : finalTx.tempInvestmentId,
         loanId: finalTx.tempLoanId,
         transferGroupId: transferGroupId,
         parcelaId: finalTx.tempParcelaId,
@@ -972,22 +972,34 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    // 2. Se for transferência, criar a contrapartida (PARTIDA DUPLA)
+    // 2. Se for movimento entre contas, criar a contrapartida (PARTIDA DUPLA)
     const counterpartTxs: TransacaoCompleta[] = [];
-    if (finalTx.isTransfer && finalTx.destinationAccountId) {
+    const targetAccountId = finalTx.isTransfer ? finalTx.destinationAccountId : finalTx.tempInvestmentId;
+
+    if (transferGroupId && targetAccountId && targetAccountId !== finalTx.accountId) {
       const counterpartId = generateTransactionId();
       
       // Inverte o fluxo para a contrapartida
       const counterFlow = (flow === 'out' || flow === 'transfer_out') ? 'transfer_in' : 'transfer_out';
+      
+      // Ajuste de domínio para investimentos
+      const counterDomain = (finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') 
+        ? 'investment' 
+        : domain;
 
       counterpartTxs.push({
         ...newTx,
         id: counterpartId,
-        accountId: finalTx.destinationAccountId,
+        accountId: targetAccountId,
         flow: counterFlow,
+        domain: counterDomain,
+        links: {
+          ...newTx.links,
+          investmentId: (finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') ? newTx.accountId : newTx.links.investmentId
+        },
         meta: {
           ...newTx.meta,
-          notes: `Contrapartida de transferência via importação`
+          notes: `Contrapartida automática via importação`
         }
       });
     }
@@ -1028,7 +1040,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       toast.info(`Vínculo automático com conta pendente: "${matchingBill.description}"`);
     }
 
-    toast.success("Transação contabilizada com sucesso.");
+    toast.success(counterpartTxs.length > 0 ? "Lançamento de partida dobrada realizado." : "Transação contabilizada com sucesso.");
   }, [importedStatements, contasMovimento, setTransacoesV2, billsTracker, updateBill]);
 
   const addPurchaseInstallments = useCallback((data: any) => {
