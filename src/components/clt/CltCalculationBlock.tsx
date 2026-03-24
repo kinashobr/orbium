@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useState } from 'react';
-import { formatCurrency, INSSFaixaDetalhe } from "@/types/finance";
+import { formatCurrency } from "@/types/finance";
+import { INSSFaixaDetalhe } from "@/lib/cltCalc";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, Calculator, Minus, Info } from "lucide-react";
+import { ChevronDown, Calculator } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface CltCalculationBlockProps {
