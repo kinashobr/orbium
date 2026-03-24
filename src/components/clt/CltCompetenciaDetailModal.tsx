@@ -35,8 +35,10 @@ const TIPO_LABELS: Record<string, string> = {
   '13_segunda': '13º Salário — 2ª Parcela',
 };
 
-export function CltCompetenciaDetailModal({ open, onOpenChange, competencia, accounts, onRegistrarRecebimento, onUpdateCompetencia }: Props) {
+export function CltCompetenciaDetailModal({ open, onOpenChange, competencia: compProp, accounts, onRegistrarRecebimento, onUpdateCompetencia }: Props) {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const competencia = compProp as any; // Casting temporário para acessar novos campos 2026
+  
   const [dataRecebimento, setDataRecebimento] = useState(competencia.dataRecebimento || new Date().toISOString().split('T')[0]);
   const [contaRecebimento, setContaRecebimento] = useState(competencia.transactionId ? "" : (accounts.find(a => a.accountType === 'corrente')?.id || ""));
   const [editValues, setEditValues] = useState({
@@ -191,7 +193,7 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia, acc
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {competencia.inssDetalhePorFaixa.map((f) => (
+                      {competencia.inssDetalhePorFaixa.map((f: any) => (
                         <TableRow key={f.faixa} className="border-b border-border/20 last:border-none h-14">
                           <TableCell className="text-[11px] font-black uppercase text-muted-foreground pl-6">{f.faixa}ª faixa progressiva</TableCell>
                           <TableCell className="text-right font-black tabular-nums text-sm pr-6">{formatCurrency(f.contribuicao)}</TableCell>

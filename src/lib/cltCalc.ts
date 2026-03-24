@@ -62,6 +62,7 @@ export const DEFAULT_CONFIG_2026: CltLegislacaoConfig = {
   reducaoValorFixo: 978.62,
   reducaoFator: 0.133145,
   isDefault: true,
+  descontoSimplificado: 0, // Adicionado para satisfazer o tipo CltLegislacaoConfig atual
 };
 
 // ============================================
@@ -292,7 +293,7 @@ function buildCompetencia(
     dataPrevista = calcularDataRecebimento(mesAno);
   }
 
-  return {
+  const comp: any = {
     id,
     contractId,
     mesAno,
@@ -317,6 +318,8 @@ function buildCompetencia(
     auditLog: [],
     createdAt: new Date().toISOString(),
   };
+
+  return comp as CltCompetencia;
 }
 
 export const INSS_FAIXAS = DEFAULT_CONFIG_2026.inssFaixas;
