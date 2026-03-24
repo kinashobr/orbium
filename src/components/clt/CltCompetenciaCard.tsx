@@ -29,7 +29,7 @@ export function CltCompetenciaCard({ competencia, onClick }: Props) {
     <div 
       onClick={onClick}
       className={cn(
-        "group cursor-pointer hover:border-primary/30 transition-all duration-500 bg-card border-border/40 rounded-[2rem] shadow-sm hover:shadow-soft-lg hover:-translate-y-1 overflow-hidden relative",
+        "group cursor-pointer hover:border-primary/30 transition-all duration-500 bg-card border-border/40 rounded-[2rem] shadow-sm hover:shadow-soft-lg hover:-translate-y-1 overflow-hidden relative border",
         isPaid && "bg-emerald-500/5 border-emerald-500/20"
       )}
     >

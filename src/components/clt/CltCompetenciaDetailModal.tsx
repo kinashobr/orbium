@@ -15,7 +15,7 @@ import { CltCompetencia, ContaCorrente, formatCurrency } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import {
   CheckCircle2, Calculator, AlertTriangle, ChevronDown, Minus,
-  FileText, ArrowLeft, Building2, Check
+  FileText, ArrowLeft, Building2, Check, Scale, Info
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -42,7 +42,7 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia, acc
   const [editValues, setEditValues] = useState({
     salarioLiquido: competencia.salarioLiquido.toString(),
     inssTotal: competencia.inssTotal.toString(),
-    irrfFinal: competencia.irrfFinal.toString(),
+    irrfFinal: (competencia.irrfFinal || 0).toString(),
   });
 
   const contasRecebiveis = accounts.filter(a => a.accountType === 'corrente' || a.accountType === 'poupanca');
@@ -206,29 +206,71 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia, acc
                 </div>
               </TabsContent>
 
-              <TabsContent value="irrf" className="mt-0 focus-visible:outline-none space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                   <p className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Comparativo de Métodos (IRRF)</p>
+              <TabsContent value="irrf" className="mt-0 focus-visible:outline-none space-y-6">
+                <div className="rounded-[2.5rem] bg-card border-2 border-border/40 p-8 space-y-6 shadow-sm relative overflow-hidden">
+                   <div className="absolute top-0 right-0 p-8 opacity-[0.03]">
+                      <Scale className="w-32 h-32 rotate-12" />
+                   </div>
+                   
+                   <div className="space-y-4 relative z-10">
+                      <div className="flex justify-between items-center px-1">
+                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Rendimento Bruto</span>
+                        <span className="font-black text-lg tabular-nums">{formatCurrency(competencia.salarioBruto)}</span>
+                      </div>
+                      
+                      <div className="space-y-3 bg-muted/20 rounded-[1.5rem] p-5">
+                         <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 opacity-60"><Minus className="w-3.5 h-3.5" /> INSS Retido</span>
+                            <span className="font-black text-sm tabular-nums">-{formatCurrency(competencia.inssTotal)}</span>
+                         </div>
+                         {competencia.deducaoDependentes > 0 && (
+                            <div className="flex justify-between items-center">
+                               <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 opacity-60"><Minus className="w-3.5 h-3.5" /> Dependentes</span>
+                               <span className="font-black text-sm tabular-nums">-{formatCurrency(competencia.deducaoDependentes)}</span>
+                            </div>
+                         )}
+                         {competencia.deducaoPensao > 0 && (
+                            <div className="flex justify-between items-center">
+                               <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 opacity-60"><Minus className="w-3.5 h-3.5" /> Pensão Alimentícia</span>
+                               <span className="font-black text-sm tabular-nums">-{formatCurrency(competencia.deducaoPensao)}</span>
+                            </div>
+                         )}
+                      </div>
+
+                      <div className="flex justify-between items-center px-1 border-t border-border/40 pt-4">
+                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Base Tributável</span>
+                        <span className="font-black text-xl tabular-nums text-primary">{formatCurrency(competencia.baseIR)}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center px-1 pt-2">
+                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Imposto Progressivo</span>
+                        <span className="font-black text-xl tabular-nums">{formatCurrency(competencia.impostoBruto || 0)}</span>
+                      </div>
+
+                      <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 flex justify-between items-center">
+                        <div>
+                           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                              <Check className="w-3.5 h-3.5" /> Redutor Lei 15.270
+                           </p>
+                           <p className="text-[8px] font-bold text-emerald-600/60 uppercase mt-0.5">Calculado sobre bruto: {formatCurrency(competencia.rendimentoTributavel || competencia.salarioBruto)}</p>
+                        </div>
+                        <span className="font-black text-lg text-emerald-600 tabular-nums">-{formatCurrency(competencia.reducaoLei15270)}</span>
+                      </div>
+
+                      <Separator className="bg-border/60" />
+                      
+                      <div className="flex justify-between items-center px-1 pt-2">
+                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-destructive">IRRF Retido Final</p>
+                        <span className="font-black text-3xl text-destructive tabular-nums tracking-tighter">{formatCurrency(competencia.irrfFinal)}</span>
+                      </div>
+                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className={cn(
-                    "rounded-[2rem] p-7 border-2 relative transition-all",
-                    competencia.metodoIR === 'deducoes_legais' ? "bg-card border-primary/40 shadow-md ring-4 ring-primary/5" : "bg-muted/10 opacity-60 grayscale-[0.5]"
-                  )}>
-                    {competencia.metodoIR === 'deducoes_legais' && <Badge className="absolute -top-3 right-6 bg-primary text-white font-black text-[9px] uppercase px-3 py-1 rounded-full shadow-lg">MELHOR ESCOLHA</Badge>}
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Deduções Legais</span>
-                    <p className="font-black text-2xl text-red-600 mt-2 tabular-nums">{formatCurrency(competencia.irrfDeducoesLegais)}</p>
-                    <p className="text-[10px] font-bold text-muted-foreground/60 mt-1 uppercase">Dependentes + Pensão + INSS</p>
-                  </div>
-                  <div className={cn(
-                    "rounded-[2rem] p-7 border-2 relative transition-all",
-                    competencia.metodoIR === 'desconto_simplificado' ? "bg-card border-primary/40 shadow-md ring-4 ring-primary/5" : "bg-muted/10 opacity-60 grayscale-[0.5]"
-                  )}>
-                    {competencia.metodoIR === 'desconto_simplificado' && <Badge className="absolute -top-3 right-6 bg-primary text-white font-black text-[9px] uppercase px-3 py-1 rounded-full shadow-lg">MELHOR ESCOLHA</Badge>}
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Desconto Simplificado</span>
-                    <p className="font-black text-2xl text-red-600 mt-2 tabular-nums">{formatCurrency(competencia.irrfDescontoSimplificado)}</p>
-                    <p className="text-[10px] font-bold text-muted-foreground/60 mt-1 uppercase">Dedução fixa de R$ 564,80</p>
-                  </div>
+
+                <div className="p-4 rounded-2xl bg-muted/20 border border-border/40 flex items-start gap-3">
+                   <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                   <p className="text-[10px] font-bold text-muted-foreground leading-relaxed uppercase tracking-tight">
+                      Atenção: O cálculo de IRRF em folha de pagamento 2026 utiliza exclusivamente o método de deduções legais com a aplicação do redutor da Lei 15.270/2025 para isenção de até 2 salários mínimos.
+                   </p>
                 </div>
               </TabsContent>
 

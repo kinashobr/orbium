@@ -61,7 +61,7 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
     const irrf = calcularIRRF(bruto, inss.total, deps, pensao, config);
     const fgts = calcularFGTS(bruto, config);
     const liquido = bruto - inss.total - irrf.irrfFinal;
-    return { inss: inss.total, irrf: irrf.irrfFinal, fgts, liquido, metodo: irrf.metodoEscolhido };
+    return { inss: inss.total, irrf: irrf.irrfFinal, fgts, liquido };
   }, [salarioBruto, dependentes, pensaoAlimenticia, config]);
 
   const handleSave = () => {
@@ -190,14 +190,9 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
 
             {preview && (
               <div className="rounded-[2rem] bg-primary/[0.03] border-2 border-dashed border-primary/20 p-6 space-y-4 animate-in fade-in zoom-in duration-500">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Info className="w-4 h-4 text-primary" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Projeção do Sistema</span>
-                  </div>
-                  <Badge variant="outline" className="text-[9px] font-black border-none bg-primary/10 text-primary px-3 py-1">
-                    {preview.metodo === 'deducoes_legais' ? 'DED. LEGAIS' : 'SIMPLIFICADO'}
-                  </Badge>
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 text-primary" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Projeção do Sistema (Lei 15.270)</span>
                 </div>
                 <div className="flex justify-between items-end pt-1">
                    <div className="space-y-1">

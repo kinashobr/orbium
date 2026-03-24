@@ -158,7 +158,7 @@ export function CltModule({ open, onOpenChange }: Props) {
                   <Briefcase className="w-7 h-7" />
                 </div>
                 <div>
-                  <DialogTitle className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">Controle de Recebimentos</DialogTitle>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tighter leading-none">Controle de Recebimentos</h2>
                   <p className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-1.5 mt-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-primary" /> Inteligência de Receitas
                   </p>

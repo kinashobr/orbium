@@ -2,8 +2,8 @@
 // Motor de Cálculo CLT - Legislação 2026
 // ============================================
 // Portaria MPS/MF nº 13/2026 (INSS)
-// Lei nº 15.191/2025 (Desconto Simplificado IR)
-// Lei nº 15.270/2025 (Redução Adicional IR)
+// Lei nº 15.191/2025 (IRRF)
+// Lei nº 15.270/2025 (Redutor Adicional IR)
 // ============================================
 
 import type { CltContract, CltCompetencia, CltCompetenciaTipo, CltLegislacaoConfig } from '@/types/finance';
@@ -24,20 +24,14 @@ export interface INSSResult {
 }
 
 export interface IRRFResult {
-  irrfFinal: number;
-  metodoEscolhido: 'deducoes_legais' | 'desconto_simplificado';
-  baseDeducoes: number;
-  baseSimplificado: number;
-  irrfDeducoes: number;
-  irrfSimplificado: number;
-  reducaoLei15270: number;
-  diferencaMetodos: number;
+  rendimentoTributavel: number; // Salário Bruto
+  baseTributavel: number;       // Bruto - INSS - Deps - Pensão
+  deducaoINSS: number;
   deducaoDependentes: number;
   deducaoPensao: number;
-  impostoProgressivoDeducoes: number;
-  impostoProgressivoSimplificado: number;
-  reducaoDeducoes: number;
-  reducaoSimplificado: number;
+  impostoBruto: number;         // Tabela Progressiva sobre baseTributavel
+  redutor: number;              // Lei 15.270 sobre rendimentoTributavel (bruto)
+  irrfFinal: number;            // max(0, impostoBruto - redutor)
 }
 
 // ============================================
@@ -62,7 +56,6 @@ export const DEFAULT_CONFIG_2026: CltLegislacaoConfig = {
     { ate: Infinity, aliquota: 0.275, deducao: 908.73 },
   ],
   deducaoPorDependente: 189.59,
-  descontoSimplificado: 607.20,
   fgtsAliquota: 0.08,
   reducaoLimiteZero: 5000.00,
   reducaoLimiteMaximo: 7350.00,
@@ -126,17 +119,6 @@ function calcularImpostoProgressivo(baseTributavel: number, config: CltLegislaca
   return r2(Math.max(0, baseTributavel * ultima.aliquota - ultima.deducao));
 }
 
-function calcularReducaoLei15270(baseTributavel: number, impostoProgressivo: number, config: CltLegislacaoConfig = DEFAULT_CONFIG_2026): number {
-  if (baseTributavel <= config.reducaoLimiteZero) {
-    return impostoProgressivo;
-  }
-  if (baseTributavel <= config.reducaoLimiteMaximo) {
-    const reducao = r2(config.reducaoValorFixo - config.reducaoFator * baseTributavel);
-    return r2(Math.max(0, Math.min(reducao, impostoProgressivo)));
-  }
-  return 0;
-}
-
 export function calcularIRRF(
   salarioBruto: number,
   inss: number,
@@ -147,39 +129,33 @@ export function calcularIRRF(
   const deducaoDependentes = r2(dependentes * config.deducaoPorDependente);
   const deducaoPensao = r2(pensaoAlimenticia);
 
-  // Método 1: Deduções Legais
-  const baseDeducoes = r2(Math.max(0, salarioBruto - inss - deducaoDependentes - deducaoPensao));
-  const impostoProgressivoDeducoes = calcularImpostoProgressivo(baseDeducoes, config);
-  const reducaoDeducoes = calcularReducaoLei15270(baseDeducoes, impostoProgressivoDeducoes, config);
-  const irrfDeducoes = r2(Math.max(0, impostoProgressivoDeducoes - reducaoDeducoes));
+  // 1. Base Tributável
+  const baseTributavel = r2(Math.max(0, salarioBruto - inss - deducaoDependentes - deducaoPensao));
 
-  // Método 2: Desconto Simplificado
-  const baseSimplificado = r2(Math.max(0, salarioBruto - config.descontoSimplificado));
-  const impostoProgressivoSimplificado = calcularImpostoProgressivo(baseSimplificado, config);
-  const reducaoSimplificado = calcularReducaoLei15270(baseSimplificado, impostoProgressivoSimplificado, config);
-  const irrfSimplificado = r2(Math.max(0, impostoProgressivoSimplificado - reducaoSimplificado));
+  // 2. Imposto Bruto (Tabela Progressiva)
+  const impostoBruto = calcularImpostoProgressivo(baseTributavel, config);
 
-  const metodoEscolhido: 'deducoes_legais' | 'desconto_simplificado' =
-    irrfDeducoes <= irrfSimplificado ? 'deducoes_legais' : 'desconto_simplificado';
+  // 3. Redutor Lei 15.270 (Aplica sobre Rendimento Tributável / Bruto)
+  let redutor = 0;
+  if (salarioBruto <= config.reducaoLimiteZero) {
+    redutor = impostoBruto; // Zera o imposto
+  } else if (salarioBruto <= config.reducaoLimiteMaximo) {
+    const reducaoCalculada = r2(config.reducaoValorFixo - config.reducaoFator * salarioBruto);
+    redutor = r2(Math.max(0, Math.min(reducaoCalculada, impostoBruto)));
+  }
 
-  const irrfFinal = metodoEscolhido === 'deducoes_legais' ? irrfDeducoes : irrfSimplificado;
-  const reducaoFinal = metodoEscolhido === 'deducoes_legais' ? reducaoDeducoes : reducaoSimplificado;
+  // 4. IRRF Final
+  const irrfFinal = r2(Math.max(0, impostoBruto - redutor));
 
   return {
-    irrfFinal,
-    metodoEscolhido,
-    baseDeducoes,
-    baseSimplificado,
-    irrfDeducoes,
-    irrfSimplificado,
-    reducaoLei15270: reducaoFinal,
-    diferencaMetodos: r2(Math.abs(irrfDeducoes - irrfSimplificado)),
+    rendimentoTributavel: salarioBruto,
+    baseTributavel,
+    deducaoINSS: inss,
     deducaoDependentes,
     deducaoPensao,
-    impostoProgressivoDeducoes,
-    impostoProgressivoSimplificado,
-    reducaoDeducoes,
-    reducaoSimplificado,
+    impostoBruto,
+    redutor,
+    irrfFinal,
   };
 }
 
@@ -187,9 +163,6 @@ export function calcularFGTS(salarioBruto: number, config: CltLegislacaoConfig =
   return r2(salarioBruto * config.fgtsAliquota);
 }
 
-/**
- * Calcula o 5º dia útil do mês seguinte (sábado conta como dia útil).
- */
 export function calcularDataRecebimento(mesAno: string): string {
   const [year, month] = mesAno.split('-').map(Number);
   let nextMonth = month + 1;
@@ -220,10 +193,6 @@ export function calcularDataRecebimento(mesAno: string): string {
   return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 }
 
-// ============================================
-// COMPETÊNCIA
-// ============================================
-
 export interface CompetenciaCalcResult {
   salarioBruto: number;
   inss: INSSResult;
@@ -248,11 +217,8 @@ export function calcularCompetencia(
       salarioBruto: valor,
       inss: { total: 0, detalhePorFaixa: [], aliquotaEfetiva: 0 },
       irrf: {
-        irrfFinal: 0, metodoEscolhido: 'deducoes_legais',
-        baseDeducoes: 0, baseSimplificado: 0, irrfDeducoes: 0, irrfSimplificado: 0,
-        reducaoLei15270: 0, diferencaMetodos: 0, deducaoDependentes: 0, deducaoPensao: 0,
-        impostoProgressivoDeducoes: 0, impostoProgressivoSimplificado: 0,
-        reducaoDeducoes: 0, reducaoSimplificado: 0,
+        rendimentoTributavel: valor, baseTributavel: 0, deducaoINSS: 0,
+        deducaoDependentes: 0, deducaoPensao: 0, impostoBruto: 0, redutor: 0, irrfFinal: 0
       },
       fgts: calcularFGTS(valor, config),
       salarioLiquido: valor,
@@ -273,7 +239,6 @@ export function calcularCompetencia(
     };
   }
 
-  // Normal
   const inss = calcularINSS(salarioBruto, config);
   const irrf = calcularIRRF(salarioBruto, inss.total, dependentes, pensao, config);
   const fgts = calcularFGTS(salarioBruto, config);
@@ -287,7 +252,6 @@ export function gerarCompetenciasAno(contrato: CltContract, config: CltLegislaca
   const anoAtual = new Date().getFullYear();
   const ano = Math.max(anoInicio, anoAtual);
   const competencias: CltCompetencia[] = [];
-
   const startMonth = ano === anoInicio ? mesInicio : 1;
 
   for (let m = startMonth; m <= 12; m++) {
@@ -338,19 +302,11 @@ function buildCompetencia(
     inssTotal: calc.inss.total,
     inssDetalhePorFaixa: calc.inss.detalhePorFaixa,
     inssAliquotaEfetiva: calc.inss.aliquotaEfetiva,
-    baseIR: calc.irrf.metodoEscolhido === 'deducoes_legais' ? calc.irrf.baseDeducoes : calc.irrf.baseSimplificado,
-    metodoIR: calc.irrf.metodoEscolhido,
+    baseIR: calc.irrf.baseTributavel,
+    rendimentoTributavel: calc.irrf.rendimentoTributavel,
+    impostoBruto: calc.irrf.impostoBruto,
+    reducaoLei15270: calc.irrf.redutor,
     irrfFinal: calc.irrf.irrfFinal,
-    baseDeducoesLegais: calc.irrf.baseDeducoes,
-    baseDescontoSimplificado: calc.irrf.baseSimplificado,
-    irrfDeducoesLegais: calc.irrf.irrfDeducoes,
-    irrfDescontoSimplificado: calc.irrf.irrfSimplificado,
-    reducaoLei15270: calc.irrf.reducaoLei15270,
-    diferencaMetodos: calc.irrf.diferencaMetodos,
-    impostoProgressivoDeducoes: calc.irrf.impostoProgressivoDeducoes,
-    impostoProgressivoSimplificado: calc.irrf.impostoProgressivoSimplificado,
-    reducaoDeducoes: calc.irrf.reducaoDeducoes,
-    reducaoSimplificado: calc.irrf.reducaoSimplificado,
     deducaoDependentes: calc.irrf.deducaoDependentes,
     deducaoPensao: calc.irrf.deducaoPensao,
     fgts: calc.fgts,
@@ -363,12 +319,10 @@ function buildCompetencia(
   };
 }
 
-// Constantes exportadas para UI
 export const INSS_FAIXAS = DEFAULT_CONFIG_2026.inssFaixas;
 export const IRRF_FAIXAS = DEFAULT_CONFIG_2026.irrfFaixas;
 export const CONSTANTES = {
   DEDUCAO_POR_DEPENDENTE: DEFAULT_CONFIG_2026.deducaoPorDependente,
-  DESCONTO_SIMPLIFICADO: DEFAULT_CONFIG_2026.descontoSimplificado,
   FGTS_ALIQUOTA: DEFAULT_CONFIG_2026.fgtsAliquota,
   REDUCAO_LIMITE_ZERO: DEFAULT_CONFIG_2026.reducaoLimiteZero,
   REDUCAO_LIMITE_MAXIMO: DEFAULT_CONFIG_2026.reducaoLimiteMaximo,

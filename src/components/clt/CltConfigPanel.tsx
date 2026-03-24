@@ -249,9 +249,9 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
             <CollapsibleContent className="p-5 pt-2 grid grid-cols-2 gap-4">
               {[
                 { k: 'deducaoPorDependente', l: 'Dedução Dependente' },
-                { k: 'descontoSimplificado', l: 'Desc. Simplificado' },
                 { k: 'fgtsAliquota', l: 'FGTS (%)', isPct: true },
                 { k: 'reducaoLimiteZero', l: 'Limite Red. Zero' },
+                { k: 'reducaoLimiteMaximo', l: 'Limite Red. Max' },
               ].map((c) => (
                 <div key={c.k} className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">{c.l}</Label>
@@ -316,31 +316,34 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
                 </div>
               </StepCard>
 
-              <StepCard num={3} title="Base de Cálculo IRRF">
-                <div className="text-[11px] font-bold space-y-2">
-                  <div className="p-3 rounded-xl bg-card/50 border border-border/40">
-                    <p className="text-[9px] font-black uppercase text-muted-foreground mb-1">Cenário A: Deduções Legais</p>
-                    <p className="text-foreground leading-tight">Bruto - INSS - Dep. - Pensão = <span className="text-primary">{formatCurrency(demo.irrf.baseDeducoes)}</span></p>
-                    <p className="mt-1">Imposto Final: <span className="font-black">{formatCurrency(demo.irrf.irrfDeducoes)}</span></p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-card/50 border border-border/40">
-                    <p className="text-[9px] font-black uppercase text-muted-foreground mb-1">Cenário B: Desconto Simplificado</p>
-                    <p className="text-foreground leading-tight">Bruto - {formatCurrency(localConfig.descontoSimplificado)} = <span className="text-primary">{formatCurrency(demo.irrf.baseSimplificado)}</span></p>
-                    <p className="mt-1">Imposto Final: <span className="font-black">{formatCurrency(demo.irrf.irrfSimplificado)}</span></p>
-                  </div>
+              <StepCard num={3} title="Base Tributável IRRF">
+                <div className="text-[11px] font-bold p-3 rounded-xl bg-card/50 border border-border/40">
+                  <p className="text-foreground leading-tight">Bruto - INSS - Dep. - Pensão = <span className="text-primary font-black">{formatCurrency(demo.irrf.baseTributavel)}</span></p>
                 </div>
               </StepCard>
 
-              <StepCard num={4} title="Resultado Final do Cálculo" highlight>
+              <StepCard num={4} title="Imposto de Renda Progressivo">
+                <div className="flex justify-between items-center">
+                   <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Imposto Antes do Redutor</span>
+                   <span className="font-black text-sm text-destructive">{formatCurrency(demo.irrf.impostoBruto)}</span>
+                </div>
+              </StepCard>
+
+              <StepCard num={5} title="Redutor Lei 15.270 (Sobre Bruto)">
+                <div className="flex justify-between items-center text-emerald-600">
+                   <span className="text-[10px] font-black uppercase tracking-widest">Abatimento Progressivo</span>
+                   <span className="font-black text-sm tabular-nums">-{formatCurrency(demo.irrf.redutor)}</span>
+                </div>
+                <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase opacity-50">Isenção para até 2 salários mínimos</p>
+              </StepCard>
+
+              <StepCard num={6} title="Resultado Final do Cálculo" highlight>
                 <div className="flex justify-between items-end">
                    <div className="space-y-1">
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Líquido Estimado</span>
                       <p className="text-4xl font-black tabular-nums tracking-tighter text-primary leading-none">{formatCurrency(demo.liquido)}</p>
                    </div>
                    <div className="text-right pb-1">
-                      <Badge className="bg-primary/10 text-primary border-none rounded-lg font-black text-[9px] uppercase tracking-widest px-2.5 py-1 mb-2">
-                         {demo.irrf.metodoEscolhido === 'deducoes_legais' ? 'USANDO DED. LEGAIS' : 'USANDO SIMPLIFICADO'}
-                      </Badge>
                       <div className="flex items-center gap-2 text-muted-foreground justify-end">
                          <PiggyBank className="w-3.5 h-3.5" />
                          <span className="text-[10px] font-black uppercase tracking-widest">FGTS: {formatCurrency(demo.fgts)}</span>
