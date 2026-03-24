@@ -4,18 +4,16 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CltLegislacaoConfig, CltContract, formatCurrency } from "@/types/finance";
+import { CltLegislacaoConfig, CltContract } from "@/types/finance";
 import { calcularINSS, calcularIRRF, calcularFGTS, DEFAULT_CONFIG_2026 } from "@/lib/cltCalc";
 import { cn } from "@/lib/utils";
 import {
-  RotateCcw, AlertTriangle, ChevronDown, Shield, Landmark,
-  Calculator, CheckCircle2, Minus, PiggyBank, Sparkles,
-  Scale
+  RotateCcw, ChevronDown, Shield, Landmark,
+  Sparkles, Scale
 } from "lucide-react";
+import { CltCalculationBlock } from "./CltCalculationBlock";
 
 interface Props {
   config: CltLegislacaoConfig;
@@ -30,10 +28,7 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
   const [simPensao, setSimPensao] = useState(contract?.pensaoAlimenticia?.toString() || "0");
   const [showInss, setShowInss] = useState(true);
   const [showIrrf, setShowIrrf] = useState(true);
-  const [showConstants, setShowConstants] = useState(false);
   const [showLegislation, setShowLegislation] = useState(false);
-
-  const isModified = JSON.stringify(localConfig) !== JSON.stringify(DEFAULT_CONFIG_2026);
 
   const formatInputDisplay = (val: number) => {
     if (val === Infinity) return "∞";
@@ -52,7 +47,7 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
     return parseFloat(cleaned) || 0;
   };
 
-  const demo = useMemo(() => {
+  const demoData = useMemo(() => {
     const bruto = parseFloat(simBruto) || 0;
     const deps = parseInt(simDeps) || 0;
     const pensao = parseFloat(simPensao) || 0;
@@ -61,9 +56,19 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
     const inss = calcularINSS(bruto, localConfig);
     const irrf = calcularIRRF(bruto, inss.total, deps, pensao, localConfig);
     const fgts = calcularFGTS(bruto, localConfig);
-    const liquido = bruto - inss.total - irrf.irrfFinal;
-
-    return { bruto, inss, irrf, fgts, liquido };
+    
+    return {
+      bruto,
+      inss: inss.total,
+      baseIR: irrf.baseTributavel,
+      impostoBruto: irrf.impostoBruto,
+      ajustes: irrf.redutor,
+      irrfFinal: irrf.irrfFinal,
+      liquido: bruto - inss.total - irrf.irrfFinal,
+      fgts,
+      dependentes: deps,
+      pensao
+    };
   }, [simBruto, simDeps, simPensao, localConfig]);
 
   const handleInssChange = (index: number, field: 'ate' | 'aliquota', displayValue: string) => {
@@ -86,14 +91,6 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
       [field]: field === 'aliquota' ? numericValue / 100 : numericValue,
     };
     setLocalConfig(updated);
-  };
-
-  const handleConstantChange = (key: keyof CltLegislacaoConfig, displayValue: string, isPercentage?: boolean) => {
-    const numericValue = parseInputValue(displayValue);
-    setLocalConfig(prev => ({ 
-      ...prev, 
-      [key]: isPercentage ? numericValue / 100 : numericValue 
-    }));
   };
 
   return (
@@ -251,7 +248,7 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-1 mb-2">
              <Sparkles className="w-5 h-5 text-primary" />
-             <h4 className="font-black text-lg tracking-tight">Memória de Cálculo</h4>
+             <h4 className="font-black text-lg tracking-tight">Simulação de Recebimento</h4>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -269,87 +266,13 @@ export function CltConfigPanel({ config, onUpdateConfig, contract }: Props) {
             </div>
           </div>
 
-          {demo && (
-            <div className="space-y-4 animate-in fade-in duration-500">
-              <StepCard num={1} title="Entrada">
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-bold text-muted-foreground">Salário Bruto</span>
-                  <p className="font-black text-xl tabular-nums tracking-tighter text-foreground">{formatCurrency(demo.bruto)}</p>
-                </div>
-              </StepCard>
-
-              <StepCard num={2} title="Descontos">
-                <div className="flex justify-between items-center">
-                  <span className="text-[11px] font-bold text-muted-foreground">INSS Retido</span>
-                  <span className="font-black text-sm text-destructive">-{formatCurrency(demo.inss.total)}</span>
-                </div>
-              </StepCard>
-
-              <StepCard num={3} title="Base de Cálculo do IRRF">
-                <div className="text-[10px] font-bold p-3 rounded-xl bg-card/50 border border-border/40">
-                  <p className="text-muted-foreground leading-tight">Salário Bruto – INSS – Dependentes – Pensão</p>
-                  <p className="text-primary font-black text-sm mt-1">{formatCurrency(demo.irrf.baseTributavel)}</p>
-                </div>
-              </StepCard>
-
-              <StepCard num={4} title="IRRF Calculado">
-                <div className="flex justify-between items-center">
-                   <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Aplicação da Tabela Progressiva</span>
-                   <span className="font-black text-sm text-destructive">{formatCurrency(demo.irrf.impostoBruto)}</span>
-                </div>
-              </StepCard>
-
-              <StepCard num={5} title="Ajustes Aplicados">
-                <div className="flex justify-between items-center text-emerald-600">
-                   <span className="text-[10px] font-black uppercase tracking-widest">Desconto Simplificado / Parcela a Deduzir</span>
-                   <span className="font-black text-sm tabular-nums">-{formatCurrency(demo.irrf.redutor)}</span>
-                </div>
-              </StepCard>
-
-              <StepCard num={6} title="Resultado" highlight>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-destructive">IRRF Devido</span>
-                    <span className="font-black text-base text-destructive tabular-nums">{formatCurrency(demo.irrf.irrfFinal)}</span>
-                  </div>
-                  <Separator className="bg-primary/20" />
-                  <div className="flex justify-between items-end">
-                    <div className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Salário Líquido</span>
-                        <p className="text-4xl font-black tabular-nums tracking-tighter text-primary leading-none">{formatCurrency(demo.liquido)}</p>
-                    </div>
-                  </div>
-                </div>
-              </StepCard>
-
-              <StepCard num={7} title="Encargos">
-                <div className="flex justify-between items-center">
-                   <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">FGTS</span>
-                   <span className="font-black text-sm text-amber-600 tabular-nums">{formatCurrency(demo.fgts)}</span>
-                </div>
-              </StepCard>
+          {demoData && (
+            <div className="animate-in fade-in duration-500">
+              <CltCalculationBlock data={demoData} />
             </div>
           )}
         </div>
       </div>
-    </div>
-  );
-}
-
-function StepCard({ num, title, children, highlight }: { num: number; title: string; children: React.ReactNode; highlight?: boolean }) {
-  return (
-    <div className={cn(
-      "rounded-[2rem] border-2 p-6 space-y-3 transition-all duration-500",
-      highlight ? "bg-primary/[0.03] border-primary/30 shadow-lg shadow-primary/5" : "bg-muted/10 border-border/30"
-    )}>
-      <div className="flex items-center gap-3">
-        <span className={cn(
-          "flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-black transition-colors shadow-sm",
-          highlight ? "bg-primary text-white" : "bg-muted-foreground/20 text-muted-foreground"
-        )}>{num}</span>
-        <span className={cn("text-[11px] font-black uppercase tracking-[0.2em]", highlight ? "text-primary" : "text-muted-foreground")}>{title}</span>
-      </div>
-      {children}
     </div>
   );
 }

@@ -7,18 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CltCompetencia, ContaCorrente, formatCurrency } from "@/types/finance";
+import { CltCompetencia, ContaCorrente } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import {
-  CheckCircle2, Calculator, AlertTriangle, ChevronDown, Minus,
-  FileText, ArrowLeft, Building2, Check, Scale, Info
+  CheckCircle2, AlertTriangle, ChevronDown,
+  FileText, ArrowLeft, Building2, Check, Scale
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { CltCalculationBlock } from "./CltCalculationBlock";
 
 interface Props {
   open: boolean;
@@ -62,6 +61,19 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia: com
     updates.inssTotal = parseFloat(editValues.inssTotal);
     updates.irrfFinal = parseFloat(editValues.irrfFinal);
     onUpdateCompetencia(competencia.id, updates);
+  };
+
+  const calculationData = {
+    bruto: competencia.salarioBruto,
+    inss: competencia.inssTotal,
+    baseIR: competencia.baseIR,
+    impostoBruto: competencia.impostoBruto || 0,
+    ajustes: competencia.reducaoLei15270,
+    irrfFinal: competencia.irrfFinal,
+    liquido: competencia.salarioLiquido,
+    fgts: competencia.fgts,
+    dependentes: competencia.dependentes,
+    pensao: competencia.deducaoPensao
   };
 
   return (
@@ -112,89 +124,33 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia: com
 
         {showLegislation && (
           <div className="mx-6 sm:mx-8 mt-4 p-4 rounded-2xl bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-2 duration-300">
-            <p className="text-[9px] font-medium text-muted-foreground leading-relaxed">
-              Memória baseada na Portaria MPS/MF nº 13/2026 (INSS) e Lei nº 15.191/2025 (IRRF) com redutor da Lei nº 15.270/2025.
-            </p>
+            <div className="flex items-start gap-3">
+              <Scale className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase text-primary">Detalhamento Normativo</p>
+                <p className="text-[9px] font-medium text-muted-foreground leading-relaxed">
+                  As regras aplicadas seguem a Portaria MPS/MF nº 13/2026 para INSS e a Lei nº 15.191/2025 para IRRF, 
+                  incluindo os ajustes de progressividade da Lei nº 15.270/2025.
+                </p>
+              </div>
+            </div>
           </div>
         )}
 
-        <Tabs defaultValue="memoria" className="flex-1 flex flex-col min-h-0">
+        <Tabs defaultValue="detalhes" className="flex-1 flex flex-col min-h-0">
           <div className="px-6 sm:px-8 py-2 border-b border-border/40 shrink-0">
             <TabsList className="w-full sm:w-fit grid grid-cols-2 bg-muted/40 h-11 p-1 rounded-2xl">
-              <TabsTrigger value="memoria" className="rounded-xl font-black text-[10px] uppercase tracking-widest">MEMÓRIA DE CÁLCULO</TabsTrigger>
+              <TabsTrigger value="detalhes" className="rounded-xl font-black text-[10px] uppercase tracking-widest">DEMONSTRATIVO</TabsTrigger>
               <TabsTrigger value="receber" className="rounded-xl font-black text-[10px] uppercase tracking-widest">RECEBIMENTO</TabsTrigger>
             </TabsList>
           </div>
 
           <ScrollArea className="flex-1 px-6 sm:px-8 scrollbar-material">
             <div className="py-6 space-y-6 pb-32 sm:pb-8">
-              <TabsContent value="memoria" className="mt-0 space-y-6 focus-visible:outline-none">
+              <TabsContent value="detalhes" className="mt-0 space-y-6 focus-visible:outline-none">
                 
-                <div className="space-y-4">
-                  {/* Blocos da Estrutura Obrigatória */}
-                  <DetailStep num={1} title="Entradas">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-muted-foreground">Salário Bruto</span>
-                      <span className="font-black text-lg tabular-nums">{formatCurrency(competencia.salarioBruto)}</span>
-                    </div>
-                  </DetailStep>
-
-                  <DetailStep num={2} title="Descontos">
-                    <div className="flex justify-between items-center text-destructive">
-                      <span className="text-[11px] font-bold text-muted-foreground">INSS Retido</span>
-                      <span className="font-black text-sm tabular-nums">-{formatCurrency(competencia.inssTotal)}</span>
-                    </div>
-                  </DetailStep>
-
-                  <DetailStep num={3} title="Base de Cálculo do IRRF">
-                    <div className="space-y-2">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">Salário Bruto – INSS – Dependentes – Pensão</p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-bold text-muted-foreground">Valor Base</span>
-                        <span className="font-black text-lg tabular-nums text-primary">{formatCurrency(competencia.baseIR)}</span>
-                      </div>
-                    </div>
-                  </DetailStep>
-
-                  <DetailStep num={4} title="IRRF Calculado">
-                    <div className="space-y-2">
-                      <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">Aplicação da tabela progressiva</p>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] font-bold text-muted-foreground">Imposto Calculado</span>
-                        <span className="font-black text-sm tabular-nums text-destructive">{formatCurrency(competencia.impostoBruto || 0)}</span>
-                      </div>
-                    </div>
-                  </DetailStep>
-
-                  <DetailStep num={5} title="Ajustes Aplicados">
-                    <div className="flex justify-between items-center text-emerald-600">
-                      <span className="text-[11px] font-bold text-muted-foreground">Parcela a Deduzir / Desconto Simplificado</span>
-                      <span className="font-black text-sm tabular-nums">-{formatCurrency(competencia.reducaoLei15270)}</span>
-                    </div>
-                  </DetailStep>
-
-                  <DetailStep num={6} title="Resultado" highlight>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-destructive">IRRF Devido</span>
-                        <span className="font-black text-base text-destructive tabular-nums">{formatCurrency(competencia.irrfFinal)}</span>
-                      </div>
-                      <Separator className="bg-primary/20" />
-                      <div className="flex justify-between items-end">
-                        <div className="space-y-1">
-                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Salário Líquido</span>
-                            <p className="text-4xl font-black tabular-nums tracking-tighter text-primary leading-none">{formatCurrency(competencia.salarioLiquido)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </DetailStep>
-
-                  <DetailStep num={7} title="Encargos">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-muted-foreground">FGTS (Depositado pela Empresa)</span>
-                      <span className="font-black text-sm text-amber-600 tabular-nums">{formatCurrency(competencia.fgts)}</span>
-                    </div>
-                  </DetailStep>
+                <div className="animate-in fade-in duration-500">
+                  <CltCalculationBlock data={calculationData} />
                 </div>
 
                 {!isRecebido && (
@@ -283,23 +239,5 @@ export function CltCompetenciaDetailModal({ open, onOpenChange, competencia: com
         </DialogFooter>
       </ResizableDialogContent>
     </Dialog>
-  );
-}
-
-function DetailStep({ num, title, children, highlight }: { num: number; title: string; children: React.ReactNode; highlight?: boolean }) {
-  return (
-    <div className={cn(
-      "rounded-2xl border-2 p-5 space-y-3 transition-all",
-      highlight ? "bg-primary/[0.03] border-primary/30 shadow-md" : "bg-card border-border/30"
-    )}>
-      <div className="flex items-center gap-2.5">
-        <span className={cn(
-          "flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-black",
-          highlight ? "bg-primary text-white" : "bg-muted-foreground/20 text-muted-foreground"
-        )}>{num}</span>
-        <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", highlight ? "text-primary" : "text-muted-foreground")}>{title}</span>
-      </div>
-      {children}
-    </div>
   );
 }
