@@ -8,12 +8,16 @@ import { Loader2, RefreshCw, Trash2 } from 'lucide-react';
 export const PluggyConnectButton = () => {
   const { connect, syncItem, isSyncing, connectedItems, disconnectItem } = usePluggy();
   const [isWidgetOpen, setIsWidgetOpen] = useState(false);
+  const [connectToken, setConnectToken] = useState<string | null>(null);
   const { toast } = useToast();
 
   const handleConnect = async () => {
     try {
       const token = await connect();
-      if (token) setIsWidgetOpen(true);
+      if (token) {
+        setConnectToken(token);
+        setIsWidgetOpen(true);
+      }
     } catch (error) {
       console.error(error);
     }
@@ -36,9 +40,9 @@ export const PluggyConnectButton = () => {
         Conectar Banco
       </Button>
 
-      {isWidgetOpen && (
+      {isWidgetOpen && connectToken && (
         <PluggyConnect
-          connectToken={/* Token obtido via connect() */}
+          connectToken={connectToken}
           onSuccess={onSuccess}
           onError={onError}
           onExit={() => setIsWidgetOpen(false)}

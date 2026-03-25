@@ -29,6 +29,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { SidebarAlertas, DEFAULT_ALERTS } from "@/components/dashboard/SidebarAlertas";
 import { AlertasConfigDialog, AlertaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { GoogleDriveSync } from "./GoogleDriveSync";
+import { PluggyConnectButton } from "./PluggyConnectButton";
 import { 
   Popover, 
   PopoverContent, 
@@ -98,10 +99,10 @@ export function Sidebar() {
     });
 
     const receitasMes = transacoesFluxo
-      .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
+      .filter(t => (t.operationType === "receita" || t.operationType === "rendimento") && (isAfter(parseDateLocal(t.date), parsedAlertStartDate) || isSameDay(parseDateLocal(t.date), parsedAlertStartDate)))
       .reduce((acc, t) => acc + t.amount, 0);
     const despesasMes = transacoesFluxo
-      .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
+      .filter(t => (t.operationType === "despesa" || t.operationType === "pagamento_emprestimo") && (isAfter(parseDateLocal(t.date), parsedAlertStartDate) || isSameDay(parseDateLocal(t.date), parsedAlertStartDate)))
       .reduce((acc, t) => acc + t.amount, 0);
     const margemPoupanca = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
     
@@ -316,6 +317,10 @@ export function Sidebar() {
                 
                 <div className="px-1">
                   <GoogleDriveSync />
+                </div>
+                
+                <div className="px-1">
+                  <PluggyConnectButton />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
