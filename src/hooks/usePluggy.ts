@@ -18,8 +18,14 @@ export const usePluggy = () => {
     if (savedItems) {
       try {
         const items = JSON.parse(savedItems);
-        setConnectedItems(items);
-        setIsConnected(items.length > 0);
+        // Filtra apenas itens válidos ao carregar
+        const validItems = items.filter((id: string) => UUID_REGEX.test(id));
+        if (validItems.length !== items.length) {
+          console.warn("Itens inválidos removidos do localStorage:", items.filter((id: string) => !UUID_REGEX.test(id)));
+          localStorage.setItem('pluggy_items', JSON.stringify(validItems));
+        }
+        setConnectedItems(validItems);
+        setIsConnected(validItems.length > 0);
       } catch (e) {
         console.error("Erro ao carregar itens do Pluggy", e);
       }
@@ -38,6 +44,8 @@ export const usePluggy = () => {
   };
 
   const syncItem = async (itemId: string) => {
+    console.log("Tentando sincronizar itemId:", itemId);
+    
     if (!itemId || !UUID_REGEX.test(itemId)) {
       toast.error('ID de conexão inválido.');
       console.error("Tentativa de sincronização com itemId inválido:", itemId);
@@ -67,7 +75,7 @@ export const usePluggy = () => {
       toast.success('Sincronização concluída!');
     } catch (error) {
       toast.error('Erro ao sincronizar dados');
-      console.error(error);
+      console.error("Erro detalhado da API Pluggy:", error);
     } finally {
       setIsSyncing(false);
     }
