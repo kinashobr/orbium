@@ -6,11 +6,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const clientId = process.env.CLIENT_ID;
-  const clientSecret = process.env.CLIENT_SECRET;
+  // Atualizado para buscar os nomes corretos configurados na Vercel
+  const clientId = process.env.PLUGGY_CLIENT_ID;
+  const clientSecret = process.env.PLUGGY_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.error("Missing CLIENT_ID or CLIENT_SECRET");
+    console.error("Missing PLUGGY_CLIENT_ID or PLUGGY_CLIENT_SECRET");
     return res.status(500).json({ error: 'Server configuration error' });
   }
 
@@ -20,7 +21,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   try {
-    const { clientUserId } = req.body;
+    const { clientUserId } = req.body || { clientUserId: 'default_user' };
     const connectToken = await pluggy.createConnectToken({
       clientUserId,
     });
