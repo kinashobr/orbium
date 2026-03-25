@@ -1,7 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { getPluggyConnectToken, syncPluggyData } from '@/lib/pluggy';
 import { useFinance } from '@/contexts/FinanceContext';
 import { toast } from 'sonner';
+
+// Regex simples para validar UUID
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const usePluggy = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -13,9 +16,13 @@ export const usePluggy = () => {
   useEffect(() => {
     const savedItems = localStorage.getItem('pluggy_items');
     if (savedItems) {
-      const items = JSON.parse(savedItems);
-      setConnectedItems(items);
-      setIsConnected(items.length > 0);
+      try {
+        const items = JSON.parse(savedItems);
+        setConnectedItems(items);
+        setIsConnected(items.length > 0);
+      } catch (e) {
+        console.error("Erro ao carregar itens do Pluggy", e);
+      }
     }
     const savedSync = localStorage.getItem('pluggy_last_sync');
     if (savedSync) setLastSync(savedSync);
@@ -31,6 +38,12 @@ export const usePluggy = () => {
   };
 
   const syncItem = async (itemId: string) => {
+    if (!itemId || !UUID_REGEX.test(itemId)) {
+      toast.error('ID de conexão inválido.');
+      console.error("Tentativa de sincronização com itemId inválido:", itemId);
+      return;
+    }
+
     setIsSyncing(true);
     try {
       const data = await syncPluggyData(itemId);
@@ -54,6 +67,7 @@ export const usePluggy = () => {
       toast.success('Sincronização concluída!');
     } catch (error) {
       toast.error('Erro ao sincronizar dados');
+      console.error(error);
     } finally {
       setIsSyncing(false);
     }
