@@ -1,7 +1,7 @@
 import { 
-  TrendingUp, TrendingDown, Calendar, AlertTriangle, 
+  TrendingUp, TrendingDown, Calendar, AlertTriangle,
   Award, Zap, ArrowUp, ArrowDown, Sparkles, DollarSign,
-  Calculator, Repeat, Target, Percent, TrendingUpDown
+  Calculator, Repeat, Target, Percent
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
