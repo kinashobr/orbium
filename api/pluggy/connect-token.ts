@@ -6,7 +6,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Atualizado para buscar os nomes corretos configurados na Vercel
   const clientId = process.env.PLUGGY_CLIENT_ID;
   const clientSecret = process.env.PLUGGY_CLIENT_SECRET;
 
@@ -21,10 +20,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   });
 
   try {
-    const { clientUserId } = req.body || { clientUserId: 'default_user' };
-    const connectToken = await pluggy.createConnectToken({
-      clientUserId,
-    });
+    // Extrai o clientUserId do corpo da requisição ou usa um padrão
+    const { clientUserId } = req.body || {};
+    const userId = clientUserId || 'default_user';
+    
+    // O SDK espera apenas a string do clientUserId
+    const connectToken = await pluggy.createConnectToken(userId);
 
     return res.status(200).json({ accessToken: connectToken.accessToken });
   } catch (error) {
