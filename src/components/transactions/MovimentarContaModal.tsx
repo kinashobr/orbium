@@ -377,14 +377,10 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     const targetAccountId = operationType === 'transferencia' ? destinationAccountId : tempInvestmentId;
 
     if (isInterAccountMovement && targetAccountId) {
-      // AJUSTE: No resgate, o dinheiro sai da conta de investimento (targetAccountId) para a conta corrente (accountId)
-      const from = operationType === 'resgate' ? targetAccountId : accountId;
-      const to = operationType === 'resgate' ? accountId : targetAccountId;
-
       transferGroup = { 
         id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(), 
-        fromAccountId: from, 
-        toAccountId: to, 
+        fromAccountId: accountId, 
+        toAccountId: targetAccountId, 
         amount: parsedAmount, 
         date, 
         description: baseTx.description 
