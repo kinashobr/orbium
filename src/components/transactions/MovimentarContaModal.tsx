@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useReducer, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +27,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { validateTransaction } from "@/lib/transactionValidator";
+import { formReducer, initialState } from "./MovimentarContaModalReducer";
 
 interface LoanInfo {
   id: string;
@@ -38,7 +38,6 @@ interface LoanInfo {
   valorParcela: number;
 }
 
-// Dados para cadastrar novo bem durante a compra
 interface NewVehicleData {
   modelo: string;
   tipo: 'carro' | 'moto' | 'caminhao';
@@ -92,53 +91,24 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color
 
 export function MovimentarContaModal({ open, onOpenChange, accounts, categories, investments, loans, segurosVeiculo, veiculos, imoveis, terrenos, selectedAccountId, onSubmit, editingTransaction }: MovimentarContaModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const [accountId, setAccountId] = useState("");
-  const [date, setDate] = useState("");
-  const [amount, setAmount] = useState("0,00");
-  const [operationType, setOperationType] = useState<OperationType | null>(null);
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [description, setDescription] = useState("");
-  
-  const [destinationAccountId, setDestinationAccountId] = useState<string | null>(null);
-  const [tempInvestmentId, setTempInvestmentId] = useState<string | null>(null);
-  const [tempLoanId, setTempLoanId] = useState<string | null>(null);
-  const [tempParcelaId, setTempParcelaId] = useState<string | null>(null);
-  
-  // Veículos: compra/venda
-  const [tempVehicleOperation, setTempVehicleOperation] = useState<'compra' | 'venda' | null>(null);
-  const [tempVehicleId, setTempVehicleId] = useState<string | null>(null);
-  const [isCreatingNewVehicle, setIsCreatingNewVehicle] = useState(false);
-  const [newVehicleData, setNewVehicleData] = useState<NewVehicleData>({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
-
-  // Seguro de veículo (separado de compra/venda)
-  const [tempSeguroId, setTempSeguroId] = useState<string | null>(null);
-  const [tempSeguroParcelaId, setTempSeguroParcelaId] = useState<string | null>(null);
-
-  // Imobilizado (imóvel/terreno)
-  const [tempAssetType, setTempAssetType] = useState<'imovel' | 'terreno' | null>(null);
-  const [tempAssetId, setTempAssetId] = useState<string | null>(null);
-  const [tempAssetOperation, setTempAssetOperation] = useState<'compra' | 'venda' | null>(null);
-  const [isCreatingNewAsset, setIsCreatingNewAsset] = useState(false);
-  const [newImovelData, setNewImovelData] = useState<NewImovelData>({ descricao: '', tipo: 'casa', endereco: '' });
-  const [newTerrenoData, setNewTerrenoData] = useState<NewTerrenoData>({ descricao: '', endereco: '' });
+  const [state, dispatch] = useReducer(formReducer, initialState);
 
   const isEditing = !!editingTransaction;
 
-  // Verifica se é uma despesa com categoria de seguro (para vincular pagamento de seguro)
   const isSeguroCategory = useMemo(() => {
-    if (!categoryId || operationType !== 'despesa') return false;
-    const cat = categories.find(c => c.id === categoryId);
+    if (!state.categoryId || state.operationType !== 'despesa') return false;
+    const cat = categories.find(c => c.id === state.categoryId);
     return cat?.label.toLowerCase().includes('seguro');
-  }, [categoryId, operationType, categories]);
+  }, [state.categoryId, state.operationType, categories]);
 
   const handleAmountChange = (value: string) => {
     const digits = value.replace(/\D/g, "");
     if (!digits) {
-      setAmount("0,00");
+      dispatch({ type: 'SET_FIELD', field: 'amount', value: "0,00" });
       return;
     }
     const val = parseInt(digits) / 100;
-    setAmount(val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+    dispatch({ type: 'SET_FIELD', field: 'amount', value: val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
   };
 
   const parseBrlValue = (value: string) => {
@@ -148,114 +118,73 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
   useEffect(() => {
     if (open) {
       if (editingTransaction) {
-        setAccountId(editingTransaction.accountId); 
-        setDate(editingTransaction.date); 
-        setAmount(editingTransaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-        setOperationType(editingTransaction.operationType); 
-        setCategoryId(editingTransaction.categoryId); 
-        setDescription(editingTransaction.description);
-        
-        if (editingTransaction.operationType === 'transferencia') {
-            setDestinationAccountId(editingTransaction.links.transferGroupId ? "shared" : null); 
-        }
-        setTempInvestmentId(editingTransaction.links.investmentId);
-        setTempLoanId(editingTransaction.links.loanId);
-        setTempParcelaId(editingTransaction.links.parcelaId);
-        
-        // Veículo compra/venda
-        if (editingTransaction.operationType === 'veiculo') {
-          setTempVehicleOperation(editingTransaction.meta.vehicleOperation || null);
-          setTempVehicleId(editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null);
-          setIsCreatingNewVehicle(false);
-        }
-
-        // Seguro (separado - usa vehicleTransactionId para pagamentos de seguro em despesas)
-        if (editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa') {
-            const [sId, pNum] = editingTransaction.links.vehicleTransactionId.split('_');
-            setTempSeguroId(sId);
-            setTempSeguroParcelaId(pNum);
-        }
-
-        // Imobilizado
-        if (editingTransaction.operationType === 'imobilizado') {
-          setTempAssetType(
-            editingTransaction.meta.assetType === 'imovel' || editingTransaction.meta.assetType === 'terreno'
-              ? editingTransaction.meta.assetType
-              : null,
-          );
-          setTempAssetId(editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null);
-          setTempAssetOperation(editingTransaction.meta.assetOperation || null);
-          setIsCreatingNewAsset(false);
-        }
+        dispatch({ type: 'RESET', payload: {
+            accountId: editingTransaction.accountId,
+            date: editingTransaction.date,
+            amount: editingTransaction.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            operationType: editingTransaction.operationType,
+            categoryId: editingTransaction.categoryId,
+            description: editingTransaction.description,
+            destinationAccountId: editingTransaction.operationType === 'transferencia' && editingTransaction.links.transferGroupId ? "shared" : null,
+            tempInvestmentId: editingTransaction.links.investmentId,
+            tempLoanId: editingTransaction.links.loanId,
+            tempParcelaId: editingTransaction.links.parcelaId,
+            tempVehicleOperation: editingTransaction.operationType === 'veiculo' ? editingTransaction.meta.vehicleOperation || null : null,
+            tempVehicleId: editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null,
+            tempSeguroId: editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa' ? editingTransaction.links.vehicleTransactionId.split('_')[0] : null,
+            tempSeguroParcelaId: editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa' ? editingTransaction.links.vehicleTransactionId.split('_')[1] : null,
+            tempAssetType: editingTransaction.operationType === 'imobilizado' && (editingTransaction.meta.assetType === 'imovel' || editingTransaction.meta.assetType === 'terreno') ? editingTransaction.meta.assetType : null,
+            tempAssetId: editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null,
+            tempAssetOperation: editingTransaction.operationType === 'imobilizado' ? editingTransaction.meta.assetOperation || null : null,
+        }});
       } else {
-        // Reset para novo lançamento
-        setAccountId(selectedAccountId || accounts[0]?.id || ''); 
-        setDate(new Date().toISOString().split('T')[0]); 
-        setAmount("0,00");
-        setOperationType('despesa'); 
-        setCategoryId(null); 
-        setDescription(""); 
-        setDestinationAccountId(null);
-        setTempInvestmentId(null);
-        setTempLoanId(null);
-        setTempParcelaId(null);
-        setTempVehicleOperation(null);
-        setTempVehicleId(null);
-        setIsCreatingNewVehicle(false);
-        setNewVehicleData({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
-        setTempSeguroId(null);
-        setTempSeguroParcelaId(null);
-        setTempAssetType(null);
-        setTempAssetId(null);
-        setTempAssetOperation(null);
-        setIsCreatingNewAsset(false);
-        setNewImovelData({ descricao: '', tipo: 'casa', endereco: '' });
-        setNewTerrenoData({ descricao: '', endereco: '' });
+        dispatch({ type: 'RESET', payload: {
+            accountId: selectedAccountId || accounts[0]?.id || '',
+            date: new Date().toISOString().split('T')[0],
+            operationType: 'despesa',
+        }});
       }
     }
   }, [open, editingTransaction, selectedAccountId, accounts]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parseBrlValue(amount);
+    const parsedAmount = parseBrlValue(state.amount);
     
-    if (!accountId || !date || parsedAmount <= 0 || !operationType) { 
+    if (!state.accountId || !state.date || parsedAmount <= 0 || !state.operationType) { 
       toast.error("Preencha os campos obrigatórios."); 
       return; 
     }
     
-    if (operationType === 'transferencia' && !destinationAccountId) { 
+    if (state.operationType === 'transferencia' && !state.destinationAccountId) { 
       toast.error("Selecione a conta de destino."); 
       return; 
     }
-    if ((operationType === 'aplicacao' || operationType === 'resgate') && !tempInvestmentId) { 
+    if ((state.operationType === 'aplicacao' || state.operationType === 'resgate') && !state.tempInvestmentId) { 
       toast.error("Selecione o ativo de investimento."); 
       return; 
     }
-    if (operationType === 'pagamento_emprestimo' && (!tempLoanId || !tempParcelaId)) { 
+    if (state.operationType === 'pagamento_emprestimo' && (!state.tempLoanId || !state.tempParcelaId)) { 
       toast.error("Selecione o contrato e a parcela."); 
       return; 
     }
     
-    // Validação de veículo
-    if (operationType === 'veiculo') {
-      if (!tempVehicleOperation) {
+    if (state.operationType === 'veiculo') {
+      if (!state.tempVehicleOperation) {
         toast.error("Selecione a operação (Compra ou Venda).");
         return;
       }
-      if (tempVehicleOperation === 'compra') {
-        // Para compra: sempre cadastrar novo
-        if (!newVehicleData.modelo.trim()) {
+      if (state.tempVehicleOperation === 'compra') {
+        if (!state.newVehicleData.modelo.trim()) {
           toast.error("Informe o modelo do veículo.");
           return;
         }
       } else {
-        // Para venda: exige veículo existente ativo
-        if (!tempVehicleId) {
+        if (!state.tempVehicleId) {
           toast.error("Selecione o veículo a ser vendido.");
           return;
         }
-        const veiculo = veiculos.find(v => v.id === Number(tempVehicleId));
+        const veiculo = veiculos.find(v => v.id === Number(state.tempVehicleId));
         if (veiculo && veiculo.status === 'vendido') {
           toast.error("Este veículo já foi vendido.");
           return;
@@ -263,35 +192,32 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
       }
     }
 
-    // Validação de imobilizado
-    if (operationType === 'imobilizado') {
-      if (!tempAssetType) {
+    if (state.operationType === 'imobilizado') {
+      if (!state.tempAssetType) {
         toast.error("Selecione o tipo de bem (Imóvel ou Terreno).");
         return;
       }
-      if (!tempAssetOperation) {
+      if (!state.tempAssetOperation) {
         toast.error("Selecione a operação (Compra ou Venda).");
         return;
       }
-      if (tempAssetOperation === 'compra') {
-        // Para compra: sempre cadastrar novo
-        if (tempAssetType === 'imovel' && !newImovelData.descricao.trim()) {
+      if (state.tempAssetOperation === 'compra') {
+        if (state.tempAssetType === 'imovel' && !state.newImovelData.descricao.trim()) {
           toast.error("Informe a descrição do imóvel.");
           return;
         }
-        if (tempAssetType === 'terreno' && !newTerrenoData.descricao.trim()) {
+        if (state.tempAssetType === 'terreno' && !state.newTerrenoData.descricao.trim()) {
           toast.error("Informe a descrição do terreno.");
           return;
         }
       } else {
-        // Para venda: exige bem existente ativo
-        if (!tempAssetId) {
+        if (!state.tempAssetId) {
           toast.error("Selecione o bem a ser vendido.");
           return;
         }
-        const asset = tempAssetType === 'imovel' 
-          ? imoveis.find(i => i.id === Number(tempAssetId))
-          : terrenos.find(t => t.id === Number(tempAssetId));
+        const asset = state.tempAssetType === 'imovel' 
+          ? imoveis.find(i => i.id === Number(state.tempAssetId))
+          : terrenos.find(t => t.id === Number(state.tempAssetId));
         if (asset && asset.status === 'vendido') {
           toast.error("Este bem já foi vendido.");
           return;
@@ -299,104 +225,102 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
       }
     }
     
-    // Validação de seguro (apenas para despesas com categoria seguro)
-    if (isSeguroCategory && (!tempSeguroId || !tempSeguroParcelaId)) {
+    if (isSeguroCategory && (!state.tempSeguroId || !state.tempSeguroParcelaId)) {
         toast.error("Vincule este pagamento a uma parcela de seguro em aberto.");
         return;
     }
 
-    // Categoria obrigatória apenas para receita/despesa/rendimento
-    const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(operationType);
-    if (requiresCategory && !categoryId) { 
+    const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(state.operationType);
+    if (requiresCategory && !state.categoryId) { 
       toast.error("A categoria é obrigatória para esta operação."); 
       return; 
     }
 
-    // vehicleTransactionId é usado APENAS para pagamentos de seguro (não para compra/venda de veículos)
     let vehicleTransactionId = null;
-    if (isSeguroCategory && tempSeguroId) {
-        vehicleTransactionId = `${tempSeguroId}_${tempSeguroParcelaId}`;
+    if (isSeguroCategory && state.tempSeguroId) {
+        vehicleTransactionId = `${state.tempSeguroId}_${state.tempSeguroParcelaId}`;
     }
 
-    // Definir assetId e assetOperation para veículos e imobilizados
     let finalAssetId: number | undefined = undefined;
     let finalAssetType: 'veiculo' | 'imovel' | 'terreno' | undefined = undefined;
     let finalAssetOperation: 'compra' | 'venda' | undefined = undefined;
 
-    if (operationType === 'veiculo') {
+    if (state.operationType === 'veiculo') {
       finalAssetType = 'veiculo';
-      finalAssetOperation = tempVehicleOperation || undefined;
-      // Para compra: sempre criando novo (assetId será preenchido após criar)
-      // Para venda: usa o veículo existente selecionado
-      if (tempVehicleOperation === 'venda' && tempVehicleId) {
-        finalAssetId = Number(tempVehicleId);
+      finalAssetOperation = state.tempVehicleOperation || undefined;
+      if (state.tempVehicleOperation === 'venda' && state.tempVehicleId) {
+        finalAssetId = Number(state.tempVehicleId);
       }
-    } else if (operationType === 'imobilizado') {
-      finalAssetType = tempAssetType || undefined;
-      finalAssetOperation = tempAssetOperation || undefined;
-      // Para compra: sempre criando novo (assetId será preenchido após criar)
-      // Para venda: usa o bem existente selecionado
-      if (tempAssetOperation === 'venda' && tempAssetId) {
-        finalAssetId = Number(tempAssetId);
+    } else if (state.operationType === 'imobilizado') {
+      finalAssetType = state.tempAssetType || undefined;
+      finalAssetOperation = state.tempAssetOperation || undefined;
+      if (state.tempAssetOperation === 'venda' && state.tempAssetId) {
+        finalAssetId = Number(state.tempAssetId);
       }
     }
 
     const links: TransactionLinks = { 
-        investmentId: tempInvestmentId, 
-        loanId: tempLoanId, 
+        investmentId: state.tempInvestmentId, 
+        loanId: state.tempLoanId, 
         transferGroupId: editingTransaction?.links?.transferGroupId || null, 
-        parcelaId: tempParcelaId, 
+        parcelaId: state.tempParcelaId, 
         vehicleTransactionId,
     };
     
     const meta: Partial<TransactionMeta> = {
-        vehicleOperation: operationType === 'veiculo' ? tempVehicleOperation || undefined : undefined,
+        vehicleOperation: state.operationType === 'veiculo' ? state.tempVehicleOperation || undefined : undefined,
         assetType: finalAssetType,
         assetId: finalAssetId,
         assetOperation: finalAssetOperation,
     };
 
     const baseTx: TransacaoCompleta = {
-      id: editingTransaction?.id || generateTransactionId(), 
-      date, 
-      accountId, 
-      flow: getFlowTypeFromOperation(operationType, finalAssetOperation), 
-      operationType, 
-      domain: getDomainFromOperation(operationType), 
-      amount: parsedAmount, 
-      categoryId: categoryId, 
-      description: description.trim() || OPERATION_TYPE_LABELS[operationType], 
-      links, 
-      conciliated: false, 
-      attachments: [], 
+      id: editingTransaction?.id || generateTransactionId(),
+      date: state.date,
+      accountId: state.accountId,
+      flow: getFlowTypeFromOperation(state.operationType, finalAssetOperation),
+      operationType: state.operationType,
+      domain: getDomainFromOperation(state.operationType),
+      amount: parsedAmount,
+      categoryId: state.categoryId,
+      description: state.description.trim() || OPERATION_TYPE_LABELS[state.operationType],
+      links,
+      conciliated: false,
+      attachments: [],
       meta: { createdBy: 'user', source: 'manual', createdAt: new Date().toISOString(), ...meta } as TransactionMeta
     };
 
+    const validation = validateTransaction(baseTx);
+    if (!validation.valid) {
+      toast.error(validation.message || "Erro na validação contábil.");
+      return;
+    }
+
     let transferGroup;
-    const isInterAccountMovement = operationType === 'transferencia' || operationType === 'aplicacao' || operationType === 'resgate';
-    const targetAccountId = operationType === 'transferencia' ? destinationAccountId : tempInvestmentId;
+
+    const isInterAccountMovement = state.operationType === 'transferencia' || state.operationType === 'aplicacao' || state.operationType === 'resgate';
+    const targetAccountId = state.operationType === 'transferencia' ? state.destinationAccountId : state.tempInvestmentId;
 
     if (isInterAccountMovement && targetAccountId) {
       transferGroup = { 
         id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(), 
-        fromAccountId: accountId, 
+        fromAccountId: state.accountId, 
         toAccountId: targetAccountId, 
         amount: parsedAmount, 
-        date, 
+        date: state.date, 
         description: baseTx.description 
       };
     }
 
-    // Preparar dados do novo ativo se for compra (sempre cria novo)
     let newAssetPayload: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData } | undefined;
     
-    if (operationType === 'veiculo' && tempVehicleOperation === 'compra') {
-      newAssetPayload = { type: 'veiculo', data: newVehicleData };
-    } else if (operationType === 'imobilizado' && tempAssetOperation === 'compra' && tempAssetType) {
-      if (tempAssetType === 'imovel') {
-        newAssetPayload = { type: 'imovel', data: newImovelData };
+    if (state.operationType === 'veiculo' && state.tempVehicleOperation === 'compra') {
+      newAssetPayload = { type: 'veiculo', data: state.newVehicleData };
+    } else if (state.operationType === 'imobilizado' && state.tempAssetOperation === 'compra' && state.tempAssetType) {
+      if (state.tempAssetType === 'imovel') {
+        newAssetPayload = { type: 'imovel', data: state.newImovelData };
       } else {
-        newAssetPayload = { type: 'terreno', data: newTerrenoData };
+        newAssetPayload = { type: 'terreno', data: state.newTerrenoData };
       }
     }
     
@@ -404,91 +328,57 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     onOpenChange(false);
   };
 
-  const op = OPERATION_OPTIONS.find(o => o.value === operationType);
+  const op = OPERATION_OPTIONS.find(o => o.value === state.operationType);
+  const showVincularSection = ['aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo', 'imobilizado'].includes(state.operationType || '') || isSeguroCategory;
+  const hideCategory = ['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'imobilizado'].includes(state.operationType || '');
   
-  // Mostrar seção de vínculo para operações que requerem
-  const showVincularSection = ['aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo', 'imobilizado'].includes(operationType || '') || isSeguroCategory;
-  
-  // Esconder campo de categoria para operações de ativos (veículo/imobilizado) e outras que não usam
-  const hideCategory = ['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'liberacao_emprestimo', 'veiculo', 'imobilizado'].includes(operationType || '');
-  
-  const currentLoan = useMemo(() => loans.find(l => l.id === tempLoanId), [loans, tempLoanId]);
-  const currentSeguro = useMemo(() => segurosVeiculo.find(s => s.id === Number(tempSeguroId)), [segurosVeiculo, tempSeguroId]);
+  const currentLoan = useMemo(() => loans.find(l => l.id === state.tempLoanId), [loans, state.tempLoanId]);
+  const currentSeguro = useMemo(() => segurosVeiculo.find(s => s.id === Number(state.tempSeguroId)), [segurosVeiculo, state.tempSeguroId]);
 
-  // Veículos ativos (não vendidos) para seleção em venda
   const activeVehicles = useMemo(() => veiculos.filter(v => v.status !== 'vendido'), [veiculos]);
-  
-  // Imóveis/Terrenos ativos para seleção em venda
   const activeImoveis = useMemo(() => imoveis.filter(i => i.status !== 'vendido'), [imoveis]);
   const activeTerrenos = useMemo(() => terrenos.filter(t => t.status !== 'vendido'), [terrenos]);
 
   const handleOperationChange = (v: OperationType) => {
-    setOperationType(v);
-    setDestinationAccountId(null);
-    setTempInvestmentId(null);
-    setTempLoanId(null);
-    setTempParcelaId(null);
-    setTempVehicleOperation(null);
-    setTempVehicleId(null);
-    setIsCreatingNewVehicle(false);
-    setNewVehicleData({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
-    setTempSeguroId(null);
-    setTempSeguroParcelaId(null);
-    setTempAssetType(null);
-    setTempAssetId(null);
-    setTempAssetOperation(null);
-    setIsCreatingNewAsset(false);
-    setNewImovelData({ descricao: '', tipo: 'casa', endereco: '' });
-    setNewTerrenoData({ descricao: '', endereco: '' });
-    setCategoryId(null);
-    if (!description) {
-        if (v === 'pagamento_emprestimo') setDescription('Pagamento Parcela Empréstimo');
-        if (v === 'aplicacao') setDescription('Aplicação Financeira');
-        if (v === 'resgate') setDescription('Resgate de Investimento');
-        if (v === 'veiculo') setDescription('Operação Veículo');
-        if (v === 'imobilizado') setDescription('Operação Imóvel/Terreno');
+    dispatch({ type: 'SET_OPERATION', operationType: v });
+    if (!state.description) {
+        if (v === 'pagamento_emprestimo') dispatch({ type: 'SET_FIELD', field: 'description', value: 'Pagamento Parcela Empréstimo' });
+        if (v === 'aplicacao') dispatch({ type: 'SET_FIELD', field: 'description', value: 'Aplicação Financeira' });
+        if (v === 'resgate') dispatch({ type: 'SET_FIELD', field: 'description', value: 'Resgate de Investimento' });
+        if (v === 'veiculo') dispatch({ type: 'SET_FIELD', field: 'description', value: 'Operação Veículo' });
+        if (v === 'imobilizado') dispatch({ type: 'SET_FIELD', field: 'description', value: 'Operação Imóvel/Terreno' });
     }
   };
 
   const handleSeguroChange = (v: string) => {
-    setTempSeguroId(v);
-    setTempSeguroParcelaId(null);
+    dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: v });
+    dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: null });
     const s = segurosVeiculo.find(x => x.id === Number(v));
     if (s) {
         const vModel = veiculos.find(v => v.id === s.veiculoId)?.modelo;
-        setDescription(`Pagamento Seguro - ${vModel || s.seguradora}`);
+        dispatch({ type: 'SET_FIELD', field: 'description', value: `Pagamento Seguro - ${vModel || s.seguradora}` });
         const firstUnpaid = s.parcelas.find(p => !p.paga);
         if (firstUnpaid) {
-            setTempSeguroParcelaId(String(firstUnpaid.numero));
-            setAmount(firstUnpaid.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }));
+            dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: String(firstUnpaid.numero) });
+            dispatch({ type: 'SET_FIELD', field: 'amount', value: firstUnpaid.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) });
         }
     }
   };
 
   const handleVehicleOperationChange = (v: 'compra' | 'venda') => {
-    setTempVehicleOperation(v);
-    setTempVehicleId(null);
-    setIsCreatingNewVehicle(v === 'compra'); // Para compra, default é criar novo
-    setNewVehicleData({ modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() });
-    if (v === 'compra') {
-      setDescription('Compra de Veículo');
-    } else {
-      setDescription('Venda de Veículo');
-    }
+    dispatch({ type: 'SET_FIELD', field: 'tempVehicleOperation', value: v });
+    dispatch({ type: 'SET_FIELD', field: 'tempVehicleId', value: null });
+    dispatch({ type: 'SET_FIELD', field: 'newVehicleData', value: { modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() } });
+    dispatch({ type: 'SET_FIELD', field: 'description', value: v === 'compra' ? 'Compra de Veículo' : 'Venda de Veículo' });
   };
 
   const handleAssetOperationChange = (v: 'compra' | 'venda') => {
-    setTempAssetOperation(v);
-    setTempAssetId(null);
-    setIsCreatingNewAsset(v === 'compra'); // Para compra, default é criar novo
-    setNewImovelData({ descricao: '', tipo: 'casa', endereco: '' });
-    setNewTerrenoData({ descricao: '', endereco: '' });
-    const tipoLabel = tempAssetType === 'imovel' ? 'Imóvel' : 'Terreno';
-    if (v === 'compra') {
-      setDescription(`Compra de ${tipoLabel}`);
-    } else {
-      setDescription(`Venda de ${tipoLabel}`);
-    }
+    dispatch({ type: 'SET_FIELD', field: 'tempAssetOperation', value: v });
+    dispatch({ type: 'SET_FIELD', field: 'tempAssetId', value: null });
+    dispatch({ type: 'SET_FIELD', field: 'newImovelData', value: { descricao: '', tipo: 'casa', endereco: '' } });
+    dispatch({ type: 'SET_FIELD', field: 'newTerrenoData', value: { descricao: '', endereco: '' } });
+    const tipoLabel = state.tempAssetType === 'imovel' ? 'Imóvel' : 'Terreno';
+    dispatch({ type: 'SET_FIELD', field: 'description', value: v === 'compra' ? `Compra de ${tipoLabel}` : `Venda de ${tipoLabel}` });
   };
 
   const formBody = (
@@ -500,7 +390,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
           <Input
             type="text"
             inputMode="numeric"
-            value={amount}
+            value={state.amount}
             onChange={(e) => handleAmountChange(e.target.value)}
             className="h-12 text-2xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
           />
@@ -511,7 +401,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Operação</Label>
-          <Select value={operationType || ''} onValueChange={handleOperationChange}>
+          <Select value={state.operationType || ''} onValueChange={handleOperationChange}>
             <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue /></SelectTrigger>
             <SelectContent className="rounded-xl shadow-2xl border-none p-1">
               {OPERATION_OPTIONS.map(o => (
@@ -524,15 +414,15 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         </div>
         <div className="space-y-1.5">
           <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Data</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm" />
+          <Input type="date" value={state.date} onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'date', value: e.target.value })} className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm" />
         </div>
       </div>
 
       <div className="space-y-1.5">
         <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">
-          {operationType === 'transferencia' ? 'Conta de Saída' : 'Conta do Registro'}
+          {state.operationType === 'transferencia' ? 'Conta de Saída' : 'Conta do Registro'}
         </Label>
-        <Select value={accountId} onValueChange={setAccountId}>
+        <Select value={state.accountId} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'accountId', value: v })}>
           <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue /></SelectTrigger>
           <SelectContent className="rounded-xl border-none shadow-2xl">
             {accounts.map(a => <SelectItem key={a.id} value={a.id} className="font-bold text-sm">{a.name}</SelectItem>)}
@@ -540,23 +430,22 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         </Select>
       </div>
 
-      {operationType === 'transferencia' && (
+      {state.operationType === 'transferencia' && (
         <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-300">
           <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-primary px-1">Conta de Destino</Label>
-          <Select value={destinationAccountId || ''} onValueChange={setDestinationAccountId}>
+          <Select value={state.destinationAccountId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'destinationAccountId', value: v })}>
             <SelectTrigger className="h-9 rounded-xl border-2 border-primary/20 bg-primary/5 font-bold text-sm"><SelectValue placeholder="Selecione o destino..." /></SelectTrigger>
             <SelectContent className="rounded-xl border-none shadow-2xl">
-              {accounts.filter(a => a.id !== accountId).map(a => <SelectItem key={a.id} value={a.id} className="font-bold text-sm">{a.name}</SelectItem>)}
+              {accounts.filter(a => a.id !== state.accountId).map(a => <SelectItem key={a.id} value={a.id} className="font-bold text-sm">{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       )}
 
-      {/* Campo Categoria - Escondido para operações de ativos */}
       {!hideCategory && (
         <div className="space-y-1.5">
           <Label className="text-[9px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Categoria</Label>
-          <Select value={categoryId || ''} onValueChange={setCategoryId}>
+          <Select value={state.categoryId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'categoryId', value: v })}>
             <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm">
               <SelectValue placeholder="Selecione..." />
             </SelectTrigger>
@@ -571,18 +460,18 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         <div className="space-y-4 p-5 rounded-[2rem] bg-primary/5 border-2 border-dashed border-primary/20 animate-in slide-in-from-top-2 duration-300">
           <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary block text-center">Vínculo Obrigatório</Label>
 
-          {operationType === 'pagamento_emprestimo' && (
+          {state.operationType === 'pagamento_emprestimo' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Contrato</Label>
-                <Select value={tempLoanId || ''} onValueChange={(v) => { setTempLoanId(v); setTempParcelaId(null); }}>
+                <Select value={state.tempLoanId || ''} onValueChange={(v) => { dispatch({ type: 'SET_FIELD', field: 'tempLoanId', value: v }); dispatch({ type: 'SET_FIELD', field: 'tempParcelaId', value: null }); }}>
                   <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                   <SelectContent>{loans.map(l => <SelectItem key={l.id} value={l.id} className="font-bold">{l.institution}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela</Label>
-                <Select value={tempParcelaId || ''} onValueChange={setTempParcelaId} disabled={!currentLoan}>
+                <Select value={state.tempParcelaId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempParcelaId', value: v })} disabled={!currentLoan}>
                   <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
                   <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}</SelectContent>
                 </Select>
@@ -594,7 +483,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Seguro/Veículo</Label>
-                <Select value={tempSeguroId || ''} onValueChange={handleSeguroChange}>
+                <Select value={state.tempSeguroId || ''} onValueChange={handleSeguroChange}>
                   <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o seguro..." /></SelectTrigger>
                   <SelectContent>
                     {segurosVeiculo.map(s => {
@@ -606,7 +495,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela em Aberto</Label>
-                <Select value={tempSeguroParcelaId || ''} onValueChange={setTempSeguroParcelaId} disabled={!currentSeguro}>
+                <Select value={state.tempSeguroParcelaId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: v })} disabled={!currentSeguro}>
                   <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
                   <SelectContent>
                     {currentSeguro?.parcelas.filter(p => !p.paga).map(p => (
@@ -618,18 +507,17 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             </div>
           )}
 
-          {operationType === 'imobilizado' && (
+          {state.operationType === 'imobilizado' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Tipo de Bem</Label>
                   <Select
-                    value={tempAssetType || ''}
+                    value={state.tempAssetType || ''}
                     onValueChange={v => {
-                      setTempAssetType(v as 'imovel' | 'terreno');
-                      setTempAssetId(null);
-                      setTempAssetOperation(null);
-                      setIsCreatingNewAsset(false);
+                      dispatch({ type: 'SET_FIELD', field: 'tempAssetType', value: v as 'imovel' | 'terreno' });
+                      dispatch({ type: 'SET_FIELD', field: 'tempAssetId', value: null });
+                      dispatch({ type: 'SET_FIELD', field: 'tempAssetOperation', value: null });
                     }}
                   >
                     <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
@@ -645,9 +533,9 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
                   <Select
-                    value={tempAssetOperation || ''}
+                    value={state.tempAssetOperation || ''}
                     onValueChange={v => handleAssetOperationChange(v as 'compra' | 'venda')}
-                    disabled={!tempAssetType}
+                    disabled={!state.tempAssetType}
                   >
                     <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
                       <SelectValue placeholder="Compra ou Venda" />
@@ -660,16 +548,15 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 </div>
               </div>
 
-              {/* Para VENDA: sempre selecionar bem existente */}
-              {tempAssetType && tempAssetOperation === 'venda' && (
+              {state.tempAssetType && state.tempAssetOperation === 'venda' && (
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Bem</Label>
-                  <Select value={tempAssetId || ''} onValueChange={setTempAssetId}>
+                  <Select value={state.tempAssetId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempAssetId', value: v })}>
                     <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
                       <SelectValue placeholder="Selecione..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {(tempAssetType === 'imovel' ? activeImoveis : activeTerrenos).map(a => (
+                      {(state.tempAssetType === 'imovel' ? activeImoveis : activeTerrenos).map(a => (
                         <SelectItem key={a.id} value={String(a.id)} className="font-bold">
                           {a.descricao}
                         </SelectItem>
@@ -679,17 +566,16 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 </div>
               )}
 
-              {/* Para COMPRA: cadastrar novo bem */}
-              {tempAssetType && tempAssetOperation === 'compra' && (
+              {state.tempAssetType && state.tempAssetOperation === 'compra' && (
                 <div className="space-y-3 p-3 rounded-xl bg-card/50">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Bem</Label>
-                  {tempAssetType === 'imovel' ? (
+                  {state.tempAssetType === 'imovel' ? (
                     <>
                       <div className="space-y-1.5">
                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
                         <Input
-                          value={newImovelData.descricao}
-                          onChange={e => setNewImovelData({ ...newImovelData, descricao: e.target.value })}
+                          value={state.newImovelData.descricao}
+                          onChange={e => dispatch({ type: 'SET_FIELD', field: 'newImovelData', value: { ...state.newImovelData, descricao: e.target.value } })}
                           placeholder="Ex: Apartamento Centro"
                           className="h-9 rounded-lg text-sm"
                         />
@@ -697,7 +583,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1.5">
                           <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
-                          <Select value={newImovelData.tipo} onValueChange={v => setNewImovelData({ ...newImovelData, tipo: v as any })}>
+                          <Select value={state.newImovelData.tipo} onValueChange={v => dispatch({ type: 'SET_FIELD', field: 'newImovelData', value: { ...state.newImovelData, tipo: v as any } })}>
                             <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="casa">Casa</SelectItem>
@@ -709,8 +595,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                         <div className="space-y-1.5">
                           <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
                           <Input
-                            value={newImovelData.endereco}
-                            onChange={e => setNewImovelData({ ...newImovelData, endereco: e.target.value })}
+                            value={state.newImovelData.endereco}
+                            onChange={e => dispatch({ type: 'SET_FIELD', field: 'newImovelData', value: { ...state.newImovelData, endereco: e.target.value } })}
                             placeholder="Cidade/Bairro"
                             className="h-9 rounded-lg text-sm"
                           />
@@ -722,8 +608,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                       <div className="space-y-1.5">
                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Descrição</Label>
                         <Input
-                          value={newTerrenoData.descricao}
-                          onChange={e => setNewTerrenoData({ ...newTerrenoData, descricao: e.target.value })}
+                          value={state.newTerrenoData.descricao}
+                          onChange={e => dispatch({ type: 'SET_FIELD', field: 'newTerrenoData', value: { ...state.newTerrenoData, descricao: e.target.value } })}
                           placeholder="Ex: Lote Condomínio X"
                           className="h-9 rounded-lg text-sm"
                         />
@@ -731,8 +617,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                       <div className="space-y-1.5">
                         <Label className="text-[9px] font-black uppercase text-muted-foreground">Endereço</Label>
                         <Input
-                          value={newTerrenoData.endereco}
-                          onChange={e => setNewTerrenoData({ ...newTerrenoData, endereco: e.target.value })}
+                          value={state.newTerrenoData.endereco}
+                          onChange={e => dispatch({ type: 'SET_FIELD', field: 'newTerrenoData', value: { ...state.newTerrenoData, endereco: e.target.value } })}
                           placeholder="Cidade/Bairro"
                           className="h-9 rounded-lg text-sm"
                         />
@@ -744,23 +630,23 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             </div>
           )}
 
-          {(operationType === 'aplicacao' || operationType === 'resgate') && (
+          {(state.operationType === 'aplicacao' || state.operationType === 'resgate') && (
             <div className="space-y-1.5">
               <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">
-                {operationType === 'aplicacao' ? 'Conta de Investimento (Destino)' : 'Conta de Investimento (Origem)'}
+                {state.operationType === 'aplicacao' ? 'Conta de Investimento (Destino)' : 'Conta de Investimento (Origem)'}
               </Label>
-              <Select value={tempInvestmentId || ''} onValueChange={setTempInvestmentId}>
+              <Select value={state.tempInvestmentId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempInvestmentId', value: v })}>
                 <SelectTrigger className="h-11 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o ativo..." /></SelectTrigger>
                 <SelectContent>{investments.map(i => <SelectItem key={i.id} value={i.id} className="font-bold">{i.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
           )}
 
-          {operationType === 'veiculo' && (
+          {state.operationType === 'veiculo' && (
             <div className="space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Operação</Label>
-                <Select value={tempVehicleOperation || ''} onValueChange={(v) => handleVehicleOperationChange(v as 'compra' | 'venda')}>
+                <Select value={state.tempVehicleOperation || ''} onValueChange={(v) => handleVehicleOperationChange(v as 'compra' | 'venda')}>
                   <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Compra ou Venda" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="compra" className="font-bold">Compra</SelectItem>
@@ -769,11 +655,10 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 </Select>
               </div>
 
-              {/* Para VENDA: sempre selecionar veículo existente */}
-              {tempVehicleOperation === 'venda' && (
+              {state.tempVehicleOperation === 'venda' && (
                 <div className="space-y-1.5">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Selecione o Veículo</Label>
-                  <Select value={tempVehicleId || ''} onValueChange={setTempVehicleId}>
+                  <Select value={state.tempVehicleId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempVehicleId', value: v })}>
                     <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                     <SelectContent>
                       {activeVehicles.map(v => <SelectItem key={v.id} value={String(v.id)} className="font-bold">{v.modelo}</SelectItem>)}
@@ -782,15 +667,14 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                 </div>
               )}
 
-              {/* Para COMPRA: cadastrar novo veículo */}
-              {tempVehicleOperation === 'compra' && (
+              {state.tempVehicleOperation === 'compra' && (
                 <div className="space-y-3 p-3 rounded-xl bg-card/50">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground block text-center">Dados do Novo Veículo</Label>
                   <div className="space-y-1.5">
                     <Label className="text-[9px] font-black uppercase text-muted-foreground">Modelo</Label>
                     <Input
-                      value={newVehicleData.modelo}
-                      onChange={e => setNewVehicleData({ ...newVehicleData, modelo: e.target.value })}
+                      value={state.newVehicleData.modelo}
+                      onChange={e => dispatch({ type: 'SET_FIELD', field: 'newVehicleData', value: { ...state.newVehicleData, modelo: e.target.value } })}
                       placeholder="Ex: Honda Civic 2.0"
                       className="h-9 rounded-lg text-sm"
                     />
@@ -798,7 +682,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1.5">
                       <Label className="text-[9px] font-black uppercase text-muted-foreground">Tipo</Label>
-                      <Select value={newVehicleData.tipo} onValueChange={v => setNewVehicleData({ ...newVehicleData, tipo: v as any })}>
+                      <Select value={state.newVehicleData.tipo} onValueChange={v => dispatch({ type: 'SET_FIELD', field: 'newVehicleData', value: { ...state.newVehicleData, tipo: v as any } })}>
                         <SelectTrigger className="h-9 rounded-lg text-sm"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="carro">Carro</SelectItem>
@@ -810,8 +694,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                     <div className="space-y-1.5">
                       <Label className="text-[9px] font-black uppercase text-muted-foreground">Marca</Label>
                       <Input
-                        value={newVehicleData.marca || ''}
-                        onChange={e => setNewVehicleData({ ...newVehicleData, marca: e.target.value })}
+                        value={state.newVehicleData.marca || ''}
+                        onChange={e => dispatch({ type: 'SET_FIELD', field: 'newVehicleData', value: { ...state.newVehicleData, marca: e.target.value } })}
                         placeholder="Honda"
                         className="h-9 rounded-lg text-sm"
                       />
@@ -820,8 +704,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
                       <Label className="text-[9px] font-black uppercase text-muted-foreground">Ano</Label>
                       <Input
                         type="number"
-                        value={newVehicleData.ano}
-                        onChange={e => setNewVehicleData({ ...newVehicleData, ano: parseInt(e.target.value) || new Date().getFullYear() })}
+                        value={state.newVehicleData.ano}
+                        onChange={e => dispatch({ type: 'SET_FIELD', field: 'newVehicleData', value: { ...state.newVehicleData, ano: parseInt(e.target.value) || new Date().getFullYear() } })}
                         className="h-9 rounded-lg text-sm"
                       />
                     </div>
@@ -838,8 +722,8 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         <div className="relative">
           <FileText className="absolute left-3 top-2.5 w-3.5 h-3.5 text-muted-foreground" />
           <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            value={state.description}
+            onChange={(e) => dispatch({ type: 'SET_FIELD', field: 'description', value: e.target.value })}
             className="w-full h-16 p-2.5 pl-9 rounded-xl border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner resize-none font-medium text-sm"
             placeholder="Ex: Compra supermercado, Aporte Selic..."
           />
@@ -855,7 +739,6 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         fullscreen={isMobile}
         className={cn(
           "p-0 shadow-2xl bg-card flex flex-col",
-          // +30% width on desktop (28rem -> ~36.4rem)
           !isMobile && "max-w-[36.4rem] max-h-[85vh] rounded-[2rem]"
         )}
       >
