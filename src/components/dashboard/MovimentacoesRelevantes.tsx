@@ -4,7 +4,7 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   ChevronRight,
-  TrendingUp,
+  TrendingUpDown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +89,7 @@ export function MovimentacoesRelevantes({ transacoes, limit = 6 }: Movimentacoes
 
         {movimentacoes.length === 0 && (
           <div className="text-center py-10 opacity-40">
-            <TrendingUp className="w-10 h-10 mx-auto mb-2" />
+            <TrendingUpDown className="w-10 h-10 mx-auto mb-2" />
             <p className="text-xs font-bold uppercase">Sem registros</p>
           </div>
         )}

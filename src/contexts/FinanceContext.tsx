@@ -426,12 +426,6 @@ interface FinanceContextType {
   deleteMetaPersonalizada: (id: string) => void;
   calcularProgressoMeta: (meta: MetaPersonalizada) => MetaProgresso;
 
-  // Pluggy
-  importPluggyAccounts: (accounts: any[]) => void;
-  importPluggyTransactions: (transactions: any[]) => void;
-  importPluggyCreditCards: (bills: any[]) => void;
-  importPluggyInvestments: (investments: any[]) => void;
-  
   // CLT
   cltContracts: CltContract[];
   addCltContract: (contract: CltContract) => void;
@@ -1650,26 +1644,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }).filter(Boolean) as BillTracker[];
   }, [creditCardConfigs, getInvoiceForCard, contasMovimento, billsTracker, transacoesV2]);
 
-  const importPluggyAccounts = useCallback((accounts: any[]) => {
-    // Implementação de merge com contasMovimento
-    console.log("Importando contas Pluggy:", accounts);
-  }, []);
-
-  const importPluggyTransactions = useCallback((transactions: any[]) => {
-    // Implementação de merge com transacoesV2
-    console.log("Importando transações Pluggy:", transactions);
-  }, []);
-
-  const importPluggyCreditCards = useCallback((bills: any[]) => {
-    // Implementação de integração com cartões
-    console.log("Importando faturas Pluggy:", bills);
-  }, []);
-
-  const importPluggyInvestments = useCallback((investments: any[]) => {
-    // Implementação de integração com investimentos
-    console.log("Importando investimentos Pluggy:", investments);
-  }, []);
-
   const value = useMemo(() => ({
     emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo: (id: number) => setEmprestimos(p => p.filter(e => e.id !== id)), getPendingLoans: () => emprestimos.filter(e => e.status === 'pendente_config'), markLoanParcelPaid, unmarkLoanParcelPaid, calculateLoanSchedule, calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths,
     veiculos, addVeiculo, updateVeiculo: (id: number, u: any) => setVeiculos(p => p.map(v => v.id === id ? { ...v, ...u } : v)), deleteVeiculo: (id: number) => setVeiculos(p => p.filter(v => v.id !== id)), getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro'),
@@ -1692,8 +1666,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate,
     metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
     
-    importPluggyAccounts, importPluggyTransactions, importPluggyCreditCards, importPluggyInvestments,
-    
     cltContracts,
     addCltContract: (c: CltContract) => setCltContracts(p => [...p, c]),
     updateCltContract: (id: string, u: Partial<CltContract>) => setCltContracts(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
@@ -1712,21 +1684,20 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }), [
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
     
-    contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges,
+    contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges, 
     alertStartDate, revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,
     calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAApropriar, getSegurosAPagar,
     processStatementFile, getTransactionsForReview, getBillsForMonth, getPotentialFixedBillsForMonth,
     getFutureFixedBills, getOtherPaidExpensesForMonth, getInvoiceForCard, generateInvoiceBills,
     getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
-    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction,
+    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction, 
     addTransacaoV2, updateBill, deleteBill, exportData, importData,
     addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,
     uncontabilizeImportedTransaction, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
-    updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno,
-    importPluggyAccounts, importPluggyTransactions, importPluggyCreditCards, importPluggyInvestments
+    updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
