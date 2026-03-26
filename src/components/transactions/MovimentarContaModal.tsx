@@ -5,16 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Minus, ArrowLeftRight, TrendingUp, TrendingDown, CreditCard, DollarSign, Car, Coins, FileText, Check, Sparkles, ArrowLeft, Building2 } from "lucide-react";
-import { 
-  ContaCorrente, 
-  Categoria, 
-  generateTransactionId, 
-  generateTransferGroupId, 
-  OperationType, 
-  TransacaoCompleta, 
-  getFlowTypeFromOperation, 
-  getDomainFromOperation, 
-  InvestmentInfo, 
+import {
+  ContaCorrente,
+  Categoria,
+  generateTransactionId,
+  generateTransferGroupId,
+  OperationType,
+  TransacaoCompleta,
+  getFlowTypeFromOperation,
+  getDomainFromOperation,
+  InvestmentInfo,
   OPERATION_TYPE_LABELS,
   TransactionLinks,
   TransactionMeta,
@@ -22,6 +22,7 @@ import {
   Imovel,
   Terreno,
   Veiculo,
+  getAllowedOperations,
 } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -147,18 +148,33 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     }
   }, [open, editingTransaction, selectedAccountId, accounts]);
 
+  const selectedAccount = useMemo(() => accounts.find(a => a.id === state.accountId), [accounts, state.accountId]);
+  const allowedOperations = useMemo(() => selectedAccount ? getAllowedOperations(selectedAccount.accountType) : OPERATION_OPTIONS.map(o => o.value), [selectedAccount]);
+  const filteredOperationOptions = useMemo(() => OPERATION_OPTIONS.filter(o => allowedOperations.includes(o.value)), [allowedOperations]);
+
+  useEffect(() => {
+    if (state.operationType && !allowedOperations.includes(state.operationType)) {
+      dispatch({ type: 'SET_OPERATION', operationType: allowedOperations[0] || 'despesa' });
+    }
+  }, [state.accountId, allowedOperations, state.operationType]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedAmount = parseBrlValue(state.amount);
     
-    if (!state.accountId || !state.date || parsedAmount <= 0 || !state.operationType) { 
-      toast.error("Preencha os campos obrigatórios."); 
-      return; 
+    if (!state.accountId || !state.date || parsedAmount <= 0 || !state.operationType) {
+      toast.error("Preencha os campos obrigatórios.");
+      return;
     }
     
-    if (state.operationType === 'transferencia' && !state.destinationAccountId) { 
-      toast.error("Selecione a conta de destino."); 
-      return; 
+    if (!allowedOperations.includes(state.operationType)) {
+      toast.error("Operação não permitida para esta conta.");
+      return;
+    }
+    
+    if (state.operationType === 'transferencia' && !state.destinationAccountId) {
+      toast.error("Selecione a conta de destino.");
+      return;
     }
     if ((state.operationType === 'aplicacao' || state.operationType === 'resgate') && !state.tempInvestmentId) { 
       toast.error("Selecione o ativo de investimento."); 
@@ -404,7 +420,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
           <Select value={state.operationType || ''} onValueChange={handleOperationChange}>
             <SelectTrigger className="h-9 rounded-xl border-none bg-muted/20 font-bold shadow-inner text-sm"><SelectValue /></SelectTrigger>
             <SelectContent className="rounded-xl shadow-2xl border-none p-1">
-              {OPERATION_OPTIONS.map(o => (
+              {filteredOperationOptions.map(o => (
                 <SelectItem key={o.value} value={o.value} className="rounded-lg font-bold py-2 text-sm">
                   <div className="flex items-center gap-2"><div className={cn("p-1 rounded-md", o.bgColor)}>{React.createElement(o.icon, { size: 14, className: o.color })}</div>{o.label}</div>
                 </SelectItem>

@@ -731,7 +731,7 @@ export function getFlowTypeFromOperation(op: OperationType, assetOperation?: 'co
     case 'resgate':
     case 'liberacao_emprestimo':
     case 'rendimento':
-    case 'initial_balance': // ADICIONADO
+    case 'initial_balance':
       return 'in';
     case 'despesa':
     case 'aplicacao':
@@ -745,6 +745,35 @@ export function getFlowTypeFromOperation(op: OperationType, assetOperation?: 'co
       return assetOperation === 'venda' ? 'in' : 'out';
     default:
       return 'out';
+  }
+}
+
+export function getAllowedOperations(accountType: AccountType): OperationType[] {
+  switch (accountType) {
+    case 'corrente':
+      return [
+        'receita',
+        'despesa',
+        'transferencia',
+        'aplicacao',
+        'resgate',
+        'pagamento_emprestimo',
+        'liberacao_emprestimo',
+        'veiculo',
+        'rendimento',
+        'initial_balance',
+        'imobilizado',
+      ];
+    case 'renda_fixa':
+    case 'poupanca':
+    case 'cripto':
+    case 'reserva':
+    case 'objetivo':
+      return ['aplicacao', 'resgate', 'rendimento', 'transferencia'];
+    case 'cartao_credito':
+      return ['despesa', 'pagamento_emprestimo'];
+    default:
+      return [];
   }
 }
 
