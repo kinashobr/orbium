@@ -24,6 +24,7 @@ import {
 	generateStatementId,
 	OperationType,
 	getFlowTypeFromOperation,
+	 OPERATION_TYPE_LABELS,
 	BillSourceType,
 	TransactionLinks,
 	PotentialFixedBill,
@@ -539,9 +540,44 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo));
   const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos));
   const [billsTracker, setBillsTracker] = useState<BillTracker[]>(() => loadFromStorage(STORAGE_KEYS.BILLS_TRACKER, initialBillsTracker));
-  const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() =>
-    loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS).map(normalizeAccountTerm)
-  );
+  const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => {
+    const loaded = loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS).map(normalizeAccountTerm);
+    
+    // Garantir existência de contas ocultas para o sistema de partidas dobradas
+    const hiddenAccounts: ContaCorrente[] = [
+      {
+        id: 'acc_system_bens',
+        name: 'Sistema de Bens',
+        accountType: 'objetivo',
+        accountTerm: 'longo_prazo',
+        currency: 'BRL',
+        initialBalance: 0,
+        createdAt: new Date(0).toISOString(),
+        meta: { system: true },
+        hidden: true
+      },
+      {
+        id: 'acc_system_financiamento',
+        name: 'Sistema de Financiamentos',
+        accountType: 'objetivo',
+        accountTerm: 'longo_prazo',
+        currency: 'BRL',
+        initialBalance: 0,
+        createdAt: new Date(0).toISOString(),
+        meta: { system: true },
+        hidden: true
+      }
+    ];
+
+    let updated = [...loaded];
+    hiddenAccounts.forEach(ha => {
+      if (!updated.find(a => a.id === ha.id)) {
+        updated.push(ha);
+      }
+    });
+    
+    return updated;
+  });
   const [categoriasV2, setCategoriasV2] = useState<Categoria[]>(() => loadFromStorage(STORAGE_KEYS.CATEGORIAS_V2, DEFAULT_CATEGORIES));
   const [transacoesV2, setTransacoesV2] = useState<TransacaoCompleta[]>(() => loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, []));
   const [standardizationRules, setStandardizationRules] = useState<StandardizationRule[]>(() => loadFromStorage(STORAGE_KEYS.STANDARDIZATION_RULES, initialStandardizationRules));
@@ -563,8 +599,69 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // 1. Definição básica de updaters de estado para evitar erros de referência circular/ordem
-  const addTransacaoV2 = useCallback((transaction: TransacaoCompleta) => { 
-    setTransacoesV2(prev => [...prev, transaction]); 
+  const addTransacaoV2 = useCallback((transaction: TransacaoCompleta) => {
+    const counterpartTxs: TransacaoCompleta[] = [];
+    const { operationType, flow, amount, accountId, date, description, links, meta } = transaction;
+
+    // Lógica de Partida Dobrada (Double-Entry)
+    if (links.transferGroupId) {
+      let targetAccountId = '';
+      let counterFlow: any = 'transfer_in';
+      let counterDomain = transaction.domain;
+      let counterMeta = { ...meta, notes: `Contrapartida automática de ${OPERATION_TYPE_LABELS[operationType]}` };
+
+      switch (operationType) {
+        case 'transferencia':
+          break;
+
+        case 'aplicacao':
+          targetAccountId = links.investmentId || '';
+          counterFlow = 'transfer_in';
+          counterDomain = 'investment';
+          break;
+
+        case 'resgate':
+          targetAccountId = links.investmentId || '';
+          counterFlow = 'transfer_out';
+          counterDomain = 'investment';
+          break;
+
+        case 'liberacao_emprestimo':
+          targetAccountId = 'acc_system_financiamento';
+          counterFlow = 'out'; // Saída do sistema de financiamento (aumento de passivo)
+          counterDomain = 'financing';
+          // Adiciona metadado para notificação de configuração pendente
+          transaction.meta = { ...transaction.meta, pendingLoanConfig: true };
+          break;
+
+        case 'veiculo':
+        case 'imobilizado':
+          targetAccountId = 'acc_system_bens';
+          // Se for compra (flow out na conta real), é entrada no sistema de bens
+          counterFlow = flow === 'out' ? 'in' : 'out';
+          counterDomain = 'asset';
+          break;
+      }
+
+      if (targetAccountId && targetAccountId !== accountId) {
+        // Verifica se a contrapartida já não existe (para evitar duplicidade em transferências que chamam addTransacao duas vezes)
+        // Mas para operações de sistema (bens/financiamento), sempre criamos.
+        const isSystemAccount = targetAccountId.startsWith('acc_system_');
+        
+        if (isSystemAccount) {
+          counterpartTxs.push({
+            ...transaction,
+            id: generateTransactionId(),
+            accountId: targetAccountId,
+            flow: counterFlow,
+            domain: counterDomain,
+            meta: counterMeta as any,
+          });
+        }
+      }
+    }
+
+    setTransacoesV2(prev => [...prev, transaction, ...counterpartTxs]);
   }, []);
 
   const updateBill = useCallback((id: string, updates: Partial<BillTracker>) => {

@@ -315,17 +315,21 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
     let transferGroup;
 
     const isInterAccountMovement = state.operationType === 'transferencia' || state.operationType === 'aplicacao' || state.operationType === 'resgate';
+    const isDoubleEntrySystem = ['liberacao_emprestimo', 'veiculo', 'imobilizado'].includes(state.operationType);
     const targetAccountId = state.operationType === 'transferencia' ? state.destinationAccountId : state.tempInvestmentId;
 
-    if (isInterAccountMovement && targetAccountId) {
-      transferGroup = { 
-        id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(), 
-        fromAccountId: state.accountId, 
-        toAccountId: targetAccountId, 
-        amount: parsedAmount, 
-        date: state.date, 
-        description: baseTx.description 
+    if ((isInterAccountMovement && targetAccountId) || isDoubleEntrySystem) {
+      transferGroup = {
+        id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(),
+        fromAccountId: state.accountId,
+        toAccountId: targetAccountId || '', // Será tratado pelo FinanceContext para contas de sistema
+        amount: parsedAmount,
+        date: state.date,
+        description: baseTx.description
       };
+      
+      // Atualiza o link na transação base
+      baseTx.links.transferGroupId = transferGroup.id;
     }
 
     let newAssetPayload: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData } | undefined;
