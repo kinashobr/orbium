@@ -70,9 +70,9 @@ interface MovimentarContaModalProps {
   terrenos: Terreno[];
   selectedAccountId?: string;
   onSubmit: (
-    transaction: TransacaoCompleta, 
+    transaction: TransacaoCompleta,
     transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string },
-    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData }
+    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
   ) => void;
   editingTransaction?: TransacaoCompleta;
 }

@@ -380,6 +380,13 @@ interface FinanceContextType {
   contabilizeImportedTransaction: (statementId: string, transactionId: string, data: Partial<ImportedTransaction>) => void;
   uncontabilizeImportedTransaction: (transactionId: string) => void;
   
+  // Execução de Transação Unificada
+  executeTransaction: (
+    transaction: TransacaoCompleta,
+    transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string },
+    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
+  ) => void;
+
   // Data Filtering
   dateRanges: ComparisonDateRanges;
   setDateRanges: Dispatch<SetStateAction<ComparisonDateRanges>>;
@@ -915,6 +922,129 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const updateImportedStatement = useCallback((statementId: string, updates: Partial<ImportedStatement>) => {
     setImportedStatements(prev => prev.map(s => s.id === statementId ? { ...s, ...updates } : s));
   }, []);
+
+  const executeTransaction = useCallback((
+    transaction: TransacaoCompleta,
+    transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string },
+    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
+  ) => {
+    const { operationType, flow, amount, accountId, links, meta } = transaction;
+    const counterpartTxs: TransacaoCompleta[] = [];
+
+    // 1. Lógica de Partida Dobrada (Double-Entry) para contas de sistema ou transferências
+    if (links.transferGroupId && transferGroup) {
+      let targetAccountId = transferGroup.toAccountId;
+      let counterFlow: any = 'transfer_in';
+      let counterDomain = transaction.domain;
+      let counterMeta = { ...meta, notes: `Contrapartida automática de ${OPERATION_TYPE_LABELS[operationType]}` };
+
+      switch (operationType) {
+        case 'transferencia':
+          // Já vem com targetAccountId correto do modal/importação
+          break;
+
+        case 'aplicacao':
+          targetAccountId = links.investmentId || '';
+          counterFlow = 'transfer_in';
+          counterDomain = 'investment';
+          break;
+
+        case 'resgate':
+          targetAccountId = links.investmentId || '';
+          counterFlow = 'transfer_out';
+          counterDomain = 'investment';
+          break;
+
+        case 'liberacao_emprestimo':
+          targetAccountId = 'acc_system_financiamento';
+          counterFlow = 'out'; // Saída do sistema de financiamento (aumento de passivo)
+          counterDomain = 'financing';
+          transaction.meta = { ...transaction.meta, pendingLoanConfig: true };
+          break;
+
+        case 'veiculo':
+        case 'imobilizado':
+          targetAccountId = 'acc_system_bens';
+          counterFlow = flow === 'out' ? 'in' : 'out';
+          counterDomain = 'asset';
+          break;
+      }
+
+      if (targetAccountId && targetAccountId !== accountId) {
+        counterpartTxs.push({
+          ...transaction,
+          id: generateTransactionId(),
+          accountId: targetAccountId,
+          flow: counterFlow,
+          domain: counterDomain,
+          meta: counterMeta as any,
+        });
+      }
+    }
+
+    // 2. Criação de Novos Ativos (Veículos, Imóveis, Terrenos)
+    if (newAsset) {
+      if (newAsset.type === 'veiculo') {
+        const newId = Math.max(0, ...veiculos.map(v => v.id)) + 1;
+        setVeiculos(prev => [...prev, {
+          ...newAsset.data,
+          id: newId,
+          dataCompra: transaction.date,
+          valorVeiculo: transaction.amount,
+          valorSeguro: 0,
+          vencimentoSeguro: transaction.date,
+          parcelaSeguro: 0,
+          valorFipe: transaction.amount,
+          compraTransactionId: transaction.id,
+          status: 'ativo'
+        }]);
+      } else if (newAsset.type === 'imovel') {
+        const newId = generateImovelId();
+        setImoveis(prev => [...prev, {
+          ...newAsset.data,
+          id: newId,
+          dataAquisicao: transaction.date,
+          valorAquisicao: transaction.amount,
+          valorAvaliacao: transaction.amount,
+          compraTransactionId: transaction.id,
+          status: 'ativo'
+        }]);
+      } else if (newAsset.type === 'terreno') {
+        const newId = generateTerrenoId();
+        setTerrenos(prev => [...prev, {
+          ...newAsset.data,
+          id: newId,
+          dataAquisicao: transaction.date,
+          valorAquisicao: transaction.amount,
+          valorAvaliacao: transaction.amount,
+          compraTransactionId: transaction.id,
+          status: 'ativo'
+        }]);
+      }
+    }
+
+    // 3. Vínculo com BillTracker
+    const matchingBill = billsTracker.find(b =>
+      !b.isPaid &&
+      Math.abs(b.expectedAmount - amount) < 2 &&
+      isSameMonth(parseDateLocal(b.dueDate), parseDateLocal(transaction.date)) &&
+      (b.description.toLowerCase().includes(transaction.description.toLowerCase()) ||
+       transaction.description.toLowerCase().includes(b.description.toLowerCase()))
+    );
+
+    if (matchingBill) {
+      updateBill(matchingBill.id, {
+        isPaid: true,
+        paymentDate: transaction.date,
+        transactionId: links.transferGroupId || transaction.id
+      });
+      toast.info(`Vínculo automático com conta pendente: "${matchingBill.description}"`);
+    }
+
+    // 4. Persistir transações
+    setTransacoesV2(prev => [...prev, transaction, ...counterpartTxs]);
+    toast.success(counterpartTxs.length > 0 ? "Lançamento de partida dobrada realizado." : "Transação registrada com sucesso.");
+  }, [billsTracker, updateBill, veiculos]);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
     setTransacoesV2(prev => prev.filter(t => t.id !== transactionId));
@@ -1038,9 +1168,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const domain = finalTx.operationType ? getDomainFromOperation(finalTx.operationType) : 'operational';
     const flow = finalTx.operationType ? getFlowTypeFromOperation(finalTx.operationType, finalTx.tempAssetOperation) : 'out';
 
-    // 1. Criar a transação principal
     const transactionIdV2 = generateTransactionId();
-    const transferGroupId = (finalTx.isTransfer || finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') ? generateTransferGroupId() : null;
+    const transferGroupId = (finalTx.isTransfer || finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate' || finalTx.operationType === 'liberacao_emprestimo' || finalTx.operationType === 'veiculo' || finalTx.operationType === 'imobilizado') ? generateTransferGroupId() : null;
 
     const newTx: TransacaoCompleta = {
       id: transactionIdV2,
@@ -1053,7 +1182,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       categoryId: finalTx.categoryId,
       description: finalTx.description,
       links: {
-        investmentId: (finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') ? finalTx.tempInvestmentId : finalTx.tempInvestmentId,
+        investmentId: finalTx.tempInvestmentId,
         loanId: finalTx.tempLoanId,
         transferGroupId: transferGroupId,
         parcelaId: finalTx.tempParcelaId,
@@ -1066,45 +1195,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         source: 'import',
         createdAt: new Date().toISOString(),
         originalDescription: finalTx.originalDescription,
+        assetType: finalTx.tempAssetType,
+        assetId: finalTx.tempAssetId,
+        assetOperation: finalTx.tempAssetOperation,
       }
     };
 
-    // 2. Se for movimento entre contas, criar a contrapartida (PARTIDA DUPLA)
-    const counterpartTxs: TransacaoCompleta[] = [];
-    const targetAccountId = finalTx.isTransfer ? finalTx.destinationAccountId : finalTx.tempInvestmentId;
+    const transferGroup = transferGroupId ? {
+      id: transferGroupId,
+      fromAccountId: finalTx.accountId,
+      toAccountId: finalTx.isTransfer ? (finalTx.destinationAccountId || '') : (finalTx.tempInvestmentId || ''),
+      amount: finalTx.amount,
+      date: finalTx.date,
+      description: finalTx.description
+    } : undefined;
 
-    if (transferGroupId && targetAccountId && targetAccountId !== finalTx.accountId) {
-      const counterpartId = generateTransactionId();
-      
-      // Inverte o fluxo para a contrapartida
-      const counterFlow = (flow === 'out' || flow === 'transfer_out') ? 'transfer_in' : 'transfer_out';
-      
-      // Ajuste de domínio para investimentos
-      const counterDomain = (finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') 
-        ? 'investment' 
-        : domain;
+    // Usa a nova função unificada
+    executeTransaction(newTx, transferGroup);
 
-      counterpartTxs.push({
-        ...newTx,
-        id: counterpartId,
-        accountId: targetAccountId,
-        flow: counterFlow,
-        domain: counterDomain,
-        links: {
-          ...newTx.links,
-          investmentId: (finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate') ? newTx.accountId : newTx.links.investmentId
-        },
-        meta: {
-          ...newTx.meta,
-          notes: `Contrapartida automática via importação`
-        }
-      });
-    }
-
-    // 3. Persistir transações
-    setTransacoesV2(prev => [...prev, newTx, ...counterpartTxs]);
-
-    // 4. Atualizar o estado do extrato importado
+    // Atualizar o estado do extrato importado
     setImportedStatements(prev => prev.map(s => {
       if (s.id === statementId) {
         const updatedRaw = s.rawTransactions.map(t => {
@@ -1118,27 +1227,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       return s;
     }));
-
-    // 5. Vincular ao Bill Tracker se houver correspondência
-    const matchingBill = billsTracker.find(b => 
-      !b.isPaid && 
-      Math.abs(b.expectedAmount - finalTx.amount) < 2 &&
-      isSameMonth(parseDateLocal(b.dueDate), parseDateLocal(finalTx.date)) &&
-      (b.description.toLowerCase().includes(finalTx.description.toLowerCase()) || 
-       finalTx.description.toLowerCase().includes(b.description.toLowerCase()))
-    );
-
-    if (matchingBill) {
-      updateBill(matchingBill.id, {
-        isPaid: true,
-        paymentDate: finalTx.date,
-        transactionId: transferGroupId || transactionIdV2
-      });
-      toast.info(`Vínculo automático com conta pendente: "${matchingBill.description}"`);
-    }
-
-    toast.success(counterpartTxs.length > 0 ? "Lançamento de partida dobrada realizado." : "Transação contabilizada com sucesso.");
-  }, [importedStatements, contasMovimento, setTransacoesV2, billsTracker, updateBill]);
+  }, [importedStatements, executeTransaction]);
 
   const addPurchaseInstallments = useCallback((data: any) => {
     const { description, totalAmount, installments, firstDueDate, suggestedAccountId, suggestedCategoryId, isRecurring } = data;
@@ -1321,24 +1410,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }, [getBillsForMonth, getPotentialFixedBillsForMonth, billsTracker, contasMovimento, categoriasV2]);
 
-  const addEmprestimo = (emprestimo: Omit<Emprestimo, "id">) => {
+  const addEmprestimo = useCallback((emprestimo: Omit<Emprestimo, "id">) => {
     const newId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
-    setEmprestimos([...emprestimos, { ...emprestimo, id: newId, status: emprestimo.status || 'ativo', parcelasPagas: 0 }]);
-  };
+    setEmprestimos(prev => [...prev, { ...emprestimo, id: newId, status: emprestimo.status || 'ativo', parcelasPagas: 0 }]);
+  }, [emprestimos]);
 
-  const updateEmprestimo = (id: number, updates: Partial<Emprestimo>) => {
-    setEmprestimos(emprestimos.map(e => e.id === id ? { ...e, ...updates } : e));
-  };
+  const updateEmprestimo = useCallback((id: number, updates: Partial<Emprestimo>) => {
+    setEmprestimos(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+  }, []);
 
-  const addVeiculo = (veiculo: Omit<Veiculo, "id">) => {
+  const addVeiculo = useCallback((veiculo: Omit<Veiculo, "id">) => {
     const newId = Math.max(0, ...veiculos.map(v => v.id)) + 1;
-    setVeiculos([...veiculos, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
-  };
+    setVeiculos(prev => [...prev, { ...veiculo, id: newId, status: veiculo.status || 'ativo' }]);
+  }, [veiculos]);
   
-  const addImovel = (imovel: Omit<Imovel, "id">) => {
+  const addImovel = useCallback((imovel: Omit<Imovel, "id">) => {
     const newId = generateImovelId();
-    setImoveis([...imoveis, { ...imovel, id: newId, status: imovel.status || 'ativo' }]);
-  };
+    setImoveis(prev => [...prev, { ...imovel, id: newId, status: imovel.status || 'ativo' }]);
+  }, []);
   
   const updateImovel = useCallback((id: number, updates: Partial<Imovel>) => {
     setImoveis(prev => prev.map(i => i.id === id ? { ...i, ...updates } : i));
@@ -1348,10 +1437,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setImoveis(prev => prev.filter(i => i.id !== id));
   }, []);
   
-  const addTerreno = (terreno: Omit<Terreno, "id">) => {
+  const addTerreno = useCallback((terreno: Omit<Terreno, "id">) => {
     const newId = generateTerrenoId();
-    setTerrenos([...terrenos, { ...terreno, id: newId, status: terreno.status || 'ativo' }]);
-  };
+    setTerrenos(prev => [...prev, { ...terreno, id: newId, status: terreno.status || 'ativo' }]);
+  }, []);
   
   const updateTerreno = useCallback((id: number, updates: Partial<Terreno>) => {
     setTerrenos(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
@@ -1754,6 +1843,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,
     importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction,
+    executeTransaction,
     dateRanges, setDateRanges, alertStartDate, setAlertStartDate, revenueForecasts, setMonthlyRevenueForecast: (k: string, v: number) => setRevenueForecasts(p => ({ ...p, [k]: v })), getRevenueForPreviousMonth,
     getTotalReceitas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
     getTotalDespesas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
@@ -1788,8 +1878,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     getFutureFixedBills, getOtherPaidExpensesForMonth, getInvoiceForCard, generateInvoiceBills,
     getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
-    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction, 
-    addTransacaoV2, updateBill, deleteBill, exportData, importData,
+    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction,
+    executeTransaction, updateBill, deleteBill, exportData, importData,
     addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,

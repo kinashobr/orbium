@@ -46,17 +46,18 @@ interface NewTerrenoData {
 
 const ReceitasDespesas = () => {
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const { 
-    contasMovimento, setContasMovimento, 
-    categoriasV2: categories, setCategoriasV2, 
-    transacoesV2, setTransacoesV2, addTransacaoV2, 
-    emprestimos, markLoanParcelPaid, unmarkLoanParcelPaid, 
-    veiculos, imoveis, terrenos, calculateBalanceUpToDate, dateRanges, setDateRanges, 
-    markSeguroParcelPaid, unmarkSeguroParcelPaid, 
-    standardizationRules, deleteStandardizationRule, 
-    uncontabilizeImportedTransaction, segurosVeiculo, 
+  const {
+    contasMovimento, setContasMovimento,
+    categoriasV2: categories, setCategoriasV2,
+    transacoesV2, setTransacoesV2, executeTransaction,
+    emprestimos, markLoanParcelPaid, unmarkLoanParcelPaid,
+    veiculos, imoveis, terrenos, calculateBalanceUpToDate, dateRanges, setDateRanges,
+    markSeguroParcelPaid, unmarkSeguroParcelPaid,
+    standardizationRules, deleteStandardizationRule,
+    uncontabilizeImportedTransaction, segurosVeiculo,
     updateImovel, updateTerreno, updateVeiculo,
     addVeiculo, addImovel, addTerreno,
+    addTransacaoV2,
   } = useFinance();
 
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
@@ -184,198 +185,18 @@ const ReceitasDespesas = () => {
   }, []);
 
   const handleTransactionSubmit = (
-    t: TransacaoCompleta, 
+    t: TransacaoCompleta,
     g?: any,
-    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData }
+    newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
   ) => {
-    // Se está criando um novo ativo junto com a transação de compra
-    let createdAssetId: number | undefined;
-    
-    if (newAsset) {
-      if (newAsset.type === 'veiculo') {
-        const vehicleData = newAsset.data as NewVehicleData;
-        const newVehicle: Omit<Veiculo, 'id'> = {
-          modelo: vehicleData.modelo,
-          tipo: vehicleData.tipo,
-          marca: vehicleData.marca,
-          ano: vehicleData.ano,
-          dataCompra: t.date,
-          valorVeiculo: t.amount,
-          valorSeguro: 0,
-          vencimentoSeguro: '',
-          parcelaSeguro: 0,
-          valorFipe: t.amount,
-          status: 'ativo',
-          compraTransactionId: t.id,
-        };
-        addVeiculo(newVehicle);
-        // O ID será gerado internamente - precisamos pegar do último veículo adicionado
-        // Por enquanto, vamos marcar o meta.assetId como undefined e atualizar depois
-        createdAssetId = Math.floor(Date.now() / 1000); // Mesmo cálculo usado em generateVeiculoId
-      } else if (newAsset.type === 'imovel') {
-        const imovelData = newAsset.data as NewImovelData;
-        const newImovel: Omit<Imovel, 'id'> = {
-          descricao: imovelData.descricao,
-          tipo: imovelData.tipo,
-          endereco: imovelData.endereco,
-          dataAquisicao: t.date,
-          valorAquisicao: t.amount,
-          valorAvaliacao: t.amount,
-          status: 'ativo',
-          compraTransactionId: t.id,
-        };
-        addImovel(newImovel);
-        createdAssetId = Math.floor(Date.now() / 1000);
-      } else if (newAsset.type === 'terreno') {
-        const terrenoData = newAsset.data as NewTerrenoData;
-        const newTerreno: Omit<Terreno, 'id'> = {
-          descricao: terrenoData.descricao,
-          endereco: terrenoData.endereco,
-          dataAquisicao: t.date,
-          valorAquisicao: t.amount,
-          valorAvaliacao: t.amount,
-          status: 'ativo',
-          compraTransactionId: t.id,
-        };
-        addTerreno(newTerreno);
-        createdAssetId = Math.floor(Date.now() / 1000);
-      }
-      
-      // Atualizar o meta.assetId na transação com o ID do ativo criado
-      if (createdAssetId) {
-        t = { ...t, meta: { ...t.meta, assetId: createdAssetId } };
-      }
-    }
-
     if (editingTransaction) {
-      // Remover side effects antigos antes de aplicar os novos
-      if (editingTransaction.links?.loanId) unmarkLoanParcelPaid(parseInt(editingTransaction.links.loanId.replace('loan_', '')));
-      if (editingTransaction.links?.vehicleTransactionId) {
-          const [s, p] = editingTransaction.links.vehicleTransactionId.split('_');
-          unmarkSeguroParcelPaid(parseInt(s), parseInt(p));
-      }
-
-      // Remover vínculo antigo de veículo
-      if (editingTransaction.operationType === 'veiculo' && editingTransaction.meta.assetType === 'veiculo' && editingTransaction.meta.assetId) {
-        const oldVehicleId = editingTransaction.meta.assetId;
-        const veiculo = veiculos.find(v => v.id === oldVehicleId);
-        if (veiculo) {
-          const updates: Partial<Veiculo> = {};
-          if (veiculo.compraTransactionId === editingTransaction.id) {
-            updates.compraTransactionId = undefined;
-            updates.status = 'pendente_cadastro';
-          }
-          if (veiculo.vendaTransactionId === editingTransaction.id) {
-            updates.vendaTransactionId = undefined;
-            updates.status = 'ativo';
-          }
-          if (Object.keys(updates).length > 0) updateVeiculo(oldVehicleId, updates);
-        }
-      }
-
-      // Remover vínculo antigo de imóvel/terreno
-      if (editingTransaction.operationType === 'imobilizado' && editingTransaction.meta.assetType && editingTransaction.meta.assetId) {
-        const oldAssetId = editingTransaction.meta.assetId;
-        if (editingTransaction.meta.assetType === 'imovel') {
-          const imovel = imoveis.find(i => i.id === oldAssetId);
-          if (imovel) {
-            const updates: Partial<Imovel> = {};
-            if (imovel.compraTransactionId === editingTransaction.id) updates.compraTransactionId = undefined;
-            if (imovel.vendaTransactionId === editingTransaction.id) {
-              updates.vendaTransactionId = undefined;
-              updates.status = 'ativo';
-            }
-            if (Object.keys(updates).length > 0) updateImovel(oldAssetId, updates);
-          }
-        } else if (editingTransaction.meta.assetType === 'terreno') {
-          const terreno = terrenos.find(tr => tr.id === oldAssetId);
-          if (terreno) {
-            const updates: Partial<Terreno> = {};
-            if (terreno.compraTransactionId === editingTransaction.id) updates.compraTransactionId = undefined;
-            if (terreno.vendaTransactionId === editingTransaction.id) {
-              updates.vendaTransactionId = undefined;
-              updates.status = 'ativo';
-            }
-            if (Object.keys(updates).length > 0) updateTerreno(oldAssetId, updates);
-          }
-        }
-      }
-
-      setTransacoesV2(p => p.map(x => x.id === t.id ? t : x));
-      toast.success("Registro atualizado!");
-    } else {
-      if (g) {
-        // Gerar as duas pontas da transferência
-        const outT = { ...t, id: generateTransactionId(), flow: 'transfer_out' as const, links: { ...t.links, transferGroupId: g.id } };
-        const inT = { 
-            ...t, 
-            id: generateTransactionId(), 
-            accountId: g.toAccountId, 
-            flow: (contasMovimento.find(a => a.id === g.toAccountId)?.accountType === 'cartao_credito' ? 'in' : 'transfer_in') as any, 
-            links: { ...t.links, transferGroupId: g.id }, 
-            conciliated: false 
-        };
-        addTransacaoV2(outT);
-        addTransacaoV2(inT);
-        toast.success("Transferência realizada!");
-      } else {
-        addTransacaoV2(t);
-        toast.success("Lançamento confirmado!");
-      }
+      // Se estiver editando, removemos a antiga e adicionamos a nova via executeTransaction
+      // para garantir que todas as contrapartidas e side-effects sejam re-processados
+      setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== editingTransaction.links?.transferGroupId : x.id !== editingTransaction.id));
     }
 
-    // Aplicar Side Effects (Empréstimos/Seguros)
-    if (t.operationType === 'pagamento_emprestimo' && t.links?.loanId && t.links?.parcelaId) {
-        markLoanParcelPaid(parseInt(t.links.loanId.replace('loan_', '')), t.amount, t.date, parseInt(t.links.parcelaId));
-    }
-    
-    // Side effect para pagamento de seguro (usa vehicleTransactionId)
-    if (t.operationType === 'despesa' && t.links?.vehicleTransactionId) {
-        const [s, p] = t.links.vehicleTransactionId.split('_');
-        if (s && p && !isNaN(parseInt(s))) markSeguroParcelPaid(parseInt(s), parseInt(p), t.id);
-    }
-
-    // Side effects para veículos (compra/venda) - não quando foi criado novo (já aplicado acima)
-    if (t.operationType === 'veiculo' && t.meta.assetType === 'veiculo' && t.meta.assetId && t.meta.assetOperation && !newAsset) {
-      const vehicleId = t.meta.assetId;
-      const updates: Partial<Veiculo> = {};
-      if (t.meta.assetOperation === 'compra') {
-        updates.compraTransactionId = t.id;
-        updates.status = 'ativo';
-        updates.dataCompra = t.date;
-        updates.valorVeiculo = t.amount;
-      } else if (t.meta.assetOperation === 'venda') {
-        updates.vendaTransactionId = t.id;
-        updates.status = 'vendido';
-      }
-      if (Object.keys(updates).length > 0) updateVeiculo(vehicleId, updates);
-    }
-
-    // Side effects para imóveis/terrenos (compra/venda) - não quando foi criado novo
-    if (t.operationType === 'imobilizado' && t.meta.assetType && t.meta.assetId && t.meta.assetOperation && !newAsset) {
-      const assetId = t.meta.assetId;
-      if (t.meta.assetType === 'imovel') {
-        const updates: Partial<Imovel> = {};
-        if (t.meta.assetOperation === 'compra') {
-          updates.compraTransactionId = t.id;
-          updates.status = 'ativo';
-        } else if (t.meta.assetOperation === 'venda') {
-          updates.vendaTransactionId = t.id;
-          updates.status = 'vendido';
-        }
-        if (Object.keys(updates).length > 0) updateImovel(assetId, updates);
-      } else if (t.meta.assetType === 'terreno') {
-        const updates: Partial<Terreno> = {};
-        if (t.meta.assetOperation === 'compra') {
-          updates.compraTransactionId = t.id;
-          updates.status = 'ativo';
-        } else if (t.meta.assetOperation === 'venda') {
-          updates.vendaTransactionId = t.id;
-          updates.status = 'vendido';
-        }
-        if (Object.keys(updates).length > 0) updateTerreno(assetId, updates);
-      }
-    }
+    executeTransaction(t, g, newAsset);
+    setEditingTransaction(undefined);
   };
 
   const handleAccountSubmit = (accountData: ContaCorrente, initialBalanceValue: number) => {
