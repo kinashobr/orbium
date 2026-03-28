@@ -959,6 +959,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           targetAccountId = 'acc_system_financiamento';
           counterFlow = 'out'; // Saída do sistema de financiamento (aumento de passivo)
           counterDomain = 'financing';
+          
+          // Criar o empréstimo pendente automaticamente
+          const newLoan: Omit<Emprestimo, "id"> = {
+            contrato: transaction.description || "Novo Emprestimo",
+            parcela: 0,
+            meses: 0,
+            taxaMensal: 0,
+            valorTotal: transaction.amount,
+            contaCorrenteId: transaction.accountId,
+            dataInicio: transaction.date,
+            status: 'pendente_config',
+            liberacaoTransactionId: transaction.id,
+            parcelasPagas: 0
+          };
+          
+          const nextLoanId = Math.max(0, ...emprestimos.map(e => e.id)) + 1;
+          setEmprestimos(prev => [...prev, { ...newLoan, id: nextLoanId }]);
+          
           transaction.meta = { ...transaction.meta, pendingLoanConfig: true };
           break;
 
