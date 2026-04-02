@@ -350,6 +350,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             icon={DollarSign}
             description="Quanto sobra da sua renda após pagar todas as contas."
             formula="Resultado ÷ Renda × 100"
+            formulaValues={`${formatCurrency(dre1.res)} ÷ ${formatCurrency(dre1.rec)} × 100`}
           />
           <IndicatorCard 
             title="Eficiência Op." 
@@ -358,6 +359,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             icon={Zap}
             description="Quanto da sua renda está livre após custos fixos."
             formula="(Renda - Fixos) ÷ Renda × 100"
+            formulaValues={`(${formatCurrency(dre1.receitaOperacional)} - ${formatCurrency(dre1.fix)}) ÷ ${formatCurrency(dre1.receitaOperacional)} × 100`}
           />
           <IndicatorCard 
             title="Fixos (%)" 
@@ -366,6 +368,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             icon={Target}
             description="Quanto dos seus gastos são fixos e difíceis de cortar."
             formula="Fixos ÷ Total Gastos × 100"
+            formulaValues={`${formatCurrency(dre1.fix)} ÷ ${formatCurrency(dre1.fix + dre1.var + dre1.juros)} × 100`}
           />
           <IndicatorCard 
             title="Juros (%)" 
@@ -374,6 +377,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             icon={Gauge}
             description="Impacto dos juros de empréstimos na sua renda."
             formula="Juros ÷ Renda × 100"
+            formulaValues={`${formatCurrency(dre1.juros)} ÷ ${formatCurrency(dre1.rec)} × 100`}
           />
           <IndicatorCard 
             title="Fixos vs Var." 
@@ -382,6 +386,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             icon={Activity}
             description="Proporção entre gastos fixos e variáveis."
             formula="Fixos ÷ (Fixos + Variáveis) × 100"
+            formulaValues={`${formatCurrency(dre1.fix)} ÷ (${formatCurrency(dre1.fix)} + ${formatCurrency(dre1.var)}) × 100`}
           />
         </div>
       </div>

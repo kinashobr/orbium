@@ -23,6 +23,7 @@ interface IndicatorCardProps {
   sparklineData?: number[];
   description?: string;
   formula?: string;
+  formulaValues?: string;
   idealRange?: string;
   className?: string;
   hasData?: boolean;
@@ -38,6 +39,7 @@ export function IndicatorCard({
   sparklineData,
   description,
   formula,
+  formulaValues,
   idealRange,
   className,
   hasData = true
@@ -137,6 +139,9 @@ export function IndicatorCard({
                       <div>
                         <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-1">Fórmula</p>
                         <p className="text-xs text-primary font-mono">{formula}</p>
+                        {formulaValues && (
+                          <p className="text-[11px] font-mono text-muted-foreground mt-1 opacity-80">{formulaValues}</p>
+                        )}
                       </div>
                     )}
                     {idealRange && (

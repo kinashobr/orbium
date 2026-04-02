@@ -117,12 +117,15 @@ const Index = () => {
     const temDados = contasMovimento.length > 0 || transacoesV2.length > 0;
     
     // Cálculo dinâmico de diversificação: proporção de tipos de conta distintos
-    const tiposAtivos = contasMovimento.reduce((acc, c) => {
-      acc.add(c.accountType);
+    // Diversificação: conta apenas tipos de conta com saldo positivo real
+    const end = dateRanges.range1.to;
+    const tiposComSaldo = contasMovimento.reduce((acc, c) => {
+      const saldo = calculateBalanceUpToDate(c.id, end, transacoesV2, contasMovimento);
+      if (saldo > 0) acc.add(c.accountType);
       return acc;
     }, new Set<string>());
-    const diversificacao = temDados && contasMovimento.length > 0 
-      ? Math.min(100, (tiposAtivos.size / 5) * 100) // 5 tipos possíveis = 100%
+    const diversificacao = temDados && tiposComSaldo.size > 0
+      ? Math.min(100, (tiposComSaldo.size / 5) * 100)
       : 0;
     
     // Cálculo dinâmico de estabilidade: baseado na variação do fluxo de caixa
@@ -350,6 +353,16 @@ const Index = () => {
                   estabilidadeFluxo={saude.estabilidade}
                   dependenciaRenda={saude.dependencia}
                   hasData={saude.temDados}
+                  rawValues={{
+                    ativosTotal: metricasPatrimoniais.ativosAtuais,
+                    passivosTotal: metricasPatrimoniais.passivosAtuais,
+                    tiposAtivos: contasMovimento.reduce((acc, c) => { 
+                      const saldo = calculateBalanceUpToDate(c.id, dateRanges.range1.to, transacoesV2, contasMovimento);
+                      if (saldo > 0) acc.add(c.accountType); 
+                      return acc; 
+                    }, new Set<string>()).size,
+                    totalTipos: 5,
+                  }}
                 />
               </section>
               <section className="animate-fade-in-up">

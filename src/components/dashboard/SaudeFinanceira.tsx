@@ -26,6 +26,12 @@ interface SaudeFinanceiraProps {
   estabilidadeFluxo: number;
   dependenciaRenda: number;
   hasData?: boolean;
+  rawValues?: {
+    ativosTotal: number;
+    passivosTotal: number;
+    tiposAtivos: number;
+    totalTipos: number;
+  };
 }
 
 interface StatusConfig {
@@ -74,10 +80,10 @@ const getEstabilidadeStatus = (val: number, hasData: boolean): StatusConfig => {
 };
 
 const indicadoresConfig = [
-  { id: 'liquidez', label: 'Indicador de Liquidez', shortLabel: 'Liquidez', icon: Wallet, format: 'decimal' as const, getStatus: getLiquidezStatus, description: 'Ativos ÷ Passivos. Acima de 1x = você consegue pagar suas dívidas.' },
-  { id: 'endividamento', label: 'Indicador de Endividamento', shortLabel: 'Endividamento', icon: Scale, format: 'percent' as const, getStatus: getEndividamentoStatus, description: 'Dívidas ÷ Ativos. Ideal abaixo de 30%.' },
-  { id: 'diversificacao', label: 'Distribuição de Ativos', shortLabel: 'Distribuição', icon: Activity, format: 'percent' as const, getStatus: getDiversificacaoStatus, description: 'Variedade de contas. Mais tipos = menos risco.' },
-  { id: 'estabilidade', label: 'Consistência Patrimonial', shortLabel: 'Consistência', icon: Shield, format: 'percent' as const, getStatus: getEstabilidadeStatus, description: 'Regularidade do seu fluxo. Menos variação = mais controle.' }
+  { id: 'liquidez', label: 'Indicador de Liquidez', shortLabel: 'Liquidez', icon: Wallet, format: 'decimal' as const, getStatus: getLiquidezStatus, description: 'Ativos ÷ Passivos. Acima de 1x = você consegue pagar suas dívidas.', formula: 'Ativos Totais ÷ Passivos Totais' },
+  { id: 'endividamento', label: 'Indicador de Endividamento', shortLabel: 'Endividamento', icon: Scale, format: 'percent' as const, getStatus: getEndividamentoStatus, description: 'Dívidas ÷ Ativos. Ideal abaixo de 30%.', formula: 'Passivos ÷ Ativos × 100' },
+  { id: 'diversificacao', label: 'Distribuição de Ativos', shortLabel: 'Distribuição', icon: Activity, format: 'percent' as const, getStatus: getDiversificacaoStatus, description: 'Variedade de contas. Mais tipos = menos risco.', formula: 'Tipos de Conta ÷ Total Tipos × 100' },
+  { id: 'estabilidade', label: 'Consistência Patrimonial', shortLabel: 'Consistência', icon: Shield, format: 'percent' as const, getStatus: getEstabilidadeStatus, description: 'Regularidade do seu fluxo. Menos variação = mais controle.', formula: 'Índice de variância do fluxo' }
 ];
 
 export function SaudeFinanceira({
@@ -86,7 +92,9 @@ export function SaudeFinanceira({
   diversificacao,
   estabilidadeFluxo,
   hasData = true,
+  rawValues,
 }: SaudeFinanceiraProps) {
+  const fmt = (v: number) => new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
   
   const valores = {
     liquidez,
@@ -110,9 +118,21 @@ export function SaudeFinanceira({
         {indicadoresConfig.map((config, index) => {
           const value = valores[config.id as keyof typeof valores];
           const status = config.getStatus(value, hasData);
-          const displayValue = !hasData || (value === 0 && config.id !== 'endividamento') 
+          const displayValue = !hasData
             ? "—" 
             : (config.format === 'decimal' ? `${value.toFixed(1)}x` : `${value.toFixed(0)}%`);
+
+          const getFormulaValues = () => {
+            if (!hasData || !rawValues) return undefined;
+            const rv = rawValues;
+            switch (config.id) {
+              case 'liquidez': return `${fmt(rv.ativosTotal)} ÷ ${fmt(rv.passivosTotal)}`;
+              case 'endividamento': return `${fmt(rv.passivosTotal)} ÷ ${fmt(rv.ativosTotal)} × 100`;
+              case 'diversificacao': return `${rv.tiposAtivos} ÷ ${rv.totalTipos} × 100`;
+              default: return undefined;
+            }
+          };
+          const formulaVals = getFormulaValues();
 
           return (
             <div 
@@ -147,9 +167,18 @@ export function SaudeFinanceira({
                       {config.description}
                     </p>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-[200px] p-3 rounded-xl">
+                  <TooltipContent className="max-w-[280px] p-3 rounded-xl">
                     <p className="text-xs font-medium">{config.label}</p>
                     <p className="text-[10px] text-muted-foreground mt-1">{config.description}</p>
+                    {config.formula && (
+                      <div className="mt-2 pt-2 border-t border-border/40">
+                        <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Fórmula</p>
+                        <p className="text-[11px] text-primary font-mono">{config.formula}</p>
+                        {formulaVals && (
+                          <p className="text-[10px] font-mono text-muted-foreground mt-0.5 opacity-80">{formulaVals}</p>
+                        )}
+                      </div>
+                    )}
                   </TooltipContent>
                 </Tooltip>
               </div>

@@ -54,7 +54,8 @@ export function BalancoTab({
     getLoanPrincipalRemaining,
     getCreditCardDebt,
     getPatrimonioLiquido,
-    getValorImoveisTerrenos
+    getValorImoveisTerrenos,
+    billsTracker,
   } = useFinance();
   const colors = useChartColors();
   const finalDate = dateRanges.range1.to || new Date();
@@ -92,7 +93,11 @@ export function BalancoTab({
     const dividaCartoes = getCreditCardDebt(finalDate);
     const principalLoans12m = calculateLoanPrincipalDueInNextMonths(finalDate, 12);
     const segurosAPagar = getSegurosAPagar(finalDate);
-    const passivoCirculante = dividaCartoes + principalLoans12m + segurosAPagar + chequeEspecialContaCorrente;
+    // Compras parceladas pendentes
+    const comprasParceladas = billsTracker
+      .filter(b => b.sourceType === 'purchase_installment' && !b.isPaid && !b.isExcluded)
+      .reduce((a, b) => a + b.expectedAmount, 0);
+    const passivoCirculante = dividaCartoes + principalLoans12m + segurosAPagar + chequeEspecialContaCorrente + comprasParceladas;
     const totalLoans = getLoanPrincipalRemaining(finalDate);
     const passivoNaoCirculante = Math.max(0, totalLoans - principalLoans12m);
     const totalPassivos = passivoCirculante + passivoNaoCirculante;
@@ -113,6 +118,7 @@ export function BalancoTab({
       principalLoans12m,
       segurosAPagar,
       chequeEspecialContaCorrente,
+      comprasParceladas,
       contasCirculantes: contasAtivoCurtoPrazo.map(c => ({
         ...c,
         saldo: saldos[c.id] || 0
@@ -122,7 +128,7 @@ export function BalancoTab({
         saldo: saldos[c.id] || 0
       }))
     };
-  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getValorFipeTotal, getValorImoveisTerrenos, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining, getCreditCardDebt, finalDate]);
+  }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, getValorFipeTotal, getValorImoveisTerrenos, getSegurosAApropriar, getSegurosAPagar, calculateLoanPrincipalDueInNextMonths, getLoanPrincipalRemaining, getCreditCardDebt, finalDate, billsTracker]);
   const indicadores = useMemo(() => {
     const {
       pl,
@@ -270,6 +276,14 @@ export function BalancoTab({
       percent: totalPassivoPL > 0 ? b1.segurosAPagar / totalPassivoPL * 100 : 0,
       icon: getIconForType('seguros_pagar')
     });
+    if (b1.comprasParceladas > 0) circulanteDetails.push({
+      id: 'compras_parceladas',
+      name: 'Compras Parceladas',
+      typeLabel: 'Obrigação CP',
+      value: b1.comprasParceladas,
+      percent: totalPassivoPL > 0 ? b1.comprasParceladas / totalPassivoPL * 100 : 0,
+      icon: getIconForType('emprestimos_curto')
+    });
     const naoCirculanteDetails = [];
     if (b1.passivoNaoCirculante > 0) naoCirculanteDetails.push({
       id: 'emprestimos_longo',
@@ -317,12 +331,12 @@ export function BalancoTab({
           </div>
         </div>
         <div className="col-span-12 xl:col-span-6 grid grid-cols-2 lg:grid-cols-3 gap-4">
-          <IndicatorCard title="Participação Própria" value={`${indicadores.equityRatio.toFixed(1)}%`} status={indicadores.equityRatio >= 40 ? "success" : "warning"} icon={ShieldCheck} description="Percentual do patrimônio total que é financiado por capital próprio." formula="PL ÷ Ativos Totais × 100" />
-          <IndicatorCard title="Índice de Solvência" value={`${indicadores.liqGeral.toFixed(2)}x`} status={indicadores.liqGeral >= 1.5 ? "success" : "warning"} icon={Scale} description="Capacidade de pagar todas as dívidas com os bens atuais." formula="Ativos ÷ Passivos" />
-          <IndicatorCard title="Liquidez CP" value={`${indicadores.liqCorrente.toFixed(2)}x`} status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"} icon={Wallet} description="Capacidade de pagar dívidas de curto prazo com dinheiro disponível." formula="Ativo Circulante ÷ Passivo Circulante" />
-          <IndicatorCard title="Endividamento" value={`${indicadores.endividamento.toFixed(1)}%`} status={indicadores.endividamento <= 30 ? "success" : "warning"} icon={TrendingDown} description="Quanto do seu patrimônio está comprometido com dívidas." formula="Passivos ÷ Ativos × 100" />
-          <IndicatorCard title="Cobertura Patrimonial" value={`${indicadores.assetCoverage.toFixed(2)}x`} status={indicadores.assetCoverage >= 2 ? "success" : "warning"} icon={Activity} description="Quantas vezes seu capital próprio cobre suas dívidas." formula="PL ÷ Passivos" />
-          <IndicatorCard title="Imobilização" value={`${indicadores.fixedAssetEquity.toFixed(1)}%`} status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"} icon={Landmark} description="Quanto do seu capital próprio está 'preso' em bens físicos." formula="Imobilizado ÷ PL × 100" />
+          <IndicatorCard title="Participação Própria" value={`${indicadores.equityRatio.toFixed(1)}%`} status={indicadores.equityRatio >= 40 ? "success" : "warning"} icon={ShieldCheck} description="Percentual do patrimônio total que é financiado por capital próprio." formula="PL ÷ Ativos Totais × 100" formulaValues={`${formatCurrency(b1.pl)} ÷ ${formatCurrency(b1.totalAtivos)} × 100`} />
+          <IndicatorCard title="Índice de Solvência" value={`${indicadores.liqGeral.toFixed(2)}x`} status={indicadores.liqGeral >= 1.5 ? "success" : "warning"} icon={Scale} description="Capacidade de pagar todas as dívidas com os bens atuais." formula="Ativos ÷ Passivos" formulaValues={`${formatCurrency(b1.totalAtivos)} ÷ ${formatCurrency(b1.totalPassivos)}`} />
+          <IndicatorCard title="Liquidez CP" value={`${indicadores.liqCorrente.toFixed(2)}x`} status={indicadores.liqCorrente >= 1.2 ? "success" : "warning"} icon={Wallet} description="Capacidade de pagar dívidas de curto prazo com dinheiro disponível." formula="Ativo Circulante ÷ Passivo Circulante" formulaValues={`${formatCurrency(b1.ativoCirculante)} ÷ ${formatCurrency(b1.passivoCirculante)}`} />
+          <IndicatorCard title="Endividamento" value={`${indicadores.endividamento.toFixed(1)}%`} status={indicadores.endividamento <= 30 ? "success" : "warning"} icon={TrendingDown} description="Quanto do seu patrimônio está comprometido com dívidas." formula="Passivos ÷ Ativos × 100" formulaValues={`${formatCurrency(b1.totalPassivos)} ÷ ${formatCurrency(b1.totalAtivos)} × 100`} />
+          <IndicatorCard title="Cobertura Patrimonial" value={`${indicadores.assetCoverage.toFixed(2)}x`} status={indicadores.assetCoverage >= 2 ? "success" : "warning"} icon={Activity} description="Quantas vezes seu capital próprio cobre suas dívidas." formula="PL ÷ Passivos" formulaValues={`${formatCurrency(b1.pl)} ÷ ${formatCurrency(b1.totalPassivos)}`} />
+          <IndicatorCard title="Imobilização" value={`${indicadores.fixedAssetEquity.toFixed(1)}%`} status={indicadores.fixedAssetEquity <= 60 ? "success" : "warning"} icon={Landmark} description="Quanto do seu capital próprio está 'preso' em bens físicos." formula="Imobilizado ÷ PL × 100" formulaValues={`${formatCurrency(b1.imobilizadoFipe)} ÷ ${formatCurrency(b1.pl)} × 100`} />
         </div>
       </div>
 

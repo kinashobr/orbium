@@ -1503,8 +1503,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         return acc + (lastPaid ? lastPaid.saldoDevedor : e.valorTotal);
     }, 0);
     const saldoCartoes = contasMovimento.filter(c => c.accountType === 'cartao_credito').reduce((acc, c) => acc + Math.abs(Math.min(0, calculateBalanceUpToDate(c.id, date, transacoesV2, contasMovimento))), 0);
-    return saldoEmprestimos + saldoCartoes + getSegurosAPagar(date);
-  }, [emprestimos, contasMovimento, transacoesV2, calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAPagar, calculateBalanceUpToDate]);
+    // Compras parceladas pendentes
+    const comprasParceladas = billsTracker
+      .filter(b => b.sourceType === 'purchase_installment' && !b.isPaid && !b.isExcluded)
+      .reduce((a, b) => a + b.expectedAmount, 0);
+    return saldoEmprestimos + saldoCartoes + getSegurosAPagar(date) + comprasParceladas;
+  }, [emprestimos, contasMovimento, transacoesV2, billsTracker, calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAPagar, calculateBalanceUpToDate]);
 
   const getLoanPrincipalRemaining = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
