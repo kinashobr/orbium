@@ -161,7 +161,7 @@ export default function BillsTracker() {
           links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null }, 
           conciliated: true, 
           attachments: [], 
-          meta: { createdBy: 'user', source: 'manual' as const, createdAt: new Date().toISOString() } 
+          meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() } 
         };
 
         const txDest = { 
@@ -177,7 +177,7 @@ export default function BillsTracker() {
           links: { investmentId: null, loanId: null, transferGroupId, parcelaId: null, vehicleTransactionId: null }, 
           conciliated: false, 
           attachments: [], 
-          meta: { createdBy: 'user', source: 'manual' as const, createdAt: new Date().toISOString() } 
+          meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: new Date().toISOString() } 
         };
 
         setTransacoesV2(prev => [...prev, txSrc, txDest]);
@@ -230,7 +230,7 @@ export default function BillsTracker() {
         categoryId: categoryId || null, description,
         links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
         conciliated: true, attachments: [],
-        meta: { createdBy: 'user', source: 'manual', createdAt: new Date().toISOString() },
+        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
       });
       updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
       toast.success("Despesa paga e lançada!");

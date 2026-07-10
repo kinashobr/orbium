@@ -252,8 +252,10 @@ export function MainLayout({
       <div className="flex-1 flex w-full relative">
         {!hideSidebar && <Sidebar />}
         <main className={cn(
-          "flex-1 min-h-[calc(100vh-3.5rem)] pb-24 md:pb-8 pt-4 sm:pt-6 transition-all duration-300 w-full mx-auto", 
-          hideSidebar ? "pl-3 pr-4 md:pl-3 md:pr-6 md:ml-0" : "px-4 sm:px-6 md:px-8 lg:px-10 " + (sidebarCollapsed ? "md:ml-20" : "md:ml-[168px]")
+          "flex-1 min-h-[calc(100vh-3.5rem)] pb-24 md:pb-8 pt-4 sm:pt-6 transition-all duration-300 min-w-0 mx-auto", 
+          hideSidebar 
+            ? "w-full pl-3 pr-4 md:pl-3 md:pr-6 md:ml-0" 
+            : "px-4 sm:px-6 md:px-8 lg:px-10 " + (sidebarCollapsed ? "w-full md:w-[calc(100%-80px)] md:ml-20" : "w-full md:w-[calc(100%-168px)] md:ml-[168px]")
         )}>
           <div className={cn(hideSidebar ? "max-w-none" : "max-w-[1400px]", "mx-auto w-full space-y-4 sm:space-y-6")}>{children}</div>
         </main>

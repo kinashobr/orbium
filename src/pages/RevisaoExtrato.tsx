@@ -264,7 +264,7 @@ export default function RevisaoExtrato() {
 
   return (
     <MainLayout>
-      <div className="space-y-6 pb-10 flex flex-col h-full overflow-hidden w-full max-w-full">
+      <div className="space-y-6 pb-2 flex flex-col h-full overflow-hidden w-full max-w-full">
         {/* Header - Alinhado com as opções de tela padrão */}
         <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 px-1 animate-fade-in w-full shrink-0">
           <div className="flex items-center gap-3">
@@ -335,7 +335,7 @@ export default function RevisaoExtrato() {
               <p className="font-black uppercase tracking-widest text-xs">Filtrando dados...</p>
             </div>
           ) : (
-            <div className="flex-1 overflow-auto scrollbar-material">
+            <div className="flex-1 overflow-x-auto overflow-y-hidden scrollbar-material">
               <div className="min-w-full">
                 <TransactionReviewTable
                   transactions={transactionsToReview} 
@@ -352,7 +352,7 @@ export default function RevisaoExtrato() {
         </div>
 
         {/* Rodapé de Ações */}
-        <footer className="px-1 bg-transparent py-4 shrink-0 relative z-20 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/20 pt-6">
+        <footer className="px-1 bg-transparent py-2 shrink-0 relative z-20 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/20 pt-4">
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
             <Badge variant="outline" className="h-10 px-4 rounded-full bg-primary/5 border-primary/20 text-primary font-black text-xs uppercase tracking-wider flex items-center justify-center">
               {transactionsToReview.length} Lançamentos

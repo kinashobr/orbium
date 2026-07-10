@@ -1379,6 +1379,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado' || t.operationType === 'transferencia') &&
           (t.meta.source !== 'import' || t.conciliated) &&
           !trackerTxIds.has(t.id) &&
+          (!t.links?.transferGroupId || !trackerTxIds.has(t.links.transferGroupId)) &&
           t.meta.source !== 'bill_tracker' &&
           !creditCardAccountIds.has(t.accountId)
         );
