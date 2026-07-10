@@ -19,7 +19,8 @@ import {
   Settings,
   Palette,
   Database,
-  Monitor
+  Monitor,
+  CalendarCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFinance } from "@/contexts/FinanceContext";

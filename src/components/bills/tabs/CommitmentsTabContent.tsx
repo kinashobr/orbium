@@ -169,15 +169,15 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
     if (categoryGroups.length === 0) return null;
 
     return (
-      <div key={config.key} className="space-y-4">
-        <div className="flex items-center gap-2 px-1">
-          <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", config.bg)}>
-            <Icon className={cn("w-4 h-4", config.color)} />
+      <div key={config.key} className="space-y-2">
+        <div className="flex items-center gap-1.5 px-1">
+          <div className={cn("w-5 h-5 rounded-md flex items-center justify-center", config.bg)}>
+            <Icon className={cn("w-3 h-3", config.color)} />
           </div>
-          <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">{config.label}</h3>
-          <span className="text-[9px] font-bold text-muted-foreground/40">{categoryGroups.length} {categoryGroups.length === 1 ? 'item' : 'itens'}</span>
+          <h3 className="text-[8px] font-black uppercase tracking-[0.15em] text-muted-foreground">{config.label}</h3>
+          <span className="text-[7.5px] font-bold text-muted-foreground/40">{categoryGroups.length} {categoryGroups.length === 1 ? 'item' : 'itens'}</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-2">
           {categoryGroups.map(group => (
             <CommitmentCard
               key={group.id}
@@ -204,16 +204,16 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
   const hasCompletedGroups = completedGroups.length > 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       {/* Active commitments */}
-      <div className="space-y-10">
+      <div className="space-y-5">
         {GROUP_CONFIG.map(config => renderCategory(config, activeGroups))}
       </div>
 
       {!hasActiveGroups && !hasCompletedGroups && (
-        <div className="flex flex-col items-center justify-center py-16 opacity-30">
-          <Package className="w-12 h-12 mb-3" />
-          <p className="text-[10px] font-black uppercase tracking-widest">Nenhum compromisso encontrado</p>
+        <div className="flex flex-col items-center justify-center py-8 opacity-30">
+          <Package className="w-8 h-8 mb-2" />
+          <p className="text-[8px] font-black uppercase tracking-widest">Nenhum compromisso encontrado</p>
         </div>
       )}
 
@@ -221,20 +221,20 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
       {hasCompletedGroups && (
         <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
           <CollapsibleTrigger asChild>
-            <button className="w-full flex items-center gap-3 py-4 border-t border-border/20 group hover:opacity-80 transition-opacity">
-              <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-emerald-500/10">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            <button className="w-full flex items-center gap-2.5 py-2 border-t border-border/20 group hover:opacity-80 transition-opacity">
+              <div className="w-5 h-5 rounded-md flex items-center justify-center bg-emerald-500/10">
+                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">
+              <span className="text-[8px] font-black uppercase tracking-[0.15em] text-muted-foreground">
                 Quitados ({completedGroups.length})
               </span>
               <ChevronDown className={cn(
-                "w-4 h-4 text-muted-foreground/40 ml-auto transition-transform duration-300",
+                "w-3 h-3 text-muted-foreground/40 ml-auto transition-transform duration-300",
                 showCompleted && "rotate-180"
               )} />
             </button>
           </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-10 pt-2">
+          <CollapsibleContent className="space-y-5 pt-1">
             {GROUP_CONFIG.map(config => renderCategory(config, completedGroups))}
           </CollapsibleContent>
         </Collapsible>

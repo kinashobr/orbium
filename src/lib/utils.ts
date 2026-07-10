@@ -12,17 +12,42 @@ export function cn(...inputs: ClassValue[]) {
  * @returns Objeto Date representando o início do dia local.
  */
 export function parseDateLocal(dateString: string): Date {
-  // Aceita apenas o formato completo YYYY-MM-DD (evita valores parciais durante digitação)
-  if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+  if (!dateString) {
     return new Date(NaN);
   }
 
-  const [year, month, day] = dateString.split('-').map(Number);
+  // Handle ISO strings by taking the date portion
+  let targetString = dateString;
+  if (dateString.includes('T')) {
+    targetString = dateString.split('T')[0];
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetString)) {
+    const parsed = new Date(dateString);
+    return isNaN(parsed.getTime()) ? new Date(NaN) : parsed;
+  }
+
+  const [year, month, day] = targetString.split('-').map(Number);
   if (!year || !month || !day) return new Date(NaN);
 
   // Cria a data usando componentes, forçando a interpretação local
   // Nota: month - 1 é necessário porque o mês é 0-indexado
   return new Date(year, month - 1, day);
+}
+
+/**
+ * Formata um objeto Date ou string de data em uma string YYYY-MM-DD usando o fuso horário local.
+ * @param date O objeto Date, string ou undefined a ser formatado.
+ * @returns String formatada YYYY-MM-DD ou undefined.
+ */
+export function formatDateLocal(date: Date | string | undefined): string | undefined {
+  if (!date) return undefined;
+  const d = typeof date === 'string' ? parseDateLocal(date) : date;
+  if (isNaN(d.getTime())) return undefined;
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**

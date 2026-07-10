@@ -28,7 +28,7 @@ interface CreditCardTabProps {
 // ─── Sub-componente: Breakdown de Transações ───────────────────────────────
 function TransactionBreakdown({ transactions }: { transactions: TransacaoCompleta[] }) {
   if (transactions.length === 0) return (
-    <p className="text-[9px] text-muted-foreground text-center py-3 opacity-50 uppercase tracking-widest font-bold">
+    <p className="text-xs text-muted-foreground text-center py-3 opacity-50 uppercase tracking-widest font-bold">
       Nenhuma transação no ciclo
     </p>
   );
@@ -37,12 +37,12 @@ function TransactionBreakdown({ transactions }: { transactions: TransacaoComplet
       {transactions.map(tx => (
         <div key={tx.id} className="flex items-center justify-between py-1.5 border-b border-border/10 last:border-0">
           <div className="flex-1 min-w-0">
-            <p className="text-[9px] font-bold text-foreground/80 truncate">{tx.description}</p>
-            <p className="text-[8px] text-muted-foreground font-medium">
+            <p className="text-xs font-bold text-foreground/80 truncate">{tx.description}</p>
+            <p className="text-[11.5px] text-muted-foreground font-medium">
               {format(parseDateLocal(tx.date), "dd MMM", { locale: ptBR }).toUpperCase()}
             </p>
           </div>
-          <p className="text-[10px] font-black text-foreground tabular-nums ml-3">{formatCurrency(tx.amount)}</p>
+          <p className="text-sm font-black text-foreground tabular-nums ml-3">{formatCurrency(tx.amount)}</p>
         </div>
       ))}
     </div>
@@ -105,7 +105,7 @@ function PaymentOptions({
 
   return (
     <div className="space-y-2 mt-2">
-      <p className="text-[8px] font-black uppercase tracking-widest text-muted-foreground mb-2">
+      <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-2">
         Alternativas de Pagamento
       </p>
 
@@ -127,10 +127,10 @@ function PaymentOptions({
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black text-foreground">Pagar Total</p>
-              <p className="text-sm font-black text-primary tabular-nums">{formatCurrency(invoiceAmount)}</p>
+              <p className="text-sm font-black text-foreground">Pagar Total</p>
+              <p className="text-lg font-black text-primary tabular-nums">{formatCurrency(invoiceAmount)}</p>
             </div>
-            <p className="text-[8px] text-success font-bold mt-0.5">✓ Sem juros · Melhor escolha</p>
+            <p className="text-xs text-success font-bold mt-0.5">✓ Sem juros · Melhor escolha</p>
           </div>
         </div>
       </button>
@@ -153,24 +153,24 @@ function PaymentOptions({
           </div>
           <div className="flex-1">
             <div className="flex items-center justify-between">
-              <p className="text-[10px] font-black text-foreground">Pagamento Mínimo</p>
-              <p className="text-sm font-black text-warning tabular-nums">{formatCurrency(minResult.minimumAmount)}</p>
+              <p className="text-sm font-black text-foreground">Pagamento Mínimo</p>
+              <p className="text-lg font-black text-warning tabular-nums">{formatCurrency(minResult.minimumAmount)}</p>
             </div>
             <div className="mt-1 space-y-0.5">
-              <p className="text-[8px] text-muted-foreground font-bold">
+              <p className="text-xs text-muted-foreground font-bold">
                 Saldo restante: {formatCurrency(minResult.remainingBalance)}
               </p>
               {config.interestRateMonthly && config.interestRateMonthly > 0 ? (
                 <>
-                  <p className="text-[8px] text-warning font-bold">
+                  <p className="text-xs text-warning font-bold">
                     ⚠ Juros rotativos ({formatMonthlyRate(config.interestRateMonthly)}/mês): +{formatCurrency(revolvingImpact.interest)}
                   </p>
-                  <p className="text-[8px] text-destructive font-black">
+                  <p className="text-xs text-destructive font-black">
                     Próxima fatura estimada: ~{formatCurrency(revolvingImpact.nextMonthEstimate + minResult.minimumAmount)}
                   </p>
                 </>
               ) : (
-                <p className="text-[8px] text-warning font-bold">⚠ Saldo restante entra em juros rotativos</p>
+                <p className="text-xs text-warning font-bold">⚠ Saldo restante entra em juros rotativos</p>
               )}
             </div>
           </div>
@@ -195,7 +195,7 @@ function PaymentOptions({
               {selected === 'parcela' && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
             </div>
             <div className="flex-1">
-              <p className="text-[10px] font-black text-foreground mb-1.5">Parcelar Fatura (Simulação)</p>
+              <p className="text-sm font-black text-foreground mb-1.5">Parcelar Fatura (Simulação)</p>
               <div className="space-y-1">
                 {installmentOptions.map(plan => (
                   <button
@@ -208,16 +208,16 @@ function PaymentOptions({
                         : "border-border/20 hover:border-primary/30"
                     )}
                   >
-                    <span className="text-[9px] font-black text-foreground">
+                    <span className="text-xs font-black text-foreground">
                       {plan.months}x de {formatCurrency(plan.monthlyPayment)}
                     </span>
-                    <span className="text-[8px] text-muted-foreground font-bold">
+                    <span className="text-xs text-muted-foreground font-bold">
                       Total {formatCurrency(plan.totalAmount)}
                     </span>
                   </button>
                 ))}
               </div>
-              <p className="text-[7px] text-muted-foreground font-bold mt-1 opacity-60">
+              <p className="text-[10.5px] text-muted-foreground font-bold mt-1 opacity-60">
                 Taxa: {formatMonthlyRate(config.installmentRateMonthly || 0)}/mês · Informativo apenas
               </p>
             </div>
@@ -242,7 +242,7 @@ function PaymentOptions({
             {selected === 'custom' && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
           </div>
           <div className="flex-1">
-            <p className="text-[10px] font-black text-foreground">Valor Personalizado</p>
+            <p className="text-sm font-black text-foreground">Valor Personalizado</p>
             {selected === 'custom' && (
               <div className="mt-2" onClick={e => e.stopPropagation()}>
                 <Input
@@ -585,8 +585,8 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
                     <CreditCard className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="font-black text-sm">{account?.name || 'Cartão'}</p>
-                    <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest">
+                    <p className="font-black text-lg">{account?.name || 'Cartão'}</p>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
                       Fecha {format(cycleDates.to, "dd MMM", { locale: ptBR }).toUpperCase()} · Vence {format(cycleDates.due, "dd MMM", { locale: ptBR }).toUpperCase()}
                     </p>
                   </div>
@@ -602,7 +602,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
               </div>
 
               {/* Período vigente */}
-              <div className="flex items-center gap-1.5 text-[8px] text-muted-foreground font-bold uppercase tracking-widest">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-bold uppercase tracking-widest">
                 <Clock className="w-3 h-3" />
                 Período: {format(cycleDates.from, "dd MMM", { locale: ptBR }).toUpperCase()} → {format(cycleDates.to, "dd MMM", { locale: ptBR }).toUpperCase()}
               </div>
@@ -610,24 +610,24 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
               {/* Fatura + Disponível */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-muted/20 dark:bg-white/[0.03]">
-                  <p className="text-[7px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Fatura</p>
-                  <p className="text-lg font-black tabular-nums text-foreground leading-none">{formatCurrency(invoiceAmount)}</p>
+                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-0.5">Fatura</p>
+                  <p className="text-2xl font-black tabular-nums text-foreground leading-none">{formatCurrency(invoiceAmount)}</p>
                   {isInvoicePaid && (
-                    <span className="text-[7px] font-black text-success uppercase tracking-widest">✓ Paga</span>
+                    <span className="text-xs font-black text-success uppercase tracking-widest">✓ Paga</span>
                   )}
                 </div>
                 <div className="p-3 rounded-xl bg-muted/20 dark:bg-white/[0.03]">
-                  <p className="text-[7px] font-black uppercase tracking-widest text-muted-foreground mb-0.5">Disponível</p>
-                  <p className="text-lg font-black tabular-nums text-foreground leading-none">
+                  <p className="text-xs font-black uppercase tracking-widest text-muted-foreground mb-0.5">Disponível</p>
+                  <p className="text-2xl font-black tabular-nums text-foreground leading-none">
                     {formatCurrency(Math.max(0, config.limit - cycleUsage))}
                   </p>
-                  <p className="text-[7px] font-bold text-muted-foreground">de {formatCurrency(config.limit)}</p>
+                  <p className="text-xs font-bold text-muted-foreground">de {formatCurrency(config.limit)}</p>
                 </div>
               </div>
 
               {/* Barra de uso */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-[8px] font-black uppercase tracking-widest">
+                <div className="flex justify-between text-xs font-black uppercase tracking-widest">
                   <span className="text-muted-foreground">Usado no ciclo: {formatCurrency(cycleUsage)}</span>
                   <span className={cn(
                     usagePercent > 80 ? "text-destructive" : usagePercent > 50 ? "text-warning" : "text-muted-foreground"
@@ -651,15 +651,15 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
                 <div className="flex items-center justify-between p-2.5 rounded-xl bg-primary/5 border border-primary/10">
                   <div className="flex items-center gap-1.5">
                     <TrendingUp className="w-3 h-3 text-primary" />
-                    <p className="text-[8px] font-black uppercase tracking-widest text-primary">Próxima fatura (em aberto)</p>
+                    <p className="text-xs font-black uppercase tracking-widest text-primary">Próxima fatura (em aberto)</p>
                   </div>
-                  <p className="text-[10px] font-black text-primary tabular-nums">{formatCurrency(nextCycle)}</p>
+                  <p className="text-sm font-black text-primary tabular-nums">{formatCurrency(nextCycle)}</p>
                 </div>
               )}
 
               {/* Conta de pagamento */}
               {paymentAccount && (
-                <div className="flex items-center gap-1.5 text-[8px] text-muted-foreground font-bold">
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-bold">
                   <Banknote className="w-3 h-3" />
                   Pagar via: <span className="text-foreground font-black">{paymentAccount.name}</span>
                 </div>
@@ -673,7 +673,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
             >
               <div className="flex items-center gap-2">
                 <Receipt className="w-3.5 h-3.5 text-muted-foreground" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">
+                <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                   Transações do Ciclo ({cycleTransactions.length})
                 </span>
               </div>
@@ -686,8 +686,8 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
                   <TransactionBreakdown transactions={cycleTransactions} />
                   {cycleTransactions.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-border/20 flex justify-between">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total de compras</p>
-                      <p className="text-[9px] font-black text-foreground tabular-nums">{formatCurrency(invoiceAmount)}</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Total de compras</p>
+                      <p className="text-xs font-black text-foreground tabular-nums">{formatCurrency(invoiceAmount)}</p>
                     </div>
                   )}
                 </div>
@@ -701,7 +701,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
                   <div className="pt-3">
                     <Button
                       onClick={() => setPayingCardId(config.id)}
-                      className="w-full h-10 rounded-xl text-[10px] font-black uppercase tracking-widest gap-2"
+                      className="w-full h-10 rounded-xl text-xs font-black uppercase tracking-widest gap-2"
                     >
                       <Banknote className="w-4 h-4" /> Opções de Pagamento
                     </Button>
@@ -728,7 +728,7 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
                 >
                   <div className="flex items-center gap-2">
                     <Info className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-[8px] font-black uppercase tracking-widest text-muted-foreground">Encargos</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Encargos</span>
                   </div>
                   {isExpRates ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
                 </button>
@@ -736,20 +736,20 @@ export function CreditCardTab({ currentDate }: CreditCardTabProps) {
                   <div className="px-4 sm:px-5 pb-3 bg-muted/5 border-t border-border/10 space-y-1.5 pt-2.5">
                     {config.interestRateMonthly && (
                       <div className="flex justify-between">
-                        <p className="text-[8px] text-muted-foreground font-bold">Juros rotativos</p>
-                        <p className="text-[8px] font-black text-warning">{formatMonthlyRate(config.interestRateMonthly)}/mês</p>
+                        <p className="text-xs text-muted-foreground font-bold">Juros rotativos</p>
+                        <p className="text-xs font-black text-warning">{formatMonthlyRate(config.interestRateMonthly)}/mês</p>
                       </div>
                     )}
                     {config.installmentRateMonthly && (
                       <div className="flex justify-between">
-                        <p className="text-[8px] text-muted-foreground font-bold">Parcelamento</p>
-                        <p className="text-[8px] font-black text-primary">{formatMonthlyRate(config.installmentRateMonthly)}/mês</p>
+                        <p className="text-xs text-muted-foreground font-bold">Parcelamento</p>
+                        <p className="text-xs font-black text-primary">{formatMonthlyRate(config.installmentRateMonthly)}/mês</p>
                       </div>
                     )}
                     {config.minimumPaymentPercent && (
                       <div className="flex justify-between">
-                        <p className="text-[8px] text-muted-foreground font-bold">Pagamento mínimo</p>
-                        <p className="text-[8px] font-black text-foreground">{(config.minimumPaymentPercent * 100).toFixed(0)}%</p>
+                        <p className="text-xs text-muted-foreground font-bold">Pagamento mínimo</p>
+                        <p className="text-xs font-black text-foreground">{(config.minimumPaymentPercent * 100).toFixed(0)}%</p>
                       </div>
                     )}
                   </div>

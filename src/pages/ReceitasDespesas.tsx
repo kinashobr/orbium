@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, Tags, Plus, CalendarCheck, Receipt, Sparkles, Filter, LayoutDashboard, FileText, ArrowRight, Briefcase } from "lucide-react";
@@ -14,10 +15,10 @@ import { AccountFormModal } from "@/components/transactions/AccountFormModal";
 import { CategoryFormModal } from "@/components/transactions/CategoryFormModal";
 import { CategoryListModal } from "@/components/transactions/CategoryListModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
+import { CategoryStatementDialog } from "@/components/transactions/CategoryStatementDialog";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
 import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
 import { StatementManagerDialog } from "@/components/transactions/StatementManagerDialog";
-import { ConsolidatedReviewDialog } from "@/components/transactions/ConsolidatedReviewDialog";
 import { StandardizationRuleManagerModal } from "@/components/transactions/StandardizationRuleManagerModal";
 import { useFinance } from "@/contexts/FinanceContext";
 import { CltModule } from "@/components/clt/CltModule";
@@ -45,6 +46,7 @@ interface NewTerrenoData {
 }
 
 const ReceitasDespesas = () => {
+  const navigate = useNavigate();
   const isMobile = useMediaQuery("(max-width: 768px)");
   const {
     contasMovimento, setContasMovimento,
@@ -70,10 +72,10 @@ const ReceitasDespesas = () => {
   const [editingTransaction, setEditingTransaction] = useState<TransacaoCompleta>();
   const [viewingAccountId, setViewingAccountId] = useState<string | null>(null);
   const [showStatementDialog, setShowStatementDialog] = useState(false);
+  const [viewingCategoryId, setViewingCategoryId] = useState<string | null>(null);
+  const [showCategoryStatementDialog, setShowCategoryStatementDialog] = useState(false);
   const [showBillsTrackerModal, setShowBillsTrackerModal] = useState(false);
   const [showStatementManagerDialog, setShowStatementManagerDialog] = useState(false);
-  const [showConsolidatedReview, setShowConsolidatedReview] = useState(false);
-  const [accountForConsolidatedReview, setAccountForConsolidatedReview] = useState<string | null>(null);
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
   const [showCltModule, setShowCltModule] = useState(false);
 
@@ -105,6 +107,7 @@ const ReceitasDespesas = () => {
 
   const viewingAccount = useMemo(() => viewingAccountId ? contasMovimento.find(a => a.id === viewingAccountId) : undefined, [viewingAccountId, contasMovimento]);
   const viewingSummary = useMemo(() => viewingAccountId ? accountSummaries.find(s => s.accountId === viewingAccountId) : undefined, [viewingAccountId, accountSummaries]);
+  const viewingCategory = useMemo(() => viewingCategoryId ? categories.find(c => c.id === viewingCategoryId) : undefined, [viewingCategoryId, categories]);
 
   const transactionCountByCategory = useMemo(() => {
     return transactions.reduce((acc, t) => {
@@ -238,7 +241,7 @@ const ReceitasDespesas = () => {
         </header>
 
         <section className="flex flex-wrap gap-2 px-1 animate-fade-in-up">
-          <Button variant="outline" onClick={() => setShowBillsTrackerModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm hidden sm:inline">Contas a Pagar</span><span className="font-bold text-sm sm:hidden">Contas</span></Button>
+          <Button variant="outline" onClick={() => navigate("/contas-pagar")} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm hidden sm:inline">Contas a Pagar</span><span className="font-bold text-sm sm:hidden">Contas</span></Button>
           <Button variant="outline" onClick={() => setShowCltModule(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Briefcase className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Recebimentos</span></Button>
           <Button variant="outline" onClick={() => setShowCategoryListModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Tags className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Categorias</span></Button>
         </section>
@@ -250,7 +253,7 @@ const ReceitasDespesas = () => {
                 <div><h3 className="font-display font-bold text-lg text-foreground">Contas Correntes</h3><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Saldos e Disponibilidade</p></div>
                 <Button variant="ghost" size="sm" onClick={() => { setEditingAccount(undefined); setShowAccountModal(true); }} className="w-10 h-10 rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-5 w-5" /></Button>
               </div>
-              <AccountsCarousel accounts={accountSummaries} onMovimentar={id => { setSelectedAccountForModal(id); setEditingTransaction(undefined); setShowMovimentarModal(true); }} onViewHistory={id => { setViewingAccountId(id); setShowStatementDialog(true); }} onAddAccount={() => setShowAccountModal(true)} onEditAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { const tx = transactions.find(t => t.accountId === id && t.operationType === 'initial_balance'); setEditingAccount({ ...a, initialBalanceValue: tx ? (tx.flow === 'in' ? tx.amount : -tx.amount) : 0 } as any); setShowAccountModal(true); } }} onImportAccount={id => { setAccountForConsolidatedReview(null); setViewingAccountId(id); setShowStatementManagerDialog(true); }} showHeader={false} />
+              <AccountsCarousel accounts={accountSummaries} onMovimentar={id => { setSelectedAccountForModal(id); setEditingTransaction(undefined); setShowMovimentarModal(true); }} onViewHistory={id => { setViewingAccountId(id); setShowStatementDialog(true); }} onAddAccount={() => setShowAccountModal(true)} onEditAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { const tx = transactions.find(t => t.accountId === id && t.operationType === 'initial_balance'); setEditingAccount({ ...a, initialBalanceValue: tx ? (tx.flow === 'in' ? tx.amount : -tx.amount) : 0 } as any); setShowAccountModal(true); } }} onImportAccount={id => { setViewingAccountId(id); setShowStatementManagerDialog(true); }} showHeader={false} />
             </div>
 
             <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
@@ -313,11 +316,32 @@ const ReceitasDespesas = () => {
       />
       <AccountFormModal open={showAccountModal} onOpenChange={setShowAccountModal} account={editingAccount} onSubmit={handleAccountSubmit} onDelete={id => setContasMovimento(p => p.filter(x => x.id !== id))} hasTransactions={editingAccount ? transactions.some(t => t.accountId === editingAccount.id) : false} />
       <CategoryFormModal open={showCategoryModal} onOpenChange={setShowCategoryModal} category={editingCategory} onSubmit={c => { if (editingCategory) setCategoriasV2(p => p.map(x => x.id === c.id ? c : x)); else setCategoriasV2(p => [...p, c]); }} onDelete={id => setCategoriasV2(p => p.filter(x => x.id !== id))} hasTransactions={editingCategory ? transactions.some(t => t.categoryId === editingCategory.id) : false} />
-      <CategoryListModal open={showCategoryListModal} onOpenChange={setShowCategoryListModal} categories={categories} onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }} onEditCategory={c => { setEditingCategory(c); setShowCategoryModal(true); }} onDeleteCategory={id => setCategoriasV2(p => p.filter(x => x.id !== id))} transactionCountByCategory={transactionCountByCategory} />
+      <CategoryListModal 
+        open={showCategoryListModal} 
+        onOpenChange={setShowCategoryListModal} 
+        categories={categories} 
+        onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }} 
+        onEditCategory={c => { setEditingCategory(c); setShowCategoryModal(true); }} 
+        onDeleteCategory={id => setCategoriasV2(p => p.filter(x => x.id !== id))} 
+        transactionCountByCategory={transactionCountByCategory} 
+        onSelectCategory={c => { setViewingCategoryId(c.id); setShowCategoryStatementDialog(true); }}
+      />
       {viewingAccount && viewingSummary && <AccountStatementDialog open={showStatementDialog} onOpenChange={setShowStatementDialog} account={viewingAccount} accountSummary={viewingSummary} transactions={transactions.filter(t => t.accountId === viewingAccountId)} categories={categories} onEditTransaction={handleEditTransaction} onDeleteTransaction={handleDeleteTransaction} onToggleConciliated={handleToggleConciliated} onReconcileAll={() => setTransacoesV2(p => p.map(t => t.accountId === viewingAccountId ? { ...t, conciliated: true } : t))} />}
+      {viewingCategory && (
+        <CategoryStatementDialog
+          open={showCategoryStatementDialog}
+          onOpenChange={setShowCategoryStatementDialog}
+          category={viewingCategory}
+          transactions={transactions.filter(t => t.categoryId === viewingCategoryId)}
+          accounts={contasMovimento}
+          categories={categories}
+          onEditTransaction={handleEditTransaction}
+          onDeleteTransaction={handleDeleteTransaction}
+          onToggleConciliated={handleToggleConciliated}
+        />
+      )}
       <BillsTrackerModal open={showBillsTrackerModal} onOpenChange={setShowBillsTrackerModal} />
-      <StatementManagerDialog open={showStatementManagerDialog} onOpenChange={setShowStatementManagerDialog} initialAccountId={viewingAccountId || undefined} onStartConsolidatedReview={id => { setAccountForConsolidatedReview(id); setShowConsolidatedReview(true); }} onManageRules={handleManageRules} />
-      {accountForConsolidatedReview && <ConsolidatedReviewDialog open={showConsolidatedReview} onOpenChange={setShowConsolidatedReview} accountId={accountForConsolidatedReview} accounts={contasMovimento} categories={categories} investments={contasMovimento.filter(c => ['renda_fixa', 'poupanca', 'reserva', 'objetivo'].includes(c.accountType)).map(i => ({ id: i.id, name: i.name }))} loans={emprestimos.map(e => ({ id: `loan_${e.id}`, institution: e.contrato, numeroContrato: e.contrato, parcelas: [], valorParcela: e.parcela, totalParcelas: e.meses }))} />}
+      <StatementManagerDialog open={showStatementManagerDialog} onOpenChange={setShowStatementManagerDialog} initialAccountId={viewingAccountId || undefined} onStartConsolidatedReview={id => navigate(`/revisao-extrato?accountId=${id}`)} onManageRules={handleManageRules} />
       <StandardizationRuleManagerModal open={showRuleManagerModal} onOpenChange={setShowRuleManagerModal} rules={standardizationRules} onDeleteRule={deleteStandardizationRule} categories={categories} />
       <CltModule open={showCltModule} onOpenChange={setShowCltModule} />
     </MainLayout>

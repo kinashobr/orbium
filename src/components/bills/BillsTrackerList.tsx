@@ -45,15 +45,15 @@ const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'typ
 type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
-  pay: 50,
-  due: 110,
-  paymentDate: 110,
-  description: 250,
-  account: 140,
-  type: 80,
-  category: 180,
-  amount: 130,
-  actions: 60,
+  pay: 45,
+  due: 100,
+  paymentDate: 100,
+  description: 200,
+  account: 120,
+  type: 75,
+  category: 140,
+  amount: 110,
+  actions: 50,
 };
 
 const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right' }[] = [

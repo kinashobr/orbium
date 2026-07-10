@@ -182,12 +182,10 @@ export function LoanCharts({ emprestimos, className }: LoanChartsProps) {
                     stroke="none"
                     cornerRadius={8}
                   >
-                    {efficiencyData.map((e, i) => (
-                      <>
-                        <Cell key={`capital-${i}`} fill={colors.success} />
-                        <Cell key={`juros-${i}`} fill={colors.destructive} opacity={0.7} />
-                      </>
-                    ))}
+                    {efficiencyData.flatMap((e, i) => [
+                      <Cell key={`capital-${i}`} fill={colors.success} />,
+                      <Cell key={`juros-${i}`} fill={colors.destructive} opacity={0.7} />
+                    ])}
                   </Pie>
                   <Tooltip 
                     contentStyle={{ backgroundColor: 'hsl(var(--card))', border: 'none', borderRadius: '16px', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}

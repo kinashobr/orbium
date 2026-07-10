@@ -84,78 +84,78 @@ export const RecurringExpenseTabContent = forwardRef<RecurringExpenseRef, Recurr
   }));
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Descrição da Despesa</Label>
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição da Despesa</Label>
         <Input
           placeholder="Ex: Netflix, Academia, Aluguel..."
           value={formData.description}
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-          className="h-12 border-2 rounded-2xl font-bold bg-muted/20 focus:bg-card transition-all border-transparent focus:border-primary/30"
+          className="h-8 border rounded-xl text-xs font-bold bg-muted/20 focus:bg-card transition-all border-transparent focus:border-primary/30"
         />
       </div>
 
-      <div className="text-center space-y-1 py-2">
-        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60">Valor Fixo Mensal</Label>
-        <div className="relative max-w-[240px] mx-auto group">
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/20">R$</span>
+      <div className="text-center space-y-0.5 py-1">
+        <Label className="text-[8px] font-black uppercase tracking-widest text-primary/60">Valor Fixo Mensal</Label>
+        <div className="relative max-w-[180px] mx-auto group">
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/20">R$</span>
           <Input
             type="text"
             inputMode="numeric"
             value={formData.totalAmount}
             onChange={(e) => handleAmountChange(e.target.value)}
-            className="h-14 text-3xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
+            className="h-9 text-xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
           />
           <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-50 group-focus-within:scale-x-100 transition-transform duration-500" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Duração (Meses)</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Duração (Meses)</Label>
           <Input
             type="number"
             min="1"
             value={formData.months}
             onChange={e => setFormData(p => ({ ...p, months: e.target.value }))}
-            className="h-11 border-2 rounded-2xl font-black text-center bg-muted/20 border-transparent focus:border-primary/30"
+            className="h-8 border rounded-xl text-xs font-black text-center bg-muted/20 border-transparent focus:border-primary/30"
           />
         </div>
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Próximo Vencimento</Label>
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Próximo Vencimento</Label>
           <Input
             type="date"
             value={formData.firstDueDate}
             onChange={e => setFormData(p => ({ ...p, firstDueDate: e.target.value }))}
-            className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner px-4"
+            className="h-8 rounded-xl border-none bg-muted/20 text-xs font-bold shadow-inner px-3"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Conta de Débito</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Conta de Débito</Label>
           <Select value={formData.accountId} onValueChange={(v) => setFormData(p => ({ ...p, accountId: v }))}>
-            <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-            <SelectContent className="z-[210] rounded-xl shadow-2xl border-none p-1">
-              {availableAccounts.map(a => <SelectItem key={a.id} value={a.id} className="rounded-lg font-bold py-2 text-sm">{a.name}</SelectItem>)}
+            <SelectTrigger className="h-8 rounded-xl border-none bg-muted/20 text-xs font-bold shadow-inner px-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+            <SelectContent className="z-[210] rounded-lg shadow-xl border-none p-1">
+              {availableAccounts.map(a => <SelectItem key={a.id} value={a.id} className="rounded-md font-bold py-1 text-xs">{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Categoria</Label>
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Categoria</Label>
           <Select value={formData.categoryId} onValueChange={(v) => setFormData(p => ({ ...p, categoryId: v }))}>
-            <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-            <SelectContent className="z-[210] rounded-xl shadow-2xl border-none p-1">
-              {expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="rounded-lg font-bold py-2 text-sm">{c.icon} {c.label}</SelectItem>)}
+            <SelectTrigger className="h-8 rounded-xl border-none bg-muted/20 text-xs font-bold shadow-inner px-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+            <SelectContent className="z-[210] rounded-lg shadow-xl border-none p-1">
+              {expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="rounded-md font-bold py-1 text-xs">{c.icon} {c.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <div className="p-4 rounded-2xl bg-muted/30 border border-border/40 flex items-center gap-3">
-        <Info className="w-4 h-4 text-primary shrink-0" />
-        <p className="text-[10px] font-medium text-muted-foreground leading-tight">
+      <div className="p-2 rounded-xl bg-muted/30 border border-border/40 flex items-center gap-2">
+        <Info className="w-3 h-3 text-primary shrink-0" />
+        <p className="text-[8.5px] font-medium text-muted-foreground leading-tight">
           A despesa será replicada mensalmente na data informada, ajudando na sua projeção de caixa.
         </p>
       </div>

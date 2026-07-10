@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 interface CashFlowTimelineProps {
   currentDate: Date;
   combinedBills: BillDisplayItem[];
+  isCompact?: boolean;
 }
 
 interface CashFlowPoint {
@@ -22,7 +23,7 @@ interface CashFlowPoint {
   label: string;
 }
 
-export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelineProps) {
+export function CashFlowTimeline({ currentDate, combinedBills, isCompact = false }: CashFlowTimelineProps) {
   const {
     contasMovimento,
     calculateBalanceUpToDate,
@@ -127,22 +128,26 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
   };
 
   return (
-    <div className="space-y-4">
+    <div className={cn("flex flex-col", isCompact ? "space-y-1 h-full justify-between" : "space-y-4")}>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
-            <TrendingUp className="w-4 h-4 text-primary" />
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-widest">Fluxo de Caixa Diário</p>
+        <div className="flex items-center gap-1.5">
+          {!isCompact && (
+            <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-primary" />
+            </div>
+          )}
+          <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground opacity-80">
+            {isCompact ? "Fluxo Diário" : "Fluxo de Caixa Diário"}
+          </p>
         </div>
-        {isViewingCurrentMonth && (
+        {isViewingCurrentMonth && !isCompact && (
            <div className="px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 shadow-sm">
              <p className="text-[8px] font-black text-primary uppercase tracking-tighter">Hoje: {todayDayStr}/{format(new Date(), 'MM')}</p>
            </div>
         )}
       </div>
 
-      <div className="h-[160px] w-full relative group">
+      <div className={cn("w-full relative group", isCompact ? "h-[90px]" : "h-[160px]")}>
         <div className="absolute -left-2 top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-border/20 to-transparent" />
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -166,7 +171,7 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
               tick={{ fontSize: 9, fontWeight: 800, fill: 'hsl(var(--muted-foreground))' }} 
               tickLine={false} 
               axisLine={false}
-              interval={Math.floor(data.length / 8)}
+              interval={isCompact ? 6 : Math.floor(data.length / 8)}
               dy={10}
             />
             <YAxis hide domain={['auto', 'auto']} />
@@ -217,39 +222,43 @@ export function CashFlowTimeline({ currentDate, combinedBills }: CashFlowTimelin
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 pt-2">
-        <div className="p-3 rounded-[1.25rem] bg-muted/30 border border-border/40 backdrop-blur-sm transition-all hover:bg-muted/40">
-          <div className="flex items-center gap-1.5 mb-1 opacity-60">
-            <TrendingUp className="w-3 h-3 text-destructive rotate-180" />
-            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider leading-none">Mínimo Projetado</p>
+      {!isCompact && (
+        <>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="p-3 rounded-[1.25rem] bg-muted/30 border border-border/40 backdrop-blur-sm transition-all hover:bg-muted/40">
+              <div className="flex items-center gap-1.5 mb-1 opacity-60">
+                <TrendingUp className="w-3 h-3 text-destructive rotate-180" />
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider leading-none">Mínimo Projetado</p>
+              </div>
+              <p className={cn("text-xs font-black tabular-nums tracking-tight", minBalance < 0 ? "text-destructive" : "text-foreground")}>
+                {formatCurrency(minBalance)}
+              </p>
+            </div>
+            <div className="p-3 rounded-[1.25rem] bg-muted/30 border border-border/40 backdrop-blur-sm transition-all hover:bg-muted/40">
+              <div className="flex items-center gap-1.5 mb-1 opacity-60">
+                <TrendingUp className="w-3 h-3 text-primary" />
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider leading-none">Saldo Final Estimado</p>
+              </div>
+              <p className="text-xs font-black tabular-nums tracking-tight">
+                {formatCurrency(data[data.length - 1]?.saldo || 0)}
+              </p>
+            </div>
           </div>
-          <p className={cn("text-xs font-black tabular-nums tracking-tight", minBalance < 0 ? "text-destructive" : "text-foreground")}>
-            {formatCurrency(minBalance)}
-          </p>
-        </div>
-        <div className="p-3 rounded-[1.25rem] bg-muted/30 border border-border/40 backdrop-blur-sm transition-all hover:bg-muted/40">
-          <div className="flex items-center gap-1.5 mb-1 opacity-60">
-            <TrendingUp className="w-3 h-3 text-primary" />
-            <p className="text-[8px] font-black text-muted-foreground uppercase tracking-wider leading-none">Saldo Final Estimado</p>
-          </div>
-          <p className="text-xs font-black tabular-nums tracking-tight">
-            {formatCurrency(data[data.length - 1]?.saldo || 0)}
-          </p>
-        </div>
-      </div>
 
-      {hasNegative && (
-        <div className="p-3 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-start gap-3 shadow-sm animate-pulse">
-          <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center shrink-0 mt-0.5">
-             <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
-          </div>
-          <div className="space-y-0.5">
-            <p className="text-[9px] font-black uppercase tracking-tight text-destructive">Alerta de Liquidez</p>
-            <p className="text-[8px] font-bold text-destructive/80 leading-relaxed">
-              Sua projeção indica que o saldo ficará negativo em algum momento deste mês. Revise suas contas a pagar ou antecipe receitas.
-            </p>
-          </div>
-        </div>
+          {hasNegative && (
+            <div className="p-3 rounded-2xl bg-destructive/10 border border-destructive/20 flex items-start gap-3 shadow-sm animate-pulse">
+              <div className="w-6 h-6 rounded-full bg-destructive/20 flex items-center justify-center shrink-0 mt-0.5">
+                 <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-[9px] font-black uppercase tracking-tight text-destructive">Alerta de Liquidez</p>
+                <p className="text-[8px] font-bold text-destructive/80 leading-relaxed">
+                  Sua projeção indica que o saldo ficará negativo em algum momento deste mês. Revise suas contas a pagar ou antecipe receitas.
+                </p>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

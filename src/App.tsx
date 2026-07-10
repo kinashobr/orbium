@@ -12,6 +12,7 @@ import Veiculos from "./pages/Veiculos";
 import Relatorios from "./pages/Relatorios";
 import Investimentos from "./pages/Investimentos";
 import BillsTracker from "./pages/BillsTracker";
+import RevisaoExtrato from "./pages/RevisaoExtrato";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/investimentos" element={<Investimentos />} />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/contas-pagar" element={<BillsTracker />} />
+              <Route path="/revisao-extrato" element={<RevisaoExtrato />} />
               
               {/* Fallback */}
               <Route path="*" element={<NotFound />} />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillsTrackerList } from "./BillsTrackerList";
 import { BillsTrackerMobileList } from "./BillsTrackerMobileList";
@@ -79,14 +80,34 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     dueDate: format(new Date(), "yyyy-MM-dd"),
   });
 
+  const [portalReady, setPortalReady] = useState(false);
+
   useEffect(() => {
-    if (isMobile && open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [isMobile, open]);
+    setPortalReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const scrollY = window.scrollY;
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, [open]);
 
   const trackerManagedBills = useMemo(() => getBillsForMonth(currentDate), [getBillsForMonth, currentDate]);
   const externalPaidBills = useMemo(() => getOtherPaidExpensesForMonth(currentDate), [getOtherPaidExpensesForMonth, currentDate]);
@@ -254,12 +275,22 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       }
 
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
-      const category = categoriasV2.find(c => c.id === trackerBill.suggestedCategoryId);
+      let categoryId = trackerBill.suggestedCategoryId;
+
+      // Se não houver categoria sugerida, tenta auto-detectar para seguros
+      if (!categoryId && trackerBill.description.toLowerCase().includes('seguro')) {
+        const insuranceCategory = categoriasV2.find(c => c.label.toLowerCase().includes('seguro'));
+        if (insuranceCategory) {
+          categoryId = insuranceCategory.id;
+        }
+      }
+
+      const category = categoriasV2.find(c => c.id === categoryId);
       const isLoan = trackerBill.sourceType === 'loan_installment';
       
-      if (!account || (!category && !isLoan)) { 
-        toast.error("Configure conta e categoria antes de pagar."); 
-        return; 
+      if (!account || (!category && !isLoan)) {
+        toast.error("Configure conta e categoria antes de pagar.");
+        return;
       }
 
       const transactionId = `bill_tx_${trackerBill.id}`;
@@ -270,7 +301,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
 
       if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
         const loanId = parseInt(trackerBill.sourceRef);
-        baseLinks.loanId = `loan_${loanId}`; 
+        baseLinks.loanId = `loan_${loanId}`;
         baseLinks.parcelaId = String(trackerBill.parcelaNumber);
         const loan = emprestimos.find(e => e.id === loanId);
         description = `Pagamento Empréstimo ${loan?.contrato || 'N/A'} - P${trackerBill.parcelaNumber}/${loan?.meses || 'N/A'}`;
@@ -282,20 +313,20 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         markSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber, transactionId);
       }
 
-      addTransacaoV2({ 
-        id: transactionId, 
-        date: trackerBill.dueDate, 
-        accountId: account.id, 
-        flow: 'out', 
-        operationType, 
-        domain: domain as any, 
-        amount: trackerBill.expectedAmount, 
-        categoryId: trackerBill.suggestedCategoryId || null, 
-        description, 
-        links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null }, 
-        conciliated: true, 
-        attachments: [], 
-        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() } 
+      addTransacaoV2({
+        id: transactionId,
+        date: trackerBill.dueDate,
+        accountId: account.id,
+        flow: 'out',
+        operationType,
+        domain: domain as any,
+        amount: trackerBill.expectedAmount,
+        categoryId: categoryId || null,
+        description,
+        links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
+        conciliated: true,
+        attachments: [],
+        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() }
       });
 
       updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
@@ -331,111 +362,104 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);
   }, [setBillsTracker]);
 
-  if (isMobile && open) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent hideCloseButton fullscreen className="p-0 flex flex-col">
-          <header className="shrink-0 bg-card border-b px-6 pb-4 shadow-sm z-10" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/30" onClick={() => onOpenChange(false)}><ArrowLeft className="w-6 h-6" /></Button>
-                <div>
-                  <h2 className="text-xl font-black tracking-tight">Contas a Pagar</h2>
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5"><Zap className="w-3 h-3 text-primary" /> Fluxo Mensal</p>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => setShowManageCommitments(true)}><Settings className="w-5 h-5" /></Button>
-            </div>
+  if (!open || !portalReady) return null;
 
-            <div className="flex items-center justify-between bg-muted/30 p-1.5 rounded-2xl border border-border/40">
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleMonthChange("prev")}><ChevronLeft className="w-5 h-5" /></Button>
-              <div className="text-center">
-                <p className="text-sm font-black text-foreground capitalize">{format(currentDate, "MMMM yyyy", { locale: ptBR })}</p>
-              </div>
-              <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleMonthChange("next")}><ChevronRight className="w-5 h-5" /></Button>
-            </div>
-          </header>
-          <main className="flex-1 p-4 overflow-y-auto scrollbar-material bg-muted/5">
-            <div className="flex flex-col space-y-6">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-4 rounded-[1.5rem] bg-destructive/5 border border-destructive/10">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-destructive/60 mb-1">A Pagar</p>
-                  <p className="text-lg font-black text-destructive tabular-nums">{formatCurrency(totalUnpaidBills)}</p>
-                </div>
-                <div className="p-4 rounded-[1.5rem] bg-success/5 border border-success/10">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-success/60 mb-1">Pago</p>
-                  <p className="text-lg font-black text-success tabular-nums">{formatCurrency(totalPaidBills)}</p>
-                </div>
-              </div>
-              <div className="pb-32">
-                <BillsTrackerMobileList bills={combinedBills} onTogglePaid={handleTogglePaid} onUpdateBill={updateBill} onDeleteBill={deleteBill} onAddBill={handleAddBill} currentDate={currentDate} />
-              </div>
-              <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[60]">
-                <Button size="icon" className="h-16 w-16 rounded-2xl shadow-2xl bg-primary text-primary-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowNewBillModal(true)}><Plus className="w-8 h-8" /></Button>
+  if (isMobile && open) {
+    return createPortal(
+      <div className="fixed inset-0 w-screen h-screen z-[100] bg-background flex flex-col overflow-hidden isolate">
+        <header className="shrink-0 bg-card border-b px-6 pb-4 shadow-sm z-10" style={{ paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/30" onClick={() => onOpenChange(false)}><ArrowLeft className="w-6 h-6" /></Button>
+              <div>
+                <h2 className="text-xl font-black tracking-tight">Contas a Pagar</h2>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1.5"><Zap className="w-3 h-3 text-primary" /> Fluxo Mensal</p>
               </div>
             </div>
-          </main>
-          <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
-        </DialogContent>
-      </Dialog>
+            <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/50" onClick={() => setShowManageCommitments(true)}><Settings className="w-5 h-5" /></Button>
+          </div>
+
+          <div className="flex items-center justify-between bg-muted/30 p-1.5 rounded-2xl border border-border/40">
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleMonthChange("prev")}><ChevronLeft className="w-5 h-5" /></Button>
+            <div className="text-center">
+              <p className="text-sm font-black text-foreground capitalize">{format(currentDate, "MMMM yyyy", { locale: ptBR })}</p>
+            </div>
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl" onClick={() => handleMonthChange("next")}><ChevronRight className="w-5 h-5" /></Button>
+          </div>
+        </header>
+        <main className="flex-1 p-4 overflow-y-auto scrollbar-material bg-muted/5">
+          <div className="flex flex-col space-y-6">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 rounded-[1.5rem] bg-destructive/5 border border-destructive/10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-destructive/60 mb-1">A Pagar</p>
+                <p className="text-lg font-black text-destructive tabular-nums">{formatCurrency(totalUnpaidBills)}</p>
+              </div>
+              <div className="p-4 rounded-[1.5rem] bg-success/5 border border-success/10">
+                <p className="text-[10px] font-black uppercase tracking-widest text-success/60 mb-1">Pago</p>
+                <p className="text-lg font-black text-success tabular-nums">{formatCurrency(totalPaidBills)}</p>
+              </div>
+            </div>
+            <div className="pb-32">
+              <BillsTrackerMobileList bills={combinedBills} onTogglePaid={handleTogglePaid} onUpdateBill={updateBill} onDeleteBill={deleteBill} onAddBill={handleAddBill} currentDate={currentDate} />
+            </div>
+            <div className="fixed bottom-24 right-6 flex flex-col gap-3 z-[60]">
+              <Button size="icon" className="h-16 w-16 rounded-2xl shadow-2xl bg-primary text-primary-foreground hover:scale-105 active:scale-95 transition-all" onClick={() => setShowNewBillModal(true)}><Plus className="w-8 h-8" /></Button>
+            </div>
+          </div>
+        </main>
+        <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
+      </div>,
+      document.body
     );
   }
 
-  if (!open) return null;
-
-  return (
+  return createPortal(
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <ResizableDialogContent
-          storageKey="bills_tracker_modal_v3"
-          initialWidth={1100} initialHeight={850} minWidth={1000} minHeight={600} hideCloseButton={true}
-          className="rounded-[3rem] bg-card border-none shadow-2xl p-0 overflow-hidden"
-        >
-          <div className="modal-viewport flex flex-col h-full">
-            <DialogHeader className="px-8 pt-8 pb-6 bg-card shrink-0">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
-                    <CalendarCheck className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <DialogTitle className="text-2xl font-black tracking-tighter">Contas a Pagar</DialogTitle>
-                    <p className="text-xs font-bold text-muted-foreground flex items-center gap-2 mt-0.5 uppercase tracking-wider">
-                      <Zap className="w-4 h-4 text-primary" /> Planejamento e Fluxo
-                    </p>
-                  </div>
+      <div className="fixed inset-0 w-screen h-screen z-[100] bg-background flex flex-col overflow-hidden isolate">
+        <div className="modal-viewport flex flex-col h-full">
+          <DialogHeader className="px-8 pt-8 pb-6 bg-card shrink-0">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
+                  <CalendarCheck className="w-7 h-7" />
                 </div>
-
-                <div className="flex items-center flex-1 justify-center sm:justify-end gap-3">
-                  <div className="flex items-center bg-muted/40 rounded-full p-1 border border-border/40 shadow-sm">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("prev")}><ChevronLeft className="w-4 h-4" /></Button>
-                    <div className="px-4 min-w-[140px] text-center"><span className="text-[11px] font-black uppercase tracking-widest text-foreground">{format(currentDate, "MMMM yyyy", { locale: ptBR })}</span></div>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("next")}><ChevronRight className="w-4 h-4" /></Button>
-                  </div>
-                  <Button onClick={() => setShowManageCommitments(true)} className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"><Settings className="w-4 h-4" /> Gerenciar Compromissos</Button>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tighter">Contas a Pagar</h2>
+                  <p className="text-xs font-bold text-muted-foreground flex items-center gap-2 mt-0.5 uppercase tracking-wider">
+                    <Zap className="w-4 h-4 text-primary" /> Planejamento e Fluxo
+                  </p>
                 </div>
               </div>
-            </DialogHeader>
 
-            <div className="flex-1 flex min-h-0 overflow-hidden">
-              <aside className="w-[280px] shrink-0 border-r border-border/40 bg-card p-6 flex flex-col h-full overflow-hidden">
-                <BillsSidebarKPIs currentDate={currentDate} combinedBills={combinedBills} totalPendingBills={totalUnpaidBills} totalPaidBills={totalPaidBills} />
-              </aside>
-              <main className="flex-1 flex flex-col min-h-0 bg-muted/5 dark:bg-card overflow-hidden">
-                <BillsTrackerList 
-                  bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
-                  onAddBill={handleAddBill} 
-                  onTogglePaid={handleTogglePaid} currentDate={currentDate} 
-                />
-              </main>
+              <div className="flex items-center flex-1 justify-center sm:justify-end gap-3">
+                <div className="flex items-center bg-muted/40 rounded-full p-1 border border-border/40 shadow-sm">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("prev")}><ChevronLeft className="w-4 h-4" /></Button>
+                  <div className="px-4 min-w-[140px] text-center"><span className="text-[11px] font-black uppercase tracking-widest text-foreground">{format(currentDate, "MMMM yyyy", { locale: ptBR })}</span></div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleMonthChange("next")}><ChevronRight className="w-4 h-4" /></Button>
+                </div>
+                <Button onClick={() => setShowManageCommitments(true)} className="rounded-full h-10 px-6 font-black text-[11px] uppercase tracking-widest gap-2 shadow-lg shadow-primary/20"><Settings className="w-4 h-4" /> Gerenciar Compromissos</Button>
+              </div>
             </div>
+          </DialogHeader>
 
-            <DialogFooter className="p-4 bg-muted/20 border-t shrink-0">
-              <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-2xl h-11 font-black text-[11px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all">FECHAR</Button>
-            </DialogFooter>
+          <div className="flex-1 flex min-h-0 overflow-hidden">
+            <aside className="w-[280px] shrink-0 border-r border-border/40 bg-card p-6 flex flex-col h-full overflow-hidden">
+              <BillsSidebarKPIs currentDate={currentDate} combinedBills={combinedBills} totalPendingBills={totalUnpaidBills} totalPaidBills={totalPaidBills} />
+            </aside>
+            <main className="flex-1 flex flex-col min-h-0 bg-muted/5 dark:bg-card overflow-hidden">
+              <BillsTrackerList 
+                bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
+                onAddBill={handleAddBill} 
+                onTogglePaid={handleTogglePaid} currentDate={currentDate} 
+              />
+            </main>
           </div>
-        </ResizableDialogContent>
-      </Dialog>
+
+          <DialogFooter className="p-4 bg-muted/20 border-t shrink-0">
+            <Button variant="ghost" onClick={() => onOpenChange(false)} className="w-full rounded-2xl h-11 font-black text-[11px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all">FECHAR</Button>
+          </DialogFooter>
+        </div>
+      </div>
       <ManageCommitmentsModal open={showManageCommitments} onOpenChange={setShowManageCommitments} currentDate={currentDate} />
       <Dialog open={showNewBillModal} onOpenChange={setShowNewBillModal}>
         <DialogContent hideCloseButton className="max-w-[400px] rounded-[2.5rem] p-0 overflow-hidden z-[120] border-none shadow-2xl">
@@ -489,6 +513,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </>,
+    document.body
   );
 }

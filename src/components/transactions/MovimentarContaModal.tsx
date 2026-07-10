@@ -75,6 +75,11 @@ interface MovimentarContaModalProps {
     newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
   ) => void;
   editingTransaction?: TransacaoCompleta;
+  // Propriedades para inicialização via Contas a Pagar/Bills Tracker
+  initialCategoryId?: string;
+  initialDescription?: string;
+  initialAmount?: number;
+  initialOperationType?: OperationType;
 }
 
 const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color: string; bgColor: string }[] = [
@@ -90,7 +95,25 @@ const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color
   { value: 'imobilizado', label: 'Imóvel / Terreno', icon: Building2, color: 'text-primary', bgColor: 'bg-primary/10' },
 ];
 
-export function MovimentarContaModal({ open, onOpenChange, accounts, categories, investments, loans, segurosVeiculo, veiculos, imoveis, terrenos, selectedAccountId, onSubmit, editingTransaction }: MovimentarContaModalProps) {
+export function MovimentarContaModal({ 
+  open, 
+  onOpenChange, 
+  accounts, 
+  categories, 
+  investments, 
+  loans, 
+  segurosVeiculo, 
+  veiculos, 
+  imoveis, 
+  terrenos, 
+  selectedAccountId, 
+  onSubmit, 
+  editingTransaction,
+  initialCategoryId,
+  initialDescription,
+  initialAmount,
+  initialOperationType
+}: MovimentarContaModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [state, dispatch] = useReducer(formReducer, initialState);
 
@@ -139,14 +162,30 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
             tempAssetOperation: editingTransaction.operationType === 'imobilizado' ? editingTransaction.meta.assetOperation || null : null,
         }});
       } else {
+        // Lógica de pré-preenchimento inteligente para novos lançamentos (ex: vindos de Contas a Pagar)
+        const amountStr = initialAmount 
+          ? initialAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : "0,00";
+        
+        let finalCategoryId = initialCategoryId || null;
+        
+        // Se a descrição contiver "Seguro" e não houver categoria, tenta encontrar uma categoria de Seguro
+        if (!finalCategoryId && initialDescription?.toLowerCase().includes('seguro')) {
+          const seguroCat = categories.find(c => c.label.toLowerCase().includes('seguro'));
+          if (seguroCat) finalCategoryId = seguroCat.id;
+        }
+
         dispatch({ type: 'RESET', payload: {
             accountId: selectedAccountId || accounts[0]?.id || '',
             date: new Date().toISOString().split('T')[0],
-            operationType: 'despesa',
+            amount: amountStr,
+            operationType: initialOperationType || 'despesa',
+            description: initialDescription || '',
+            categoryId: finalCategoryId,
         }});
       }
     }
-  }, [open, editingTransaction, selectedAccountId, accounts]);
+  }, [open, editingTransaction, selectedAccountId, accounts, initialCategoryId, initialDescription, initialAmount, initialOperationType, categories]);
 
   const selectedAccount = useMemo(() => accounts.find(a => a.id === state.accountId), [accounts, state.accountId]);
   const allowedOperations = useMemo(() => selectedAccount ? getAllowedOperations(selectedAccount.accountType) : OPERATION_OPTIONS.map(o => o.value), [selectedAccount]);
@@ -275,10 +314,21 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
       }
     }
 
+    // Calcula se a transação envolve transferGroupId antes de criar o objeto links,
+    // permitindo que o validador receba o id correto antes de rodar.
+    const isInterAccountMovement = state.operationType === 'transferencia' || state.operationType === 'aplicacao' || state.operationType === 'resgate';
+    const isDoubleEntrySystem = ['liberacao_emprestimo', 'veiculo', 'imobilizado'].includes(state.operationType);
+    const targetAccountId = state.operationType === 'transferencia' ? state.destinationAccountId : state.tempInvestmentId;
+
+    let transferGroupId = editingTransaction?.links?.transferGroupId || null;
+    if (((isInterAccountMovement && targetAccountId) || isDoubleEntrySystem) && !transferGroupId) {
+      transferGroupId = generateTransferGroupId();
+    }
+
     const links: TransactionLinks = { 
         investmentId: state.tempInvestmentId, 
         loanId: state.tempLoanId, 
-        transferGroupId: editingTransaction?.links?.transferGroupId || null, 
+        transferGroupId, 
         parcelaId: state.tempParcelaId, 
         vehicleTransactionId,
     };
@@ -314,25 +364,18 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
 
     let transferGroup;
 
-    const isInterAccountMovement = state.operationType === 'transferencia' || state.operationType === 'aplicacao' || state.operationType === 'resgate';
-    const isDoubleEntrySystem = ['liberacao_emprestimo', 'veiculo', 'imobilizado'].includes(state.operationType);
-    const targetAccountId = state.operationType === 'transferencia' ? state.destinationAccountId : state.tempInvestmentId;
-
     if ((isInterAccountMovement && targetAccountId) || isDoubleEntrySystem) {
       transferGroup = {
-        id: editingTransaction?.links?.transferGroupId || generateTransferGroupId(),
+        id: transferGroupId!,
         fromAccountId: state.accountId,
         toAccountId: targetAccountId || '', // Será tratado pelo FinanceContext para contas de sistema
         amount: parsedAmount,
         date: state.date,
         description: baseTx.description
       };
-      
-      // Atualiza o link na transação base
-      baseTx.links.transferGroupId = transferGroup.id;
     }
 
-    let newAssetPayload: { type: 'veiculo' | 'imovel' | 'terreno'; data: NewVehicleData | NewImovelData | NewTerrenoData } | undefined;
+    let newAssetPayload: { type: 'veiculo' | 'imovel' | 'terreno'; data: any } | undefined;
     
     if (state.operationType === 'veiculo' && state.tempVehicleOperation === 'compra') {
       newAssetPayload = { type: 'veiculo', data: state.newVehicleData };
@@ -797,7 +840,7 @@ export function MovimentarContaModal({ open, onOpenChange, accounts, categories,
         <DialogFooter className={cn(
           "p-4 sm:p-5 bg-muted/10 shrink-0 flex flex-col sm:flex-row gap-2",
           isMobile && "fixed bottom-0 left-0 right-0 border-t bg-card"
-        )} style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}>
+        )} style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}>
           {!isMobile && (
             <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-11 px-8 font-black text-[9px] uppercase tracking-widest text-muted-foreground hover:text-foreground">FECHAR</Button>
           )}

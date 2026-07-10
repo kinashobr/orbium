@@ -122,7 +122,30 @@ export function IndicadoresTab({ dateRanges }: { dateRanges: ComparisonDateRange
 
     // Compras parceladas pendentes
     const comprasParceladasPendentes = billsTracker
-      .filter(b => b.sourceType === 'purchase_installment' && !b.isPaid && !b.isExcluded)
+      .filter(b => {
+        if (b.sourceType !== 'purchase_installment' || b.isExcluded) return false;
+        
+        // Verificar se a compra já havia sido feita na data de referência (com base no timestamp da sourceRef se existir)
+        if (b.sourceRef && b.sourceRef.startsWith('purchase_')) {
+          const timestampStr = b.sourceRef.split('_')[1];
+          if (timestampStr) {
+            const ts = parseInt(timestampStr, 10);
+            if (!isNaN(ts) && ts > date.getTime()) return false;
+          }
+        }
+        
+        // Verificar se a parcela ainda não estava paga na data de referência
+        if (!b.isPaid) return true;
+        if (b.paymentDate) {
+          try {
+            const pDate = parseDateLocal(b.paymentDate);
+            return pDate.getTime() > date.getTime();
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      })
       .reduce((a, b) => a + b.expectedAmount, 0);
 
     // Passivo Circulante: cartões + seguros a pagar + principal 12m + compras parceladas

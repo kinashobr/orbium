@@ -90,89 +90,89 @@ export const PurchaseInstallmentTabContent = forwardRef<PurchaseInstallmentRef, 
   }, [formData.firstDueDate, formData.installments]);
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground px-1">Descrição da Compra</Label>
+    <div className="space-y-3">
+      <div className="space-y-1">
+        <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Descrição da Compra</Label>
         <Input
           placeholder="Ex: iPhone 15 Pro, Notebook..."
           value={formData.description}
           onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-          className="h-12 border-2 rounded-2xl font-bold bg-muted/20 focus:bg-card transition-all border-transparent focus:border-primary/30"
+          className="h-8 border rounded-xl text-xs font-bold bg-muted/20 focus:bg-card transition-all border-transparent focus:border-primary/30"
         />
       </div>
 
-      <div className="text-center space-y-1 py-2">
-        <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary/60">Valor Total do Bem</Label>
-        <div className="relative max-w-[240px] mx-auto group">
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/30">R$</span>
+      <div className="text-center space-y-0.5 py-1">
+        <Label className="text-[8px] font-black uppercase tracking-widest text-primary/60">Valor Total do Bem</Label>
+        <div className="relative max-w-[180px] mx-auto group">
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/30">R$</span>
           <Input
             type="text"
             inputMode="numeric"
             value={formData.totalAmount}
             onChange={(e) => handleAmountChange(e.target.value)}
-            className="h-14 text-3xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
+            className="h-9 text-xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
           />
           <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-50 group-focus-within:scale-x-100 transition-transform duration-500" />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Nº Parcelas</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Nº Parcelas</Label>
           <Input
             type="number"
             min="1"
             value={formData.installments}
             onChange={e => setFormData(p => ({ ...p, installments: e.target.value }))}
-            className="h-11 border-2 rounded-2xl font-black text-center bg-muted/20 border-transparent focus:border-primary/30"
+            className="h-8 border rounded-xl text-xs font-black text-center bg-muted/20 border-transparent focus:border-primary/30"
           />
         </div>
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">1º Vencimento</Label>
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">1º Vencimento</Label>
           <Input
             type="date"
             value={formData.firstDueDate}
             onChange={e => setFormData(p => ({ ...p, firstDueDate: e.target.value }))}
-            className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner px-4"
+            className="h-8 rounded-xl border-none bg-muted/20 text-xs font-bold shadow-inner px-3"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Conta de Débito</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Conta de Débito</Label>
           <Select value={formData.accountId} onValueChange={v => setFormData(p => ({ ...p, accountId: v }))}>
-            <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-            <SelectContent className="z-[210] rounded-xl shadow-2xl border-none p-1">
-              {availableAccounts.map(a => <SelectItem key={a.id} value={a.id} className="rounded-lg font-bold py-2 text-sm">{a.name}</SelectItem>)}
+            <SelectTrigger className="h-8 rounded-xl border-none bg-muted/20 text-xs font-bold shadow-inner px-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+            <SelectContent className="z-[210] rounded-lg shadow-xl border-none p-1">
+              {availableAccounts.map(a => <SelectItem key={a.id} value={a.id} className="rounded-md font-bold py-1 text-xs">{a.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground px-1">Categoria</Label>
+        <div className="space-y-1">
+          <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground px-1">Categoria</Label>
           <Select value={formData.categoryId} onValueChange={v => setFormData(p => ({ ...p, categoryId: v }))}>
-            <SelectTrigger className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-            <SelectContent className="z-[210] rounded-xl shadow-2xl border-none p-1">
-              {expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="rounded-lg font-bold py-2 text-sm">{c.icon} {c.label}</SelectItem>)}
+            <SelectTrigger className="h-8 rounded-xl border-none bg-muted/20 text-xs font-bold shadow-inner px-3"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+            <SelectContent className="z-[210] rounded-lg shadow-xl border-none p-1">
+              {expenseCategories.map(c => <SelectItem key={c.id} value={c.id} className="rounded-md font-bold py-1 text-xs">{c.icon} {c.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
       </div>
 
       {installmentPreview > 0 && (
-        <div className="p-5 rounded-[2rem] bg-primary/[0.03] border-2 border-dashed border-primary/20 flex items-center justify-between animate-in fade-in zoom-in duration-500">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-card flex items-center justify-center text-primary shadow-sm">
-              <Calendar className="w-5 h-5" />
+        <div className="p-2.5 rounded-xl bg-primary/[0.03] border border-dashed border-primary/20 flex items-center justify-between animate-in fade-in zoom-in duration-500">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-card flex items-center justify-center text-primary shadow-sm shrink-0">
+              <Calendar className="w-3.5 h-3.5" />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Parcelas de</p>
-              <p className="text-xl font-black text-foreground tabular-nums tracking-tight">{formatCurrency(installmentPreview)}</p>
+              <p className="text-[7.5px] font-black uppercase tracking-widest text-muted-foreground">Parcelas de</p>
+              <p className="text-sm font-black text-foreground tabular-nums tracking-tight leading-none">{formatCurrency(installmentPreview)}</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Término em</p>
-            <p className="text-xs font-bold text-foreground capitalize">{endDateLabel}</p>
+            <p className="text-[7.5px] font-black uppercase tracking-widest text-muted-foreground">Término em</p>
+            <p className="text-[10px] font-bold text-foreground capitalize leading-none">{endDateLabel}</p>
           </div>
         </div>
       )}

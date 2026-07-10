@@ -38,10 +38,12 @@ import { isAfter, isSameDay, startOfDay } from "date-fns";
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  hideSidebar?: boolean;
 }
 
 export function MainLayout({
-  children
+  children,
+  hideSidebar = false
 }: MainLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
@@ -248,12 +250,15 @@ export function MainLayout({
       </header>
 
       <div className="flex-1 flex w-full relative">
-        <Sidebar />
-        <main className={cn("flex-1 min-h-[calc(100vh-3.5rem)] px-4 sm:px-6 md:px-8 lg:px-10 pb-24 md:pb-8 pt-4 sm:pt-6 transition-all duration-300 w-full mx-auto", sidebarCollapsed ? "md:ml-20" : "md:ml-[168px]")}>
-          <div className="max-w-[1400px] mx-auto w-full space-y-4 sm:space-y-6">{children}</div>
+        {!hideSidebar && <Sidebar />}
+        <main className={cn(
+          "flex-1 min-h-[calc(100vh-3.5rem)] pb-24 md:pb-8 pt-4 sm:pt-6 transition-all duration-300 w-full mx-auto", 
+          hideSidebar ? "pl-3 pr-4 md:pl-3 md:pr-6 md:ml-0" : "px-4 sm:px-6 md:px-8 lg:px-10 " + (sidebarCollapsed ? "md:ml-20" : "md:ml-[168px]")
+        )}>
+          <div className={cn(hideSidebar ? "max-w-none" : "max-w-[1400px]", "mx-auto w-full space-y-4 sm:space-y-6")}>{children}</div>
         </main>
       </div>
-      <BottomNav />
+      {!hideSidebar && <BottomNav />}
       <AlertasConfigDialog
         open={alertasConfigOpen}
         onOpenChange={setAlertasConfigOpen}

@@ -209,8 +209,7 @@ export function TransactionReviewTable({
   }
 
   return (
-    <div className="overflow-x-auto scrollbar-material">
-      <div className="min-w-[1000px]">
+    <div className="min-w-[1000px]">
         <Table className="table-fixed">
           <TableHeader className="bg-card sticky top-0 z-30">
             <TableRow className="hover:bg-transparent border-b border-border/40 h-12">
@@ -302,6 +301,5 @@ export function TransactionReviewTable({
           </TableBody>
         </Table>
       </div>
-    </div>
   );
 }

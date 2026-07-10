@@ -38,8 +38,8 @@ export function ReviewContextSidebar({
   }), [reviewRange]);
 
   return (
-    <div className="flex flex-col h-full bg-card">
-      <div className={cn("flex flex-col flex-1 p-6 space-y-8", isMobile && "pb-32")}>
+    <div className="flex flex-col h-full bg-transparent">
+      <div className={cn("flex flex-col flex-1 space-y-6", isMobile ? "p-6 pb-32" : "p-1")}>
         
         {/* 1. Status da Revisão (Design Consistente Orbium) */}
         <div className="space-y-3">

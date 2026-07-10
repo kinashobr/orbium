@@ -93,9 +93,32 @@ export function BalancoTab({
     const dividaCartoes = getCreditCardDebt(finalDate);
     const principalLoans12m = calculateLoanPrincipalDueInNextMonths(finalDate, 12);
     const segurosAPagar = getSegurosAPagar(finalDate);
-    // Compras parceladas pendentes
+    // Compras parceladas pendentes (excluindo despesas recorrentes)
     const comprasParceladas = billsTracker
-      .filter(b => b.sourceType === 'purchase_installment' && !b.isPaid && !b.isExcluded)
+      .filter(b => {
+        if (b.sourceType !== 'purchase_installment' || b.isExcluded || (b as any).isRecurring) return false;
+        
+        // Verificar se a compra já havia sido feita na data de referência (com base no timestamp da sourceRef se existir)
+        if (b.sourceRef && b.sourceRef.startsWith('purchase_')) {
+          const timestampStr = b.sourceRef.split('_')[1];
+          if (timestampStr) {
+            const ts = parseInt(timestampStr, 10);
+            if (!isNaN(ts) && ts > finalDate.getTime()) return false;
+          }
+        }
+        
+        // Verificar se a parcela ainda não estava paga na data de referência
+        if (!b.isPaid) return true;
+        if (b.paymentDate) {
+          try {
+            const pDate = parseDateLocal(b.paymentDate);
+            return pDate.getTime() > finalDate.getTime();
+          } catch {
+            return false;
+          }
+        }
+        return false;
+      })
       .reduce((a, b) => a + b.expectedAmount, 0);
     const passivoCirculante = dividaCartoes + principalLoans12m + segurosAPagar + chequeEspecialContaCorrente + comprasParceladas;
     const totalLoans = getLoanPrincipalRemaining(finalDate);

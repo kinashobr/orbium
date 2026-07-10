@@ -17,6 +17,7 @@ interface CategoryListModalProps {
   onEditCategory: (category: Categoria) => void;
   onDeleteCategory: (categoryId: string) => void;
   transactionCountByCategory: Record<string, number>;
+  onSelectCategory?: (category: Categoria) => void;
 }
 
 const getNatureIcon = (nature: CategoryNature) => {
@@ -35,7 +36,8 @@ export function CategoryListModal({
   onAddCategory,
   onEditCategory,
   onDeleteCategory,
-  transactionCountByCategory
+  transactionCountByCategory,
+  onSelectCategory
 }: CategoryListModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   
@@ -122,7 +124,14 @@ export function CategoryListModal({
                 </div>
                 <div className="grid grid-cols-1 gap-2.5">
                   {list.map(cat => (
-                    <div key={cat.id} className="flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/40 hover:border-primary/30 transition-all group">
+                    <div 
+                      key={cat.id} 
+                      onClick={() => onSelectCategory?.(cat)}
+                      className={cn(
+                        "flex items-center gap-4 p-4 rounded-2xl bg-card border border-border/40 hover:border-primary/30 transition-all group",
+                        onSelectCategory && "cursor-pointer hover:bg-muted/30 hover:border-primary/50"
+                      )}
+                    >
                       <div className="text-2xl w-10 h-10 flex items-center justify-center bg-muted/30 rounded-xl">
                         {cat.icon}
                       </div>
@@ -132,7 +141,7 @@ export function CategoryListModal({
                           {transactionCountByCategory[cat.id] || 0} lançamentos
                         </p>
                       </div>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-muted/50 hover:bg-primary/10 text-primary" onClick={() => onEditCategory(cat)}>
                           <Pencil className="w-4 h-4" />
                         </Button>

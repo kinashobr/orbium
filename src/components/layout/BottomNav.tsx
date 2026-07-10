@@ -5,7 +5,8 @@ import {
   CreditCard,
   BarChart3,
   TrendingUp,
-  Car
+  Car,
+  CalendarCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

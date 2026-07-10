@@ -29,6 +29,7 @@ interface BillsSidebarKPIsProps {
   totalPendingBills: number; // Somado via combinedBills no modal
   totalPaidBills?: number;
   combinedBills?: BillDisplayItem[]; // Adicionado para cálculos internos
+  layout?: "vertical" | "horizontal";
 }
 
 const formatToBR = (value: number) => value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -38,82 +39,9 @@ const parseFromBR = (value: string): number => {
     return isNaN(parsed) ? 0 : parsed;
 };
 
-// M7: Smart alerts sub-component
-function SmartCardAlerts({ combinedBills, currentDate }: { combinedBills: BillDisplayItem[]; currentDate: Date }) {
-  const { creditCardConfigs, contasMovimento, calculateBalanceUpToDate, transacoesV2, billsTracker } = useFinance();
-  
-  const alerts = useMemo(() => {
-    const items: { type: 'error' | 'warning' | 'info'; message: string }[] = [];
-    
-    creditCardConfigs.forEach(config => {
-      const account = contasMovimento.find(a => a.id === config.accountId);
-      const cardName = account?.name || 'Cartão';
-      
-      // 1. Invoice without coverage
-      const invoiceBill = combinedBills.find(b => 
-        b.type === 'tracker' && (b as unknown as BillTracker).sourceType === 'card_invoice' && (b as unknown as BillTracker).cardId === config.id && !b.isPaid
-      );
-      if (invoiceBill && config.defaultPaymentAccountId) {
-        const paymentBalance = calculateBalanceUpToDate(config.defaultPaymentAccountId, undefined, transacoesV2, contasMovimento);
-        if (paymentBalance < invoiceBill.expectedAmount) {
-          items.push({ type: 'error', message: `${cardName}: saldo insuficiente para fatura (faltam ${formatCurrency(invoiceBill.expectedAmount - paymentBalance)})` });
-        }
-      }
-      
-      // 2. Critical limit usage (>80%)
-      const usedAmount = Math.abs(Math.min(0, calculateBalanceUpToDate(config.accountId, undefined, transacoesV2, contasMovimento)));
-      const usagePercent = config.limit > 0 ? (usedAmount / config.limit) * 100 : 0;
-      if (usagePercent > 80) {
-        items.push({ type: 'warning', message: `${cardName}: ${Math.round(usagePercent)}% do limite usado` });
-      }
-      
-      // 3. Recurring minimum payment (2+ months)
-      const minPayments = billsTracker.filter(b => b.sourceType === 'card_invoice' && b.cardId === config.id && b.isPaid && b.paymentMode === 'minimo');
-      if (minPayments.length >= 2) {
-        items.push({ type: 'warning', message: `${cardName}: pagamento mínimo recorrente (${minPayments.length} meses)` });
-      }
-    });
-    
-    return items;
-  }, [creditCardConfigs, combinedBills, contasMovimento, calculateBalanceUpToDate, transacoesV2, billsTracker]);
 
-  if (alerts.length === 0) return null;
 
-  return (
-    <>
-      <Separator className="opacity-20" />
-      <div className="px-1 space-y-2">
-        <div className="flex items-center gap-2 opacity-60">
-          <AlertCircle className="w-3.5 h-3.5" />
-          <p className="text-[9px] font-black uppercase tracking-widest">Alertas de Cartão</p>
-        </div>
-        {alerts.map((alert, i) => (
-          <div key={i} className={cn(
-            "p-2.5 rounded-xl flex gap-2 items-start border",
-            alert.type === 'error' ? "bg-destructive/5 border-destructive/15" :
-            alert.type === 'warning' ? "bg-warning/5 border-warning/15" :
-            "bg-primary/5 border-primary/15"
-          )}>
-            <AlertCircle className={cn(
-              "w-3 h-3 shrink-0 mt-0.5",
-              alert.type === 'error' ? "text-destructive" :
-              alert.type === 'warning' ? "text-warning" : "text-primary"
-            )} />
-            <p className={cn(
-              "text-[8px] font-black uppercase tracking-tighter leading-tight",
-              alert.type === 'error' ? "text-destructive" :
-              alert.type === 'warning' ? "text-warning" : "text-primary"
-            )}>
-              {alert.message}
-            </p>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
-export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSidebarKPIsProps) {
+export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "vertical" }: BillsSidebarKPIsProps) {
   const { 
     revenueForecasts, 
     setMonthlyRevenueForecast, 
@@ -205,6 +133,122 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
     setMonthlyRevenueForecast(monthKey, sugg);
     toast.info(`Previsão sugerida com base no mês anterior.`);
   };
+
+  if (layout === "horizontal") {
+    return (
+      <div className="grid grid-cols-3 gap-6 w-full py-0.5">
+        {/* Column 1: Saldo Inicial + Rec. Prevista (Vertical Flow) */}
+        <div className="flex flex-col justify-between h-[116px] py-1">
+          {/* Saldo Inicial (Top) */}
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5 opacity-90 mb-0.5">
+              <Wallet className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Saldo Inicial</span>
+            </div>
+            <p className="text-[22px] font-black text-foreground tabular-nums tracking-tight leading-none my-1">
+              {formatCurrency(stats.initialBalance)}
+            </p>
+          </div>
+
+          <div className="border-t border-border/10 my-1" />
+
+          {/* Receita Prevista (Bottom) */}
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between opacity-90 mb-1">
+              <div className="flex items-center gap-1.5">
+                <Target className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Rec. Prevista</span>
+              </div>
+              <button 
+                onClick={handleSuggest} 
+                className="text-[8px] font-black text-primary hover:opacity-80 flex items-center gap-0.5 bg-primary/10 px-1.5 py-0.5 rounded-full transition-colors leading-none"
+              >
+                <RefreshCw className="w-2.5 h-2.5 group-active:rotate-180 transition-transform" /> SUGERIR
+              </button>
+            </div>
+            <div className="relative group flex items-center h-6">
+              <span className="absolute left-0 text-[11px] font-black text-muted-foreground/40">R$</span>
+              <Input 
+                type="text"
+                value={forecastInput}
+                onChange={(e) => setForecastInput(e.target.value)}
+                onBlur={handleBlur}
+                className="h-6 pl-6 pr-1 text-[15px] font-black border-0 border-b border-border/40 hover:border-primary/40 focus:border-primary/80 rounded-none bg-transparent focus:ring-0 transition-all tabular-nums py-0 text-foreground w-full"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Column 2: Fluxo de Saídas */}
+        <div className="flex flex-col justify-between h-[116px] py-1 border-l border-border/20 pl-6">
+          <div className="flex items-center gap-1.5 opacity-90 mb-1">
+            <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+            <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Fluxo de Saídas</span>
+          </div>
+          <div className="flex-1 flex flex-col justify-center space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Pendentes:</span>
+              <span className="text-[14px] font-black text-destructive tabular-nums leading-none">{formatCurrency(stats.pendingAmount)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Cartão:</span>
+              <span className="text-[14px] font-black text-warning tabular-nums leading-none">{formatCurrency(stats.paidViaCreditCard)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Débito Pago:</span>
+              <span className="text-[14px] font-black text-success tabular-nums leading-none">{formatCurrency(stats.paidDirectly)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Column 3: Resultado do Mês + Saldo Final Previsto */}
+        <div className="flex flex-col justify-between h-[116px] py-1 border-l border-border/20 pl-6">
+          {/* Resultado do Mês (Top) */}
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between opacity-90 mb-0.5">
+              <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Resultado do Mês</span>
+              <div className={cn(
+                "w-4 h-4 rounded-full flex items-center justify-center shrink-0",
+                stats.monthBalance >= 0 ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"
+              )}>
+                {stats.monthBalance >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              </div>
+            </div>
+            <p className={cn(
+              "text-[22px] font-black tabular-nums tracking-tight leading-none my-1",
+              stats.monthBalance >= 0 ? "text-success" : "text-destructive"
+            )}>
+              {formatCurrency(stats.monthBalance)}
+            </p>
+          </div>
+
+          <div className="border-t border-border/10 my-1" />
+
+          {/* Saldo Final Previsto (Bottom) */}
+          <div className="flex flex-col">
+            <div className="flex items-center justify-between opacity-90 mb-0.5">
+              <span className={cn(
+                "text-[11px] font-black uppercase tracking-wider leading-none",
+                stats.projectedFinal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+              )}>Saldo Final Previsto</span>
+              <div className={cn(
+                "w-4 h-4 rounded-full flex items-center justify-center shrink-0",
+                stats.projectedFinal >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 text-destructive"
+              )}>
+                <Calculator className="w-3.5 h-3.5" />
+              </div>
+            </div>
+            <p className={cn(
+              "text-[22px] font-black tabular-nums tracking-tight leading-none my-1",
+              stats.projectedFinal >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"
+            )}>
+              {formatCurrency(stats.projectedFinal)}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ScrollArea className="h-full pr-4 -mr-4 scrollbar-material">
@@ -349,8 +393,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [] }: BillsSideb
         )}
 
 
-        {/* M7: Smart Credit Card Alerts */}
-        <SmartCardAlerts combinedBills={combinedBills} currentDate={currentDate} />
+
 
         {/* CashFlow Timeline */}
         {combinedBills.length > 0 && (

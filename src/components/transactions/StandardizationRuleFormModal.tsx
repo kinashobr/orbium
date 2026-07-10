@@ -173,7 +173,7 @@ export function StandardizationRuleFormModal({
                   <SelectTrigger className="h-12 border-2 rounded-xl">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-[210]">
                     {STANDARDIZABLE_OPERATIONS.map(op => (
                       <SelectItem key={op.value} value={op.value}>
                         <span className={cn("flex items-center gap-2", op.color)}>{op.label}</span>
@@ -193,7 +193,7 @@ export function StandardizationRuleFormModal({
                   <SelectTrigger className="h-12 border-2 rounded-xl">
                     <SelectValue placeholder={categoryRequired ? "Selecione..." : "Não aplicável"} />
                   </SelectTrigger>
-                  <SelectContent className="max-h-60">
+                  <SelectContent className="max-h-60 z-[210]">
                     {getCategoryOptions.map(cat => (
                       <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
                         {cat.icon} {cat.label}
