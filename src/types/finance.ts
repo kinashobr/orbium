@@ -134,6 +134,8 @@ export interface TransactionMeta {
   assetType?: 'veiculo' | 'imovel' | 'terreno';
   assetId?: number;
   assetOperation?: 'compra' | 'venda';
+  discountAmount?: number;
+  discountTransactionId?: string;
 }
 
 // Transação Completa (atualizada)
@@ -198,6 +200,20 @@ export interface Veiculo {
   vencimentoSeguro: string;
   parcelaSeguro: number;
   valorFipe: number;
+  // Novos campos para informações completas e obrigações
+  placa?: string;
+  renavam?: string;
+  crlvDados?: string;
+  ipvaVencimento?: string; // YYYY-MM-DD
+  ipvaValor?: number;
+  ipvaPago?: boolean;
+  ipvaContaId?: string;
+  ipvaCategoriaId?: string;
+  licenciamentoVencimento?: string; // YYYY-MM-DD
+  licenciamentoValor?: number;
+  licenciamentoPago?: boolean;
+  licenciamentoContaId?: string;
+  licenciamentoCategoriaId?: string;
   /**
    * Categorias (v2) usadas para importar automaticamente despesas do veículo.
    * Opcional para manter compatibilidade.
@@ -362,6 +378,7 @@ export interface BillTracker {
   suggestedCategoryId?: string;
   
   isExcluded?: boolean; // NEW: Mark if excluded from current month's list
+  discountAmount?: number; // NEW: Desconto obtido na parcela
   
   // NOVO: Metadados de Cartão de Crédito
   cardId?: string;           // ID do CreditCardConfig
@@ -399,7 +416,8 @@ export interface PotentialFixedBill {
   description: string;
   isPaid: boolean;
   isIncluded: boolean; // Se já está no localBills
-}
+  discountAmount?: number;
+};
 
 // NOVO: Tipo para Despesas Pagas Externamente (somente leitura)
 export interface ExternalPaidBill {
@@ -518,6 +536,7 @@ export interface CltContract {
   dependentes: number;
   pensaoAlimenticia: number;
   dataInicioGestao: string; // YYYY-MM-DD
+  dataInicioControle?: string; // YYYY-MM-DD (Período de Começo de Controle)
   status: 'ativo' | 'encerrado';
   legislacaoConfigId?: string;
   createdAt: string;
@@ -615,6 +634,15 @@ export interface FinanceExportV2 {
     creditCardConfigs: CreditCardConfig[];
     cltContracts: CltContract[];
     cltCompetencias: CltCompetencia[];
+    cltLegislacaoConfigs?: CltLegislacaoConfig[];
+    cltHolerites?: Record<string, HoleriteCompetenciaData>;
+    vinculosOcupacionais?: VinculoOcupacional[];
+    recebiveisParcelados?: RecebivelParcelado[];
+    parcelasRecebiveis?: ParcelaRecebivel[];
+    eventosFerias?: EventoFerias[];
+    eventosRescisao?: EventoRescisao[];
+    historicosContribuicaoINSS?: HistoricoContribuicaoINSS[];
+    ignoredTxIds?: string[];
     
     // Configuration/Context States
     monthlyRevenueForecast: number;
@@ -672,6 +700,7 @@ export const DEFAULT_ACCOUNTS: ContaCorrente[] = [];
 export const DEFAULT_CATEGORIES: Categoria[] = [
   { id: 'cat_salario', label: 'Salário', icon: '💰', nature: 'receita', type: 'income' },
   { id: 'cat_rendimentos', label: 'Rendimentos sobre Investimentos', icon: '📈', nature: 'receita', type: 'income' },
+  { id: 'cat_descontos_obtidos', label: 'Descontos Obtidos', icon: '🏷️', nature: 'receita', type: 'income' },
   { id: 'cat_seguro', label: 'Seguro', icon: '🛡️', nature: 'despesa_fixa', type: 'expense' },
   { id: 'cat_alimentacao', label: 'Alimentação', icon: '🍽️', nature: 'despesa_variavel', type: 'expense' },
 ];
@@ -801,4 +830,98 @@ export function getDomainFromOperation(op: OperationType): TransactionDomain {
 
 export function getCategoryTypeFromNature(nature: CategoryNature): 'income' | 'expense' | 'both' {
   return nature === 'receita' ? 'income' : 'expense';
+}
+
+// ============================================
+// NOVOS TIPOS - PLANO DE REFATORAÇÃO DE RECEBIMENTOS
+// ============================================
+
+export type VinculoTipo = 'CLT' | 'PJ_PROLABORE' | 'AUTONOMO_CI' | 'MEI' | 'APOSENTADO' | 'BICO_EVENTUAL';
+
+export interface VinculoOcupacional {
+  id: string;
+  tipo: VinculoTipo;
+  nomeDescritivo: string;
+  dataInicio: string; // YYYY-MM-DD
+  dataFim: string | null;
+  ativo: boolean;
+  salarioBase: number | null;
+  dataAdmissao: string | null;
+  regimeFgts: 'SAQUE_RESCISAO' | 'SAQUE_ANIVERSARIO' | null;
+  planoInss: 'NORMAL_20' | 'SIMPLIFICADO_11' | 'MEI_5' | null;
+  cnpjMei: string | null;
+}
+
+export type RecebivelNatureza = 'CONSULTORIA' | 'PERICIA_JUDICIAL' | 'IRPF' | 'ASSESSORIA_CONTABIL' | 'SERVICO_EVENTUAL' | 'OUTRO';
+export type RecebivelRetencao = 'SEM_RETENCAO' | 'RETENCAO_PJ_11_INSS' | 'RETENCAO_IRRF_RPA' | 'AMBAS';
+
+export interface RecebivelParcelado {
+  id: string;
+  vinculoId: string; // FK VinculoOcupacional
+  cliente: string;
+  naturezaServico: RecebivelNatureza;
+  valorTotal: number;
+  numeroParcelas: number;
+  dataContratacao: string;
+  formaRetencao: RecebivelRetencao;
+  observacoes: string;
+}
+
+export type ParcelaStatus = 'A_VENCER' | 'PAGO' | 'ATRASADO' | 'RENEGOCIADO' | 'INADIMPLENTE';
+
+export interface ParcelaRecebivel {
+  id: string;
+  recebivelId: string; // FK RecebivelParcelado
+  numeroParcela: number;
+  valorPrevisto: number;
+  dataVencimento: string;
+  dataPagamento: string | null;
+  valorPago: number | null;
+  status: ParcelaStatus;
+  jurosMoraAplicado: number | null;
+  recebimentoGeradoId: string | null; // FK TransacaoCompleta
+}
+
+export type FeriasStatus = 'AQUISITIVO_EM_CURSO' | 'DISPONIVEL' | 'AGENDADA' | 'GOZADA' | 'VENCIDA_EM_DOBRO';
+
+export interface EventoFerias {
+  id: string;
+  vinculoId: string;
+  periodoAquisitivoInicio: string;
+  periodoAquisitivoFim: string;
+  periodoConcessivoLimite: string;
+  diasGozados: number;
+  diasAbonoSold: number; // vendido
+  dataInicioGozo: string | null;
+  faltasInjustificadasPeriodo: number;
+  status: FeriasStatus;
+}
+
+export type RescisaoTipo = 'SEM_JUSTA_CAUSA' | 'PEDIDO_DEMISSAO' | 'JUSTA_CAUSA' | 'ACORDO_MUTUO_484A' | 'RESCISAO_INDIRETA' | 'TERMINO_CONTRATO_EXPERIENCIA' | 'APOSENTADORIA' | 'MORTE';
+
+export interface EventoRescisao {
+  id: string;
+  vinculoId: string;
+  tipoRescisao: RescisaoTipo;
+  dataAviso: string;
+  dataDesligamento: string;
+  avisoPrevio: 'INDENIZADO' | 'TRABALHADO' | 'DISPENSADO' | 'NAO_CUMPRIDO_PARCIAL';
+  saldoSalario: number;
+  feriasVencidasQtd: number;
+  feriasProporcionaisAvos: number;
+  decimoTerceiroAvos: number;
+  saldoFgtsEstimado: number;
+  totalVerbasRescisorias: number;
+  multaFgtsAplicada: number;
+  temDireitoSeguroDesemprego: boolean;
+}
+
+export interface HistoricoContribuicaoINSS {
+  id: string;
+  vinculoId: string | null;
+  competencia: string; // YYYY-MM
+  salarioContribuicao: number;
+  tipoContribuinte: 'EMPREGADO' | 'CONTRIB_INDIVIDUAL_20' | 'CONTRIB_INDIVIDUAL_11' | 'MEI_5' | 'FACULTATIVO';
+  contaParaTempoContribuicao: boolean;
+  origem: 'SISTEMA' | 'IMPORTADO_CNIS' | 'LANCAMENTO_MANUAL';
 }

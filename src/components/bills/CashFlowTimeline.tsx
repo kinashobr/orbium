@@ -42,10 +42,14 @@ export function CashFlowTimeline({ currentDate, combinedBills, isCompact = false
       .filter(c => ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType))
       .map(c => c.id);
 
-    // 1. Map UNPAID bills to their due dates
+    const creditCardAccountIds = new Set(
+      contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id)
+    );
+
+    // 1. Map UNPAID bills to their due dates (excluding credit card invoices and bills paid with CC)
     const unpaidBillsByDay = new Map<number, number>();
     combinedBills
-      .filter(b => !b.isPaid)
+      .filter(b => !b.isPaid && b.sourceType !== 'card_invoice' && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
       .forEach(b => {
         const dueDate = parseDateLocal(b.dueDate);
         const day = dueDate.getDate();
@@ -96,6 +100,19 @@ export function CashFlowTimeline({ currentDate, combinedBills, isCompact = false
   const minBalance = useMemo(() => Math.min(...data.map(d => d.saldo)), [data]);
   const hasNegative = minBalance < 0;
   
+  const { yMin, yMax } = useMemo(() => {
+    if (!data || data.length === 0) return { yMin: 'auto' as const, yMax: 'auto' as const };
+    const values = data.map(d => d.saldo);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const diff = max - min;
+    const padding = diff === 0 ? (Math.abs(min) * 0.05 || 100) : diff * 0.05;
+    return {
+      yMin: Math.floor(min - padding),
+      yMax: Math.ceil(max + padding),
+    };
+  }, [data]);
+
   const todayDayStr = format(new Date(), 'dd');
   const isViewingCurrentMonth = isSameMonth(currentDate, new Date());
 
@@ -147,10 +164,10 @@ export function CashFlowTimeline({ currentDate, combinedBills, isCompact = false
         )}
       </div>
 
-      <div className={cn("w-full relative group", isCompact ? "h-[90px]" : "h-[160px]")}>
+      <div className={cn("w-full relative group", isCompact ? "h-[110px]" : "h-[160px]")}>
         <div className="absolute -left-2 top-0 bottom-0 w-1 bg-gradient-to-b from-transparent via-border/20 to-transparent" />
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <AreaChart data={data} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
             <defs>
               <linearGradient id="realGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
@@ -174,7 +191,7 @@ export function CashFlowTimeline({ currentDate, combinedBills, isCompact = false
               interval={isCompact ? 6 : Math.floor(data.length / 8)}
               dy={10}
             />
-            <YAxis hide domain={['auto', 'auto']} />
+            <YAxis hide domain={[yMin, yMax]} />
             <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '4 4' }} />
             
             {isViewingCurrentMonth && (

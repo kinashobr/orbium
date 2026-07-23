@@ -30,7 +30,8 @@ import {
   Plus,
   Info,
   LineChart,
-  Building2
+  Building2,
+  Truck
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -47,7 +48,7 @@ import {
   Tooltip, 
 } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
-import { format, subMonths, endOfMonth, isWithinInterval, startOfDay, endOfDay, startOfMonth } from "date-fns"; 
+import { format, subMonths, endOfMonth, isWithinInterval, startOfDay, endOfDay, startOfMonth, parseISO } from "date-fns"; 
 import { ptBR } from "date-fns/locale"; 
 import { toast } from "sonner";
 
@@ -394,48 +395,199 @@ const BensImobilizados = () => {
 
           <TabsContent value="veiculos" className="space-y-10 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-              {veiculos.filter(v => v.status === 'ativo').map((v, index) => (
-                <div 
-                  key={v.id}
-                  onClick={() => handleViewDetails(v)} 
-                  className="bg-card hover:bg-muted/20 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/40 shadow-sm hover:shadow-soft-lg hover:-translate-y-2 group relative overflow-hidden cursor-pointer animate-fade-in-up"
-                  style={{ animationDelay: `${(index + 3) * 100}ms` }}
-                >
-                  {/* Ícone Decorativo de Fundo */}
-                  {v.tipo === 'moto' ? (
-                    <MotorcycleIcon className="absolute -right-6 -bottom-6 w-32 h-32 text-primary opacity-[0.03] dark:opacity-[0.05] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
-                  ) : (
-                    <Car className="absolute -right-6 -bottom-6 w-32 h-32 text-primary opacity-[0.03] dark:opacity-[0.05] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
-                  )}
+              {veiculos.filter(v => v.status === 'ativo').map((v, index) => {
+                const seguro = segurosVeiculo.find(s => s.veiculoId === v.id);
+                const isSeguroVencido = seguro && parseDateLocal(seguro.vigenciaFim).getTime() < new Date().getTime();
 
-                  <div className="flex items-start justify-between mb-10 relative z-10">
-                    <div className="flex items-center gap-5">
-                      <div className={cn("w-14 h-14 rounded-[1.25rem] bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary group-hover:text-white transition-all duration-500")}>
-                        {v.tipo === 'moto' ? <MotorcycleIcon className="w-7 h-7" /> : <Car className="w-7 h-7" />}
+                // Calcular diferença entre FIPE e Valor de Aquisição
+                const diff = (v.valorFipe || 0) - (v.valorVeiculo || 0);
+                const percentDiff = v.valorVeiculo > 0 ? (diff / v.valorVeiculo) * 100 : 0;
+
+                // Processar IPVA Real
+                const ipvaVencido = v.ipvaVencimento && !v.ipvaPago && parseDateLocal(v.ipvaVencimento).getTime() < new Date().getTime();
+                const formattedIpvaDate = v.ipvaVencimento ? format(parseDateLocal(v.ipvaVencimento), 'dd/MM/yy') : null;
+
+                // Processar Licenciamento Real
+                const licVencido = v.licenciamentoVencimento && !v.licenciamentoPago && parseDateLocal(v.licenciamentoVencimento).getTime() < new Date().getTime();
+                const formattedLicDate = v.licenciamentoVencimento ? format(parseDateLocal(v.licenciamentoVencimento), 'dd/MM/yy') : null;
+
+                return (
+                  <div 
+                    key={v.id}
+                    onClick={() => handleViewDetails(v)} 
+                    className="bg-card hover:bg-muted/10 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/80 dark:border-border/40 shadow-soft hover:shadow-soft-lg hover:-translate-y-2 group relative overflow-hidden cursor-pointer animate-fade-in-up flex flex-col justify-between"
+                    style={{ animationDelay: `${(index + 3) * 100}ms` }}
+                  >
+                    {/* Ícone Decorativo de Fundo (Modo Claro: Marrom Sutil, Modo Escuro: Sutil) */}
+                    {v.tipo === 'moto' ? (
+                      <MotorcycleIcon className="absolute -right-6 -bottom-6 w-72 h-72 text-amber-950/[0.08] dark:text-white/[0.08] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
+                    ) : v.tipo === 'caminhao' ? (
+                      <Truck className="absolute -right-6 -bottom-6 w-56 h-56 text-amber-950/[0.08] dark:text-white/[0.08] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
+                    ) : (
+                      <Car className="absolute -right-6 -bottom-6 w-56 h-56 text-amber-950/[0.08] dark:text-white/[0.08] -rotate-12 group-hover:scale-110 group-hover:rotate-0 transition-all duration-700" />
+                    )}
+
+                    <div className="relative z-10">
+                      {/* Topo do Card */}
+                      <div className="flex items-start justify-between mb-8">
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "p-1 rounded-[1.25rem] flex items-center justify-center transition-all duration-500 shadow-sm ring-1 ring-black/5 dark:ring-white/5",
+                            v.tipo === 'moto' 
+                              ? "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 group-hover:bg-orange-500 group-hover:text-white" 
+                              : v.tipo === 'caminhao'
+                                ? "bg-purple-100 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 group-hover:bg-purple-500 group-hover:text-white"
+                                : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white"
+                          )}>
+                            {v.tipo === 'moto' ? (
+                              <MotorcycleIcon className="w-16 h-16" />
+                            ) : v.tipo === 'caminhao' ? (
+                              <Truck className="w-8 h-8" />
+                            ) : (
+                              <Car className="w-8 h-8" />
+                            )}
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="font-black text-xl text-foreground leading-tight tracking-tight">{v.modelo}</p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge variant="outline" className="text-[10px] font-black uppercase bg-muted/80 border-none px-2.5 py-0.5">{v.marca}</Badge>
+                              <span className="text-xs font-bold text-muted-foreground">Ano {v.ano}</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <p className="font-black text-lg text-foreground leading-tight tracking-tight">{v.modelo}</p>
-                        <Badge variant="outline" className="text-[9px] font-black uppercase bg-muted/50 border-none px-2 py-0.5">{v.marca}</Badge>
+
+                      {/* Placa do Veículo se houver */}
+                      {v.placa && (
+                        <div className="text-xs font-mono font-black bg-muted/60 dark:bg-muted/25 border border-border/60 text-foreground w-fit px-3 py-1 rounded tracking-wider mb-6">
+                          {v.placa}
+                        </div>
+                      )}
+
+                      {/* Valores FIPE vs Compra */}
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="space-y-0.5">
+                          <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest opacity-70">Avaliação FIPE</p>
+                          <p className="font-black text-2xl sm:text-3xl text-success tabular-nums">{formatCurrency(v.valorFipe)}</p>
+                        </div>
+                        <div className="text-right space-y-0.5">
+                          <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest opacity-70">Aquisição</p>
+                          <p className="font-bold text-base sm:text-lg text-foreground/80 tabular-nums">{formatCurrency(v.valorVeiculo)}</p>
+                        </div>
+
+                        <div className="col-span-2">
+                          <div className="flex items-center gap-1.5 text-xs font-bold mt-1 bg-muted/50 dark:bg-muted/20 px-3 py-1 rounded-full w-fit">
+                            {diff >= 0 ? (
+                              <span className="text-success flex items-center"><TrendingUp className="w-4 h-4 mr-0.5" /> +{percentDiff.toFixed(1)}%</span>
+                            ) : (
+                              <span className="text-destructive flex items-center"><TrendingDown className="w-4 h-4 mr-0.5" /> {percentDiff.toFixed(1)}%</span>
+                            )}
+                            <span className="text-muted-foreground font-medium">Valorização residual</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Obrigações Reais */}
+                      <div className="grid grid-cols-3 gap-2 sm:gap-3 pt-5 border-t border-border/60 mb-6 relative z-10">
+                        {/* IPVA */}
+                        <div className="flex flex-col items-center justify-between p-2.5 rounded-[18px] bg-muted/40 dark:bg-muted/10 text-center min-w-0">
+                          <span className="text-muted-foreground flex flex-col items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+                            {v.ipvaPago ? (
+                              <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                            ) : ipvaVencido ? (
+                              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+                            ) : (
+                              <Calendar className="w-4 h-4 text-warning shrink-0" />
+                            )}
+                            IPVA
+                          </span>
+                          <span className={cn(
+                            "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
+                            v.ipvaPago 
+                              ? "bg-success/15 text-success dark:bg-success/10" 
+                              : ipvaVencido 
+                                ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
+                                : "bg-warning/15 text-warning dark:bg-warning/10"
+                          )} title={v.ipvaPago ? "Pago" : ipvaVencido ? "Atrasado" : formattedIpvaDate ? `Vence ${formattedIpvaDate}` : "Pendente"}>
+                            {v.ipvaPago 
+                              ? "Pago" 
+                              : ipvaVencido 
+                                ? "Atrasado" 
+                                : formattedIpvaDate 
+                                  ? formattedIpvaDate 
+                                  : "Pendente"}
+                          </span>
+                        </div>
+
+                        {/* Licenciamento */}
+                        <div className="flex flex-col items-center justify-between p-2.5 rounded-[18px] bg-muted/40 dark:bg-muted/10 text-center min-w-0">
+                          <span className="text-muted-foreground flex flex-col items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+                            {v.licenciamentoPago ? (
+                              <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                            ) : licVencido ? (
+                              <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
+                            ) : (
+                              <Calendar className="w-4 h-4 text-warning shrink-0" />
+                            )}
+                            Licenc.
+                          </span>
+                          <span className={cn(
+                            "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
+                            v.licenciamentoPago 
+                              ? "bg-success/15 text-success dark:bg-success/10" 
+                              : licVencido 
+                                ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
+                                : "bg-warning/15 text-warning dark:bg-warning/10"
+                          )} title={v.licenciamentoPago ? "Pago" : licVencido ? "Atrasado" : formattedLicDate ? `Vence ${formattedLicDate}` : "Pendente"}>
+                            {v.licenciamentoPago 
+                              ? "Pago" 
+                              : licVencido 
+                                ? "Atrasado" 
+                                : formattedLicDate 
+                                  ? formattedLicDate 
+                                  : "Pendente"}
+                          </span>
+                        </div>
+
+                        {/* Seguro */}
+                        <div className="flex flex-col items-center justify-between p-2.5 rounded-[18px] bg-muted/40 dark:bg-muted/10 text-center min-w-0">
+                          <span className="text-muted-foreground flex flex-col items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+                            {seguro ? (
+                              isSeguroVencido 
+                                ? <AlertTriangle className="w-4 h-4 text-destructive shrink-0" /> 
+                                : <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
+                            )}
+                            Seguro
+                          </span>
+                          <span className={cn(
+                            "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
+                            seguro 
+                              ? (isSeguroVencido ? "bg-destructive/15 text-destructive dark:bg-destructive/10" : "bg-success/15 text-success dark:bg-success/10") 
+                              : "bg-muted text-muted-foreground"
+                          )} title={seguro ? (isSeguroVencido ? "Vencido" : `Até ${format(parseISO(seguro.vigenciaFim), 'dd/MM/yy')}`) : "Não possui"}>
+                            {seguro 
+                              ? (isSeguroVencido ? "Vencido" : format(parseISO(seguro.vigenciaFim), 'dd/MM/yy')) 
+                              : "Não tem"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rodapé do Card */}
+                    <div className="pt-4 border-t border-border/60 flex items-center justify-between relative z-10 w-full mt-auto">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                        <span className="text-xs font-black uppercase tracking-widest text-muted-foreground">Ativo</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
+                        DETALHES <ArrowRight className="w-4 h-4" />
                       </div>
                     </div>
                   </div>
-
-                  <div className="space-y-1 relative z-10">
-                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Avaliação FIPE</p>
-                    <p className="font-black text-3xl text-success tabular-nums">{formatCurrency(v.valorFipe)}</p>
-                  </div>
-
-                  <div className="mt-8 pt-6 border-t border-border/40 flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Ativo</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-primary opacity-0 group-hover:opacity-100 translate-x-4 group-hover:translate-x-0 transition-all duration-500">
-                      DETALHES <ArrowRight className="w-4 h-4" />
-                    </div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </TabsContent>
           
@@ -573,7 +725,7 @@ const BensImobilizados = () => {
       <VehicleDetailDialog
         open={showVehicleDetail}
         onOpenChange={setShowVehicleDetail}
-        veiculo={selectedVehicle}
+        veiculo={selectedVehicle ? (veiculos.find(v => v.id === selectedVehicle.id) || selectedVehicle) : null}
         seguro={selectedVehicle ? segurosVeiculo.find(s => s.veiculoId === selectedVehicle.id) : undefined}
         onUpdateFipe={handleOpenFipe}
         onUpdateVeiculo={updateVeiculo}

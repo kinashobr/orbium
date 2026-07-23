@@ -46,6 +46,7 @@ import {
   CltCompetencia,
   CltLegislacaoConfig,
 } from "@/types/finance";
+import { HoleriteCompetenciaData } from "@/types/clt";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -447,6 +448,48 @@ interface FinanceContextType {
   addCltLegislacaoConfig: (config: CltLegislacaoConfig) => void;
   updateCltLegislacaoConfig: (id: string, updates: Partial<CltLegislacaoConfig>) => void;
   deleteCltLegislacaoConfig: (id: string) => void;
+  cltHolerites: Record<string, HoleriteCompetenciaData>;
+  saveCltHolerite: (holerite: HoleriteCompetenciaData) => void;
+  deleteCltHolerite: (id: string) => void;
+
+  // Vínculos Ocupacionais (Novas Entidades)
+  vinculosOcupacionais: VinculoOcupacional[];
+  addVinculoOcupacional: (vinculo: VinculoOcupacional) => void;
+  updateVinculoOcupacional: (id: string, updates: Partial<VinculoOcupacional>) => void;
+  deleteVinculoOcupacional: (id: string) => void;
+
+  // Recebíveis Parcelados de Clientes
+  recebiveisParcelados: RecebivelParcelado[];
+  addRecebivelParcelado: (recebivel: RecebivelParcelado) => void;
+  updateRecebivelParcelado: (id: string, updates: Partial<RecebivelParcelado>) => void;
+  deleteRecebivelParcelado: (id: string) => void;
+  
+  // Parcelas dos Recebíveis
+  parcelasRecebiveis: ParcelaRecebivel[];
+  setParcelasRecebiveis: Dispatch<SetStateAction<ParcelaRecebivel[]>>;
+  updateParcelaRecebivel: (id: string, updates: Partial<ParcelaRecebivel>) => void;
+  confirmarPagamentoParcela: (id: string, dataPagamento: string, valorPago: number, contaId: string) => void;
+  estornarPagamentoParcela: (id: string) => void;
+
+  // Férias, Rescisões e Histórico Previdenciário
+  eventosFerias: EventoFerias[];
+  addEventoFerias: (ferias: EventoFerias) => void;
+  updateEventoFerias: (id: string, updates: Partial<EventoFerias>) => void;
+  deleteEventoFerias: (id: string) => void;
+
+  eventosRescisao: EventoRescisao[];
+  addEventoRescisao: (rescisao: EventoRescisao) => void;
+  updateEventoRescisao: (id: string, updates: Partial<EventoRescisao>) => void;
+  deleteEventoRescisao: (id: string) => void;
+
+  historicosContribuicaoINSS: HistoricoContribuicaoINSS[];
+  addHistoricoContribuicao: (historico: HistoricoContribuicaoINSS) => void;
+  updateHistoricoContribuicao: (id: string, updates: Partial<HistoricoContribuicaoINSS>) => void;
+  deleteHistoricoContribuicao: (id: string) => void;
+
+  // Lançamentos Ignorados de Recebimento
+  ignoredTxIds: string[];
+  setIgnoredTxIds: Dispatch<SetStateAction<string[]>>;
 
   // Controle de Versão
   lastModified: string;
@@ -478,6 +521,7 @@ const STORAGE_KEYS = {
   CREDIT_CARD_CONFIGS: "fin_credit_card_configs_v1",
   CLT_CONTRACTS: "fin_clt_contracts_v1",
   CLT_COMPETENCIAS: "fin_clt_competencias_v1",
+  CLT_HOLERITES: "fin_clt_holerites_v1",
   LAST_MODIFIED: "fin_last_modified_v1",
 };
 
@@ -499,6 +543,9 @@ function loadFromStorage<T>(key: string, defaultValue: T): T {
     const stored = localStorage.getItem(key);
     if (stored) {
       const parsed = JSON.parse(stored);
+      if (parsed === null || parsed === undefined) {
+        return defaultValue;
+      }
       if (key === STORAGE_KEYS.DATE_RANGES) {
           return parseDateRanges(parsed) as unknown as T;
       }
@@ -597,7 +644,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [cltContracts, setCltContracts] = useState<CltContract[]>(() => loadFromStorage(STORAGE_KEYS.CLT_CONTRACTS, []));
   const [cltCompetencias, setCltCompetencias] = useState<CltCompetencia[]>(() => loadFromStorage(STORAGE_KEYS.CLT_COMPETENCIAS, []));
   const [cltLegislacaoConfigs, setCltLegislacaoConfigs] = useState<CltLegislacaoConfig[]>(() => loadFromStorage('fin_clt_legislacao_v1', []));
+  const [cltHolerites, setCltHolerites] = useState<Record<string, HoleriteCompetenciaData>>(() => loadFromStorage(STORAGE_KEYS.CLT_HOLERITES, {}));
+
+  const saveCltHolerite = useCallback((holerite: HoleriteCompetenciaData) => {
+    setCltHolerites(prev => ({
+      ...prev,
+      [holerite.id]: holerite
+    }));
+  }, []);
+
+  const deleteCltHolerite = useCallback((id: string) => {
+    setCltHolerites(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }, []);
   const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified));
+
+  // Vínculos Ocupacionais e Outros Recebimentos (Novos Estados)
+  const [vinculosOcupacionais, setVinculosOcupacionais] = useState<VinculoOcupacional[]>(() => loadFromStorage("fin_vinculos_ocupacionais_v1", []));
+  const [recebiveisParcelados, setRecebiveisParcelados] = useState<RecebivelParcelado[]>(() => loadFromStorage("fin_recebiveis_parcelados_v1", []));
+  const [parcelasRecebiveis, setParcelasRecebiveis] = useState<ParcelaRecebivel[]>(() => loadFromStorage("fin_parcelas_recebiveis_v1", []));
+  const [eventosFerias, setEventosFerias] = useState<EventoFerias[]>(() => loadFromStorage("fin_eventos_ferias_v1", []));
+  const [eventosRescisao, setEventosRescisao] = useState<EventoRescisao[]>(() => loadFromStorage("fin_eventos_rescisao_v1", []));
+  const [historicosContribuicaoINSS, setHistoricosContribuicaoINSS] = useState<HistoricoContribuicaoINSS[]>(() => loadFromStorage("fin_historicos_contribuicao_inss_v1", []));
+  const [ignoredTxIds, setIgnoredTxIds] = useState<string[]>(() => loadFromStorage("ignored_recebiveis_tx_ids", []));
 
   const updateLastModified = useCallback(() => {
     const now = new Date().toISOString();
@@ -711,6 +783,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_CONTRACTS, cltContracts); updateLastModified(); }, [cltContracts, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_COMPETENCIAS, cltCompetencias); updateLastModified(); }, [cltCompetencias, updateLastModified]);
   useEffect(() => { saveToStorage('fin_clt_legislacao_v1', cltLegislacaoConfigs); updateLastModified(); }, [cltLegislacaoConfigs, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_HOLERITES, cltHolerites); updateLastModified(); }, [cltHolerites, updateLastModified]);
+
+  // Persistência dos Novos Estados de Recebimentos
+  useEffect(() => { saveToStorage("fin_vinculos_ocupacionais_v1", vinculosOcupacionais); updateLastModified(); }, [vinculosOcupacionais, updateLastModified]);
+  useEffect(() => { saveToStorage("fin_recebiveis_parcelados_v1", recebiveisParcelados); updateLastModified(); }, [recebiveisParcelados, updateLastModified]);
+  useEffect(() => { saveToStorage("fin_parcelas_recebiveis_v1", parcelasRecebiveis); updateLastModified(); }, [parcelasRecebiveis, updateLastModified]);
+  useEffect(() => { saveToStorage("fin_eventos_ferias_v1", eventosFerias); updateLastModified(); }, [eventosFerias, updateLastModified]);
+  useEffect(() => { saveToStorage("fin_eventos_rescisao_v1", eventosRescisao); updateLastModified(); }, [eventosRescisao, updateLastModified]);
+  useEffect(() => { saveToStorage("fin_historicos_contribuicao_inss_v1", historicosContribuicaoINSS); updateLastModified(); }, [historicosContribuicaoINSS, updateLastModified]);
+  useEffect(() => { saveToStorage("ignored_recebiveis_tx_ids", ignoredTxIds); updateLastModified(); }, [ignoredTxIds, updateLastModified]);
 
 
   const balanceCache = useMemo(() => {
@@ -1042,19 +1124,25 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     // 3. Vínculo com BillTracker
+    const loanIdStr = links.loanId ? links.loanId.replace('loan_', '') : null;
+    const parcelaNum = links.parcelaId ? parseInt(links.parcelaId) : null;
+
     const matchingBill = billsTracker.find(b =>
-      !b.isPaid &&
-      Math.abs(b.expectedAmount - amount) < 2 &&
-      isSameMonth(parseDateLocal(b.dueDate), parseDateLocal(transaction.date)) &&
-      (b.description.toLowerCase().includes(transaction.description.toLowerCase()) ||
-       transaction.description.toLowerCase().includes(b.description.toLowerCase()))
+      (loanIdStr && parcelaNum && b.sourceType === 'loan_installment' && b.sourceRef === loanIdStr && b.parcelaNumber === parcelaNum) ||
+      (!b.isPaid &&
+       Math.abs(b.expectedAmount - amount) < 2 &&
+       isSameMonth(parseDateLocal(b.dueDate), parseDateLocal(transaction.date)) &&
+       (b.description.toLowerCase().includes(transaction.description.toLowerCase()) ||
+        transaction.description.toLowerCase().includes(b.description.toLowerCase())))
     );
 
     if (matchingBill) {
       updateBill(matchingBill.id, {
         isPaid: true,
         paymentDate: transaction.date,
-        transactionId: links.transferGroupId || transaction.id
+        transactionId: links.transferGroupId || transaction.id,
+        expectedAmount: transaction.amount,
+        discountAmount: meta?.discountAmount ? Number(meta.discountAmount) : undefined
       });
       toast.info(`Vínculo automático com conta pendente: "${matchingBill.description}"`);
     }
@@ -1283,7 +1371,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         calculateLoanSchedule(loan.id).forEach(item => {
             const dueDate = getDueDate(loan.dataInicio!, item.parcela);
             if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
-                potentialBills.push({ key: `loan_${loan.id}_${item.parcela}`, sourceType: 'loan_installment', sourceRef: String(loan.id), parcelaNumber: item.parcela, dueDate: format(dueDate, 'yyyy-MM-dd'), expectedAmount: loan.parcela, description: `Empréstimo ${loan.contrato} - P${item.parcela}/${loan.meses}`, isPaid: transacoesV2.some(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === String(item.parcela)), isIncluded: isBillIncluded('loan_installment', String(loan.id), item.parcela) });
+                const matchingTx = transacoesV2.find(t => t.operationType === 'pagamento_emprestimo' && t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === String(item.parcela));
+                const expectedAmount = matchingTx ? matchingTx.amount : loan.parcela;
+                potentialBills.push({
+                    key: `loan_${loan.id}_${item.parcela}`,
+                    sourceType: 'loan_installment',
+                    sourceRef: String(loan.id),
+                    parcelaNumber: item.parcela,
+                    dueDate: format(dueDate, 'yyyy-MM-dd'),
+                    expectedAmount,
+                    description: `Empréstimo ${loan.contrato} - P${item.parcela}/${loan.meses}`,
+                    isPaid: !!matchingTx,
+                    isIncluded: isBillIncluded('loan_installment', String(loan.id), item.parcela)
+                });
             }
         });
     });
@@ -1310,15 +1410,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         calculateLoanSchedule(loan.id).forEach(item => {
             const dueDate = getDueDate(loan.dataInicio!, item.parcela);
             if (isAfter(dueDate, referenceMonthEnd)) {
+                const matchingTx = transacoesV2.find(t => t.operationType === 'pagamento_emprestimo' && t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === String(item.parcela));
+                const expectedAmount = matchingTx ? matchingTx.amount : loan.parcela;
                 futureBills.push({
                     key: `loan_${loan.id}_${item.parcela}`,
                     sourceType: 'loan_installment',
                     sourceRef: String(loan.id),
                     parcelaNumber: item.parcela,
                     dueDate: format(dueDate, 'yyyy-MM-dd'),
-                    expectedAmount: loan.parcela,
+                    expectedAmount,
                     description: `Empréstimo ${loan.contrato} - P${item.parcela}/${loan.meses}`,
-                    isPaid: transacoesV2.some(t => t.links?.loanId === `loan_${loan.id}` && t.links?.parcelaId === String(item.parcela)),
+                    isPaid: !!matchingTx,
                     isIncluded: isAlreadyInTracker('loan_installment', String(loan.id), item.parcela)
                 });
             }
@@ -1376,7 +1478,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         return (
           isWithinInterval(transactionDate, { start: monthStart, end: monthEnd }) &&
           (t.flow === 'out' || t.flow === 'transfer_out') &&
-          (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado' || t.operationType === 'transferencia') &&
+          (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado') &&
           (t.meta.source !== 'import' || t.conciliated) &&
           !trackerTxIds.has(t.id) &&
           (!t.links?.transferGroupId || !trackerTxIds.has(t.links.transferGroupId)) &&
@@ -1569,13 +1671,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         creditCardConfigs,
         cltContracts,
         cltCompetencias,
+        cltLegislacaoConfigs,
+        cltHolerites,
+        vinculosOcupacionais,
+        recebiveisParcelados,
+        parcelasRecebiveis,
+        eventosFerias,
+        eventosRescisao,
+        historicosContribuicaoINSS,
+        ignoredTxIds,
       },
       lastModified: lastModified,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
-  }, [contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, creditCardConfigs, cltContracts, cltCompetencias, lastModified]);
+  }, [
+    contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, 
+    standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, 
+    creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs, cltHolerites, vinculosOcupacionais, recebiveisParcelados, 
+    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, lastModified
+  ]);
 
   const importData = useCallback(async (file: File) => {
     try {
@@ -1600,6 +1716,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.creditCardConfigs) setCreditCardConfigs(data.data.creditCardConfigs);
       if (data.data.cltContracts) setCltContracts(data.data.cltContracts);
       if (data.data.cltCompetencias) setCltCompetencias(data.data.cltCompetencias);
+      if (data.data.cltLegislacaoConfigs) setCltLegislacaoConfigs(data.data.cltLegislacaoConfigs);
+      if (data.data.cltHolerites) setCltHolerites(data.data.cltHolerites);
+      if (data.data.vinculosOcupacionais) setVinculosOcupacionais(data.data.vinculosOcupacionais);
+      if (data.data.recebiveisParcelados) setRecebiveisParcelados(data.data.recebiveisParcelados);
+      
+      // Sanitização de parcelas importadas para evitar parcelas órfãs sem recebível pai
+      if (data.data.parcelasRecebiveis) {
+        const validRecIds = new Set((data.data.recebiveisParcelados || recebiveisParcelados).map((r: RecebivelParcelado) => r.id));
+        const cleanParcelas = (data.data.parcelasRecebiveis as ParcelaRecebivel[]).filter(p => validRecIds.has(p.recebivelId));
+        setParcelasRecebiveis(cleanParcelas);
+      }
+      
+      if (data.data.eventosFerias) setEventosFerias(data.data.eventosFerias);
+      if (data.data.eventosRescisao) setEventosRescisao(data.data.eventosRescisao);
+      if (data.data.historicosContribuicaoINSS) setHistoricosContribuicaoINSS(data.data.historicosContribuicaoINSS);
+      if (data.data.ignoredTxIds) setIgnoredTxIds(data.data.ignoredTxIds);
+      
       const newTimestamp = data.lastModified || new Date().toISOString();
       setLastModified(newTimestamp);
       saveToStorage(STORAGE_KEYS.LAST_MODIFIED, newTimestamp);
@@ -1607,7 +1740,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } catch (e) { 
       return { success: false, message: "Erro ao importar." }; 
     }
-  }, []);
+  }, [recebiveisParcelados]);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {
@@ -1770,12 +1903,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevYear = month === 0 ? year - 1 : year;
     const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
+    
     const rawAmount = transacoesV2
       .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > prevClosing && parseDateLocal(t.date) <= currentClosing)
       .reduce((acc, t) => acc + t.amount, 0);
+
+    const pendingAmount = billsTracker
+      .filter(b => 
+        !b.isPaid && 
+        !b.isExcluded && 
+        b.sourceType !== 'card_invoice' &&
+        (b.suggestedAccountId === config.accountId || b.cardId === config.id) &&
+        parseDateLocal(b.dueDate) > prevClosing && 
+        parseDateLocal(b.dueDate) <= currentClosing
+      )
+      .reduce((acc, b) => acc + (b.expectedAmount || 0), 0);
     
-    return Math.round(rawAmount * 100) / 100;
-  }, [creditCardConfigs, transacoesV2]);
+    return Math.round((rawAmount + pendingAmount) * 100) / 100;
+  }, [creditCardConfigs, transacoesV2, billsTracker]);
 
   const getCardCurrentCycleUsage = useCallback((cardId: string, referenceDate?: Date): number => {
     const config = creditCardConfigs.find(c => c.id === cardId);
@@ -1784,12 +1929,22 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const closingDay = config.closingDay;
     const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
     const lastClosing = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
+    
     const rawAmount = transacoesV2
       .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > lastClosing && parseDateLocal(t.date) <= today)
       .reduce((acc, t) => acc + t.amount, 0);
+
+    const pendingAmount = billsTracker
+      .filter(b => 
+        !b.isPaid && 
+        !b.isExcluded && 
+        b.sourceType !== 'card_invoice' &&
+        (b.suggestedAccountId === config.accountId || b.cardId === config.id)
+      )
+      .reduce((acc, b) => acc + (b.expectedAmount || 0), 0);
     
-    return Math.round(rawAmount * 100) / 100;
-  }, [creditCardConfigs, transacoesV2]);
+    return Math.round((rawAmount + pendingAmount) * 100) / 100;
+  }, [creditCardConfigs, transacoesV2, billsTracker]);
 
   const getNextCycleBalance = useCallback((cardId: string, referenceDate?: Date): number => {
     const config = creditCardConfigs.find(c => c.id === cardId);
@@ -1799,14 +1954,27 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const thisMonthClosing = new Date(today.getFullYear(), today.getMonth(), Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()));
     const cycleStart = today > thisMonthClosing ? thisMonthClosing : new Date(today.getFullYear(), today.getMonth() - 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth(), 0).getDate()));
     const cycleEnd = today > thisMonthClosing ? new Date(today.getFullYear(), today.getMonth() + 1, Math.min(closingDay, new Date(today.getFullYear(), today.getMonth() + 2, 0).getDate())) : thisMonthClosing;
+    
     const rawAmount = transacoesV2
       .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > cycleStart && parseDateLocal(t.date) <= cycleEnd && parseDateLocal(t.date) > today)
       .reduce((acc, t) => acc + t.amount, 0);
-    
-    return Math.round(rawAmount * 100) / 100;
-  }, [creditCardConfigs, transacoesV2]);
 
-  const getCardCycleTransactions = useCallback((cardId: string, monthDate: Date) => {
+    const pendingAmount = billsTracker
+      .filter(b => 
+        !b.isPaid && 
+        !b.isExcluded && 
+        b.sourceType !== 'card_invoice' &&
+        (b.suggestedAccountId === config.accountId || b.cardId === config.id) &&
+        parseDateLocal(b.dueDate) > cycleStart && 
+        parseDateLocal(b.dueDate) <= cycleEnd && 
+        parseDateLocal(b.dueDate) > today
+      )
+      .reduce((acc, b) => acc + (b.expectedAmount || 0), 0);
+    
+    return Math.round((rawAmount + pendingAmount) * 100) / 100;
+  }, [creditCardConfigs, transacoesV2, billsTracker]);
+
+  const getCardCycleTransactions = useCallback((cardId: string, monthDate: Date): TransacaoCompleta[] => {
     const config = creditCardConfigs.find(c => c.id === cardId);
     if (!config) return [];
     const closingDay = config.closingDay;
@@ -1816,10 +1984,37 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevYear = month === 0 ? year - 1 : year;
     const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
-    return transacoesV2
-      .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > prevClosing && parseDateLocal(t.date) <= currentClosing)
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [creditCardConfigs, transacoesV2]);
+    
+    const realTxs = transacoesV2
+      .filter(t => t.accountId === config.accountId && t.flow === 'out' && parseDateLocal(t.date) > prevClosing && parseDateLocal(t.date) <= currentClosing);
+
+    const pendingBills = billsTracker
+      .filter(b => 
+        !b.isPaid && 
+        !b.isExcluded && 
+        b.sourceType !== 'card_invoice' &&
+        (b.suggestedAccountId === config.accountId || b.cardId === config.id) &&
+        parseDateLocal(b.dueDate) > prevClosing && 
+        parseDateLocal(b.dueDate) <= currentClosing
+      )
+      .map(b => ({
+        id: b.id,
+        date: b.dueDate,
+        accountId: config.accountId,
+        flow: 'out' as const,
+        operationType: 'despesa' as const,
+        domain: 'operational' as const,
+        amount: b.expectedAmount,
+        categoryId: b.suggestedCategoryId || null,
+        description: b.description + " (Agendado)",
+        links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: null, vehicleTransactionId: null },
+        conciliated: false,
+        attachments: [],
+        meta: { createdBy: 'system', source: 'bill_tracker' as const, createdAt: b.dueDate }
+      }));
+
+    return [...realTxs, ...pendingBills].sort((a, b) => a.date.localeCompare(b.date));
+  }, [creditCardConfigs, transacoesV2, billsTracker]);
 
   const generateInvoiceBills = useCallback((monthDate: Date): BillTracker[] => {
     return creditCardConfigs.map(config => {
@@ -1877,6 +2072,135 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }).filter(Boolean) as BillTracker[];
   }, [creditCardConfigs, getInvoiceForCard, contasMovimento, billsTracker, transacoesV2]);
 
+  // Vínculos Ocupacionais CRUD
+  const addVinculoOcupacional = useCallback((v: VinculoOcupacional) => {
+    setVinculosOcupacionais(p => [...p, v]);
+  }, []);
+  const updateVinculoOcupacional = useCallback((id: string, u: Partial<VinculoOcupacional>) => {
+    setVinculosOcupacionais(p => p.map(x => x.id === id ? { ...x, ...u } : x));
+  }, []);
+  const deleteVinculoOcupacional = useCallback((id: string) => {
+    setVinculosOcupacionais(p => p.filter(x => x.id !== id));
+    setRecebiveisParcelados(prevRecs => {
+      const recsToRemove = new Set(prevRecs.filter(r => r.vinculoId === id).map(r => r.id));
+      if (recsToRemove.size > 0) {
+        setParcelasRecebiveis(prevParcs => prevParcs.filter(parc => !recsToRemove.has(parc.recebivelId)));
+      }
+      return prevRecs.filter(r => r.vinculoId !== id);
+    });
+    setEventosFerias(p => p.filter(f => f.vinculoId !== id));
+    setEventosRescisao(p => p.filter(r => r.vinculoId !== id));
+    setHistoricosContribuicaoINSS(p => p.filter(h => h.vinculoId !== id));
+  }, []);
+
+  // Recebíveis Parcelados CRUD
+  const addRecebivelParcelado = useCallback((r: RecebivelParcelado) => {
+    setRecebiveisParcelados(p => [...p, r]);
+  }, []);
+  const updateRecebivelParcelado = useCallback((id: string, u: Partial<RecebivelParcelado>) => {
+    setRecebiveisParcelados(p => p.map(x => x.id === id ? { ...x, ...u } : x));
+  }, []);
+  const deleteRecebivelParcelado = useCallback((id: string) => {
+    setRecebiveisParcelados(p => p.filter(x => x.id !== id));
+    setParcelasRecebiveis(p => p.filter(x => x.recebivelId !== id));
+  }, []);
+
+  // Parcelas Recebíveis CRUD
+  const updateParcelaRecebivel = useCallback((id: string, u: Partial<ParcelaRecebivel>) => {
+    setParcelasRecebiveis(p => p.map(x => x.id === id ? { ...x, ...u } : x));
+  }, []);
+
+  const confirmarPagamentoParcela = useCallback((id: string, dataPagamento: string, valorPago: number, contaId: string) => {
+    setParcelasRecebiveis(prev => prev.map(p => {
+      if (p.id === id) {
+        const matchingRecebivel = recebiveisParcelados.find(r => r.id === p.recebivelId);
+        const txId = `tx_parcela_${p.id}`;
+        
+        // Criar transação correspondente
+        const newTx: TransacaoCompleta = {
+          id: txId,
+          date: dataPagamento,
+          accountId: contaId,
+          flow: 'in',
+          operationType: 'receita',
+          domain: 'operational',
+          amount: valorPago,
+          categoryId: 'cat_salario', // Categoria de receita padrão
+          description: `Recebível — ${matchingRecebivel?.cliente || 'Cliente'} (Parc. ${p.numeroParcela})`,
+          links: { investmentId: null, loanId: null, transferGroupId: null, parcelaId: p.id, vehicleTransactionId: null },
+          conciliated: true,
+          attachments: [],
+          meta: { createdBy: 'recebiveis_module', source: 'manual', createdAt: new Date().toISOString() },
+        };
+
+        // Adiciona a transação nas contas
+        setTransacoesV2(txs => [...txs, newTx]);
+
+        return {
+          ...p,
+          status: 'PAGO' as const,
+          dataPagamento,
+          valorPago,
+          recebimentoGeradoId: txId
+        };
+      }
+      return p;
+    }));
+    toast.success("Pagamento da parcela confirmado com sucesso!");
+  }, [recebiveisParcelados]);
+
+  const estornarPagamentoParcela = useCallback((id: string) => {
+    setParcelasRecebiveis(prev => prev.map(p => {
+      if (p.id === id) {
+        if (p.recebimentoGeradoId) {
+          setTransacoesV2(txs => txs.filter(t => t.id !== p.recebimentoGeradoId));
+        }
+        return {
+          ...p,
+          status: 'A_VENCER' as const,
+          dataPagamento: null,
+          valorPago: null,
+          recebimentoGeradoId: null
+        };
+      }
+      return p;
+    }));
+    toast.info("Pagamento da parcela estornado com sucesso.");
+  }, []);
+
+  // Férias CRUD
+  const addEventoFerias = useCallback((f: EventoFerias) => {
+    setEventosFerias(p => [...p, f]);
+  }, []);
+  const updateEventoFerias = useCallback((id: string, u: Partial<EventoFerias>) => {
+    setEventosFerias(p => p.map(x => x.id === id ? { ...x, ...u } : x));
+  }, []);
+  const deleteEventoFerias = useCallback((id: string) => {
+    setEventosFerias(p => p.filter(x => x.id !== id));
+  }, []);
+
+  // Rescisões CRUD
+  const addEventoRescisao = useCallback((r: EventoRescisao) => {
+    setEventosRescisao(p => [...p, r]);
+  }, []);
+  const updateEventoRescisao = useCallback((id: string, u: Partial<EventoRescisao>) => {
+    setEventosRescisao(p => p.map(x => x.id === id ? { ...x, ...u } : x));
+  }, []);
+  const deleteEventoRescisao = useCallback((id: string) => {
+    setEventosRescisao(p => p.filter(x => x.id !== id));
+  }, []);
+
+  // Histórico Contribuição INSS CRUD
+  const addHistoricoContribuicao = useCallback((h: HistoricoContribuicaoINSS) => {
+    setHistoricosContribuicaoINSS(p => [...p, h]);
+  }, []);
+  const updateHistoricoContribuicao = useCallback((id: string, u: Partial<HistoricoContribuicaoINSS>) => {
+    setHistoricosContribuicaoINSS(p => p.map(x => x.id === id ? { ...x, ...u } : x));
+  }, []);
+  const deleteHistoricoContribuicao = useCallback((id: string) => {
+    setHistoricosContribuicaoINSS(p => p.filter(x => x.id !== id));
+  }, []);
+
   const value = useMemo(() => ({
     emprestimos, addEmprestimo, updateEmprestimo, deleteEmprestimo: (id: number) => setEmprestimos(p => p.filter(e => e.id !== id)), getPendingLoans: () => emprestimos.filter(e => e.status === 'pendente_config'), markLoanParcelPaid, unmarkLoanParcelPaid, calculateLoanSchedule, calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths,
     veiculos, addVeiculo, updateVeiculo: (id: number, u: any) => setVeiculos(p => p.map(v => v.id === id ? { ...v, ...u } : v)), deleteVeiculo: (id: number) => setVeiculos(p => p.filter(v => v.id !== id)), getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro'),
@@ -1903,7 +2227,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     cltContracts,
     addCltContract: (c: CltContract) => setCltContracts(p => [...p, c]),
     updateCltContract: (id: string, u: Partial<CltContract>) => setCltContracts(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
-    deleteCltContract: (id: string) => setCltContracts(p => p.filter(c => c.id !== id)),
+    deleteCltContract: (id: string) => {
+      setCltContracts(p => p.filter(c => c.id !== id));
+      setCltCompetencias(p => p.filter(c => c.contractId !== id));
+      setCltHolerites(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(k => {
+          if (k.startsWith(`${id}_`)) delete next[k];
+        });
+        return next;
+      });
+    },
     cltCompetencias,
     addCltCompetencia: (c: CltCompetencia) => setCltCompetencias(p => [...p, c]),
     updateCltCompetencia: (id: string, u: Partial<CltCompetencia>) => setCltCompetencias(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
@@ -1912,11 +2246,60 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addCltLegislacaoConfig: (c: CltLegislacaoConfig) => setCltLegislacaoConfigs(p => [...p, c]),
     updateCltLegislacaoConfig: (id: string, u: Partial<CltLegislacaoConfig>) => setCltLegislacaoConfigs(p => p.map(c => c.id === id ? { ...c, ...u } : c)),
     deleteCltLegislacaoConfig: (id: string) => setCltLegislacaoConfigs(p => p.filter(c => c.id !== id)),
+    cltHolerites,
+    saveCltHolerite,
+    deleteCltHolerite,
+
+    // Vínculos Ocupacionais adicionais
+    vinculosOcupacionais,
+    addVinculoOcupacional,
+    updateVinculoOcupacional,
+    deleteVinculoOcupacional,
+
+    // Recebíveis parcelados de clientes
+    recebiveisParcelados,
+    addRecebivelParcelado,
+    updateRecebivelParcelado,
+    deleteRecebivelParcelado,
+
+    // Parcelas dos recebíveis
+    parcelasRecebiveis,
+    setParcelasRecebiveis,
+    updateParcelaRecebivel,
+    confirmarPagamentoParcela,
+    estornarPagamentoParcela,
+
+    // Férias, Rescisões e Previdência
+    eventosFerias,
+    addEventoFerias,
+    updateEventoFerias,
+    deleteEventoFerias,
+    
+    eventosRescisao,
+    addEventoRescisao,
+    updateEventoRescisao,
+    deleteEventoRescisao,
+
+    historicosContribuicaoINSS,
+    addHistoricoContribuicao,
+    updateHistoricoContribuicao,
+    deleteHistoricoContribuicao,
+
+    ignoredTxIds,
+    setIgnoredTxIds,
 
     lastModified,
     exportData, importData,
   }), [
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
+    vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
+    cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
+    addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
+    addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,
+    updateParcelaRecebivel, confirmarPagamentoParcela, estornarPagamentoParcela,
+    addEventoFerias, updateEventoFerias, deleteEventoFerias,
+    addEventoRescisao, updateEventoRescisao, deleteEventoRescisao,
+    addHistoricoContribuicao, updateHistoricoContribuicao, deleteHistoricoContribuicao,
     
     contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges, 
     alertStartDate, revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,

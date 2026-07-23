@@ -12,7 +12,12 @@ import { useState, useEffect } from "react";
  * const isTablet = useMediaQuery("(max-width: 1024px)");
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
+  const [matches, setMatches] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.matchMedia(query).matches;
+    }
+    return false;
+  });
 
   useEffect(() => {
     // Verificar se estamos no ambiente do navegador
@@ -20,7 +25,7 @@ export function useMediaQuery(query: string): boolean {
 
     const mediaQuery = window.matchMedia(query);
     
-    // Definir valor inicial
+    // Garantir sincronia se o query mudar
     setMatches(mediaQuery.matches);
 
     // Handler para mudanças na media query

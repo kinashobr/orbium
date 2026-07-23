@@ -45,7 +45,7 @@ interface NavItemData {
 }
 
 const mainNavItems: NavItemData[] = [
-  { title: "Início", path: "/", icon: LayoutDashboard },
+  { title: "Visão Geral", path: "/", icon: LayoutDashboard },
   { title: "Movimentação", path: "/receitas-despesas", icon: Receipt },
   { title: "Financiamentos", path: "/emprestimos", icon: CreditCard },
   { title: "Análise", path: "/relatorios", icon: BarChart3 },

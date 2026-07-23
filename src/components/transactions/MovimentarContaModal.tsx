@@ -135,6 +135,16 @@ export function MovimentarContaModal({
     dispatch({ type: 'SET_FIELD', field: 'amount', value: val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
   };
 
+  const handleDiscountAmountChange = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    if (!digits) {
+      dispatch({ type: 'SET_FIELD', field: 'discountAmount', value: "0,00" });
+      return;
+    }
+    const val = parseInt(digits) / 100;
+    dispatch({ type: 'SET_FIELD', field: 'discountAmount', value: val.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
+  };
+
   const parseBrlValue = (value: string) => {
     return parseFloat(value.replace(/\./g, "").replace(",", ".")) || 0;
   };
@@ -160,6 +170,7 @@ export function MovimentarContaModal({
             tempAssetType: editingTransaction.operationType === 'imobilizado' && (editingTransaction.meta.assetType === 'imovel' || editingTransaction.meta.assetType === 'terreno') ? editingTransaction.meta.assetType : null,
             tempAssetId: editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null,
             tempAssetOperation: editingTransaction.operationType === 'imobilizado' ? editingTransaction.meta.assetOperation || null : null,
+            discountAmount: editingTransaction.meta?.discountAmount ? Number(editingTransaction.meta.discountAmount).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0,00",
         }});
       } else {
         // Lógica de pré-preenchimento inteligente para novos lançamentos (ex: vindos de Contas a Pagar)
@@ -196,6 +207,18 @@ export function MovimentarContaModal({
       dispatch({ type: 'SET_OPERATION', operationType: allowedOperations[0] || 'despesa' });
     }
   }, [state.accountId, allowedOperations, state.operationType]);
+
+  useEffect(() => {
+    if (state.operationType === 'pagamento_emprestimo' && state.tempLoanId && state.tempParcelaId) {
+      const loan = loans.find(l => l.id === state.tempLoanId);
+      const parcela = loan?.parcelas.find(p => String(p.numero) === state.tempParcelaId);
+      if (parcela) {
+        const disc = parseBrlValue(state.discountAmount);
+        const finalVal = Math.max(0, parcela.valor - disc);
+        dispatch({ type: 'SET_FIELD', field: 'amount', value: finalVal.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
+      }
+    }
+  }, [state.operationType, state.tempLoanId, state.tempParcelaId, state.discountAmount, loans]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -333,11 +356,14 @@ export function MovimentarContaModal({
         vehicleTransactionId,
     };
     
+    const parsedDiscount = parseBrlValue(state.discountAmount);
+
     const meta: Partial<TransactionMeta> = {
         vehicleOperation: state.operationType === 'veiculo' ? state.tempVehicleOperation || undefined : undefined,
         assetType: finalAssetType,
         assetId: finalAssetId,
         assetOperation: finalAssetOperation,
+        discountAmount: parsedDiscount > 0 ? parsedDiscount : undefined,
     };
 
     const baseTx: TransacaoCompleta = {
@@ -446,20 +472,22 @@ export function MovimentarContaModal({
 
   const formBody = (
     <form id="movimentar-form" onSubmit={handleSubmit} className="py-3 space-y-4 pb-28 sm:pb-4">
-      <div className="text-center space-y-0.5">
-        <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor do Lançamento</Label>
-        <div className="relative max-w-[220px] mx-auto group">
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-lg font-black text-muted-foreground/20">R$</span>
-          <Input
-            type="text"
-            inputMode="numeric"
-            value={state.amount}
-            onChange={(e) => handleAmountChange(e.target.value)}
-            className="h-12 text-2xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
-          />
-          <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
+      {state.operationType !== 'pagamento_emprestimo' && (
+        <div className="text-center space-y-0.5 p-3 rounded-2xl bg-muted/20 border border-border/40">
+          <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Valor do Lançamento</Label>
+          <div className="relative max-w-[200px] mx-auto group">
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/30">R$</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={state.amount}
+              onChange={(e) => handleAmountChange(e.target.value)}
+              className="h-10 text-xl font-black text-center border-none bg-transparent focus-visible:ring-0 p-0 tabular-nums"
+            />
+            <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-primary/20 to-transparent scale-x-0 group-focus-within:scale-x-100 transition-transform duration-500" />
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -519,6 +547,30 @@ export function MovimentarContaModal({
         </div>
       )}
 
+      {(state.operationType === 'despesa' || state.operationType === 'pagamento_emprestimo') && (
+        <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-success/5 border border-success/20 animate-in fade-in-50 duration-300">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-success">Desconto</span>
+            {state.operationType === 'pagamento_emprestimo' && state.tempParcelaId && currentLoan && (
+              <span className="text-[9px] font-bold text-muted-foreground">
+                (Parcela: R$ {(currentLoan.parcelas.find(p => String(p.numero) === state.tempParcelaId)?.valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+              </span>
+            )}
+          </div>
+          <div className="relative w-28">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-success/60">R$</span>
+            <Input
+              type="text"
+              inputMode="numeric"
+              value={state.discountAmount}
+              onChange={(e) => handleDiscountAmountChange(e.target.value)}
+              placeholder="0,00"
+              className="h-8 pl-7 text-xs font-black text-success border-none bg-background/80 focus-visible:ring-1 focus-visible:ring-success/50 tabular-nums shadow-sm text-right"
+            />
+          </div>
+        </div>
+      )}
+
       {showVincularSection && (
         <div className="space-y-4 p-5 rounded-[2rem] bg-primary/5 border-2 border-dashed border-primary/20 animate-in slide-in-from-top-2 duration-300">
           <Label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary block text-center">Vínculo Obrigatório</Label>
@@ -536,7 +588,7 @@ export function MovimentarContaModal({
                 <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela</Label>
                 <Select value={state.tempParcelaId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempParcelaId', value: v })} disabled={!currentLoan}>
                   <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
-                  <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}</SelectContent>
+                  <SelectContent>{currentLoan?.parcelas.filter(p => !p.paga || (editingTransaction && editingTransaction.links?.loanId === state.tempLoanId && String(p.numero) === state.tempParcelaId)).map(p => <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             </div>

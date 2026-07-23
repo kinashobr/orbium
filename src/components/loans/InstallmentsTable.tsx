@@ -21,6 +21,7 @@ interface Parcela extends AmortizationItem {
   status: "pago" | "pendente" | "atrasado";
   dataPagamento?: string;
   valorPago?: number;
+  discountAmount?: number;
 }
 
 interface InstallmentsTableProps {
@@ -57,7 +58,8 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
       if (payment) status = "pago";
       else if (dataVencimento < hoje) status = "atrasado";
       
-      return { ...item, dataVencimento, valorTotal: emprestimo.parcela, status, dataPagamento: payment?.date, valorPago: payment?.amount };
+      const discount = payment?.meta?.discountAmount || 0;
+      return { ...item, dataVencimento, valorTotal: emprestimo.parcela, status, dataPagamento: payment?.date, valorPago: payment?.amount, discountAmount: discount };
     });
   }, [emprestimo, payments, calculateLoanSchedule]);
 
@@ -128,7 +130,14 @@ export function InstallmentsTable({ emprestimo, className }: InstallmentsTablePr
                     <TableRow key={parcela.parcela} className={cn("border-b border-border/40 transition-colors h-14 group", isPaid ? "bg-success/[0.02] opacity-70" : "hover:bg-muted/20")}>
                       <TableCell className="text-center font-bold text-muted-foreground text-xs">{parcela.parcela}</TableCell>
                       <TableCell className="font-bold text-sm">{format(parcela.dataVencimento, 'dd/MM/yyyy')}</TableCell>
-                      <TableCell className="text-right font-black text-sm">{formatCurrency(parcela.valorTotal)}</TableCell>
+                      <TableCell className="text-right font-black text-sm">
+                        {formatCurrency(parcela.valorTotal)}
+                        {parcela.discountAmount ? (
+                          <span className="text-[10px] text-success font-bold block">
+                            Desc: {formatCurrency(parcela.discountAmount)}
+                          </span>
+                        ) : null}
+                      </TableCell>
                       <TableCell className="text-right text-success/80 font-bold text-xs">{formatCurrency(parcela.amortizacao)}</TableCell>
                       <TableCell className="text-right text-destructive/80 font-bold text-xs">{formatCurrency(parcela.juros)}</TableCell>
                       <TableCell className="text-right font-black text-muted-foreground text-xs tabular-nums">{formatCurrency(parcela.saldoDevedor)}</TableCell>

@@ -307,7 +307,7 @@ export default function BillsTracker() {
         {/* Desktop Top Summary Dashboard (Unified Compact Dashboard) */}
         {isLargeScreen && (
           <div className="bg-card rounded-[1.25rem] border border-border/40 p-5 px-6 shadow-sm w-full animate-fade-in shrink-0">
-            <div className="grid grid-cols-12 gap-5 items-center">
+            <div className="grid grid-cols-12 gap-5 items-stretch">
               {/* Left Part: KPIs Grid (8 columns for compact vertical flow) */}
               <div className="col-span-8">
                 <BillsSidebarKPIs 
@@ -320,7 +320,7 @@ export default function BillsTracker() {
               </div>
 
               {/* Right Part: Cash Flow Timeline (4 columns for much better readability) */}
-              <div className="col-span-4 border-l border-border/40 pl-6">
+              <div className="col-span-4 border-l border-border/40 pl-6 flex flex-col justify-between">
                 <CashFlowTimeline currentDate={currentDate} combinedBills={combinedBills} isCompact={true} />
               </div>
             </div>

@@ -21,6 +21,7 @@ export type FormState = {
   newVehicleData: { modelo: string; tipo: 'carro' | 'moto' | 'caminhao'; marca?: string; ano: number };
   newImovelData: { descricao: string; tipo: 'casa' | 'apartamento' | 'comercial'; endereco: string };
   newTerrenoData: { descricao: string; endereco: string };
+  discountAmount: string;
 };
 
 export type FormAction =
@@ -49,6 +50,7 @@ export const initialState: FormState = {
   newVehicleData: { modelo: '', tipo: 'carro', marca: '', ano: new Date().getFullYear() },
   newImovelData: { descricao: '', tipo: 'casa', endereco: '' },
   newTerrenoData: { descricao: '', endereco: '' },
+  discountAmount: "0,00",
 };
 
 export function formReducer(state: FormState, action: FormAction): FormState {

@@ -44,6 +44,7 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
     billsTracker,
     contasMovimento,
     categoriasV2,
+    updateBill,
   } = useFinance();
 
   const [selectedCommitmentId, setSelectedCommitmentId] = useState<string | null>(null);
@@ -61,25 +62,27 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
     [getFutureFixedBills, currentDate, trackerBills]
   );
 
-  const handleAdvanceBill = useCallback((potentialBill: PotentialFixedBill) => {
+  const handleAdvanceBill = useCallback((potentialBill: PotentialFixedBill, discountAmount: number = 0) => {
+    const effectiveAmount = Math.max(0, potentialBill.expectedAmount - discountAmount);
     const newBill: BillTracker = {
       id: generateBillId(),
       type: 'tracker',
       description: potentialBill.description,
       dueDate: potentialBill.dueDate,
-      expectedAmount: potentialBill.expectedAmount,
+      expectedAmount: effectiveAmount,
       sourceType: potentialBill.sourceType,
       sourceRef: potentialBill.sourceRef,
       parcelaNumber: potentialBill.parcelaNumber,
       isPaid: false,
       isExcluded: false,
+      discountAmount: discountAmount > 0 ? discountAmount : undefined,
       suggestedAccountId: contasMovimento.find(c => c.accountType === 'corrente')?.id,
       suggestedCategoryId: categoriasV2.find(c =>
         c.label.toLowerCase().includes(potentialBill.sourceType === 'loan_installment' ? 'emprestimo' : 'seguro')
       )?.id || null,
     };
     setBillsTracker(prev => [...prev, newBill]);
-    toast.success("Parcela adiantada para este mês.");
+    toast.success("Parcela adiantada para este mês com desconto.");
   }, [setBillsTracker, contasMovimento, categoriasV2]);
 
   const handleDeleteBill = useCallback((billId: string) => {
@@ -249,6 +252,7 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
           onAdvanceBill={handleAdvanceBill}
           onExcludeBill={handleDeleteBill}
           onDeleteBill={handleDeleteBill}
+          onUpdateBill={updateBill}
         />
       )}
     </div>

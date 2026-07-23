@@ -68,6 +68,7 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
     calculateLoanSchedule, 
     calculatePaidInstallmentsUpToDate,
     dateRanges,
+    transacoesV2,
   } = useFinance();
   const [isEditing, setIsEditing] = useState(false);
   const contasCorrentes = getContasCorrentesTipo();
@@ -75,6 +76,13 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
   const isMobile = useMediaQuery("(max-width: 768px)");
   
   const targetDate = dateRanges.range1.to;
+
+  const totalDescontos = useMemo(() => {
+    if (!emprestimo) return 0;
+    return transacoesV2
+      .filter(t => t.links?.loanId === `loan_${emprestimo.id}` && t.meta?.discountAmount)
+      .reduce((acc, t) => acc + (t.meta?.discountAmount || 0), 0);
+  }, [transacoesV2, emprestimo?.id]);
 
   const evolucaoData = useMemo(() => {
     if (!emprestimo) return [];
@@ -146,11 +154,12 @@ export function LoanDetailDialog({ emprestimo, open, onOpenChange }: LoanDetailD
             <div className="p-6 sm:p-10 space-y-10 pb-16">
               <TabsContent value="geral" className="mt-0 space-y-10 focus-visible:outline-none">
                 {/* Cards de Resumo Principal */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   {[
                     { label: 'Dívida Atual', value: formatCurrency(calculos.saldoDevedor), color: isQuitado ? 'text-success' : 'text-destructive', icon: TrendingDown },
                     { label: 'Parcela Mensal', value: formatCurrency(emprestimo.parcela), color: 'text-foreground', icon: Calendar },
-                    { label: 'Quitado', value: `${calculos.percentualQuitado.toFixed(0)}%`, color: 'text-primary', icon: Award },
+                    { label: 'Descontos Obtidos', value: formatCurrency(totalDescontos), color: 'text-success', icon: Award },
+                    { label: 'Quitado', value: `${calculos.percentualQuitado.toFixed(0)}%`, color: 'text-primary', icon: Target },
                     { label: 'Término em', value: format(calculos.dataFinal, 'MMM/yy', { locale: ptBR }).toUpperCase(), color: 'text-foreground', icon: Target }
                   ].map((item, idx) => (
                     <div key={idx} className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-sm">

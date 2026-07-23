@@ -1,6 +1,6 @@
 "use client";
 
-export const GOOGLE_CLIENT_ID = "1009498436542-3k2h3d5d7mmcrr5kftfmueu5sdt5oqnr.apps.googleusercontent.com";
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "1009498436542-3k2h3d5d7mmcrr5kftfmueu5sdt5oqnr.apps.googleusercontent.com";
 export const DRIVE_SCOPES = "https://www.googleapis.com/auth/drive.appdata";
 export const FILE_NAME = "orbium_data.json";
 

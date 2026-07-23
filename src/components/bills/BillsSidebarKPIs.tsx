@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   Clock,
   CreditCard,
-  Target
+  Target,
+  Landmark
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency, BillTracker, BillDisplayItem } from "@/types/finance";
@@ -88,12 +89,26 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
         .reduce((acc, t) => acc + t.amount, 0);
 
     // 3. Divisão de Saídas
-    // Pendentes (incluir todos, inclusive cartões de crédito)
-    const pendingAmount = combinedBills
-        .filter(b => !b.isPaid)
+    // Pendentes que afetam o caixa (inclui faturas de cartão pendentes, exclui contas agendadas/pagas no cartão)
+    const pendingCashAmount = combinedBills
+        .filter(b => !b.isPaid && (
+          b.sourceType === 'card_invoice' ||
+          (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId))
+        ))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
-    // Pagos com Cartão de Crédito: somar transações reais flow='out' da conta CC no mês (indicador DRE)
+    // Pendentes no cartão de crédito (contas a pagar no cartão que ainda não foram pagas)
+    const pendingCardAmount = combinedBills
+        .filter(b => !b.isPaid && (
+          b.sourceType !== 'card_invoice' &&
+          (b.suggestedAccountId && creditCardAccountIds.has(b.suggestedAccountId))
+        ))
+        .reduce((acc, b) => acc + b.expectedAmount, 0);
+
+    // Total de pendentes (soma do caixa + cartão)
+    const totalPendingAmount = pendingCashAmount + pendingCardAmount;
+
+    // Pagos com Cartão de Crédito (apenas informativo, não entra no resultado do mês)
     const paidViaCreditCard = transacoesV2
         .filter(t => 
           creditCardAccountIds.has(t.accountId) && 
@@ -102,22 +117,36 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
         )
         .reduce((acc, t) => acc + t.amount, 0);
     
-    // Já Pagos (Caixa/Débito)
+    // Já Pagos (Caixa/Débito) - inclui faturas de cartão pagas no mês e outras contas pagas diretamente
     const paidDirectly = combinedBills
-        .filter(b => b.isPaid && (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId)))
+        .filter(b => b.isPaid && (
+          b.sourceType === 'card_invoice' ||
+          (!b.suggestedAccountId || !creditCardAccountIds.has(b.suggestedAccountId))
+        ))
         .reduce((acc, b) => acc + b.expectedAmount, 0);
 
-    // Total Despesas: incluir card_invoice (fatura = desembolso real no fluxo de caixa)
-    const totalExpenses = combinedBills
-        .reduce((acc, b) => acc + b.expectedAmount, 0);
+    // Total Despesas que afetam o caixa (exclui faturas de cartão e contas pagas via cartão)
+    const totalExpenses = pendingCashAmount + paidDirectly;
 
-    // 4. Saldo (Receita Prevista - Despesas)
+    // 4. Saldo (Receita Prevista - Despesas que afetam o caixa)
     const monthBalance = currentForecast - totalExpenses;
 
-    // 5. Projeção (Saldo Inicial + Receita Prevista - Despesas)
+    // 5. Projeção (Saldo Inicial + Receita Prevista - Despesas que afetam o caixa)
     const projectedFinal = initialBalance + monthBalance;
     
-    return { initialBalance, realizedRevenue, pendingAmount, paidViaCreditCard, paidDirectly, totalExpenses, monthBalance, projectedFinal };
+    return { 
+      initialBalance, 
+      realizedRevenue, 
+      pendingAmount: pendingCashAmount, 
+      pendingCashAmount, 
+      pendingCardAmount, 
+      totalPendingAmount, 
+      paidViaCreditCard, 
+      paidDirectly, 
+      totalExpenses, 
+      monthBalance, 
+      projectedFinal 
+    };
   }, [currentDate, liquidityAccountIds, calculateBalanceUpToDate, transacoesV2, contasMovimento, currentForecast, combinedBills, creditCardAccountIds]);
   
   const handleBlur = () => {
@@ -155,9 +184,12 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
           {/* Receita Prevista (Bottom) */}
           <div className="flex flex-col">
             <div className="flex items-center justify-between opacity-90 mb-1">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <Target className="w-4 h-4 text-muted-foreground shrink-0" />
                 <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Rec. Prevista</span>
+                <span className="text-[10px] font-bold text-success ml-1">
+                  (Atual: {formatCurrency(stats.realizedRevenue)})
+                </span>
               </div>
               <button 
                 onClick={handleSuggest} 
@@ -185,18 +217,36 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
             <Clock className="w-4 h-4 text-muted-foreground shrink-0" />
             <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Fluxo de Saídas</span>
           </div>
-          <div className="flex-1 flex flex-col justify-center space-y-2">
+          <div className="flex-1 flex flex-col justify-center space-y-1">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Pendentes:</span>
-              <span className="text-[14px] font-black text-destructive tabular-nums leading-none">{formatCurrency(stats.pendingAmount)}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground leading-none">Total Pendente:</span>
+              <span className="text-[13px] font-black text-destructive tabular-nums leading-none">{formatCurrency(stats.totalPendingAmount)}</span>
+            </div>
+            {stats.pendingCashAmount > 0 && (
+              <div className="flex items-center justify-between pl-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Landmark className="w-3.5 h-3.5 text-destructive/70 shrink-0" />
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 leading-none">C. Corrente:</span>
+                </div>
+                <span className="text-[11px] font-black text-destructive/80 tabular-nums leading-none">{formatCurrency(stats.pendingCashAmount)}</span>
+              </div>
+            )}
+            {stats.pendingCardAmount > 0 && (
+              <div className="flex items-center justify-between pl-1.5">
+                <div className="flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-warning/70 shrink-0" />
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 leading-none">Cartão:</span>
+                </div>
+                <span className="text-[11px] font-black text-warning tabular-nums leading-none">{formatCurrency(stats.pendingCardAmount)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between border-t border-border/10 pt-1 mt-0.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground leading-none">Pago Cartão:</span>
+              <span className="text-[13px] font-black text-warning tabular-nums leading-none">{formatCurrency(stats.paidViaCreditCard)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Cartão:</span>
-              <span className="text-[14px] font-black text-warning tabular-nums leading-none">{formatCurrency(stats.paidViaCreditCard)}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 leading-none">Débito Pago:</span>
-              <span className="text-[14px] font-black text-success tabular-nums leading-none">{formatCurrency(stats.paidDirectly)}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground leading-none">Pago Débito:</span>
+              <span className="text-[13px] font-black text-success tabular-nums leading-none">{formatCurrency(stats.paidDirectly)}</span>
             </div>
           </div>
         </div>
@@ -270,9 +320,12 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
         {/* 2. Receita Prevista */}
         <div className="px-1">
           <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Target className="w-3.5 h-3.5 text-primary" />
               <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Receita Prevista</Label>
+              <span className="text-[10px] font-bold text-success ml-1">
+                (Atual: {formatCurrency(stats.realizedRevenue)})
+              </span>
             </div>
             <button onClick={handleSuggest} className="text-[7px] font-black text-primary hover:opacity-70 flex items-center gap-1 group">
               <RefreshCw className="w-2.5 h-2.5 group-active:rotate-180 transition-transform" /> SUGERIR
@@ -308,10 +361,30 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5 text-destructive" />
-              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Pendentes</Label>
+              <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Total Pendente</Label>
             </div>
-            <span className="text-xs font-black text-destructive tabular-nums">{formatCurrency(stats.pendingAmount)}</span>
+            <span className="text-xs font-black text-destructive tabular-nums">{formatCurrency(stats.totalPendingAmount)}</span>
           </div>
+
+          {stats.pendingCashAmount > 0 && (
+            <div className="flex items-center justify-between pl-5">
+              <div className="flex items-center gap-1.5">
+                <Landmark className="w-3.5 h-3.5 text-destructive/70 shrink-0" />
+                <Label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Pend. C. Corrente</Label>
+              </div>
+              <span className="text-[11px] font-bold text-destructive/80 tabular-nums">{formatCurrency(stats.pendingCashAmount)}</span>
+            </div>
+          )}
+
+          {stats.pendingCardAmount > 0 && (
+            <div className="flex items-center justify-between pl-5">
+              <div className="flex items-center gap-1.5">
+                <CreditCard className="w-3.5 h-3.5 text-warning/70 shrink-0" />
+                <Label className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Pend. Cartão de Crédito</Label>
+              </div>
+              <span className="text-[11px] font-bold text-warning/90 tabular-nums">{formatCurrency(stats.pendingCardAmount)}</span>
+            </div>
+          )}
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -321,7 +394,7 @@ export function BillsSidebarKPIs({ currentDate, combinedBills = [], layout = "ve
             <span className="text-xs font-black text-warning tabular-nums">{formatCurrency(stats.paidViaCreditCard)}</span>
           </div>
 
-          <div className="flex items-center justify-between opacity-60">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-success" />
               <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">Já Pago (Débito)</Label>

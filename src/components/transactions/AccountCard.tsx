@@ -1,9 +1,9 @@
-import { Building2, MoreVertical, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { MoreVertical, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AccountSummary, formatCurrency } from "@/types/finance";
-import { cn } from "@/lib/utils";
+import { cn, getAccountIcon } from "@/lib/utils";
 
 interface AccountCardProps {
   summary: AccountSummary;
@@ -17,6 +17,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
   const {
     accountId,
     accountName,
+    accountType,
     initialBalance,
     currentBalance,
     totalIn,
@@ -40,6 +41,8 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
   const balanceChange = currentBalance - initialBalance;
   const isPositive = balanceChange >= 0;
 
+  const IconComponent = getAccountIcon(accountType, accountName);
+
   return (
     <Card
       className={cn(
@@ -50,7 +53,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
       <div className="flex items-start justify-between mb-2.5">
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <Building2 className="w-5 h-5 text-primary" />
+            <IconComponent className="w-5 h-5 text-primary" />
           </div>
           <div className="space-y-1 min-w-0">
             <h4 className="font-semibold text-[11px] sm:text-sm text-foreground truncate max-w-[150px] sm:max-w-[170px]">

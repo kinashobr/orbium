@@ -22,7 +22,7 @@ import {
 } from "@/types/finance";
 import { TransactionTable } from "./TransactionTable";
 import { PeriodSelector } from "../dashboard/PeriodSelector";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { cn, parseDateLocal, getAccountIcon } from "@/lib/utils";
 import { isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, format } from "date-fns";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
@@ -381,7 +381,10 @@ export function AccountStatementDialog({
           <div className={cn("flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3", isMobile && "pl-12")}>
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center shrink-0 text-white shadow-xl shadow-primary/30">
-                <Building2 className="w-5 h-5 sm:w-6 sm:h-6" />
+                {(() => {
+                  const Icon = getAccountIcon(account.accountType, account.name);
+                  return <Icon className="w-5 h-5 sm:w-6 sm:h-6" />;
+                })()}
               </div>
               <div className="min-w-0">
                 <DialogTitle className="text-lg sm:text-xl font-black tracking-tight truncate">{account.name}</DialogTitle>

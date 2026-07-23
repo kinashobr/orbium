@@ -43,7 +43,7 @@ export function BottomNav() {
     <nav className="fixed bottom-0 inset-x-0 z-40 flex justify-center md:hidden px-2 pb-2 pt-0 pointer-events-none">
       <div className="pointer-events-auto bg-card rounded-[2.5rem] border border-border/40 shadow-[0_20px_50px_rgba(0,0,0,0.2)] max-w-[min(100%,480px)] w-full overflow-hidden">
         <div className="flex items-center justify-between h-16 px-2">
-          <NavItem to="/" icon={LayoutDashboard} label="Início" />
+          <NavItem to="/" icon={LayoutDashboard} label="Visão" />
           <NavItem to="/receitas-despesas" icon={Receipt} label="Movimentar" />
           <NavItem to="/emprestimos" icon={CreditCard} label="Financiar" />
           <NavItem to="/relatorios" icon={BarChart3} label="Análise" />

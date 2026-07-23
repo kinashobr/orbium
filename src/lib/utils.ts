@@ -1,5 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { 
+  Building2, Landmark, Wallet, PiggyBank, TrendingUp, Shield, Target, Bitcoin, DollarSign, Coins, CreditCard 
+} from "lucide-react";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -119,3 +122,35 @@ export const getDueDate = (startDateStr: string, installmentNumber: number): Dat
   
   return dueDate;
 };
+
+export function getAccountIcon(type: string, name: string = "") {
+  const lowerName = name.toLowerCase();
+  
+  // Checks for crypto currencies and tokens
+  if (type === 'cripto') {
+    if (lowerName.includes('btc') || lowerName.includes('bitcoin')) {
+      return Bitcoin;
+    }
+    if (lowerName.includes('usdt') || lowerName.includes('tether')) {
+      return DollarSign;
+    }
+    return Coins;
+  }
+  
+  switch (type) {
+    case 'corrente':
+      return Landmark;
+    case 'poupanca':
+      return PiggyBank;
+    case 'renda_fixa':
+      return TrendingUp;
+    case 'reserva':
+      return Shield;
+    case 'objetivo':
+      return Target;
+    case 'cartao_credito':
+      return CreditCard;
+    default:
+      return Wallet;
+  }
+}

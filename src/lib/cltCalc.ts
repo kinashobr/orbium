@@ -6,7 +6,17 @@
 // Lei nº 15.270/2025 (Redutor Adicional IR)
 // ============================================
 
-import type { CltContract, CltCompetencia, CltCompetenciaTipo, CltLegislacaoConfig } from '@/types/finance';
+import { 
+  VinculoCLT, 
+  EventoFerias, 
+  EventoRescisao, 
+  RescisaoTipo, 
+  AvisoPrevioTipo, 
+  RegimeFGTS,
+  FeriasStatus,
+  HistoricoContribuicaoINSS
+} from '@/types/clt';
+import { CltLegislacaoConfig, TransacaoCompleta } from '@/types/finance';
 
 export interface INSSFaixaDetalhe {
   faixa: number;
@@ -35,300 +45,435 @@ export interface IRRFResult {
 }
 
 // ============================================
-// CONFIGURAÇÃO PADRÃO 2026
+// PARÂMETROS LEGAIS 2026
 // ============================================
 
-export const DEFAULT_CONFIG_2026: CltLegislacaoConfig = {
-  id: 'leg_2026_default',
-  nome: 'Legislação 2026',
-  vigencia: '2026',
-  inssFaixas: [
-    { ate: 1621.00, aliquota: 0.075 },
-    { ate: 2902.84, aliquota: 0.09 },
-    { ate: 4354.27, aliquota: 0.12 },
-    { ate: 8475.55, aliquota: 0.14 },
+export const LEGISLACAO_2026 = {
+  SALARIO_MINIMO: 1621.00,
+  TETO_INSS: 8475.55,
+  INSS_FAIXAS: [
+    { ate: 1621.00, aliquota: 0.075, deducao: 0 },
+    { ate: 2902.84, aliquota: 0.09, deducao: 24.32 },
+    { ate: 4354.27, aliquota: 0.12, deducao: 111.40 },
+    { ate: 8475.55, aliquota: 0.14, deducao: 198.49 },
   ],
-  irrfFaixas: [
+  IRRF_FAIXAS: [
     { ate: 2428.80, aliquota: 0, deducao: 0 },
     { ate: 2826.65, aliquota: 0.075, deducao: 182.16 },
     { ate: 3751.05, aliquota: 0.15, deducao: 394.16 },
     { ate: 4664.68, aliquota: 0.225, deducao: 675.49 },
     { ate: Infinity, aliquota: 0.275, deducao: 908.73 },
   ],
-  deducaoPorDependente: 189.59,
+  DEDUCAO_DEPENDENTE: 189.59,
+  REDUTOR_IRRF_LIMITE_ZERO: 5000.00,
+  REDUTOR_IRRF_LIMITE_MAX: 7350.00,
+  REDUTOR_IRRF_VALOR_FIXO: 978.62,
+  REDUTOR_IRRF_FATOR: 0.133145,
+  FGTS_SAQUE_ANIVERSARIO: [
+    { ate: 500.00, aliquota: 0.50, parcelaAdicional: 0 },
+    { ate: 1000.00, aliquota: 0.40, parcelaAdicional: 50.00 },
+    { ate: 5000.00, aliquota: 0.30, parcelaAdicional: 150.00 },
+    { ate: 10000.00, aliquota: 0.20, parcelaAdicional: 650.00 },
+    { ate: 15000.00, aliquota: 0.15, parcelaAdicional: 1150.00 },
+    { ate: 20000.00, aliquota: 0.10, parcelaAdicional: 1900.00 },
+    { ate: Infinity, aliquota: 0.05, parcelaAdicional: 2900.00 },
+  ],
+  SEGURO_DESEMPREGO_PISO: 1621.00,
+  SEGURO_DESEMPREGO_TETO: 2518.65,
+  SEGURO_DESEMPREGO_FAIXAS: [
+    { ate: 2222.17, fator: 0.8 },
+    { ate: 3703.99, base: 1777.74, fator: 0.5 },
+  ]
+};
+
+export const DEFAULT_CONFIG_2026: CltLegislacaoConfig = {
+  id: 'leg_2026_default',
+  nome: 'Legislação 2026 (Padrão)',
+  vigencia: '2026',
+  inssFaixas: LEGISLACAO_2026.INSS_FAIXAS.map(f => ({ ate: f.ate, aliquota: f.aliquota })),
+  irrfFaixas: LEGISLACAO_2026.IRRF_FAIXAS.map(f => ({ ate: f.ate, aliquota: f.aliquota, deducao: f.deducao })),
+  deducaoPorDependente: LEGISLACAO_2026.DEDUCAO_DEPENDENTE,
+  descontoSimplificado: 564.80, // Valor padrão de dedução simplificada se aplicável
   fgtsAliquota: 0.08,
-  reducaoLimiteZero: 5000.00,
-  reducaoLimiteMaximo: 7350.00,
-  reducaoValorFixo: 978.62,
-  reducaoFator: 0.133145,
-  isDefault: true,
-  descontoSimplificado: 0, // Adicionado para satisfazer o tipo CltLegislacaoConfig atual
+  reducaoLimiteZero: LEGISLACAO_2026.REDUTOR_IRRF_LIMITE_ZERO,
+  reducaoLimiteMaximo: LEGISLACAO_2026.REDUTOR_IRRF_LIMITE_MAX,
+  reducaoValorFixo: LEGISLACAO_2026.REDUTOR_IRRF_VALOR_FIXO,
+  reducaoFator: LEGISLACAO_2026.REDUTOR_IRRF_FATOR,
+  isDefault: true
 };
 
 // ============================================
-// FUNÇÕES DE CÁLCULO
+// FUNÇÕES AUXILIARES
 // ============================================
 
 function r2(value: number): number {
   return Number((Math.round(value * 100) / 100).toFixed(2));
 }
 
-export function calcularINSS(salarioBruto: number, config: CltLegislacaoConfig = DEFAULT_CONFIG_2026): INSSResult {
+// ============================================
+// MOTORES DE CÁLCULO
+// ============================================
+
+/**
+ * Calcula INSS CLT 2026 (Progressivo)
+ */
+export function calcularINSSClt(salarioBruto: number): INSSResult {
+  const baseTributavel = Math.min(salarioBruto, LEGISLACAO_2026.TETO_INSS);
   const detalhePorFaixa: INSSFaixaDetalhe[] = [];
   let total = 0;
   let baseAnterior = 0;
 
-  for (let i = 0; i < config.inssFaixas.length; i++) {
-    const faixa = config.inssFaixas[i];
-    const de = baseAnterior;
-    const ate = faixa.ate;
+  for (let i = 0; i < LEGISLACAO_2026.INSS_FAIXAS.length; i++) {
+    const faixa = LEGISLACAO_2026.INSS_FAIXAS[i];
+    if (baseTributavel <= baseAnterior) break;
 
-    if (salarioBruto <= de) break;
-
-    const baseCalculo = r2(Math.min(salarioBruto, ate) - de);
-    const contribuicao = r2(baseCalculo * faixa.aliquota);
+    const baseNestaFaixa = Math.min(baseTributavel, faixa.ate) - baseAnterior;
+    const contribuicao = r2(baseNestaFaixa * faixa.aliquota);
 
     detalhePorFaixa.push({
       faixa: i + 1,
-      de: r2(de),
-      ate: r2(Math.min(salarioBruto, ate)),
+      de: baseAnterior,
+      ate: Math.min(baseTributavel, faixa.ate),
       aliquota: faixa.aliquota,
-      baseCalculo,
-      contribuicao,
+      baseCalculo: baseNestaFaixa,
+      contribuicao
     });
 
-    total = r2(total + contribuicao);
-    baseAnterior = ate;
+    total += contribuicao;
+    baseAnterior = faixa.ate;
   }
 
   return {
-    total,
+    total: r2(total),
     detalhePorFaixa,
-    aliquotaEfetiva: salarioBruto > 0 ? r2((total / salarioBruto) * 100) / 100 : 0,
+    aliquotaEfetiva: salarioBruto > 0 ? r2((total / salarioBruto) * 100) / 100 : 0
   };
 }
 
-function calcularImpostoProgressivo(baseTributavel: number, config: CltLegislacaoConfig = DEFAULT_CONFIG_2026): number {
-  if (baseTributavel <= 0) return 0;
+/**
+ * Calcula IRRF Mensal 2026 + Redutor Lei 15.270
+ */
+export function calcularIRRFMensal(
+  baseCalculo: number, 
+  dependentes: number = 0,
+  pensaoAlimenticia: number = 0
+): IRRFResult {
+  const deducaoDependentes = r2(dependentes * LEGISLACAO_2026.DEDUCAO_DEPENDENTE);
+  const baseTributavel = Math.max(0, baseCalculo - deducaoDependentes - pensaoAlimenticia);
 
-  for (const faixa of config.irrfFaixas) {
+  // 1. Tabela Progressiva
+  let impostoBruto = 0;
+  for (const faixa of LEGISLACAO_2026.IRRF_FAIXAS) {
     if (baseTributavel <= faixa.ate) {
-      return r2(Math.max(0, baseTributavel * faixa.aliquota - faixa.deducao));
+      impostoBruto = r2(baseTributavel * faixa.aliquota - faixa.deducao);
+      break;
     }
   }
-  const ultima = config.irrfFaixas[config.irrfFaixas.length - 1];
-  return r2(Math.max(0, baseTributavel * ultima.aliquota - ultima.deducao));
-}
 
-export function calcularIRRF(
-  salarioBruto: number,
-  inss: number,
-  dependentes: number,
-  pensaoAlimenticia: number = 0,
-  config: CltLegislacaoConfig = DEFAULT_CONFIG_2026
-): IRRFResult {
-  const deducaoDependentes = r2(dependentes * config.deducaoPorDependente);
-  const deducaoPensao = r2(pensaoAlimenticia);
-
-  // 1. Base Tributável
-  const baseTributavel = r2(Math.max(0, salarioBruto - inss - deducaoDependentes - deducaoPensao));
-
-  // 2. Imposto Bruto (Tabela Progressiva)
-  const impostoBruto = calcularImpostoProgressivo(baseTributavel, config);
-
-  // 3. Redutor Lei 15.270 (Aplica sobre Rendimento Tributável / Bruto)
+  // 2. Redutor Lei 15.270
   let redutor = 0;
-  if (salarioBruto <= config.reducaoLimiteZero) {
-    redutor = impostoBruto; // Zera o imposto
-  } else if (salarioBruto <= config.reducaoLimiteMaximo) {
-    const reducaoCalculada = r2(config.reducaoValorFixo - config.reducaoFator * salarioBruto);
-    redutor = r2(Math.max(0, Math.min(reducaoCalculada, impostoBruto)));
+  if (baseCalculo <= LEGISLACAO_2026.REDUTOR_IRRF_LIMITE_ZERO) {
+    redutor = Math.max(0, impostoBruto); // Zera o imposto
+  } else if (baseCalculo <= LEGISLACAO_2026.REDUTOR_IRRF_LIMITE_MAX) {
+    const reducaoCalculada = r2(LEGISLACAO_2026.REDUTOR_IRRF_VALOR_FIXO - (LEGISLACAO_2026.REDUTOR_IRRF_FATOR * baseCalculo));
+    redutor = Math.max(0, Math.min(reducaoCalculada, impostoBruto));
   }
 
-  // 4. IRRF Final
-  const irrfFinal = r2(Math.max(0, impostoBruto - redutor));
-
   return {
-    rendimentoTributavel: salarioBruto,
+    rendimentoTributavel: baseCalculo,
     baseTributavel,
-    deducaoINSS: inss,
+    deducaoINSS: 0, // No IRRF de férias/rescisão, o INSS já foi subtraído da baseCalculo passada
     deducaoDependentes,
-    deducaoPensao,
-    impostoBruto,
+    deducaoPensao: pensaoAlimenticia,
+    impostoBruto: Math.max(0, impostoBruto),
     redutor,
-    irrfFinal,
+    irrfFinal: r2(Math.max(0, impostoBruto - redutor))
   };
 }
 
-export function calcularFGTS(salarioBruto: number, config: CltLegislacaoConfig = DEFAULT_CONFIG_2026): number {
-  return r2(salarioBruto * config.fgtsAliquota);
+/**
+ * Função 3.1 - Férias (planejamento e conferência)
+ */
+export function calcularFerias(
+  salarioBase: number, 
+  mediaVariaveis: number, 
+  diasGozados: number, 
+  diasAbono: number, 
+  dependentes: number = 0
+) {
+  const remuneracaoFerias = r2((salarioBase + mediaVariaveis) / 30 * diasGozados);
+  const tercoConstit = r2(remuneracaoFerias / 3);
+  const abonoPecuniario = r2((salarioBase + mediaVariaveis) / 30 * diasAbono);
+  const tercoAbono = r2(abonoPecuniario / 3);
+
+  const totalBrutoTributavel = remuneracaoFerias + tercoConstit;
+  const inss = calcularINSSClt(totalBrutoTributavel);
+  const irrf = calcularIRRFMensal(totalBrutoTributavel - inss.total, dependentes);
+
+  const liquidoFeriasEstimado = r2(totalBrutoTributavel - inss.total - irrf.irrfFinal);
+  const liquidoAbono = r2(abonoPecuniario + tercoAbono);
+
+  return { 
+    liquidoFeriasEstimado, 
+    liquidoAbono, 
+    tercoConstit,
+    brutoTributavel: totalBrutoTributavel,
+    inss: inss.total,
+    irrf: irrf.irrfFinal
+  };
 }
 
-export function calcularDataRecebimento(mesAno: string): string {
-  const [year, month] = mesAno.split('-').map(Number);
-  let nextMonth = month + 1;
-  let nextYear = year;
-  if (nextMonth > 12) { nextMonth = 1; nextYear++; }
-
-  const feriadosFixos = [
-    `${nextYear}-01-01`, `${nextYear}-04-21`, `${nextYear}-05-01`,
-    `${nextYear}-09-07`, `${nextYear}-10-12`, `${nextYear}-11-02`,
-    `${nextYear}-11-15`, `${nextYear}-12-25`,
-  ];
-
-  let diasUteis = 0;
-  let dia = 0;
-
-  while (diasUteis < 5) {
-    dia++;
-    const date = new Date(nextYear, nextMonth - 1, dia);
-    const dayOfWeek = date.getDay();
-    const dateStr = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
-
-    if (dayOfWeek === 0) continue;
-    if (feriadosFixos.includes(dateStr)) continue;
-
-    diasUteis++;
+/**
+ * Função 3.2 - FGTS (decisão sobre saldo informado)
+ */
+export function calcularSaqueAniversario(saldoInformado: number): number {
+  for (const faixa of LEGISLACAO_2026.FGTS_SAQUE_ANIVERSARIO) {
+    if (saldoInformado <= faixa.ate) {
+      return r2(saldoInformado * faixa.aliquota + faixa.parcelaAdicional);
+    }
   }
-
-  return `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+  return 0;
 }
 
-export interface CompetenciaCalcResult {
-  salarioBruto: number;
-  inss: INSSResult;
-  irrf: IRRFResult;
-  fgts: number;
-  salarioLiquido: number;
+export function calcularMultaFgts(saldoInformado: number, tipoRescisao: RescisaoTipo): number {
+  if (tipoRescisao === RescisaoTipo.SEM_JUSTA_CAUSA || tipoRescisao === RescisaoTipo.RESCISAO_INDIRETA) {
+    return r2(saldoInformado * 0.40);
+  }
+  if (tipoRescisao === RescisaoTipo.ACORDO_MUTUO_484A) {
+    return r2(saldoInformado * 0.20);
+  }
+  return 0;
 }
 
-export function calcularCompetencia(
-  contrato: CltContract,
-  mesAno: string,
-  tipo: CltCompetenciaTipo,
-  config: CltLegislacaoConfig = DEFAULT_CONFIG_2026
-): CompetenciaCalcResult {
-  const salarioBruto = contrato.salarioBrutoAtual;
-  const dependentes = contrato.dependentes;
-  const pensao = contrato.pensaoAlimenticia || 0;
-
-  if (tipo === '13_primeira') {
-    const valor = r2(salarioBruto / 2);
-    return {
-      salarioBruto: valor,
-      inss: { total: 0, detalhePorFaixa: [], aliquotaEfetiva: 0 },
-      irrf: {
-        rendimentoTributavel: valor, baseTributavel: 0, deducaoINSS: 0,
-        deducaoDependentes: 0, deducaoPensao: 0, impostoBruto: 0, redutor: 0, irrfFinal: 0
-      },
-      fgts: calcularFGTS(valor, config),
-      salarioLiquido: valor,
-    };
+/**
+ * Função 3.4 - Seguro-desemprego (elegibilidade e valor)
+ */
+export function calcularParcelaSeguroDesemprego(mediaUltimos3Salarios: number): number {
+  if (mediaUltimos3Salarios <= LEGISLACAO_2026.SEGURO_DESEMPREGO_FAIXAS[0].ate) {
+    return Math.max(LEGISLACAO_2026.SEGURO_DESEMPREGO_PISO, r2(mediaUltimos3Salarios * 0.8));
   }
-
-  if (tipo === '13_segunda') {
-    const inss = calcularINSS(salarioBruto, config);
-    const irrf = calcularIRRF(salarioBruto, inss.total, dependentes, pensao, config);
-    const primeiraParc = r2(salarioBruto / 2);
-    const liquido = r2(salarioBruto - primeiraParc - inss.total - irrf.irrfFinal);
-    return {
-      salarioBruto: r2(salarioBruto - primeiraParc),
-      inss,
-      irrf,
-      fgts: calcularFGTS(salarioBruto, config),
-      salarioLiquido: liquido,
-    };
+  if (mediaUltimos3Salarios <= LEGISLACAO_2026.SEGURO_DESEMPREGO_FAIXAS[1].ate!) {
+    const base = LEGISLACAO_2026.SEGURO_DESEMPREGO_FAIXAS[1].base!;
+    const fator = LEGISLACAO_2026.SEGURO_DESEMPREGO_FAIXAS[1].fator;
+    const excedente = mediaUltimos3Salarios - LEGISLACAO_2026.SEGURO_DESEMPREGO_FAIXAS[0].ate;
+    return r2(base + excedente * fator);
   }
-
-  const inss = calcularINSS(salarioBruto, config);
-  const irrf = calcularIRRF(salarioBruto, inss.total, dependentes, pensao, config);
-  const fgts = calcularFGTS(salarioBruto, config);
-  const salarioLiquido = r2(salarioBruto - inss.total - irrf.irrfFinal);
-
-  return { salarioBruto, inss, irrf, fgts, salarioLiquido };
+  return LEGISLACAO_2026.SEGURO_DESEMPREGO_TETO;
 }
 
-export function gerarCompetenciasAno(contrato: CltContract, config: CltLegislacaoConfig = DEFAULT_CONFIG_2026): CltCompetencia[] {
-  const [anoInicio, mesInicio] = contrato.dataInicioGestao.split('-').map(Number);
-  const anoAtual = new Date().getFullYear();
-  const ano = Math.max(anoInicio, anoAtual);
-  const competencias: CltCompetencia[] = [];
-  const startMonth = ano === anoInicio ? mesInicio : 1;
+/**
+ * Função 3.5 - Motor de rescisão (função central do módulo)
+ */
+export function calcularRescisao(
+  vinculo: VinculoCLT, 
+  eventoRescisao: EventoRescisao,
+  mediaVariaveis: number = 0,
+  dependentes: number = 0
+) {
+  const verbas: Record<string, number> = {};
+  const dataDesligamento = new Date(eventoRescisao.data_desligamento);
+  const diaDesligamento = dataDesligamento.getDate();
+  const mesDesligamento = dataDesligamento.getMonth() + 1;
 
-  for (let m = startMonth; m <= 12; m++) {
-    const mesAno = `${ano}-${String(m).padStart(2, '0')}`;
-    const calc = calcularCompetencia(contrato, mesAno, 'normal', config);
-    competencias.push(buildCompetencia(contrato.id, mesAno, 'normal', calc));
+  // 1. Saldo de Salário
+  verbas.saldoSalario = r2(vinculo.salario_base_atual / 30 * diaDesligamento);
+
+  // 2. 13º Proporcional
+  // Simplificação: avos = mesDesligamento (se trabalhou > 14 dias no mês)
+  const avos13 = diaDesligamento >= 15 ? mesDesligamento : mesDesligamento - 1;
+  verbas.decimoTerceiroProporcional = r2((vinculo.salario_base_atual + mediaVariaveis) / 12 * avos13);
+
+  // 3. Férias (Simplificado conforme plano)
+  // O plano diz que as férias vencidas/proporcionais são calculadas aqui
+  // Supondo que o usuário informe os avos ou que calculemos pela data de admissão
+  const dataAdmissao = new Date(vinculo.data_admissao);
+  const diffTime = Math.abs(dataDesligamento.getTime() - dataAdmissao.getTime());
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const anosCompletos = Math.floor(diffDays / 365);
+  const mesesProporcionais = Math.floor((diffDays % 365) / 30);
+  
+  // Férias Proporcionais
+  const avosFerias = diaDesligamento >= 15 ? mesesProporcionais + 1 : mesesProporcionais;
+  verbas.feriasProporcionais = r2((vinculo.salario_base_atual + mediaVariaveis) / 12 * avosFerias);
+  verbas.tercoFeriasProporcionais = r2(verbas.feriasProporcionais / 3);
+
+  // 4. Lógica por Tipo de Rescisao
+  let direitoSeguroDesemprego = false;
+  
+  switch (eventoRescisao.tipo_rescisao) {
+    case RescisaoTipo.SEM_JUSTA_CAUSA:
+    case RescisaoTipo.RESCISAO_INDIRETA: {
+      // Aviso Prévio Lei 12.506/2011: 30d + 3d/ano, máx 90d
+      const diasAviso = Math.min(90, 30 + (anosCompletos * 3));
+      if (eventoRescisao.aviso_previo === AvisoPrevioTipo.INDENIZADO) {
+        verbas.avisoPrevioIndenizado = r2((vinculo.salario_base_atual + mediaVariaveis) / 30 * diasAviso);
+      }
+      verbas.multaFgts = calcularMultaFgts(eventoRescisao.saldo_fgts_informado, RescisaoTipo.SEM_JUSTA_CAUSA);
+      direitoSeguroDesemprego = true;
+      break;
+    }
+
+    case RescisaoTipo.PEDIDO_DEMISSAO:
+      if (eventoRescisao.aviso_previo === AvisoPrevioTipo.NAO_CUMPRIDO_PARCIAL) {
+        verbas.descontoAvisoPrevio = -r2(vinculo.salario_base_atual);
+      }
+      break;
+
+    case RescisaoTipo.JUSTA_CAUSA:
+      verbas.feriasProporcionais = 0;
+      verbas.tercoFeriasProporcionais = 0;
+      verbas.decimoTerceiroProporcional = 0;
+      break;
+
+    case RescisaoTipo.ACORDO_MUTUO_484A: {
+      const diasAvisoAcordo = Math.min(90, 30 + (anosCompletos * 3)) * 0.5;
+      verbas.avisoPrevioIndenizado = r2((vinculo.salario_base_atual + mediaVariaveis) / 30 * diasAvisoAcordo);
+      verbas.multaFgts = calcularMultaFgts(eventoRescisao.saldo_fgts_informado, RescisaoTipo.ACORDO_MUTUO_484A);
+      verbas.saqueFgtsPermitido = r2(eventoRescisao.saldo_fgts_informado * 0.80);
+      break;
+    }
   }
 
-  if (startMonth <= 11) {
-    const mesAno13_1 = `${ano}-11`;
-    const calc13_1 = calcularCompetencia(contrato, mesAno13_1, '13_primeira', config);
-    competencias.push(buildCompetencia(contrato.id, mesAno13_1, '13_primeira', calc13_1));
-  }
+  // Tributação (INSS/IRRF incidem sobre verbas REMUNERATÓRIAS)
+  const baseTributavelRescisao = verbas.saldoSalario + verbas.decimoTerceiroProporcional;
+  const inss = calcularINSSClt(baseTributavelRescisao);
+  const irrf = calcularIRRFMensal(baseTributavelRescisao - inss.total, dependentes);
 
-  if (startMonth <= 12) {
-    const mesAno13_2 = `${ano}-12`;
-    const calc13_2 = calcularCompetencia(contrato, mesAno13_2, '13_segunda', config);
-    competencias.push(buildCompetencia(contrato.id, mesAno13_2, '13_segunda', calc13_2));
+  verbas.inss = -inss.total;
+  verbas.irrf = -irrf.irrfFinal;
+
+  const totalLiquido = Object.values(verbas).reduce((acc, val) => acc + val, 0);
+
+  return {
+    detalhamento_verbas: verbas,
+    total_liquido_estimado: r2(totalLiquido),
+    multa_fgts_aplicada: verbas.multaFgts || 0,
+    tem_direito_seguro_desemprego: direitoSeguroDesemprego
+  };
+}
+
+/**
+ * Wrapper para calcularIRRFMensal (compatibilidade)
+ */
+export function calcularIRRF(baseCalculo: number, inssTotal: number, dependentes: number = 0, pensaoAlimenticia: number = 0, _config?: unknown) {
+  return calcularIRRFMensal(baseCalculo - inssTotal, dependentes, pensaoAlimenticia);
+}
+
+/**
+ * Calcula FGTS (compatibilidade)
+ */
+export function calcularFGTS(salarioBruto: number, _config?: unknown) {
+  return r2(salarioBruto * 0.08);
+}
+
+/**
+ * Calcula INSS (compatibilidade)
+ */
+export function calcularINSS(salarioBruto: number, _config?: unknown) {
+  return calcularINSSClt(salarioBruto);
+}
+
+/**
+ * Gera competências projetadas para o ano
+ */
+export function gerarCompetenciasAno(contract: any, _config?: any) {
+  const competencias: any[] = [];
+  const startMonth = new Date(contract.dataInicioGestao).getMonth() + 1;
+  const startYear = new Date(contract.dataInicioGestao).getFullYear();
+
+  for (let i = 0; i < 12; i++) {
+    const date = new Date(startYear, startMonth + i - 1, 1);
+    const mesAno = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    
+    // Normal month
+    const inss = calcularINSSClt(contract.salarioBrutoAtual);
+    const irrf = calcularIRRFMensal(contract.salarioBrutoAtual - inss.total, contract.dependentes, contract.pensaoAlimenticia);
+    
+    competencias.push({
+      id: `${contract.id}_${mesAno}_normal`,
+      contractId: contract.id,
+      mesAno,
+      tipo: 'normal',
+      salarioBruto: contract.salarioBrutoAtual,
+      inssTotal: inss.total,
+      irrfFinal: irrf.irrfFinal,
+      salarioLiquido: r2(contract.salarioBrutoAtual - inss.total - irrf.irrfFinal - contract.pensaoAlimenticia),
+      fgts: r2(contract.salarioBrutoAtual * 0.08),
+      status: 'pendente',
+      dependentes: contract.dependentes,
+      deducaoPensao: contract.pensaoAlimenticia,
+      baseIR: r2(contract.salarioBrutoAtual - inss.total),
+      impostoBruto: irrf.impostoBruto,
+      reducaoLei15270: irrf.redutor
+    });
+
+    // Handle 13th salary parcels (Simplified)
+    if (date.getMonth() + 1 === 11) {
+       // 1st installment
+       competencias.push({
+        id: `${contract.id}_${mesAno}_13_primeira`,
+        contractId: contract.id,
+        mesAno,
+        tipo: '13_primeira',
+        salarioBruto: r2(contract.salarioBrutoAtual / 2),
+        inssTotal: 0,
+        irrfFinal: 0,
+        salarioLiquido: r2(contract.salarioBrutoAtual / 2),
+        fgts: r2(contract.salarioBrutoAtual / 2 * 0.08),
+        status: 'pendente'
+      });
+    }
+    if (date.getMonth() + 1 === 12) {
+      // 2nd installment
+      const inss13 = calcularINSSClt(contract.salarioBrutoAtual);
+      const irrf13 = calcularIRRFMensal(contract.salarioBrutoAtual - inss13.total, contract.dependentes, contract.pensaoAlimenticia);
+      
+      competencias.push({
+        id: `${contract.id}_${mesAno}_13_segunda`,
+        contractId: contract.id,
+        mesAno,
+        tipo: '13_segunda',
+        salarioBruto: contract.salarioBrutoAtual,
+        inssTotal: inss13.total,
+        irrfFinal: irrf13.irrfFinal,
+        salarioLiquido: r2(contract.salarioBrutoAtual / 2 - inss13.total - irrf13.irrfFinal),
+        fgts: r2(contract.salarioBrutoAtual / 2 * 0.08),
+        status: 'pendente'
+      });
+    }
   }
 
   return competencias;
 }
 
-function buildCompetencia(
-  contractId: string,
-  mesAno: string,
-  tipo: CltCompetenciaTipo,
-  calc: CompetenciaCalcResult
-): CltCompetencia {
-  const id = `comp_${contractId}_${mesAno}_${tipo}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-  
-  let dataPrevista: string;
-  if (tipo === '13_primeira') {
-    dataPrevista = `${mesAno.split('-')[0]}-11-30`;
-  } else if (tipo === '13_segunda') {
-    dataPrevista = `${mesAno.split('-')[0]}-12-20`;
-  } else {
-    dataPrevista = calcularDataRecebimento(mesAno);
-  }
-
-  const comp: any = {
-    id,
-    contractId,
-    mesAno,
-    tipo,
-    salarioBruto: calc.salarioBruto,
-    dependentes: 0,
-    inssTotal: calc.inss.total,
-    inssDetalhePorFaixa: calc.inss.detalhePorFaixa,
-    inssAliquotaEfetiva: calc.inss.aliquotaEfetiva,
-    baseIR: calc.irrf.baseTributavel,
-    rendimentoTributavel: calc.irrf.rendimentoTributavel,
-    impostoBruto: calc.irrf.impostoBruto,
-    reducaoLei15270: calc.irrf.redutor,
-    irrfFinal: calc.irrf.irrfFinal,
-    deducaoDependentes: calc.irrf.deducaoDependentes,
-    deducaoPensao: calc.irrf.deducaoPensao,
-    fgts: calc.fgts,
-    salarioLiquido: calc.salarioLiquido,
-    isManualOverride: false,
-    status: 'pendente',
-    dataPrevistaRecebimento: dataPrevista,
-    auditLog: [],
-    createdAt: new Date().toISOString(),
-  };
-
-  return comp as CltCompetencia;
+export interface MatchingTransactionResult {
+  transaction: TransacaoCompleta;
+  confidence: number;
 }
 
-export const INSS_FAIXAS = DEFAULT_CONFIG_2026.inssFaixas;
-export const IRRF_FAIXAS = DEFAULT_CONFIG_2026.irrfFaixas;
-export const CONSTANTES = {
-  DEDUCAO_POR_DEPENDENTE: DEFAULT_CONFIG_2026.deducaoPorDependente,
-  FGTS_ALIQUOTA: DEFAULT_CONFIG_2026.fgtsAliquota,
-  REDUCAO_LIMITE_ZERO: DEFAULT_CONFIG_2026.reducaoLimiteZero,
-  REDUCAO_LIMITE_MAXIMO: DEFAULT_CONFIG_2026.reducaoLimiteMaximo,
-  REDUCAO_VALOR_FIXO: DEFAULT_CONFIG_2026.reducaoValorFixo,
-  REDUCAO_FATOR: DEFAULT_CONFIG_2026.reducaoFator,
-};
+/**
+ * Encontra transações de salário que batem com a competência
+ */
+export function findMatchingSalaryTransactions(
+  comp: any, 
+  transactions: TransacaoCompleta[],
+  _contract?: any
+): MatchingTransactionResult[] {
+  return transactions
+    .filter(t => {
+      if (t.operationType !== 'receita') return false;
+      
+      // Simple heuristic: amount matches liquid or is within 10%
+      const diff = Math.abs(t.amount - comp.salarioLiquido);
+      const isAmountMatch = diff < 10 || diff / comp.salarioLiquido < 0.1;
+      
+      // Date proximity (if available)
+      // Usually salary is paid near end of month or start of next
+      
+      return isAmountMatch;
+    })
+    .map(t => ({
+      transaction: t,
+      confidence: 0.8
+    }));
+}

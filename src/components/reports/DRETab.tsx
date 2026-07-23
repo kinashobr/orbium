@@ -3,7 +3,7 @@
 import React, { useMemo, useCallback } from "react";
 import { 
   TrendingUp, TrendingDown, DollarSign, Calculator, Minus, Plus, 
-  Sparkles, Receipt, Zap, PieChart, BarChart3, LineChart, Activity, Gauge, ArrowUpRight, ArrowDownRight, Target, PiggyBank
+  Sparkles, Receipt, Zap, PieChart, BarChart3, LineChart, Activity, Gauge, ArrowUpRight, ArrowDownRight, Target, PiggyBank, Award
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -17,19 +17,20 @@ import { IndicatorCard } from "./IndicatorCard";
 import { DREStatement } from "./DREStatement";
 
 interface DREData {
-  // Receita Total (operacional + rendimentos financeiros)
+  // Receita Total (operacional + rendimentos financeiros + descontos obtidos)
   rec: number;
   fix: number;
   var: number;
   juros: number;
   rendimentos: number;
+  descontosObtidos: number;
   // Resultado Líquido (Resultado Operacional + Resultado Financeiro)
   res: number;
   // Receita Operacional (apenas operationType = 'receita')
   receitaOperacional: number;
   // Resultado Operacional: Receita Operacional - Despesas Operacionais (fixas + variáveis)
   resultadoOperacional: number;
-  // Resultado Financeiro: Rendimentos - Juros
+  // Resultado Financeiro: Rendimentos + Descontos Obtidos - Juros
   resultadoFinanceiro: number;
   details: {
     receitas: { label: string; value: number; id: string }[];
@@ -75,9 +76,14 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       } catch { return false; }
     });
 
-    // Receita operacional (regime de caixa)
+    // Descontos obtidos financeiros (regime de caixa)
+    const descontosObtidos = txs
+      .filter((t) => t.categoryId === 'cat_descontos_obtidos' || categoriesMap.get(t.categoryId || '')?.label === 'Descontos Obtidos')
+      .reduce((a, t) => a + t.amount, 0);
+
+    // Receita operacional (regime de caixa) - excluindo descontos obtidos
     const receitaOperacional = txs
-      .filter((t) => t.operationType === 'receita')
+      .filter((t) => t.operationType === 'receita' && t.categoryId !== 'cat_descontos_obtidos' && categoriesMap.get(t.categoryId || '')?.label !== 'Descontos Obtidos')
       .reduce((a, t) => a + t.amount, 0);
 
     // Rendimentos financeiros (regime de caixa)
@@ -85,8 +91,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       .filter((t) => t.operationType === 'rendimento')
       .reduce((a, t) => a + t.amount, 0);
 
-    // Receita total do período (operacional + financeira)
-    const receitaTotal = receitaOperacional + rendimentos;
+    // Receita total do período (operacional + financeira + descontos)
+    const receitaTotal = receitaOperacional + rendimentos + descontosObtidos;
     
     const fix = txs
       .filter((t) => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_fixa')
@@ -111,8 +117,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     const despesasOperacionais = fix + var_;
     const resultadoOperacional = receitaOperacional - despesasOperacionais;
 
-    // Resultado financeiro: rendimentos - juros
-    const resultadoFinanceiro = rendimentos - juros;
+    // Resultado financeiro: rendimentos + descontos obtidos - juros
+    const resultadoFinanceiro = rendimentos + descontosObtidos - juros;
 
     // Resultado líquido do período (caixa): operacional + financeiro
     const resultadoLiquido = resultadoOperacional + resultadoFinanceiro;
@@ -129,6 +135,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         if (catNature !== nature) return false;
         // Se um operationType específico foi informado, filtramos também por ele
         if (operationType && t.operationType !== operationType) return false;
+        // Excluir cat_descontos_obtidos das receitas operacionais para não duplicar
+        if (t.categoryId === 'cat_descontos_obtidos') return false;
         return true;
       });
       const grouped = filteredTxs.reduce((acc, t) => {
@@ -140,12 +148,13 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     };
 
     return {
-      // rec passa a representar a Receita Total (operacional + financeira)
+      // rec passa a representar a Receita Total (operacional + financeira + descontos)
       rec: receitaTotal,
       fix,
       var: var_,
       juros,
       rendimentos,
+      descontosObtidos,
       res: resultadoLiquido,
       receitaOperacional,
       resultadoOperacional,
@@ -244,6 +253,13 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
           value: dre1.rendimentos,
           type: "detail",
           icon: Sparkles,
+          color: "text-success",
+        },
+        {
+          label: "Descontos Obtidos",
+          value: dre1.descontosObtidos,
+          type: "detail",
+          icon: Award,
           color: "text-success",
         },
         {

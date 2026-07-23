@@ -17,19 +17,15 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onSave: (contract: CltContract) => void;
   editingContract?: CltContract;
-  legislacaoConfig?: CltLegislacaoConfig;
 }
 
-export function CltContractFormModal({ open, onOpenChange, onSave, editingContract, legislacaoConfig }: Props) {
+export function CltContractFormModal({ open, onOpenChange, onSave, editingContract }: Props) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [empresa, setEmpresa] = useState("");
   const [dataAdmissao, setDataAdmissao] = useState("");
   const [salarioBruto, setSalarioBruto] = useState("");
-  const [dependentes, setDependentes] = useState("0");
-  const [pensaoAlimenticia, setPensaoAlimenticia] = useState("0");
   const [dataInicioGestao, setDataInicioGestao] = useState("");
-
-  const config = legislacaoConfig || DEFAULT_CONFIG_2026;
+  const [dataInicioControle, setDataInicioControle] = useState("");
 
   useEffect(() => {
     if (open) {
@@ -37,31 +33,17 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
         setEmpresa(editingContract.empresa);
         setDataAdmissao(editingContract.dataAdmissao);
         setSalarioBruto(editingContract.salarioBrutoAtual.toString());
-        setDependentes(editingContract.dependentes.toString());
-        setPensaoAlimenticia(editingContract.pensaoAlimenticia.toString());
         setDataInicioGestao(editingContract.dataInicioGestao);
+        setDataInicioControle(editingContract.dataInicioControle || editingContract.dataAdmissao);
       } else {
         setEmpresa("");
         setDataAdmissao("");
         setSalarioBruto("");
-        setDependentes("0");
-        setPensaoAlimenticia("0");
         setDataInicioGestao(new Date().toISOString().split('T')[0]);
+        setDataInicioControle("");
       }
     }
   }, [open, editingContract]);
-
-  const preview = useMemo(() => {
-    const bruto = parseFloat(salarioBruto);
-    if (!bruto || bruto <= 0) return null;
-    const deps = parseInt(dependentes) || 0;
-    const pensao = parseFloat(pensaoAlimenticia) || 0;
-    const inss = calcularINSS(bruto, config);
-    const irrf = calcularIRRF(bruto, inss.total, deps, pensao, config);
-    const fgts = calcularFGTS(bruto, config);
-    const liquido = bruto - inss.total - irrf.irrfFinal;
-    return { inss: inss.total, irrf: irrf.irrfFinal, fgts, liquido };
-  }, [salarioBruto, dependentes, pensaoAlimenticia, config]);
 
   const handleSave = () => {
     if (!empresa.trim() || !dataAdmissao || !salarioBruto || !dataInicioGestao) return;
@@ -71,11 +53,12 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
       empresa: empresa.trim(),
       dataAdmissao,
       salarioBrutoAtual: parseFloat(salarioBruto),
-      dependentes: parseInt(dependentes) || 0,
-      pensaoAlimenticia: parseFloat(pensaoAlimenticia) || 0,
+      dependentes: editingContract?.dependentes || 0,
+      pensaoAlimenticia: 0,
       dataInicioGestao,
+      dataInicioControle: dataInicioControle || dataAdmissao,
       status: editingContract?.status || 'ativo',
-      legislacaoConfigId: editingContract?.legislacaoConfigId,
+      legislacaoConfigId: undefined,
       createdAt: editingContract?.createdAt || new Date().toISOString(),
       auditLog: editingContract?.auditLog || [],
     };
@@ -111,7 +94,7 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
             </div>
             <div>
               <DialogTitle className="text-2xl font-black tracking-tighter">
-                {editingContract ? "Editar Vínculo" : "Novo Vínculo de Recebimento"}
+                {editingContract ? "Editar Contrato Assalariado" : "Novo Contrato Assalariado"}
               </DialogTitle>
               <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-1.5 mt-1">
                 <Sparkles className="w-3.5 h-3.5 text-primary" /> Inteligência de Receitas
@@ -152,37 +135,10 @@ export function CltContractFormModal({ open, onOpenChange, onSave, editingContra
                 </div>
               </div>
               <div className="space-y-2 p-1">
-                <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Dependentes</Label>
-                <Input type="number" value={dependentes} onChange={e => setDependentes(e.target.value)} className="h-12 text-lg font-black rounded-2xl border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner text-center" />
+                <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Início do Controle no Sistema</Label>
+                <Input type="date" value={dataInicioControle} onChange={e => setDataInicioControle(e.target.value)} className="h-11 rounded-2xl border-none bg-muted/20 font-bold shadow-inner text-sm px-4" />
               </div>
             </div>
-
-            <div className="space-y-2 p-1">
-              <Label className="text-[11px] font-black uppercase tracking-[0.15em] text-muted-foreground px-2">Deduções / Pensão</Label>
-              <div className="relative">
-                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/40">R$</span>
-                 <Input type="number" step="0.01" value={pensaoAlimenticia} onChange={e => setPensaoAlimenticia(e.target.value)} placeholder="0,00" className="h-12 pl-10 text-lg font-black rounded-2xl border-none bg-muted/20 focus:bg-muted/40 transition-all shadow-inner tabular-nums" />
-              </div>
-            </div>
-
-            {preview && (
-              <div className="rounded-[2rem] bg-primary/[0.03] border-2 border-dashed border-primary/20 p-6 space-y-4 animate-in fade-in zoom-in duration-500">
-                <div className="flex items-center gap-2">
-                  <Info className="w-4 h-4 text-primary" />
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Memória de Cálculo</span>
-                </div>
-                <div className="flex justify-between items-end pt-1">
-                   <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Salário Líquido Estimado</span>
-                      <p className="text-3xl font-black tabular-nums text-primary leading-none tracking-tighter">{formatCurrency(preview.liquido)}</p>
-                   </div>
-                   <div className="text-right pb-1">
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">FGTS</span>
-                      <span className="font-black text-base tabular-nums">{formatCurrency(preview.fgts)}</span>
-                   </div>
-                </div>
-              </div>
-            )}
           </div>
         </ScrollArea>
 

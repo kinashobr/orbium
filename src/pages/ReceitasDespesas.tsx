@@ -21,7 +21,6 @@ import { BillsTrackerModal } from "@/components/bills/BillsTrackerModal";
 import { StatementManagerDialog } from "@/components/transactions/StatementManagerDialog";
 import { StandardizationRuleManagerModal } from "@/components/transactions/StandardizationRuleManagerModal";
 import { useFinance } from "@/contexts/FinanceContext";
-import { CltModule } from "@/components/clt/CltModule";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -77,7 +76,6 @@ const ReceitasDespesas = () => {
   const [showBillsTrackerModal, setShowBillsTrackerModal] = useState(false);
   const [showStatementManagerDialog, setShowStatementManagerDialog] = useState(false);
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
-  const [showCltModule, setShowCltModule] = useState(false);
 
   const transactions = transacoesV2;
   const transacoesPeriodo1 = useMemo(() => {
@@ -242,7 +240,7 @@ const ReceitasDespesas = () => {
 
         <section className="flex flex-wrap gap-2 px-1 animate-fade-in-up">
           <Button variant="outline" onClick={() => navigate("/contas-pagar")} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><CalendarCheck className="h-4 w-4 text-primary" /><span className="font-bold text-sm hidden sm:inline">Contas a Pagar</span><span className="font-bold text-sm sm:hidden">Contas</span></Button>
-          <Button variant="outline" onClick={() => setShowCltModule(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Briefcase className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Recebimentos</span></Button>
+          <Button variant="outline" onClick={() => navigate("/recebimentos")} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Briefcase className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Recebimentos</span></Button>
           <Button variant="outline" onClick={() => setShowCategoryListModal(true)} className="h-10 rounded-full gap-2 px-4 sm:px-5 border-border/40 bg-card/50 backdrop-blur-sm flex-1 sm:flex-none justify-center"><Tags className="h-4 w-4 text-primary" /><span className="font-bold text-sm">Categorias</span></Button>
         </section>
 
@@ -343,7 +341,6 @@ const ReceitasDespesas = () => {
       <BillsTrackerModal open={showBillsTrackerModal} onOpenChange={setShowBillsTrackerModal} />
       <StatementManagerDialog open={showStatementManagerDialog} onOpenChange={setShowStatementManagerDialog} initialAccountId={viewingAccountId || undefined} onStartConsolidatedReview={id => navigate(`/revisao-extrato?accountId=${id}`)} onManageRules={handleManageRules} />
       <StandardizationRuleManagerModal open={showRuleManagerModal} onOpenChange={setShowRuleManagerModal} rules={standardizationRules} onDeleteRule={deleteStandardizationRule} categories={categories} />
-      <CltModule open={showCltModule} onOpenChange={setShowCltModule} />
     </MainLayout>
   );
 };

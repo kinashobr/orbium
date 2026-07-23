@@ -250,6 +250,35 @@ html::-webkit-scrollbar-track {
     background: transparent;
   }
 
+  /* Scrollbar Fina Customizada - 50% do tamanho padrão */
+  .custom-scrollbar,
+  .scrollbar-thin-custom {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--primary) / 0.3) transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar,
+  .scrollbar-thin-custom::-webkit-scrollbar {
+    height: 3px;
+    width: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb,
+  .scrollbar-thin-custom::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.35);
+    border-radius: 9999px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover,
+  .scrollbar-thin-custom::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--primary) / 0.6);
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track,
+  .scrollbar-thin-custom::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
   /* Animações Customizadas */
   @keyframes fadeInUp {
     from {

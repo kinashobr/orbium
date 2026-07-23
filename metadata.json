@@ -1,4 +1,5 @@
 {
   "name": "ORBIUM",
-  "description": "Uma landing page moderna para um gestor de finanças pessoais inteligente, integrando análise preditiva com IA para ajudar os usuários a alcançarem a liberdade financeira."
+  "description": "Dashboard financeiro moderno com controle de receitas, despesas, investimentos e patrimônio.",
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
