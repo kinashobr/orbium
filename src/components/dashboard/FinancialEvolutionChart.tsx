@@ -96,7 +96,7 @@ export const FinancialEvolutionChart = () => {
     }));
   };
 
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Record<string, unknown>[]; label?: string }) => {
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ name?: string; value?: number; color?: string; [key: string]: any }>; label?: string }) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-surface-light/90 dark:bg-surface-dark/90 backdrop-blur-xl p-4 rounded-2xl shadow-soft border border-border/40 space-y-2 min-w-[200px]">
@@ -108,7 +108,7 @@ export const FinancialEvolutionChart = () => {
                 <span className="text-[10px] font-bold text-muted-foreground uppercase">{entry.name}</span>
               </div>
               <span className="text-xs font-extrabold text-foreground tabular-nums">
-                {formatCurrency(entry.value)}
+                {formatCurrency(Number(entry.value || 0))}
               </span>
             </div>
           ))}

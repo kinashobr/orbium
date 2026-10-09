@@ -17,67 +17,12 @@ import { useChartColors } from "@/hooks/useChartColors";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, TrendingUp } from "lucide-react";
+import { getBillCategoryLabel } from "@/lib/expenseSnapshotHelper";
 
 const CATEGORY_COLORS = [
   "#6366f1", "#8b5cf6", "#ec4899", "#f43f5e", "#f97316", 
   "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#64748b"
 ];
-
-const getBillCategoryLabel = (bill: any, categoriasV2: Categoria[]) => {
-  const categoryId = bill.suggestedCategoryId || bill.categoryId;
-  if (categoryId) {
-    const category = categoriasV2.find(c => c.id === categoryId);
-    if (category) return category.label;
-  }
-
-  const desc = (bill.description || "").toLowerCase();
-  if (desc.includes("academia")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("academia"));
-    if (cat) return cat.label;
-    return "Academia";
-  }
-  if (desc.includes("energia") || desc.includes("luz")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("energia") || c.label.toLowerCase().includes("luz"));
-    if (cat) return cat.label;
-    return "Energia Elétrica";
-  }
-  if (desc.includes("internet") || desc.includes("wifi")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("internet") || c.label.toLowerCase().includes("wifi"));
-    if (cat) return cat.label;
-    return "Internet";
-  }
-  if (desc.includes("seguro")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("seguro"));
-    if (cat) return cat.label;
-    return "Seguro";
-  }
-  if (desc.includes("cabelo") || desc.includes("remedio") || desc.includes("remédio") || desc.includes("vitamina") || desc.includes("manual")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("médic") || c.label.toLowerCase().includes("remedio") || c.label.toLowerCase().includes("saúde") || c.label.toLowerCase().includes("vitamin"));
-    if (cat) return cat.label;
-    return "Remédios e Vitaminas";
-  }
-  if (desc.includes("combustivel") || desc.includes("gasolina") || desc.includes("posto")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("combustiv"));
-    if (cat) return cat.label;
-    return "Combustivel";
-  }
-  if (desc.includes("barbeiro") || desc.includes("cabelereiro") || desc.includes("corte")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("barbeir") || c.label.toLowerCase().includes("cabel"));
-    if (cat) return cat.label;
-    return "Barbeiro / Cabelereiro";
-  }
-  if (desc.includes("empréstimo") || desc.includes("emprestimo") || desc.includes("financiamento")) {
-    const cat = categoriasV2.find(c => c.label.toLowerCase().includes("empréstimo") || c.label.toLowerCase().includes("emprestimo") || c.label.toLowerCase().includes("financiamento"));
-    if (cat) return cat.label;
-    return "Financiam.";
-  }
-
-  if (bill.sourceType === "card_invoice") return "Fatura";
-  if (bill.sourceType === "loan_installment") return "Financiam.";
-  if (bill.sourceType === "insurance_installment") return "Seguro";
-
-  return "Compromissos Planejados";
-};
 
 export const ExpenseComparisonCharts = () => {
   const { 
@@ -88,12 +33,18 @@ export const ExpenseComparisonCharts = () => {
     getBillsForMonth,
     getOtherPaidExpensesForMonth,
     generateInvoiceBills,
-    autoPopulateFixedBills
+    autoPopulateFixedBills,
+    getExpenseSnapshot,
   } = useFinance();
   const colors = useChartColors();
   const [showTotalBudget, setShowTotalBudget] = useState(false);
-  const now = new Date();
-  const prevMonth = subMonths(now, 1);
+  const now = useMemo(() => new Date(), []);
+  const prevMonth = useMemo(() => subMonths(now, 1), [now]);
+
+  // Snapshot do mês atual gravado via Contas a Pagar
+  const currMonthKey = useMemo(() => format(now, 'yyyy-MM'), [now]);
+  const currMonthSnapshot = useMemo(() => getExpenseSnapshot(currMonthKey), [getExpenseSnapshot, currMonthKey]);
+  const hasSnapshot = Boolean(currMonthSnapshot && currMonthSnapshot.categories.length > 0);
 
   // Auto-populate fixed bills when component loads so we have correct dashboard stats
   useEffect(() => {
@@ -133,7 +84,7 @@ export const ExpenseComparisonCharts = () => {
           }
         });
       } else {
-        // Orçado (Total Planned): computed purely from the bills displayed in "Contas a Pagar" for that month!
+        // Fallback orçado dinâmico: calculado quando não há snapshot
         const trackerManagedBills = getBillsForMonth(date);
         const externalPaidBills = getOtherPaidExpensesForMonth(date);
         const invoiceBills = generateInvoiceBills(date);
@@ -171,12 +122,17 @@ export const ExpenseComparisonCharts = () => {
         .sort((a, b) => b.value - a.value);
     };
 
+    // Se o usuário possui snapshot do mês gravado, usamos o snapshot fixado como o Orçado!
+    const plannedCategories = hasSnapshot && currMonthSnapshot 
+      ? currMonthSnapshot.categories 
+      : getCategoryData(calculationNow, 'total');
+
     return {
       prevMonthData: getCategoryData(calculationPrevMonth, 'realized'),
       currMonthData: getCategoryData(calculationNow, 'realized'),
-      currMonthPlannedData: getCategoryData(calculationNow, 'total')
+      currMonthPlannedData: plannedCategories
     };
-  }, [transacoesV2, billsTracker, categoriasV2, getBillsForMonth, getOtherPaidExpensesForMonth, generateInvoiceBills]);
+  }, [transacoesV2, billsTracker, categoriasV2, getBillsForMonth, getOtherPaidExpensesForMonth, generateInvoiceBills, hasSnapshot, currMonthSnapshot]);
 
   const activeCurrData = showTotalBudget ? currMonthPlannedData : currMonthData;
 

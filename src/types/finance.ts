@@ -1,3 +1,5 @@
+import type { HoleriteCompetenciaData } from "./clt";
+
 // ============================================
 // SCHEMA v1.1 - Tipos para Receitas & Despesas
 // ============================================
@@ -438,6 +440,34 @@ export interface ExternalPaidBill {
 export type BillDisplayItem = BillTracker | ExternalPaidBill;
 
 // ============================================
+// NOVO: SNAPSHOT DE DESPESAS (ORÇADO MENSAL)
+// ============================================
+
+export interface ExpenseSnapshotItem {
+  id: string;
+  description: string;
+  expectedAmount: number;
+  categoryName: string;
+  categoryId?: string | null;
+  dueDate?: string;
+  sourceType?: string;
+}
+
+export interface ExpenseSnapshotCategory {
+  name: string;
+  value: number;
+}
+
+export interface MonthlyExpenseSnapshot {
+  monthKey: string; // 'yyyy-MM'
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+  totalAmount: number;
+  categories: ExpenseSnapshotCategory[];
+  items?: ExpenseSnapshotItem[];
+}
+
+// ============================================
 // NOVO: IMPORTAÇÃO E PADRONIZAÇÃO
 // ============================================
 
@@ -643,6 +673,7 @@ export interface FinanceExportV2 {
     eventosRescisao?: EventoRescisao[];
     historicosContribuicaoINSS?: HistoricoContribuicaoINSS[];
     ignoredTxIds?: string[];
+    expenseSnapshots?: Record<string, MonthlyExpenseSnapshot>;
     
     // Configuration/Context States
     monthlyRevenueForecast: number;

@@ -27,7 +27,19 @@ import { VehicleDetailDialog } from "@/components/vehicles/VehicleDetailDialog";
 import { ImovelFormModal } from "@/components/vehicles/ImovelFormModal";
 
 export const AssetCards = () => {
-  const { veiculos, imoveis, terrenos, segurosVeiculo, updateVeiculo, deleteImovel, deleteTerreno, saveImovel, saveTerreno } = useFinance();
+  const { 
+    veiculos, 
+    imoveis, 
+    terrenos, 
+    segurosVeiculo, 
+    updateVeiculo, 
+    deleteImovel, 
+    deleteTerreno, 
+    addImovel, 
+    updateImovel, 
+    addTerreno, 
+    updateTerreno 
+  } = useFinance();
   
   const [showVehicleDetail, setShowVehicleDetail] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Veiculo | null>(null);
@@ -35,6 +47,22 @@ export const AssetCards = () => {
   const [showImovelModal, setShowImovelModal] = useState(false);
   const [imovelModalType, setImovelModalType] = useState<'imovel' | 'terreno'>('imovel');
   const [editingImovel, setEditingImovel] = useState<Imovel | Terreno | null>(null);
+
+  const handleSaveImovelOrTerreno = (data: Partial<Imovel | Terreno>) => {
+    if (imovelModalType === 'imovel') {
+      if (editingImovel) {
+        updateImovel(editingImovel.id, data as Partial<Imovel>);
+      } else {
+        addImovel(data as Omit<Imovel, "id">);
+      }
+    } else {
+      if (editingImovel) {
+        updateTerreno(editingImovel.id, data as Partial<Terreno>);
+      } else {
+        addTerreno(data as Omit<Terreno, "id">);
+      }
+    }
+  };
 
   const handleViewVehicle = (v: Veiculo) => {
     setSelectedVehicle(v);
@@ -356,6 +384,8 @@ export const AssetCards = () => {
         open={showVehicleDetail}
         onOpenChange={setShowVehicleDetail}
         veiculo={selectedVehicle}
+        seguro={selectedVehicle ? getVehicleInsurance(selectedVehicle.id) : undefined}
+        onUpdateFipe={() => {}}
         onUpdateVeiculo={updateVeiculo}
       />
       
@@ -364,7 +394,7 @@ export const AssetCards = () => {
         onOpenChange={setShowImovelModal}
         type={imovelModalType}
         editingAsset={editingImovel}
-        onSubmit={imovelModalType === 'imovel' ? saveImovel : saveTerreno}
+        onSubmit={handleSaveImovelOrTerreno}
         onDelete={imovelModalType === 'imovel' ? deleteImovel : deleteTerreno}
       />
     </div>

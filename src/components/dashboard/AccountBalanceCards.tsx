@@ -21,7 +21,12 @@ const AccountBackgroundIcon = ({ type, name, className }: { type: string; name?:
   return <IconComponent className={cn("w-40 h-40", className)} />;
 };
 
-export const AccountBalanceCards = () => {
+interface AccountBalanceCardsProps {
+  orbPhase?: 1 | 2 | 3;
+}
+
+export const AccountBalanceCards = ({ orbPhase = 1 }: AccountBalanceCardsProps) => {
+  const isPhase3 = orbPhase === 3;
   const { 
     contasMovimento, 
     categoriasV2, 
@@ -111,14 +116,26 @@ export const AccountBalanceCards = () => {
     <div className="space-y-6">
       {/* Normal Accounts Section */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between px-2">
+        <div className={cn("flex items-center justify-between px-2 transition-all duration-700 origin-left", isPhase3 && "translate-x-2.5 -translate-y-1 rotate-[1.4deg]")}>
           <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Saldos Disponíveis</h3>
         </div>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {activeAccounts.map((account) => {
+          {activeAccounts.map((account, index) => {
             const balance = calculateBalanceUpToDate(account.id, new Date(), transacoesV2, contasMovimento);
             const isNegative = balance < 0;
+
+            // Efeito de atração gravitacional em direção ao topo direito (Buraco Negro)
+            // Gradiente de atração: cards mais à direita sofrem puxão mais intenso para cima/direita
+            const pullClass = isPhase3
+              ? index === 0
+                ? "-translate-y-2 translate-x-1.5 rotate-[1.5deg]"
+                : index === 1
+                ? "-translate-y-3.5 translate-x-2.5 rotate-[2.6deg]"
+                : index === 2
+                ? "-translate-y-4.5 translate-x-3.5 rotate-[3.4deg]"
+                : "-translate-y-5.5 translate-x-4 rotate-[4deg]"
+              : "";
 
             return (
               <div
@@ -126,8 +143,9 @@ export const AccountBalanceCards = () => {
                 id={`account-card-${account.id}`}
                 onClick={() => handleAccountClick(account)}
                 className={cn(
-                  "group relative overflow-hidden p-5 rounded-[24px] cursor-pointer transition-all duration-300",
-                  "bg-card border border-border/80 dark:border-border/40 shadow-soft hover:shadow-soft-lg hover:-translate-y-1"
+                  "group relative overflow-hidden p-5 rounded-[24px] cursor-pointer transition-all duration-700",
+                  "bg-card border border-border/80 dark:border-border/40 shadow-soft hover:shadow-soft-lg hover:-translate-y-1",
+                  pullClass
                 )}
               >
                 {/* Background Accent Decorative Icon */}
@@ -176,12 +194,20 @@ export const AccountBalanceCards = () => {
       {/* Credit Cards Section */}
       {creditCardAccounts.length > 0 && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between px-2">
+          <div className={cn("flex items-center justify-between px-2 transition-all duration-700 origin-left", isPhase3 && "translate-x-2 -translate-y-1 rotate-[1.2deg]")}>
             <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Cartões de Crédito</h3>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {creditCardAccounts.map(account => (
-              <CreditCardSummaryCard key={account.id} account={account} />
+            {creditCardAccounts.map((account, index) => (
+              <div
+                key={account.id}
+                className={cn(
+                  "transition-all duration-700",
+                  isPhase3 && (index === 0 ? "-translate-y-1.5 translate-x-1.5 rotate-[1.4deg]" : "-translate-y-3 translate-x-2.5 rotate-[2.5deg]")
+                )}
+              >
+                <CreditCardSummaryCard account={account} />
+              </div>
             ))}
           </div>
         </div>

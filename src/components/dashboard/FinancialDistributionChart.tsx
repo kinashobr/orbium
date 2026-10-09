@@ -63,14 +63,16 @@ export const FinancialDistributionChart = () => {
     return { chartData: dataPoints, totalPatrimonio: total };
   }, [contasMovimento, transacoesV2, calculateBalanceUpToDate, veiculos, imoveis, terrenos, colors]);
 
-  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Record<string, unknown>[] }) => {
+  const CustomTooltip = ({ active, payload }: { active?: boolean; payload?: Array<{ name?: string; value?: number; [key: string]: any }> }) => {
     if (active && payload && payload.length) {
+      const entry = payload[0];
+      const val = Number(entry.value || 0);
       return (
         <div className="bg-surface-light dark:bg-surface-dark p-4 rounded-[24px] shadow-soft-xl border border-border/40 backdrop-blur-md z-[999] relative">
-          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{payload[0].name}</p>
-          <p className="text-lg font-display font-black text-foreground tabular-nums">{formatCurrency(payload[0].value as number)}</p>
+          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{entry.name}</p>
+          <p className="text-lg font-display font-black text-foreground tabular-nums">{formatCurrency(val)}</p>
           <p className="text-[10px] font-bold text-primary mt-1">
-            {((payload[0].value as number / totalPatrimonio) * 100).toFixed(1)}% do total
+            {((val / totalPatrimonio) * 100).toFixed(1)}% do total
           </p>
         </div>
       );

@@ -25,7 +25,7 @@ import {
 import { 
   Plus, Trash2, CheckCircle2, ChevronRight, Landmark, Calendar,
   DollarSign, FileText, Scale, Receipt, Sparkles, X, RotateCcw,
-  Link2, AlertTriangle, Edit, Layers, TrendingUp,
+  Link2, AlertTriangle, Edit, Layers, TrendingUp, ArrowLeftRight,
   Eye, EyeOff, Briefcase, ReceiptText, Umbrella, FileX, CalendarDays, Clock, Check
 } from "lucide-react";
 import { toast } from "sonner";
@@ -159,6 +159,12 @@ export function RecebiveisClientesTab() {
   // Accordion expanded contract ID
   const [expandedContractId, setExpandedContractId] = useState<string | null>(null);
   const [expandedHoleriteTxId, setExpandedHoleriteTxId] = useState<string | null>(null);
+
+  // Aba selecionada para segregar Em Andamento vs Histórico de Quitados
+  const [contractsTab, setContractsTab] = useState<"ativos" | "quitados">("ativos");
+
+  // Modo de exibição do card de topo (banner): 'contratos' (padrão) vs 'clt' (isolado)
+  const [headerMode, setHeaderMode] = useState<"contratos" | "clt">("contratos");
 
   // Form States (Inline adding/editing)
   const [isAdding, setIsAdding] = useState(false);
@@ -299,6 +305,33 @@ export function RecebiveisClientesTab() {
     ];
   }, [recebiveisParcelados, cltContracts]);
 
+  // Identificação dos recebíveis 100% quitados (finalizados)
+  const quitadosRecIds = useMemo(() => {
+    return new Set(
+      recebiveisParcelados.filter(r => {
+        const parcs = parcelasRecebiveis.filter(p => p.recebivelId === r.id);
+        return parcs.length > 0 && parcs.every(p => p.status === "PAGO");
+      }).map(r => r.id)
+    );
+  }, [recebiveisParcelados, parcelasRecebiveis]);
+
+  // Contratos em andamento vs Histórico de quitados
+  const activeContracts = useMemo(() => {
+    return allContracts.filter(c => c.type === 'clt' || !quitadosRecIds.has(c.id));
+  }, [allContracts, quitadosRecIds]);
+
+  const quitadosContracts = useMemo(() => {
+    return allContracts.filter(c => c.type === 'recebivel' && quitadosRecIds.has(c.id));
+  }, [allContracts, quitadosRecIds]);
+
+  const displayedContracts = contractsTab === 'ativos' ? activeContracts : quitadosContracts;
+
+  const totalQuitadoHistorico = useMemo(() => {
+    return parcelasRecebiveis
+      .filter(p => quitadosRecIds.has(p.recebivelId) && p.status === "PAGO")
+      .reduce((acc, p) => acc + (p.valorPago || p.valorPrevisto || 0), 0);
+  }, [parcelasRecebiveis, quitadosRecIds]);
+
   const ignoredReceipts = useMemo(() => {
     return candidateTransactions.map(tx => {
       const linkedAmount = getLinkedAmountForTx(tx.id);
@@ -311,29 +344,32 @@ export function RecebiveisClientesTab() {
     }).filter(tx => ignoredTxIds.includes(tx.id));
   }, [candidateTransactions, getLinkedAmountForTx, ignoredTxIds]);
 
-  // Overall page KPIs - Includes both PJ (Recebíveis) and CLT (Assalariados) contracts
+  // Overall page KPIs - Considera os contratos ativos em andamento para não poluir nem duplicar com quitados
   const pageKpis = useMemo(() => {
-    // 1. PJ (Recebíveis)
-    const totalPjContratado = recebiveisParcelados.reduce((acc, r) => acc + r.valorTotal, 0);
-    const totalPjRecebido = parcelasRecebiveis
+    // 1. PJ (Recebíveis Avulsos ATIVOS - exclui os finalizados/quitados do cálculo ativo)
+    const recebiveisAtivos = recebiveisParcelados.filter(r => !quitadosRecIds.has(r.id));
+    const parcelasAtivas = parcelasRecebiveis.filter(p => !quitadosRecIds.has(p.recebivelId));
+
+    const totalPjContratado = recebiveisAtivos.reduce((acc, r) => acc + r.valorTotal, 0);
+    const totalPjRecebido = parcelasAtivas
       .filter(p => p.status === "PAGO")
       .reduce((acc, p) => acc + (p.valorPago || 0), 0);
     
-    const vencidasPj = parcelasRecebiveis.filter(p => {
+    const vencidasPj = parcelasAtivas.filter(p => {
       if (p.status === "PAGO") return false;
       const dueDate = new Date(p.dataVencimento + "T12:00:00");
       return dueDate < new Date();
     });
     const totalPjVencido = vencidasPj.reduce((acc, p) => acc + p.valorPrevisto, 0);
 
-    const aVencerPj = parcelasRecebiveis.filter(p => {
+    const aVencerPj = parcelasAtivas.filter(p => {
       if (p.status === "PAGO") return false;
       const dueDate = new Date(p.dataVencimento + "T12:00:00");
       return dueDate >= new Date();
     });
     const totalPjSaldoFuturo = aVencerPj.reduce((acc, p) => acc + p.valorPrevisto, 0);
 
-    // 2. CLT (Assalariados)
+    // 2. CLT (Assalariados — travado no ano-calendário atual Jan a Dez incluindo 13º)
     const catSalario = categoriasV2.find(c => {
       const lbl = c?.label?.toLowerCase() || "";
       return lbl.includes("salário") || lbl.includes("salario") || lbl.includes("holerite");
@@ -348,21 +384,35 @@ export function RecebiveisClientesTab() {
     const today = new Date();
     const currentMonth = today.getMonth();
     const currentYear = today.getFullYear();
-    const monthsRemainingInYear = Math.max(1, 12 - currentMonth);
+
+    // Set para deduplicação de transações entre contratos e evitar contar parcelas de recebíveis como salário CLT
+    const countedCltTxIds = new Set<string>();
 
     cltContracts.forEach(clt => {
       const emp = clt.empresa.toLowerCase();
+      // Filtrar estritamente transações do ano calendário atual (currentYear)
       const txSalariais = transacoesV2.filter(t => {
         if (t.flow !== 'in' || t.operationType !== 'receita') return false;
+        // Evitar duplicidade: transações de parcelas de recebíveis de clientes NÃO são salários CLT
+        if (t.links?.parcelaId || t.meta?.createdBy === 'recebiveis_module' || t.id.startsWith('tx_parcela_')) return false;
+        if (countedCltTxIds.has(t.id)) return false;
+        
+        // Travar estritamente para o ano-calendário atual
+        const txDate = new Date(t.date + "T12:00:00");
+        if (txDate.getFullYear() !== currentYear) return false;
+
         if (catSalario && t.categoryId === catSalario.id) return true;
         const desc = t.description?.toLowerCase() || "";
         return desc.includes("salario") || desc.includes("salário") || desc.includes("folha") || desc.includes("holerite") || (emp && desc.includes(emp));
       });
 
-      const cltRec = txSalariais.reduce((acc, t) => acc + t.amount, 0);
-      totalCltRecebido += cltRec;
+      const cltRecContrato = txSalariais.reduce((acc, t) => {
+        countedCltTxIds.add(t.id);
+        return acc + t.amount;
+      }, 0);
+      totalCltRecebido += cltRecContrato;
 
-      // Determine projected net salary
+      // Determinar salário líquido mensal de referência
       const contractHolerites = Object.values(cltHolerites).filter(h => h.contractId === clt.id);
       const latestHolerite = contractHolerites.length > 0
         ? [...contractHolerites].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
@@ -384,15 +434,23 @@ export function RecebiveisClientesTab() {
         netSalary = Math.max(0, clt.salarioBrutoAtual - inss - irrf);
       }
 
-      // Annualized contract projection
-      const annualCltVal = (clt.salarioBrutoAtual > 0 ? clt.salarioBrutoAtual : netSalary) * 12;
+      // Projeção anual do ano-calendário: 12 meses + 13º salário = 13 remunerações no ano
+      let remuneracoesNoAno = 13;
+      if (clt.dataAdmissao) {
+        const dtAdm = new Date(clt.dataAdmissao + "T12:00:00");
+        if (dtAdm.getFullYear() === currentYear) {
+          const mesesAtivos = Math.max(1, 12 - dtAdm.getMonth());
+          remuneracoesNoAno = mesesAtivos + (mesesAtivos / 12);
+        }
+      }
+      const annualCltVal = Math.round(netSalary * remuneracoesNoAno);
       totalCltContratado += annualCltVal;
 
-      // Future salary balance for remaining months of year
-      const cltFuture = netSalary * monthsRemainingInYear;
-      totalCltSaldoFuturo += cltFuture;
+      // Saldo restante no ano calendário (Jan a Dez incluindo 13º)
+      const restanteContratoAno = Math.max(0, annualCltVal - cltRecContrato);
+      totalCltSaldoFuturo += restanteContratoAno;
 
-      // Check if current month salary is past due (5th day) and not received
+      // Verifica se o salário do mês corrente do ano atual está atrasado (após 5º dia útil)
       if (today.getDate() > 5) {
         const currentMonthTx = txSalariais.find(t => {
           const d = new Date(t.date + "T12:00:00");
@@ -405,35 +463,56 @@ export function RecebiveisClientesTab() {
       }
     });
 
-    const totalContratado = totalPjContratado + totalCltContratado;
-    const totalRecebido = totalPjRecebido + totalCltRecebido;
-    const totalSaldoFuturo = totalPjSaldoFuturo + totalCltSaldoFuturo;
-    const totalVencido = totalPjVencido + totalCltVencido;
-    const totalPendente = totalSaldoFuturo + totalVencido;
-    const totalAtrasadas = vencidasPj.length + cltAtrasadasCount;
+    // Se não há contratos CLT formalizados, mas existem transações de salário no ano calendário atual:
+    if (cltContracts.length === 0) {
+      const txSalariaisGerais = transacoesV2.filter(t => {
+        if (t.flow !== 'in' || t.operationType !== 'receita') return false;
+        if (t.links?.parcelaId || t.meta?.createdBy === 'recebiveis_module' || t.id.startsWith('tx_parcela_')) return false;
+        const txDate = new Date(t.date + "T12:00:00");
+        if (txDate.getFullYear() !== currentYear) return false;
+        if (catSalario && t.categoryId === catSalario.id) return true;
+        const desc = t.description?.toLowerCase() || "";
+        return desc.includes("salario") || desc.includes("salário") || desc.includes("folha") || desc.includes("holerite");
+      });
+
+      if (txSalariaisGerais.length > 0) {
+        totalCltRecebido = txSalariaisGerais.reduce((acc, t) => acc + t.amount, 0);
+        const avgMonthly = totalCltRecebido / Math.max(1, currentMonth + 1);
+        totalCltContratado = Math.round(avgMonthly * 13);
+        totalCltSaldoFuturo = Math.max(0, totalCltContratado - totalCltRecebido);
+      }
+    }
+
+    const cltSaldoFuturoAjustado = Math.max(0, totalCltSaldoFuturo - totalCltVencido);
+
+    const pjPercentRecebido = totalPjContratado > 0 ? Math.min(100, Math.round((totalPjRecebido / totalPjContratado) * 100)) : 0;
+    const cltPercentRecebido = totalCltContratado > 0 ? Math.min(100, Math.round((totalCltRecebido / totalCltContratado) * 100)) : 0;
 
     return {
-      totalContratado,
-      totalRecebido,
-      totalPendente,
-      totalVencido,
-      totalSaldoFuturo,
-      totalAtrasadas,
-      totalPjCount: recebiveisParcelados.length,
-      totalCltCount: cltContracts.length,
-      totalContractsCount: recebiveisParcelados.length + cltContracts.length,
+      currentYear,
+      // PJ (Contratos Avulsos)
       totalPjContratado,
       totalPjRecebido,
       totalPjSaldoFuturo,
       totalPjVencido,
+      totalPjPendente: totalPjSaldoFuturo + totalPjVencido,
+      totalPjCount: recebiveisAtivos.length,
+      totalPjAtrasadasCount: vencidasPj.length,
+      pjPercentRecebido,
+
+      // CLT (Ano Calendário Atual: Jan a Dez + 13º)
       totalCltContratado,
       totalCltRecebido,
-      totalCltSaldoFuturo,
+      totalCltSaldoFuturo: cltSaldoFuturoAjustado,
       totalCltVencido,
-      totalPjAtrasadasCount: vencidasPj.length,
-      totalCltAtrasadasCount: cltAtrasadasCount
+      totalCltPendente: cltSaldoFuturoAjustado + totalCltVencido,
+      totalCltCount: cltContracts.length,
+      totalCltAtrasadasCount: cltAtrasadasCount,
+      cltPercentRecebido,
+
+      totalQuitadosCount: quitadosRecIds.size,
     };
-  }, [recebiveisParcelados, parcelasRecebiveis, cltContracts, transacoesV2, categoriasV2, cltHolerites]);
+  }, [recebiveisParcelados, parcelasRecebiveis, cltContracts, transacoesV2, categoriasV2, cltHolerites, quitadosRecIds]);
 
   // Save or edit contract
   const handleSaveRecebivel = (e: React.FormEvent) => {
@@ -786,160 +865,199 @@ export function RecebiveisClientesTab() {
 
   // Recharts Donut data for top header
   const chartData = useMemo(() => {
-    return [
-      { name: "Recebido", value: pageKpis.totalRecebido, color: "#10b981" },
-      { name: "Saldo Futuro", value: pageKpis.totalSaldoFuturo, color: "#3b82f6" },
-      { name: "Em Atraso", value: pageKpis.totalVencido, color: "#ef4444" }
-    ].filter(d => d.value > 0);
-  }, [pageKpis]);
+    if (headerMode === 'contratos') {
+      return [
+        { name: "Recebido", value: pageKpis.totalPjRecebido, color: "#10b981" },
+        { name: "Saldo Futuro", value: pageKpis.totalPjSaldoFuturo, color: "#3b82f6" },
+        { name: "Em Atraso", value: pageKpis.totalPjVencido, color: "#ef4444" }
+      ].filter(d => d.value > 0);
+    } else {
+      return [
+        { name: "Recebido no Ano", value: pageKpis.totalCltRecebido, color: "#10b981" },
+        { name: "Saldo Restante", value: pageKpis.totalCltSaldoFuturo, color: "#3b82f6" },
+        { name: "Em Atraso", value: pageKpis.totalCltVencido, color: "#ef4444" }
+      ].filter(d => d.value > 0);
+    }
+  }, [pageKpis, headerMode]);
 
   const hasChartData = chartData.length > 0;
 
   return (
     <div className="space-y-8 animate-fade-in text-foreground">
       
-      {/* ========================================== */}
-      {/* 1. TOP HEADER BANNER (UNIFIED DASHBOARD)   */}
-      {/* ========================================== */}
-      <div className="bg-card rounded-[1.25rem] border border-border/40 p-5 px-6 shadow-sm w-full animate-fade-in shrink-0">
+      {/* ==================================================== */}
+      {/* 1. SELETOR DE MODO (FORA DO CARD NO TOPO)            */}
+      {/* ==================================================== */}
+      <div className="flex items-center justify-end -mb-3">
+        <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/20 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setHeaderMode('contratos')}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-bold tracking-tight transition-all cursor-pointer",
+              headerMode === 'contratos'
+                ? "bg-card text-foreground shadow-2xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Contratos
+          </button>
+          <button
+            type="button"
+            onClick={() => setHeaderMode('clt')}
+            className={cn(
+              "px-3 py-1.5 rounded-md text-xs font-bold tracking-tight transition-all cursor-pointer",
+              headerMode === 'clt'
+                ? "bg-card text-emerald-600 dark:text-emerald-400 shadow-2xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            CLT ({pageKpis.currentYear})
+          </button>
+        </div>
+      </div>
+
+      {/* ==================================================== */}
+      {/* 2. CARD HEADLER ISOLADO (SEM LINHA COLORIDA E SEM TÍTULO) */}
+      {/* ==================================================== */}
+      <div className={cn(
+        "rounded-2xl border p-5 sm:p-6 shadow-sm w-full transition-all duration-300 animate-fade-in shrink-0",
+        headerMode === 'contratos'
+          ? "bg-card border-border/50 shadow-soft"
+          : "bg-card border-emerald-500/35 shadow-soft ring-1 ring-emerald-500/10"
+      )}>
+        {/* Content Row: 4 KPIs + Donut Chart com foco direto nas informações */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
-          {/* Left Part: KPIs Grid */}
+          {/* Left Part: 4 KPIs abertos com tipografia destacada */}
           <div className="md:col-span-8">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 w-full py-0.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 w-full">
               
-              {/* Total de Recebimentos */}
-              <div className="flex flex-col justify-between">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-muted-foreground leading-none">Total de Recebimentos</span>
-                  <p className="text-[22px] font-black text-foreground font-mono tracking-tight leading-none mt-2">
-                    {formatCurrency(pageKpis.totalContratado)}
-                  </p>
-                  <div className="mt-2.5 space-y-1 border-t border-border/10 pt-2 text-[10px] font-medium text-muted-foreground">
-                    <div className="flex justify-between items-center">
-                      <span>Recebimento Avulso:</span>
-                      <span className="font-mono font-bold text-foreground">{formatCurrency(pageKpis.totalPjContratado)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Contrato Assalariado:</span>
-                      <span className="font-mono font-bold text-foreground">{formatCurrency(pageKpis.totalCltContratado)}</span>
-                    </div>
-                  </div>
-                </div>
+              {/* Item 1: TOTAL CONTRATOS / Previsão Anual */}
+              <div className="flex flex-col space-y-1">
+                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground leading-none">
+                  {headerMode === 'contratos' ? "TOTAL CONTRATOS" : "Previsão Anual"}
+                </span>
+                <p className="text-xl sm:text-2xl font-black text-foreground font-mono tracking-tight leading-tight mt-0.5">
+                  {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjContratado : pageKpis.totalCltContratado)}
+                </p>
+                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground leading-none pt-0.5">
+                  {headerMode === 'contratos' 
+                    ? `${pageKpis.totalPjCount} contrato(s) ativo(s)` 
+                    : `${pageKpis.totalCltCount} vínculo(s)`}
+                </p>
               </div>
 
-              {/* Total Recebido */}
-              <div className="flex flex-col justify-between sm:border-l border-border/20 sm:pl-6">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 leading-none">Recebido</span>
-                  <p className="text-[22px] font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight leading-none mt-2">
-                    {formatCurrency(pageKpis.totalRecebido)}
-                  </p>
-                  <div className="mt-2.5 space-y-1 border-t border-border/10 pt-2 text-[10px] font-medium text-muted-foreground">
-                    <div className="flex justify-between items-center">
-                      <span>Recebimento Avulso:</span>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(pageKpis.totalPjRecebido)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Contrato Assalariado:</span>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(pageKpis.totalCltRecebido)}</span>
-                    </div>
-                  </div>
-                </div>
+              {/* Item 2: Já Recebido */}
+              <div className="flex flex-col space-y-1">
+                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 leading-none">
+                  Já Recebido
+                </span>
+                <p className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight leading-tight mt-0.5">
+                  {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjRecebido : pageKpis.totalCltRecebido)}
+                </p>
+                <p className="text-[10px] sm:text-[11px] font-medium text-emerald-600/90 dark:text-emerald-400/90 leading-none pt-0.5">
+                  {headerMode === 'contratos' 
+                    ? `${pageKpis.pjPercentRecebido}% quitado` 
+                    : `${pageKpis.cltPercentRecebido}% recebido`}
+                </p>
               </div>
 
-              {/* Valores a Receber */}
-              <div className="flex flex-col justify-between lg:border-l border-border/20 lg:pl-6">
-                <div className="flex flex-col">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-primary leading-none">Valores a Receber</span>
-                  <p className="text-[22px] font-black text-primary font-mono tracking-tight leading-none mt-2">
-                    {formatCurrency(pageKpis.totalSaldoFuturo)}
-                  </p>
-                  <div className="mt-2.5 space-y-1 border-t border-border/10 pt-2 text-[10px] font-medium text-muted-foreground">
-                    <div className="flex justify-between items-center">
-                      <span>Recebimento Avulso:</span>
-                      <span className="font-mono font-bold text-primary">{formatCurrency(pageKpis.totalPjSaldoFuturo)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Contrato Assalariado:</span>
-                      <span className="font-mono font-bold text-primary">{formatCurrency(pageKpis.totalCltSaldoFuturo)}</span>
-                    </div>
-                  </div>
-                </div>
+              {/* Item 3: A Receber / Saldo Restante */}
+              <div className="flex flex-col space-y-1">
+                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-primary leading-none">
+                  {headerMode === 'contratos' ? "A Receber" : "Saldo Restante"}
+                </span>
+                <p className="text-xl sm:text-2xl font-black text-primary font-mono tracking-tight leading-tight mt-0.5">
+                  {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjSaldoFuturo : pageKpis.totalCltSaldoFuturo)}
+                </p>
+                <p className="text-[10px] sm:text-[11px] font-medium text-muted-foreground leading-none pt-0.5">
+                  {headerMode === 'contratos' ? "Parcelas a vencer" : "Restante do ano"}
+                </p>
               </div>
 
-              {/* Atrasado */}
-              <div className="flex flex-col justify-between lg:border-l border-border/20 lg:pl-6">
-                <div className="flex flex-col">
-                  <span className={cn(
-                    "text-[11px] font-black uppercase tracking-wider leading-none",
-                    pageKpis.totalAtrasadas > 0 ? "text-destructive" : "text-muted-foreground"
-                  )}>Atrasado</span>
-                  <p className={cn(
-                    "text-[22px] font-black font-mono tracking-tight leading-none mt-2",
-                    pageKpis.totalAtrasadas > 0 ? "text-destructive" : "text-foreground"
-                  )}>
-                    {formatCurrency(pageKpis.totalVencido)}
-                  </p>
-                  <div className="mt-2.5 space-y-1 border-t border-border/10 pt-2 text-[10px] font-medium text-muted-foreground">
-                    <div className="flex justify-between items-center">
-                      <span>Recebimento Avulso:</span>
-                      <span className={cn("font-mono font-bold", pageKpis.totalPjVencido > 0 ? "text-destructive" : "text-muted-foreground")}>
-                        {formatCurrency(pageKpis.totalPjVencido)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Contrato Assalariado:</span>
-                      <span className={cn("font-mono font-bold", pageKpis.totalCltVencido > 0 ? "text-destructive" : "text-muted-foreground")}>
-                        {formatCurrency(pageKpis.totalCltVencido)}
-                      </span>
-                    </div>
+              {/* Item 4: Em Atraso / Salário em Atraso */}
+              {(() => {
+                const valorVencido = headerMode === 'contratos' ? pageKpis.totalPjVencido : pageKpis.totalCltVencido;
+                const temAtraso = valorVencido > 0;
+                return (
+                  <div className="flex flex-col space-y-1">
+                    <span className={cn(
+                      "text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider leading-none",
+                      temAtraso ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {headerMode === 'contratos' ? "Em Atraso" : "Salário em Atraso"}
+                    </span>
+                    <p className={cn(
+                      "text-xl sm:text-2xl font-black font-mono tracking-tight leading-tight mt-0.5",
+                      temAtraso ? "text-destructive" : "text-foreground"
+                    )}>
+                      {formatCurrency(valorVencido)}
+                    </p>
+                    <p className={cn(
+                      "text-[10px] sm:text-[11px] font-medium leading-none pt-0.5",
+                      temAtraso ? "text-destructive" : "text-muted-foreground"
+                    )}>
+                      {temAtraso 
+                        ? (headerMode === 'contratos' ? `${pageKpis.totalPjAtrasadasCount} parcela(s) vencida(s)` : "Pendente") 
+                        : "Nenhum atraso"}
+                    </p>
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
             </div>
           </div>
 
-          {/* Right Part: Composition Donut Chart with Nomenclatures */}
-          <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-border/40 pt-4 md:pt-0 md:pl-6 flex flex-col sm:flex-row items-center justify-between gap-4 h-full min-h-[90px]">
-            <div className="flex flex-col justify-center space-y-2 w-full sm:w-auto">
+          {/* Right Part: Composition Donut Chart */}
+          <div className="md:col-span-4 border-t md:border-t-0 md:border-l border-border/25 pt-3 md:pt-0 md:pl-5 flex items-center justify-between gap-3 h-full">
+            <div className="flex flex-col justify-center space-y-1.5 min-w-0">
               <div>
-                <span className="text-[11px] font-black uppercase text-muted-foreground tracking-wider leading-none block">Composição do Fluxo</span>
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mt-1 block">Total a Receber</span>
-                <span className="text-base font-black text-foreground font-mono tracking-tight leading-none mt-1 block">
-                  {formatCurrency(pageKpis.totalPendente)}
+                <span className="text-[10px] sm:text-[11px] font-extrabold uppercase text-muted-foreground tracking-wider leading-none block">
+                  {headerMode === 'contratos' ? "Composição dos Contratos" : "Composição Salarial"}
+                </span>
+                <span className="text-base sm:text-lg font-black text-foreground font-mono tracking-tight leading-none mt-1 block">
+                  {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjPendente : pageKpis.totalCltPendente)}
+                </span>
+                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-0.5 block">
+                  {headerMode === 'contratos' ? "Total a Receber" : "Restante do Ano"}
                 </span>
               </div>
 
               {/* Nomenclaturas e Legenda do Gráfico */}
-              <div className="space-y-1 pt-0.5 text-[10px] font-bold">
+              <div className="space-y-1 text-[10px] font-bold">
                 <div className="flex items-center justify-between gap-3 text-emerald-600 dark:text-emerald-400">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 truncate">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                     Recebido
                   </span>
-                  <span className="font-mono tabular-nums">{formatCurrency(pageKpis.totalRecebido)}</span>
+                  <span className="font-mono tabular-nums shrink-0">
+                    {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjRecebido : pageKpis.totalCltRecebido)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between gap-3 text-blue-600 dark:text-blue-400">
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 truncate">
                     <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                    Saldo Futuro
+                    {headerMode === 'contratos' ? "Saldo Futuro" : "Saldo Restante"}
                   </span>
-                  <span className="font-mono tabular-nums">{formatCurrency(pageKpis.totalSaldoFuturo)}</span>
+                  <span className="font-mono tabular-nums shrink-0">
+                    {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjSaldoFuturo : pageKpis.totalCltSaldoFuturo)}
+                  </span>
                 </div>
-                {pageKpis.totalVencido > 0 && (
+                {((headerMode === 'contratos' ? pageKpis.totalPjVencido : pageKpis.totalCltVencido) > 0) && (
                   <div className="flex items-center justify-between gap-3 text-destructive">
-                    <span className="flex items-center gap-1.5">
+                    <span className="flex items-center gap-1.5 truncate">
                       <span className="w-2 h-2 rounded-full bg-destructive shrink-0" />
                       Em Atraso
                     </span>
-                    <span className="font-mono tabular-nums">{formatCurrency(pageKpis.totalVencido)}</span>
+                    <span className="font-mono tabular-nums shrink-0">
+                      {formatCurrency(headerMode === 'contratos' ? pageKpis.totalPjVencido : pageKpis.totalCltVencido)}
+                    </span>
                   </div>
                 )}
               </div>
             </div>
             
-            <div className="h-[85px] w-[85px] relative flex items-center justify-center shrink-0">
+            <div className="h-[80px] w-[80px] relative flex items-center justify-center shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -960,10 +1078,10 @@ export function RecebiveisClientesTab() {
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
                 <span className="text-xs font-black text-foreground font-mono leading-none">
-                  {pageKpis.totalContratado > 0 ? `${Math.round((pageKpis.totalRecebido / pageKpis.totalContratado) * 100)}%` : '0%'}
+                  {headerMode === 'contratos' ? `${pageKpis.pjPercentRecebido}%` : `${pageKpis.cltPercentRecebido}%`}
                 </span>
                 <span className="text-[7px] font-black uppercase text-muted-foreground leading-none mt-0.5 tracking-wider">
-                  Quitado
+                  {headerMode === 'contratos' ? "Quitado" : "Recebido"}
                 </span>
               </div>
             </div>
@@ -1189,7 +1307,74 @@ export function RecebiveisClientesTab() {
                 </Card>
               ) : (
                 <div className="space-y-4">
-                  {allContracts.map(contractObj => {
+                  {/* Alternador de Abas: Em Andamento vs Histórico de Quitados */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/30 p-2 rounded-2xl border border-border/20">
+                    <div className="flex items-center gap-1.5 bg-muted/70 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setContractsTab('ativos')}
+                        className={cn(
+                          "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+                          contractsTab === 'ativos'
+                            ? "bg-card text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Clock className="w-3.5 h-3.5 text-primary" />
+                        Em Andamento
+                        <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0">
+                          {activeContracts.length}
+                        </Badge>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setContractsTab('quitados')}
+                        className={cn(
+                          "flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer",
+                          contractsTab === 'quitados'
+                            ? "bg-card text-emerald-600 dark:text-emerald-400 shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                        Histórico (Quitados)
+                        <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                          {quitadosContracts.length}
+                        </Badge>
+                      </button>
+                    </div>
+
+                    <span className="text-[11px] font-bold text-muted-foreground px-2">
+                      {contractsTab === 'ativos' 
+                        ? `${activeContracts.length} contrato(s) em andamento` 
+                        : `${quitadosContracts.length} recebimento(s) quitado(s) arquivado(s)`}
+                    </span>
+                  </div>
+
+                  {displayedContracts.length === 0 ? (
+                    contractsTab === 'quitados' ? (
+                      <Card className="rounded-[2rem] border border-border/40 p-10 text-center space-y-3 shadow-sm bg-card">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-500/40 mx-auto" />
+                        <div>
+                          <h4 className="text-sm font-black text-foreground">Nenhum recebimento quitado ainda</h4>
+                          <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
+                            Conforme todas as parcelas de um recebimento avulso forem pagas, ele será arquivado aqui no histórico automaticamente para não poluir os contratos em andamento.
+                          </p>
+                        </div>
+                      </Card>
+                    ) : (
+                      <Card className="rounded-[2rem] border border-border/40 p-10 text-center space-y-3 shadow-sm bg-card">
+                        <Clock className="w-10 h-10 text-primary/40 mx-auto" />
+                        <div>
+                          <h4 className="text-sm font-black text-foreground">Nenhum contrato em andamento</h4>
+                          <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1">
+                            Todos os recebimentos cadastrados já foram quitados e estão arquivados na aba de Histórico.
+                          </p>
+                        </div>
+                      </Card>
+                    )
+                  ) : (
+                    displayedContracts.map(contractObj => {
                     const isClt = contractObj.type === 'clt';
                     const contractId = contractObj.id;
                     const isExpanded = expandedContractId === contractId;
@@ -1200,7 +1385,7 @@ export function RecebiveisClientesTab() {
                       
                       const monthNames = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
-                      // Encontrar transações de salário para calcular projeção baseada no último recebimento
+                      // Encontrar transações de salário para calcular projeção baseada no último recebimento (travado no ano calendário atual)
                       const categoriaSalario = categoriasV2.find(c => {
                         const lbl = c?.label?.toLowerCase() || "";
                         return lbl.includes("salário") || lbl.includes("salario") || lbl.includes("holerite");
@@ -1209,6 +1394,10 @@ export function RecebiveisClientesTab() {
                       const transacoesSalariais = transacoesV2
                         .filter(t => {
                           if (t.flow !== 'in' || t.operationType !== 'receita') return false;
+                          if (t.links?.parcelaId || t.meta?.createdBy === 'recebiveis_module' || t.id.startsWith('tx_parcela_')) return false;
+                          const tDate = new Date(t.date + "T12:00:00");
+                          if (tDate.getFullYear() !== pageKpis.currentYear) return false;
+
                           if (categoriaSalario && t.categoryId === categoriaSalario.id) return true;
                           const desc = t.description?.toLowerCase() || "";
                           const emp = clt.empresa.toLowerCase();
@@ -1216,7 +1405,8 @@ export function RecebiveisClientesTab() {
                         })
                         .sort((a, b) => new Date(b.date + "T12:00:00").getTime() - new Date(a.date + "T12:00:00").getTime());
 
-                      const lastTx = transacoesSalariais[0]; // Último recebimento real
+                      const cltYearReceived = transacoesSalariais.reduce((acc, t) => acc + t.amount, 0);
+                      const lastTx = transacoesSalariais[0]; // Último recebimento real no ano atual
 
                       // Verificar se há holerite cadastrado para refinar a projeção
                       const latestTxHolerite = lastTx ? cltHolerites[lastTx.id] : null;
@@ -1263,18 +1453,35 @@ export function RecebiveisClientesTab() {
                       const nextMonthName = monthNames[nextMonthDate.getMonth()];
                       const nextPaydayStr = `05 de ${nextMonthName.charAt(0).toUpperCase() + nextMonthName.slice(1)}`;
 
-                      const upcomingPayments = Array.from({ length: 3 }).map((_, idx) => {
-                        const mDate = addMonths(new Date(), idx);
-                        const mName = monthNames[mDate.getMonth()];
-                        const label = mName.charAt(0).toUpperCase() + mName.slice(1);
-                        const year = mDate.getFullYear();
+                      // Cronograma completo do ano calendário atual: 12 meses + 13º Salário (13 remunerações)
+                      const annualCalendarPayments = monthNames.map((mName, mIdx) => {
+                        const compLabel = `${mName.charAt(0).toUpperCase() + mName.slice(1)} / ${pageKpis.currentYear}`;
+                        const matchingTx = transacoesSalariais.find(t => {
+                          const d = new Date(t.date + "T12:00:00");
+                          return d.getFullYear() === pageKpis.currentYear && (d.getMonth() === mIdx || (d.getMonth() === (mIdx + 1) % 12 && d.getDate() <= 10));
+                        });
+                        const isPastMonth = mIdx < new Date().getMonth();
+                        const isCurrentMonth = mIdx === new Date().getMonth();
+                        const isOverdue = (isPastMonth && !matchingTx) || (isCurrentMonth && new Date().getDate() > 5 && !matchingTx);
+
                         return {
-                          title: `Competência ${label} / ${year}`,
-                          dateLabel: `05 de ${label}`,
-                          amount: projectedNetSalary,
-                          status: "PREVISTO" as const
+                          title: `Competência ${compLabel}`,
+                          dateLabel: matchingTx ? `Crédito em ${new Date(matchingTx.date + "T12:00:00").toLocaleDateString("pt-BR")}` : `05 de ${mName.charAt(0).toUpperCase() + mName.slice(1)}`,
+                          amount: matchingTx ? matchingTx.amount : projectedNetSalary,
+                          status: matchingTx ? ("PAGO" as const) : isOverdue ? ("ATRASADO" as const) : ("PREVISTO" as const),
+                          is13o: false
                         };
                       });
+
+                      const decimoTerceiroPayment = {
+                        title: `13º Salário / ${pageKpis.currentYear} (Gratificação Natalina)`,
+                        dateLabel: `Previsão: 30 de Novembro e 20 de Dezembro de ${pageKpis.currentYear}`,
+                        amount: projectedNetSalary,
+                        status: "PREVISTO" as const,
+                        is13o: true
+                      };
+
+                      const upcomingPayments = [...annualCalendarPayments, decimoTerceiroPayment];
 
                       return (
                         <div 
@@ -1375,15 +1582,15 @@ export function RecebiveisClientesTab() {
                                       </p>
                                     </div>
                                     <div className="space-y-0.5">
-                                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest opacity-80">Base Projeção</p>
+                                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest opacity-80">Previsão {pageKpis.currentYear} (13º incl.)</p>
                                       <p className="text-sm font-extrabold text-emerald-600 font-mono tabular-nums">
-                                        {formatCurrency(projectedNetSalary)}
+                                        {formatCurrency(projectedNetSalary * 13)}
                                       </p>
                                     </div>
                                     <div className="space-y-0.5">
-                                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest opacity-80">Último Crédito</p>
+                                      <p className="text-[11px] font-black text-muted-foreground uppercase tracking-widest opacity-80">Recebido em {pageKpis.currentYear}</p>
                                       <p className="text-sm font-extrabold text-emerald-600 font-mono tabular-nums">
-                                        {lastTx ? formatCurrency(lastTx.amount) : "Sem Registro"}
+                                        {formatCurrency(cltYearReceived)}
                                       </p>
                                     </div>
                                   </div>
@@ -1395,10 +1602,10 @@ export function RecebiveisClientesTab() {
                                   <Tabs defaultValue="detalhes" className="w-full">
                                     <TabsList className="bg-muted/60 p-1 rounded-xl h-10 border border-border/10 mb-5 w-full sm:w-auto flex flex-row flex-wrap sm:flex-nowrap gap-1">
                                       <TabsTrigger value="detalhes" className="rounded-lg px-3.5 h-8 font-black text-[9px] uppercase tracking-wider gap-1.5 flex-1 sm:flex-initial">
-                                        <TrendingUp className="w-3.5 h-3.5" /> Projeções
+                                        <TrendingUp className="w-3.5 h-3.5" /> Projeções ({pageKpis.currentYear})
                                       </TabsTrigger>
                                       <TabsTrigger value="historico" className="rounded-lg px-3.5 h-8 font-black text-[9px] uppercase tracking-wider gap-1.5 flex-1 sm:flex-initial">
-                                        <ReceiptText className="w-3.5 h-3.5" /> Competências
+                                        <ReceiptText className="w-3.5 h-3.5" /> Competências ({pageKpis.currentYear})
                                       </TabsTrigger>
                                       <TabsTrigger value="ferias" className="rounded-lg px-3.5 h-8 font-black text-[9px] uppercase tracking-wider gap-1.5 flex-1 sm:flex-initial">
                                         <Umbrella className="w-3.5 h-3.5" /> Férias
@@ -1414,27 +1621,43 @@ export function RecebiveisClientesTab() {
                                           <div className="flex items-center gap-2">
                                             <TrendingUp className="w-4 h-4 text-emerald-500" />
                                             <h5 className="font-black text-xs uppercase tracking-wider text-foreground">
-                                              Próximas Projeções de Recebimento ({upcomingPayments.length})
+                                              Cronograma Anual {pageKpis.currentYear} (13 Remunerações: Jan a Dez + 13º)
                                             </h5>
                                           </div>
                                           <Badge className="bg-emerald-500/15 text-emerald-600 border-none font-bold text-[9px] uppercase px-2.5 py-0.5">
-                                            Projeção Mensal
+                                            Travado em {pageKpis.currentYear}
                                           </Badge>
                                         </div>
 
-                                        <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin-custom">
+                                        <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin-custom">
                                           {upcomingPayments.map((p, pIdx) => (
-                                            <div key={pIdx} className="bg-background border border-border/30 hover:border-border/60 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold transition-all shadow-sm">
+                                            <div key={pIdx} className={cn(
+                                              "bg-background border rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold transition-all shadow-sm",
+                                              p.is13o ? "border-amber-500/40 bg-amber-500/[0.02]" : "border-border/30 hover:border-border/60"
+                                            )}>
                                               <div className="flex items-center gap-3">
-                                                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
-                                                  <CalendarDays className="w-4.5 h-4.5" />
+                                                <div className={cn(
+                                                  "p-2.5 rounded-xl shrink-0",
+                                                  p.is13o 
+                                                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                                    : p.status === 'PAGO'
+                                                    ? "bg-emerald-500/15 text-emerald-600"
+                                                    : "bg-emerald-500/10 text-emerald-600"
+                                                )}>
+                                                  {p.is13o ? <Sparkles className="w-4.5 h-4.5" /> : <CalendarDays className="w-4.5 h-4.5" />}
                                                 </div>
                                                 <div>
                                                   <div className="flex items-center gap-2">
                                                     <p className="font-bold text-sm text-foreground leading-none">{p.title}</p>
-                                                    <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[8px] font-black uppercase py-0.5">
-                                                      Salário Mensal
-                                                    </Badge>
+                                                    {p.is13o ? (
+                                                      <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-none text-[8px] font-black uppercase py-0.5">
+                                                        13º Salário
+                                                      </Badge>
+                                                    ) : (
+                                                      <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[8px] font-black uppercase py-0.5">
+                                                        Salário Mensal
+                                                      </Badge>
+                                                    )}
                                                   </div>
                                                   <span className="text-[10px] text-muted-foreground font-semibold mt-1 block">
                                                     Previsão de Crédito: {p.dateLabel}
@@ -1445,15 +1668,25 @@ export function RecebiveisClientesTab() {
                                               <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 border-border/10 pt-2 sm:pt-0">
                                                 <div className="text-right">
                                                   <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground block">
-                                                    Líquido Estimado
+                                                    {p.status === 'PAGO' ? "Valor Creditado" : "Líquido Estimado"}
                                                   </span>
                                                   <span className="font-mono text-sm sm:text-base font-black text-emerald-600 tabular-nums">
                                                     {formatCurrency(p.amount)}
                                                   </span>
                                                 </div>
-                                                <Badge className="bg-emerald-500/15 text-emerald-600 border-none text-[9px] font-black uppercase px-2.5 py-1">
-                                                  Projetado
-                                                </Badge>
+                                                {p.status === 'PAGO' ? (
+                                                  <Badge className="bg-emerald-500/15 text-emerald-600 border-none text-[9px] font-black uppercase px-2.5 py-1">
+                                                    Quitado
+                                                  </Badge>
+                                                ) : p.status === 'ATRASADO' ? (
+                                                  <Badge className="bg-destructive/15 text-destructive border-none text-[9px] font-black uppercase px-2.5 py-1">
+                                                    Em Atraso
+                                                  </Badge>
+                                                ) : (
+                                                  <Badge className="bg-muted text-muted-foreground border-none text-[9px] font-black uppercase px-2.5 py-1">
+                                                    Previsto
+                                                  </Badge>
+                                                )}
                                               </div>
                                             </div>
                                           ))}
@@ -1467,18 +1700,18 @@ export function RecebiveisClientesTab() {
                                           <div className="flex items-center gap-2">
                                             <ReceiptText className="w-4 h-4 text-emerald-500" />
                                             <h5 className="font-black text-xs uppercase tracking-wider text-foreground">
-                                              Competências Pagas e Holerites ({transacoesSalariais.length})
+                                              Competências Pagas e Holerites de {pageKpis.currentYear} ({transacoesSalariais.length})
                                             </h5>
                                           </div>
                                           <Badge className="bg-emerald-500/15 text-emerald-600 border-none font-bold text-[9px] uppercase px-2.5 py-0.5">
-                                            Histórico Registrado
+                                            Ano {pageKpis.currentYear}
                                           </Badge>
                                         </div>
 
                                         <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin-custom">
                                           {transacoesSalariais.length === 0 ? (
                                             <div className="text-center py-8 text-xs font-semibold text-muted-foreground italic">
-                                              Nenhum lançamento de salário registrado para este contrato.
+                                              Nenhum lançamento de salário registrado para este contrato no ano {pageKpis.currentYear}.
                                             </div>
                                           ) : (
                                             transacoesSalariais.map(t => {
@@ -1690,13 +1923,19 @@ export function RecebiveisClientesTab() {
                                       <Receipt className="w-8 h-8" />
                                     </div>
                                     <div>
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-xs font-black text-muted-foreground uppercase tracking-widest opacity-80">
                                           Recebimento Avulso
                                         </span>
                                         <Badge className="bg-primary/10 text-primary border-none font-bold text-[9px] uppercase px-2.5 py-0.5 rounded-full">
                                           {CATEGORIA_LABELS[rec.naturezaServico as RecebivelNatureza] || rec.naturezaServico || "Serviços"}
                                         </Badge>
+                                        {quitadosRecIds.has(rec.id) && (
+                                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-none font-black text-[9px] uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                            <CheckCircle2 className="w-3 h-3" />
+                                            100% Quitado
+                                          </Badge>
+                                        )}
                                       </div>
                                       <h4 className="text-xl font-black text-foreground mt-0.5">{rec.cliente}</h4>
                                     </div>
@@ -2066,16 +2305,17 @@ export function RecebiveisClientesTab() {
                         )}
                       </div>
                     );
-                  })}
-                </div>
-              )}
+                  })
+                )}
+              </div>
+            )}
             </div>
 
             {/* Right Side: Add/Edit Contract or Bank Deposits Sidebar */}
             <div className="lg:col-span-4">
               {isAdding ? (
                 <Card className="rounded-[2rem] border border-primary/30 p-5 space-y-5 bg-card shadow-md animate-in slide-in-from-right duration-300">
-                  <div className="flex items-center justify-between border-b border-border/40 pb-3">
+                  <div className="flex items-center border-b border-border/40 pb-3">
                     <div className="flex items-center gap-2">
                       {addingType === 'clt' ? <Briefcase className="w-5 h-5 text-emerald-500" /> : <Receipt className="w-5 h-5 text-primary" />}
                       <h3 className="font-display font-black text-sm tracking-tight text-foreground">
@@ -2084,9 +2324,6 @@ export function RecebiveisClientesTab() {
                           : (editingContractId ? "Editar Recebimento Avulso" : "Cadastrar Novo Recebimento Avulso")}
                       </h3>
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full text-muted-foreground hover:bg-muted" onClick={handleCancelForm}>
-                      <X className="w-4 h-4" />
-                    </Button>
                   </div>
 
                   {!editingContractId && (

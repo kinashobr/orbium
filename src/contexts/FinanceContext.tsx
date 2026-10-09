@@ -45,6 +45,13 @@ import {
   CltContract,
   CltCompetencia,
   CltLegislacaoConfig,
+  MonthlyExpenseSnapshot,
+  RecebivelParcelado,
+  ParcelaRecebivel,
+  VinculoOcupacional,
+  EventoFerias,
+  EventoRescisao,
+  HistoricoContribuicaoINSS,
 } from "@/types/finance";
 import { HoleriteCompetenciaData } from "@/types/clt";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
@@ -339,6 +346,12 @@ interface FinanceContextType {
   getOtherPaidExpensesForMonth: (date: Date) => ExternalPaidBill[];
   autoPopulateFixedBills: (date: Date) => void;
   
+  // Snapshots de Despesas (Orçado)
+  expenseSnapshots: Record<string, MonthlyExpenseSnapshot>;
+  saveExpenseSnapshot: (snapshot: MonthlyExpenseSnapshot) => void;
+  deleteExpenseSnapshot: (monthKey: string) => void;
+  getExpenseSnapshot: (monthKey: string) => MonthlyExpenseSnapshot | undefined;
+  
   // Credit Card Configs
   creditCardConfigs: CreditCardConfig[];
   addCreditCardConfig: (config: Omit<CreditCardConfig, 'id'>) => void;
@@ -522,6 +535,7 @@ const STORAGE_KEYS = {
   CLT_CONTRACTS: "fin_clt_contracts_v1",
   CLT_COMPETENCIAS: "fin_clt_competencias_v1",
   CLT_HOLERITES: "fin_clt_holerites_v1",
+  EXPENSE_SNAPSHOTS: "fin_expense_snapshots_v1",
   LAST_MODIFIED: "fin_last_modified_v1",
 };
 
@@ -660,6 +674,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return next;
     });
   }, []);
+
+  // Expense Snapshots State (Orçado Congelado por Mês)
+  const [expenseSnapshots, setExpenseSnapshots] = useState<Record<string, MonthlyExpenseSnapshot>>(() => loadFromStorage(STORAGE_KEYS.EXPENSE_SNAPSHOTS, {}));
+
+  const saveExpenseSnapshot = useCallback((snapshot: MonthlyExpenseSnapshot) => {
+    setExpenseSnapshots(prev => ({
+      ...prev,
+      [snapshot.monthKey]: snapshot
+    }));
+  }, []);
+
+  const deleteExpenseSnapshot = useCallback((monthKey: string) => {
+    setExpenseSnapshots(prev => {
+      const next = { ...prev };
+      delete next[monthKey];
+      return next;
+    });
+  }, []);
+
+  const getExpenseSnapshot = useCallback((monthKey: string): MonthlyExpenseSnapshot | undefined => {
+    return expenseSnapshots[monthKey];
+  }, [expenseSnapshots]);
+
   const [lastModified, setLastModified] = useState<string>(() => loadFromStorage(STORAGE_KEYS.LAST_MODIFIED, initialLastModified));
 
   // Vínculos Ocupacionais e Outros Recebimentos (Novos Estados)
@@ -793,6 +830,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage("fin_eventos_rescisao_v1", eventosRescisao); updateLastModified(); }, [eventosRescisao, updateLastModified]);
   useEffect(() => { saveToStorage("fin_historicos_contribuicao_inss_v1", historicosContribuicaoINSS); updateLastModified(); }, [historicosContribuicaoINSS, updateLastModified]);
   useEffect(() => { saveToStorage("ignored_recebiveis_tx_ids", ignoredTxIds); updateLastModified(); }, [ignoredTxIds, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.EXPENSE_SNAPSHOTS, expenseSnapshots); updateLastModified(); }, [expenseSnapshots, updateLastModified]);
 
 
   const balanceCache = useMemo(() => {
@@ -1680,6 +1718,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         eventosRescisao,
         historicosContribuicaoINSS,
         ignoredTxIds,
+        expenseSnapshots,
       },
       lastModified: lastModified,
     };
@@ -1690,7 +1729,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, 
     standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, 
     creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs, cltHolerites, vinculosOcupacionais, recebiveisParcelados, 
-    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, lastModified
+    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, expenseSnapshots, lastModified
   ]);
 
   const importData = useCallback(async (file: File) => {
@@ -1718,6 +1757,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.cltCompetencias) setCltCompetencias(data.data.cltCompetencias);
       if (data.data.cltLegislacaoConfigs) setCltLegislacaoConfigs(data.data.cltLegislacaoConfigs);
       if (data.data.cltHolerites) setCltHolerites(data.data.cltHolerites);
+      if (data.data.expenseSnapshots) setExpenseSnapshots(data.data.expenseSnapshots);
       if (data.data.vinculosOcupacionais) setVinculosOcupacionais(data.data.vinculosOcupacionais);
       if (data.data.recebiveisParcelados) setRecebiveisParcelados(data.data.recebiveisParcelados);
       
@@ -2288,11 +2328,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     ignoredTxIds,
     setIgnoredTxIds,
 
+    // Expense Snapshots
+    expenseSnapshots,
+    saveExpenseSnapshot,
+    deleteExpenseSnapshot,
+    getExpenseSnapshot,
+
     lastModified,
     exportData, importData,
   }), [
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
     vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
+    expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
     cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
     addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
     addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,
