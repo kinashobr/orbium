@@ -14,6 +14,7 @@ import Investimentos from "./pages/Investimentos";
 import BillsTracker from "./pages/BillsTracker";
 import Recebimentos from "./pages/Recebimentos";
 import RevisaoExtrato from "./pages/RevisaoExtrato";
+import OpenFinanceSettings from "./pages/OpenFinanceSettings";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
@@ -41,6 +42,8 @@ const App = () => (
               <Route path="/contas-pagar" element={<BillsTracker />} />
               <Route path="/recebimentos" element={<Recebimentos />} />
               <Route path="/revisao-extrato" element={<RevisaoExtrato />} />
+              <Route path="/open-finance" element={<OpenFinanceSettings />} />
+              <Route path="/pluggy-lab" element={<OpenFinanceSettings />} />
               
               {/* Fallback */}
               <Route path="*" element={<NotFound />} />

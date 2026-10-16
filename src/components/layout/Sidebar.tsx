@@ -20,13 +20,19 @@ import {
   Palette,
   Database,
   Monitor,
-  CalendarCheck
+  CalendarCheck,
+  Sparkles,
+  RefreshCw,
+  Landmark,
+  Cloud
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFinance } from "@/contexts/FinanceContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useGoogleDrive } from "@/hooks/useGoogleDrive";
+import { initiateGoogleAuth } from "@/lib/googleDrive";
 import { toast } from "@/hooks/use-toast";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SidebarAlertas, DEFAULT_ALERTS } from "@/components/dashboard/SidebarAlertas";
 import { AlertasConfigDialog, AlertaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { GoogleDriveSync } from "./GoogleDriveSync";
@@ -36,7 +42,7 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { isAfter, isSameDay, startOfDay } from "date-fns";
+import { isAfter, isSameDay, startOfDay, format } from "date-fns";
 
 interface NavItemData {
   title: string;
@@ -57,8 +63,12 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [alertasPopoverOpen, setAlertasPopoverOpen] = useState(false);
   const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
+  const [ajustesPopoverOpen, setAjustesPopoverOpen] = useState(false);
   const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS)));
   const location = useLocation();
+  const navigate = useNavigate();
+  const finance = useFinance();
+  const { isConnected: isConnectedDrive, isSyncing: isSyncingDrive, saveToDrive } = useGoogleDrive();
   const { 
     exportData, 
     importData,
@@ -69,8 +79,11 @@ export function Sidebar() {
     getSaldoDevedor,
     alertStartDate,
     setAlertStartDate,
-    calculateBalanceUpToDate
-  } = useFinance();
+    calculateBalanceUpToDate,
+    pluggyConfig,
+    syncPluggyData,
+    isSyncingPluggy
+  } = finance;
   const { theme, setTheme, themes, resolvedTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -146,6 +159,81 @@ export function Sidebar() {
       variant: result.success ? "default" : "destructive"
     });
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleQuickSyncPluggy = async () => {
+    if (!pluggyConfig?.itemId) {
+      toast({ 
+        title: "ITEM_ID Necessário", 
+        description: "Configure o ITEM_ID na tela de Open Finance antes de sincronizar.",
+        variant: "destructive"
+      });
+      setAjustesPopoverOpen(false);
+      navigate("/open-finance");
+      return;
+    }
+
+    toast({ 
+      title: "Open Finance", 
+      description: "Sincronizando dados bancários sob demanda..." 
+    });
+
+    const result = await syncPluggyData();
+    if (result.success) {
+      toast({ 
+        title: "Open Finance Atualizado", 
+        description: result.message 
+      });
+    } else {
+      toast({ 
+        title: "Erro na Atualização", 
+        description: result.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleQuickSyncDrive = () => {
+    if (!isConnectedDrive) {
+      initiateGoogleAuth();
+      return;
+    }
+    const dataToSave = {
+      schemaVersion: "2.0", 
+      exportedAt: new Date().toISOString(), 
+      data: { 
+        accounts: contasMovimento, 
+        categories: finance.categoriasV2, 
+        transactions: transacoesV2, 
+        emprestimos: emprestimos, 
+        veiculos: finance.veiculos, 
+        segurosVeiculo: segurosVeiculo, 
+        objetivos: finance.objetivos, 
+        billsTracker: finance.billsTracker, 
+        standardizationRules: finance.standardizationRules, 
+        importedStatements: finance.importedStatements, 
+        revenueForecasts: finance.revenueForecasts, 
+        alertStartDate: alertStartDate, 
+        imoveis: finance.imoveis, 
+        terrenos: finance.terrenos,
+        metasPersonalizadas: finance.metasPersonalizadas,
+        creditCardConfigs: finance.creditCardConfigs,
+        cltContracts: finance.cltContracts,
+        cltCompetencias: finance.cltCompetencias,
+        cltLegislacaoConfigs: finance.cltLegislacaoConfigs,
+        cltHolerites: finance.cltHolerites,
+        vinculosOcupacionais: finance.vinculosOcupacionais,
+        recebiveisParcelados: finance.recebiveisParcelados,
+        parcelasRecebiveis: finance.parcelasRecebiveis,
+        eventosFerias: finance.eventosFerias,
+        eventosRescisao: finance.eventosRescisao,
+        historicosContribuicaoINSS: finance.historicosContribuicaoINSS,
+        ignoredTxIds: finance.ignoredTxIds,
+        pluggyConfig: pluggyConfig,
+      },
+      lastModified: finance.lastModified,
+    };
+    saveToDrive(dataToSave);
   };
 
   const NavItem = ({ item }: { item: NavItemData }) => {
@@ -224,9 +312,83 @@ export function Sidebar() {
       </div>
 
       {/* Actions */}
-      <div className="px-2 pb-4 space-y-1 mt-auto shrink-0">
+      <div className="px-2 pb-4 space-y-1.5 mt-auto shrink-0">
         <Separator className="mx-2 mb-2 opacity-30" />
         
+        {/* Barra de Ações Rápidas: Open Finance & Nuvem (Design Consistente: Apenas Ícones com Descrição Flutuante) */}
+        <div className={cn(
+          "grid gap-1.5 p-1 rounded-2xl bg-muted/30 border border-border/40",
+          collapsed ? "grid-cols-1" : "grid-cols-3"
+        )}>
+          {/* 1. Open Finance (Navegar) */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => navigate("/open-finance")}
+                className={cn(
+                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 group",
+                  location.pathname === "/open-finance"
+                    ? "bg-primary/15 text-primary border border-primary/40 shadow-xs"
+                    : "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40 shadow-2xs"
+                )}
+                aria-label="Open Finance"
+              >
+                <Landmark size={16} />
+                {pluggyConfig?.itemId && (
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
+              Open Finance (Contas Bancárias)
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 2. Sincronizar Open Finance */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleQuickSyncPluggy}
+                disabled={isSyncingPluggy}
+                className="relative flex items-center justify-center h-9 w-full rounded-xl bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40 transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-2xs"
+                aria-label="Atualizar Open Finance"
+              >
+                <RefreshCw size={15} className={cn(isSyncingPluggy && "animate-spin text-primary")} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
+              {isSyncingPluggy ? "Sincronizando Open Finance..." : "Atualizar Dados Open Finance"}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 3. Nuvem (Google Drive) */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleQuickSyncDrive}
+                disabled={isSyncingDrive}
+                className={cn(
+                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 group shadow-2xs",
+                  isConnectedDrive 
+                    ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40" 
+                    : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60"
+                )}
+                aria-label="Nuvem (Google Drive)"
+              >
+                <Cloud size={16} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                {isConnectedDrive && (
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
+              {isConnectedDrive 
+                ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Sincronizar Nuvem (Drive)") 
+                : "Conectar Nuvem (Google Drive)"}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+
         {/* Alertas Popover */}
         <Popover open={alertasPopoverOpen} onOpenChange={setAlertasPopoverOpen}>
           <PopoverTrigger asChild>
@@ -263,7 +425,7 @@ export function Sidebar() {
         />
 
         {/* Ajustes Popover */}
-        <Popover>
+        <Popover open={ajustesPopoverOpen} onOpenChange={setAjustesPopoverOpen}>
           <PopoverTrigger asChild>
             <button className={cn(
               "relative flex items-center h-9 rounded-xl transition-all duration-300 group hover:bg-muted/50",
@@ -275,18 +437,24 @@ export function Sidebar() {
               {!collapsed && <span className="text-[12px] font-bold text-muted-foreground group-hover:text-foreground">Ajustes</span>}
             </button>
           </PopoverTrigger>
-          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/40 shadow-2xl rounded-[1.5rem] w-72 bg-card">
-            <div className="px-4 pt-4 pb-2">
-              <h3 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-foreground">
-                <Settings className="w-3.5 h-3.5 text-primary" /> Preferências
-              </h3>
+          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/50 shadow-2xl rounded-[1.75rem] w-80 bg-card/95 backdrop-blur-xl">
+            <div className="px-5 pt-4 pb-3 border-b border-border/40 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <Settings className="w-3.5 h-3.5" />
+                </div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-foreground">
+                  Ajustes
+                </h3>
+              </div>
             </div>
             
-            <div className="px-4 pb-5 space-y-5 max-h-[60vh] overflow-y-auto no-scrollbar">
+            <div className="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto no-scrollbar">
+              {/* Seção 1: Tema / Aparência */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Palette className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Estilo Visual</p>
+                  <Palette className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Aparência</p>
                 </div>
                 <div className="grid grid-cols-3 gap-1.5">
                   {themes.map((t) => (
@@ -294,14 +462,14 @@ export function Sidebar() {
                       key={t.id}
                       onClick={() => setTheme(t.id)}
                       className={cn(
-                        "flex flex-col items-center justify-center gap-1 py-2 rounded-xl border-2 transition-all active:scale-95",
+                        "flex flex-col items-center justify-center gap-1 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95",
                         theme === t.id 
-                          ? "bg-primary/10 text-primary border-primary" 
-                          : "bg-muted/30 text-muted-foreground border-transparent hover:border-border/60"
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm" 
+                          : "bg-muted/40 text-muted-foreground border-transparent hover:border-border/60 hover:text-foreground"
                       )}
                     >
                       <span className="text-sm">{t.icon}</span>
-                      <span className="text-[8px] font-bold uppercase">{t.id === 'system' ? 'Auto' : t.name.split(' ')[0]}</span>
+                      <span className="text-[9px] uppercase tracking-wide">{t.id === 'system' ? 'Auto' : t.name.split(' ')[0]}</span>
                     </button>
                   ))}
                 </div>
@@ -309,44 +477,125 @@ export function Sidebar() {
 
               <Separator className="opacity-40" />
 
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Database className="w-3 h-3 text-muted-foreground" />
-                  <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Sincronização & Backup</p>
-                </div>
-                
-                <div className="px-1">
-                  <GoogleDriveSync />
+              {/* Seção 2: Sincronização & Backup (Apenas Ícones com Descrição Flutuante) */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-3.5 h-3.5 text-muted-foreground" />
+                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Sincronização & Backup</p>
+                  </div>
+                  {pluggyConfig?.lastSyncAt && (
+                    <span className="text-[9px] font-mono text-muted-foreground opacity-75">
+                      Sync: {format(parseDateLocal(pluggyConfig.lastSyncAt.substring(0, 10)), "dd/MM")}
+                    </span>
+                  )}
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <Button 
-                    variant="outline" 
-                    className="h-10 rounded-lg justify-start gap-3 border-border/60 group px-2"
-                    onClick={handleExport}
-                  >
-                    <div className="p-1.5 rounded-lg bg-success/10 text-success">
-                      <Download size={14} />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[11px] font-bold">Backup Local (.json)</p>
-                    </div>
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    className="h-10 rounded-lg justify-start gap-3 border-border/60 group px-2"
-                    onClick={handleImportClick}
-                  >
-                    <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                      <Upload size={14} />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-[11px] font-bold">Restaurar Backup</p>
-                    </div>
-                  </Button>
-                  <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
-                </div>
+                <TooltipProvider delayDuration={100} skipDelayDuration={0}>
+                  <div className="grid grid-cols-5 gap-1.5 p-2 rounded-2xl bg-muted/30 border border-border/50">
+                    {/* 1. Open Finance (Navegação) */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => {
+                            setAjustesPopoverOpen(false);
+                            navigate("/open-finance");
+                          }}
+                          className="relative h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 shadow-2xs"
+                          aria-label="Open Finance"
+                          title="Open Finance (Conexões)"
+                        >
+                          <Landmark size={17} />
+                          {pluggyConfig?.itemId && (
+                            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                        Open Finance (Conexões)
+                      </TooltipContent>
+                    </Tooltip>
+
+                    {/* 2. Sincronizar Open Finance */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleQuickSyncPluggy}
+                          disabled={isSyncingPluggy}
+                          className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs"
+                          aria-label="Sincronizar Open Finance"
+                          title="Sincronizar Open Finance"
+                        >
+                          <RefreshCw size={16} className={cn(isSyncingPluggy && "animate-spin text-primary")} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                        {isSyncingPluggy ? "Sincronizando..." : "Sincronizar Open Finance"}
+                      </TooltipContent>
+                    </Tooltip>
+
+                    {/* 3. Nuvem (Google Drive) */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleQuickSyncDrive}
+                          disabled={isSyncingDrive}
+                          className={cn(
+                            "relative h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs",
+                            isConnectedDrive ? "text-primary" : "text-muted-foreground"
+                          )}
+                          aria-label="Nuvem (Google Drive)"
+                          title={isConnectedDrive ? "Sincronizar Nuvem (Drive)" : "Conectar Google Drive"}
+                        >
+                          <Cloud size={17} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                          {isConnectedDrive && (
+                            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                        {isConnectedDrive 
+                          ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Sincronizar Nuvem (Drive)") 
+                          : "Conectar Google Drive"}
+                      </TooltipContent>
+                    </Tooltip>
+
+                    {/* 4. Exportar Backup Local */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleExport}
+                          className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-emerald-500/10 hover:border-emerald-500/40 text-muted-foreground hover:text-emerald-500 flex items-center justify-center transition-all active:scale-95 shadow-2xs"
+                          aria-label="Exportar Backup"
+                          title="Exportar Backup (.json)"
+                        >
+                          <Download size={17} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                        Exportar Backup (.json)
+                      </TooltipContent>
+                    </Tooltip>
+
+                    {/* 5. Restaurar Backup */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleImportClick}
+                          className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 shadow-2xs"
+                          aria-label="Restaurar Backup"
+                          title="Restaurar Backup (.json)"
+                        >
+                          <Upload size={17} />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                        Restaurar Backup (.json)
+                      </TooltipContent>
+                    </Tooltip>
+                    <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
+                  </div>
+                </TooltipProvider>
               </div>
             </div>
           </PopoverContent>

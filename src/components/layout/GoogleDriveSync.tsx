@@ -44,6 +44,7 @@ export function GoogleDriveSync() {
         eventosRescisao: finance.eventosRescisao,
         historicosContribuicaoINSS: finance.historicosContribuicaoINSS,
         ignoredTxIds: finance.ignoredTxIds,
+        pluggyConfig: finance.pluggyConfig,
       },
       lastModified: finance.lastModified,
     };

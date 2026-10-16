@@ -4,9 +4,20 @@ import { createServer as createViteServer } from "vite";
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.DEFAULT_APP_PORT) || 3000;
+  // Parse CLI args (--port, --host) or environment variables
+  const portArgIdx = process.argv.indexOf("--port");
+  const portFromArg = portArgIdx !== -1 ? parseInt(process.argv[portArgIdx + 1], 10) : NaN;
+  const PORT = !isNaN(portFromArg) ? portFromArg : (Number(process.env.DEFAULT_APP_PORT) || 3000);
+
+  const hostArgIdx = process.argv.indexOf("--host");
+  const HOST = hostArgIdx !== -1 ? process.argv[hostArgIdx + 1] : "0.0.0.0";
 
   app.use(express.json());
+
+  // Health check endpoint for container probes
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ status: "healthy" });
+  });
 
   // API Route for Google OAuth proxying (hiding GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
   app.post("/api/auth/google", async (req, res) => {
@@ -54,10 +65,66 @@ async function startServer() {
     }
   });
 
+  // API Route for Pluggy Open Finance data proxying
+  app.all("/api/pluggy/data", async (req, res) => {
+    try {
+      const action = ((req.body?.action || req.query?.action) as string || "").trim();
+      const customClientId = ((req.body?.clientId || req.query?.clientId) as string || "").trim();
+      const customClientSecret = ((req.body?.clientSecret || req.query?.clientSecret) as string || "").trim();
+
+      const clientId = customClientId || process.env.PLUGGY_CLIENT_ID;
+      const clientSecret = customClientSecret || process.env.PLUGGY_CLIENT_SECRET;
+
+      const { fetchPluggyDataFromApi, testPluggyAuth } = await import("./api/pluggy/data.js").catch(() => import("./api/pluggy/data.ts"));
+
+      if (action === "test-auth") {
+        if (!clientId || !clientSecret) {
+          return res.status(400).json({
+            success: false,
+            error: "Preencha o Client ID e Client Secret para testar a autenticação.",
+            logs: [`[${new Date().toLocaleTimeString()}] [ERRO] CLIENT_ID ou CLIENT_SECRET não informados.`]
+          });
+        }
+        const authResult = await testPluggyAuth(clientId, clientSecret);
+        return res.status(authResult.success ? 200 : 401).json(authResult);
+      }
+
+      const itemId = ((req.body?.itemId || req.query?.itemId) as string || "").trim();
+      if (!itemId) {
+        return res.status(400).json({ 
+          error: 'O parâmetro ITEM_ID é obrigatório.',
+          logs: [`[${new Date().toLocaleTimeString()}] [ERRO] Informe o identificador ITEM_ID da conexão bancária.`]
+        });
+      }
+
+      if (!clientId || !clientSecret) {
+        return res.status(400).json({
+          error: 'Credenciais da Pluggy não configuradas. Configure as variáveis PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET na Vercel.',
+          logs: [
+            `[${new Date().toLocaleTimeString()}] [ERRO] Variáveis de ambiente da Pluggy não configuradas no servidor.`,
+            `[${new Date().toLocaleTimeString()}] Configure PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET no painel da Vercel.`
+          ]
+        });
+      }
+
+      const realData = await fetchPluggyDataFromApi(itemId, clientId, clientSecret);
+      return res.status(200).json(realData);
+    } catch (error: any) {
+      console.error('Pluggy Proxy Error:', error);
+      return res.status(500).json({ 
+        error: error.message || 'Erro interno ao consultar Pluggy API',
+        logs: error.logs || [`[${new Date().toLocaleTimeString()}] [ERRO FATAL] ${error.message || 'Erro inesperado'}`]
+      });
+    }
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: false,
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -69,8 +136,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`Server running on http://${HOST}:${PORT}`);
   });
 }
 

@@ -1,0 +1,6 @@
+{
+  "summary": "Plano revisado para a integração final da API Pluggy no Orbium, removendo credenciais da tela (utilizando apenas variáveis da Vercel) e adicionando botões de atalho na Sidebar com nomenclatura 'Open Finance' e logo da Pluggy.",
+  "updatedAt": "2026-10-15T17:21:01.319227182Z",
+  "requestFeedback": true,
+  "userFacing": true
+}

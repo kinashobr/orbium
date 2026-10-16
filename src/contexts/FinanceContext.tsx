@@ -54,6 +54,12 @@ import {
   HistoricoContribuicaoINSS,
 } from "@/types/finance";
 import { HoleriteCompetenciaData } from "@/types/clt";
+import { PluggyConfig, PluggySyncPayload } from "@/types/pluggy";
+import { 
+  convertPluggyToTransacaoCompleta, 
+  isCreditCardTransactionDuplicate, 
+  buildPluggyImportedStatement 
+} from "@/lib/pluggyAdapter";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -507,6 +513,19 @@ interface FinanceContextType {
   // Controle de Versão
   lastModified: string;
   
+  // Pluggy Open Finance (Módulo de Integração)
+  pluggyConfig: PluggyConfig;
+  updatePluggyConfig: (updates: Partial<PluggyConfig>) => void;
+  syncPluggyData: (overrideItemId?: string) => Promise<{
+    success: boolean;
+    message: string;
+    cardCount?: number;
+    statementCount?: number;
+    logs?: string[];
+    payload?: PluggySyncPayload;
+  }>;
+  isSyncingPluggy: boolean;
+
   // Exportação e Importação
   exportData: () => void;
   importData: (file: File) => Promise<{ success: boolean; message: string }>;
@@ -536,6 +555,7 @@ const STORAGE_KEYS = {
   CLT_COMPETENCIAS: "fin_clt_competencias_v1",
   CLT_HOLERITES: "fin_clt_holerites_v1",
   EXPENSE_SNAPSHOTS: "fin_expense_snapshots_v1",
+  PLUGGY_CONFIG: "orbium_pluggy_config_v1",
   LAST_MODIFIED: "fin_last_modified_v1",
 };
 
@@ -550,6 +570,13 @@ const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
 const initialMetasPersonalizadas: MetaPersonalizada[] = [];
 const initialCreditCardConfigs: CreditCardConfig[] = [];
+const initialPluggyConfig: PluggyConfig = {
+  itemId: "",
+  linkedAccounts: {},
+  linkedCards: {},
+  linkedInvestments: {},
+  lastSyncAt: undefined,
+};
 const initialLastModified = new Date(0).toISOString();
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -707,12 +734,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [eventosRescisao, setEventosRescisao] = useState<EventoRescisao[]>(() => loadFromStorage("fin_eventos_rescisao_v1", []));
   const [historicosContribuicaoINSS, setHistoricosContribuicaoINSS] = useState<HistoricoContribuicaoINSS[]>(() => loadFromStorage("fin_historicos_contribuicao_inss_v1", []));
   const [ignoredTxIds, setIgnoredTxIds] = useState<string[]>(() => loadFromStorage("ignored_recebiveis_tx_ids", []));
+  const [pluggyConfig, setPluggyConfig] = useState<PluggyConfig>(() => loadFromStorage(STORAGE_KEYS.PLUGGY_CONFIG, initialPluggyConfig));
+  const [isSyncingPluggy, setIsSyncingPluggy] = useState(false);
 
   const updateLastModified = useCallback(() => {
     const now = new Date().toISOString();
     setLastModified(now);
     saveToStorage(STORAGE_KEYS.LAST_MODIFIED, now);
   }, []);
+
+  const updatePluggyConfig = useCallback((updates: Partial<PluggyConfig>) => {
+    setPluggyConfig(prev => {
+      const next = { ...prev, ...updates };
+      saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, next);
+      return next;
+    });
+    updateLastModified();
+  }, [updateLastModified]);
 
   // 1. Definição básica de updaters de estado para evitar erros de referência circular/ordem
   const addTransacaoV2 = useCallback((transaction: TransacaoCompleta) => {
@@ -831,6 +869,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage("fin_historicos_contribuicao_inss_v1", historicosContribuicaoINSS); updateLastModified(); }, [historicosContribuicaoINSS, updateLastModified]);
   useEffect(() => { saveToStorage("ignored_recebiveis_tx_ids", ignoredTxIds); updateLastModified(); }, [ignoredTxIds, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.EXPENSE_SNAPSHOTS, expenseSnapshots); updateLastModified(); }, [expenseSnapshots, updateLastModified]);
+  useEffect(() => { saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, pluggyConfig); updateLastModified(); }, [pluggyConfig, updateLastModified]);
 
 
   const balanceCache = useMemo(() => {
@@ -1719,6 +1758,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         historicosContribuicaoINSS,
         ignoredTxIds,
         expenseSnapshots,
+        pluggyConfig,
       },
       lastModified: lastModified,
     };
@@ -1729,7 +1769,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, 
     standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, 
     creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs, cltHolerites, vinculosOcupacionais, recebiveisParcelados, 
-    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, expenseSnapshots, lastModified
+    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, expenseSnapshots, pluggyConfig, lastModified
   ]);
 
   const importData = useCallback(async (file: File) => {
@@ -1772,6 +1812,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.eventosRescisao) setEventosRescisao(data.data.eventosRescisao);
       if (data.data.historicosContribuicaoINSS) setHistoricosContribuicaoINSS(data.data.historicosContribuicaoINSS);
       if (data.data.ignoredTxIds) setIgnoredTxIds(data.data.ignoredTxIds);
+      if (data.data.pluggyConfig) {
+        setPluggyConfig(data.data.pluggyConfig);
+        saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, data.data.pluggyConfig);
+      }
       
       const newTimestamp = data.lastModified || new Date().toISOString();
       setLastModified(newTimestamp);
@@ -1781,6 +1825,142 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return { success: false, message: "Erro ao importar." }; 
     }
   }, [recebiveisParcelados]);
+
+  const syncPluggyData = useCallback(async (overrideItemId?: string): Promise<{
+    success: boolean;
+    message: string;
+    cardCount?: number;
+    statementCount?: number;
+    logs?: string[];
+    payload?: PluggySyncPayload;
+  }> => {
+    const targetItemId = (overrideItemId || pluggyConfig?.itemId || "").trim();
+    if (!targetItemId) {
+      return {
+        success: false,
+        message: "Nenhum ITEM_ID configurado para o Open Finance. Acesse a tela de Open Finance para informar seu ITEM_ID.",
+        logs: [`[${new Date().toLocaleTimeString()}] [AVISO] Nenhum ITEM_ID informado para sincronização.`]
+      };
+    }
+
+    setIsSyncingPluggy(true);
+    const syncLogs: string[] = [
+      `[${new Date().toLocaleTimeString()}] Disparando sincronização sob demanda para Item ID "${targetItemId.substring(0, 8)}..."`
+    ];
+
+    try {
+      const response = await fetch('/api/pluggy/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId: targetItemId }),
+      });
+
+      const payload: PluggySyncPayload = await response.json();
+      if (payload.logs && Array.isArray(payload.logs)) {
+        syncLogs.push(...payload.logs);
+      }
+
+      if (!response.ok || (payload as any).error) {
+        const errMsg = (payload as any).error || `Erro HTTP ${response.status}`;
+        throw new Error(errMsg);
+      }
+
+      let totalCardTxsAdded = 0;
+      let totalStatementsCreated = 0;
+
+      const accounts = payload.accounts || [];
+      const txsByAccount = payload.transactions || {};
+
+      const newCardTransactions: TransacaoCompleta[] = [];
+      let updatedStatements: ImportedStatement[] = [...importedStatements];
+
+      for (const pluggyAcc of accounts) {
+        const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
+        if (!orbiumAccountId) continue;
+
+        const orbiumAccount = contasMovimento.find(a => a.id === orbiumAccountId);
+        const isCredit = pluggyAcc.type === 'CREDIT' || orbiumAccount?.accountType === 'cartao_credito';
+        const accountTxs = txsByAccount[pluggyAcc.id] || [];
+
+        if (isCredit) {
+          // Lançamento AUTOMÁTICO de cartão de crédito com deduplicação rigorosa
+          for (const tx of accountTxs) {
+            const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
+              ...transacoesV2,
+              ...newCardTransactions
+            ]);
+
+            if (!isDuplicate) {
+              const fullTx = convertPluggyToTransacaoCompleta(tx, orbiumAccountId, targetItemId);
+              newCardTransactions.push(fullTx);
+              totalCardTxsAdded++;
+            }
+          }
+        } else {
+          // Geração de Extrato OFX para conta corrente (para importação manual na tela de extratos)
+          if (accountTxs.length > 0) {
+            const statement = buildPluggyImportedStatement(
+              accountTxs,
+              orbiumAccountId,
+              orbiumAccount?.name || pluggyAcc.name,
+              standardizationRules,
+              false
+            );
+
+            const existingStmtIdx = updatedStatements.findIndex(
+              s => s.accountId === orbiumAccountId && s.fileName.startsWith("Pluggy API") && s.status === 'pending'
+            );
+
+            if (existingStmtIdx >= 0) {
+              updatedStatements[existingStmtIdx] = statement;
+            } else {
+              updatedStatements.push(statement);
+            }
+            totalStatementsCreated++;
+          }
+        }
+      }
+
+      if (newCardTransactions.length > 0) {
+        setTransacoesV2(prev => [...prev, ...newCardTransactions]);
+      }
+
+      if (totalStatementsCreated > 0) {
+        setImportedStatements(updatedStatements);
+      }
+
+      const updatedConfig: PluggyConfig = {
+        ...(pluggyConfig || initialPluggyConfig),
+        itemId: targetItemId,
+        lastSyncAt: new Date().toISOString(),
+      };
+      setPluggyConfig(updatedConfig);
+      saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, updatedConfig);
+      updateLastModified();
+
+      syncLogs.push(
+        `[${new Date().toLocaleTimeString()}] [SUCESSO] Sincronização finalizada: ${totalCardTxsAdded} lançamentos no Cartão de Crédito e ${totalStatementsCreated} extrato(s) OFX gerado(s).`
+      );
+
+      return {
+        success: true,
+        message: `Sincronização concluída com sucesso! ${totalCardTxsAdded} transação(ões) de cartão lançada(s) e ${totalStatementsCreated} extrato(s) de conta corrente gerado(s).`,
+        cardCount: totalCardTxsAdded,
+        statementCount: totalStatementsCreated,
+        logs: syncLogs,
+        payload,
+      };
+    } catch (err: any) {
+      syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] ${err.message || 'Falha na sincronização'}`);
+      return {
+        success: false,
+        message: err.message || "Erro ao conectar com a API Pluggy.",
+        logs: syncLogs,
+      };
+    } finally {
+      setIsSyncingPluggy(false);
+    }
+  }, [pluggyConfig, contasMovimento, transacoesV2, importedStatements, standardizationRules, updateLastModified]);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {
@@ -2334,12 +2514,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     deleteExpenseSnapshot,
     getExpenseSnapshot,
 
+    // Pluggy Open Finance
+    pluggyConfig,
+    updatePluggyConfig,
+    syncPluggyData,
+    isSyncingPluggy,
+
     lastModified,
     exportData, importData,
   }), [
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
     vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
     expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
+    pluggyConfig, updatePluggyConfig, syncPluggyData, isSyncingPluggy,
     cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
     addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
     addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,
