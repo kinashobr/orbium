@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useFinance } from "@/contexts/FinanceContext";
-import { PluggyAccount, PluggySyncPayload } from "@/types/pluggy";
+import { PluggyAccount, PluggySyncPayload, DetectedCardInstallment } from "@/types/pluggy";
 import { formatCurrency } from "@/types/finance";
 import { format } from "date-fns";
 import { parseDateLocal, cn } from "@/lib/utils";
@@ -24,7 +24,8 @@ import {
   ChevronDown,
   ChevronUp,
   KeyRound,
-  Landmark
+  Landmark,
+  ShoppingBag
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,11 +33,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { isCardInvoicePayment, parseInstallmentPattern } from "@/lib/pluggyAdapter";
+import { InstallmentReviewModal } from "@/components/bills/InstallmentReviewModal";
 
 export default function OpenFinanceSettings() {
   const { 
     pluggyConfig, 
     updatePluggyConfig, 
+    pluggyLastPayload,
     contasMovimento, 
     addContaMovimento,
     syncPluggyData,
@@ -44,8 +48,10 @@ export default function OpenFinanceSettings() {
   } = useFinance();
 
   const [inputItemId, setInputItemId] = useState(pluggyConfig?.itemId || "");
-  const [data, setData] = useState<PluggySyncPayload | null>(null);
+  const [data, setData] = useState<PluggySyncPayload | null>(() => pluggyLastPayload || null);
   const [selectedTxAccount, setSelectedTxAccount] = useState<string>("all");
+  const [pendingInstallments, setPendingInstallments] = useState<DetectedCardInstallment[]>([]);
+  const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
   
   // Controle de visibilidade do Item ID (oculto por padrão se já configurado)
   const [showItemIdConfig, setShowItemIdConfig] = useState(!pluggyConfig?.itemId);
@@ -62,6 +68,12 @@ export default function OpenFinanceSettings() {
       setInputItemId(pluggyConfig.itemId);
     }
   }, [pluggyConfig?.itemId]);
+
+  useEffect(() => {
+    if (pluggyLastPayload) {
+      setData(pluggyLastPayload);
+    }
+  }, [pluggyLastPayload]);
 
   useEffect(() => {
     if (logs.length > 0 && showLogs) {
@@ -107,6 +119,11 @@ export default function OpenFinanceSettings() {
 
     if (result.payload) {
       setData(result.payload);
+    }
+
+    if (result.detectedInstallments && result.detectedInstallments.length > 0) {
+      setPendingInstallments(result.detectedInstallments);
+      setShowInstallmentsModal(true);
     }
 
     if (result.success) {
@@ -305,6 +322,32 @@ export default function OpenFinanceSettings() {
           </div>
         )}
 
+        {/* BANNER DE COMPRAS PARCELADAS IDENTIFICADAS */}
+        {pendingInstallments.length > 0 && (
+          <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground">
+                  {pendingInstallments.length} {pendingInstallments.length === 1 ? "Compra Parcelada Nova Identificada" : "Compras Parceladas Novas Identificadas"}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Cadastre no Gerenciar Compromissos para agendar faturas futuras com precisão e manter o extrato limpo.
+                </p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              onClick={() => setShowInstallmentsModal(true)}
+              className="h-9 px-4 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shrink-0 shadow-sm"
+            >
+              Revisar e Cadastrar
+            </Button>
+          </div>
+        )}
+
         {/* GRID PRINCIPAL: CONTAS BANCÁRIAS E TRANSAÇÕES PRIORIZADAS */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
@@ -497,22 +540,32 @@ export default function OpenFinanceSettings() {
                     {displayedTransactions.map(({ tx, pluggyAccId }) => {
                       const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
                       const desc = tx.description || "Transação";
-                      const lower = desc.toLowerCase();
-                      const isCardPayment = lower.includes('pagamento de fatura') || 
-                                            lower.includes('credit card payment') || 
-                                            lower.includes('pgto fatura');
+                      const isCardPayment = isCardInvoicePayment(desc);
                       const acc = availableAccounts.find(a => a.id === pluggyAccId);
                       const isCredit = acc?.type === 'CREDIT';
                       
                       const isExpense = isCredit ? !isCardPayment : rawAmt < 0;
                       const cleanAmt = Math.abs(rawAmt);
+                      const installmentInfo = parseInstallmentPattern(desc);
 
                       return (
                         <div key={tx.id} className="py-2.5 px-2 hover:bg-muted/20 transition-colors flex items-center justify-between gap-3 text-xs">
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-foreground truncate" title={desc}>
-                              {desc}
-                            </p>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="font-semibold text-foreground truncate" title={desc}>
+                                {desc}
+                              </p>
+                              {installmentInfo.isInstallment && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 font-mono text-purple-600 dark:text-purple-400 border-purple-500/30">
+                                  {installmentInfo.currentInstallment}/{installmentInfo.totalInstallments}
+                                </Badge>
+                              )}
+                              {isCardPayment && (
+                                <Badge variant="outline" className="text-[9px] py-0 px-1.5 font-semibold text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                                  Pagamento
+                                </Badge>
+                              )}
+                            </div>
                             <p className="text-[11px] text-muted-foreground">
                               {tx.date ? tx.date.substring(0, 10) : "Data não informada"} • {acc?.name || "Conta"}
                             </p>
@@ -621,6 +674,14 @@ export default function OpenFinanceSettings() {
             </div>
           )}
         </div>
+
+        {/* Modal de Revisão de Compras Parceladas Detectadas */}
+        <InstallmentReviewModal
+          isOpen={showInstallmentsModal}
+          onClose={() => setShowInstallmentsModal(false)}
+          items={pendingInstallments}
+          onItemsChange={setPendingInstallments}
+        />
 
       </div>
     </MainLayout>

@@ -1,6 +1,6 @@
 {
-  "summary": "Plano revisado para a integração final da API Pluggy no Orbium, removendo credenciais da tela (utilizando apenas variáveis da Vercel) e adicionando botões de atalho na Sidebar com nomenclatura 'Open Finance' e logo da Pluggy.",
-  "updatedAt": "2026-10-15T17:21:01.319227182Z",
+  "summary": "Plano de implementação para o ajuste do Open Finance e Cartão de Crédito no Orbium, contemplando: persistência em cache local dos dados da tela (eliminando chamadas repetidas à API ao navegar), normalização contábil de pagamentos de fatura ('Pagamento recebido' como crédito/receita), detecção inteligente de compras parceladas com modal de confirmação para o Gerenciar Compromissos, prevenção de lançamento antecipado de parcelas futuras no extrato do cartão e lançamento automático de compras à vista.",
+  "updatedAt": "2026-10-19T20:56:04.047363424Z",
   "requestFeedback": true,
   "userFacing": true
 }

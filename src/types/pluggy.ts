@@ -84,3 +84,17 @@ export interface PluggySyncPayload {
   logs?: string[];
   rawResponse?: Record<string, any>;
 }
+
+export interface DetectedCardInstallment {
+  id: string;
+  cleanDescription: string;
+  originalDescription: string;
+  currentInstallment: number;
+  totalInstallments: number;
+  installmentAmount: number;
+  totalAmount: number;
+  firstDueDate: string;
+  targetAccountId: string;
+  transactionDate: string;
+  pluggyTransactionId: string;
+}

@@ -54,11 +54,16 @@ import {
   HistoricoContribuicaoINSS,
 } from "@/types/finance";
 import { HoleriteCompetenciaData } from "@/types/clt";
-import { PluggyConfig, PluggySyncPayload } from "@/types/pluggy";
+import { PluggyConfig, PluggySyncPayload, DetectedCardInstallment } from "@/types/pluggy";
 import { 
   convertPluggyToTransacaoCompleta, 
   isCreditCardTransactionDuplicate, 
-  buildPluggyImportedStatement 
+  buildPluggyImportedStatement,
+  isCardInvoicePayment,
+  parseInstallmentPattern,
+  findMatchingCommitment,
+  isFutureTransaction,
+  groupDetectedInstallments
 } from "@/lib/pluggyAdapter";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
@@ -516,6 +521,8 @@ interface FinanceContextType {
   // Pluggy Open Finance (Módulo de Integração)
   pluggyConfig: PluggyConfig;
   updatePluggyConfig: (updates: Partial<PluggyConfig>) => void;
+  pluggyLastPayload: PluggySyncPayload | null;
+  setPluggyLastPayload: Dispatch<SetStateAction<PluggySyncPayload | null>>;
   syncPluggyData: (overrideItemId?: string) => Promise<{
     success: boolean;
     message: string;
@@ -523,6 +530,7 @@ interface FinanceContextType {
     statementCount?: number;
     logs?: string[];
     payload?: PluggySyncPayload;
+    detectedInstallments?: DetectedCardInstallment[];
   }>;
   isSyncingPluggy: boolean;
 
@@ -556,6 +564,7 @@ const STORAGE_KEYS = {
   CLT_HOLERITES: "fin_clt_holerites_v1",
   EXPENSE_SNAPSHOTS: "fin_expense_snapshots_v1",
   PLUGGY_CONFIG: "orbium_pluggy_config_v1",
+  PLUGGY_LAST_PAYLOAD: "orbium_pluggy_last_payload_v1",
   LAST_MODIFIED: "fin_last_modified_v1",
 };
 
@@ -735,7 +744,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [historicosContribuicaoINSS, setHistoricosContribuicaoINSS] = useState<HistoricoContribuicaoINSS[]>(() => loadFromStorage("fin_historicos_contribuicao_inss_v1", []));
   const [ignoredTxIds, setIgnoredTxIds] = useState<string[]>(() => loadFromStorage("ignored_recebiveis_tx_ids", []));
   const [pluggyConfig, setPluggyConfig] = useState<PluggyConfig>(() => loadFromStorage(STORAGE_KEYS.PLUGGY_CONFIG, initialPluggyConfig));
+  const [pluggyLastPayload, setPluggyLastPayloadState] = useState<PluggySyncPayload | null>(() => loadFromStorage<PluggySyncPayload | null>(STORAGE_KEYS.PLUGGY_LAST_PAYLOAD, null));
   const [isSyncingPluggy, setIsSyncingPluggy] = useState(false);
+
+  const setPluggyLastPayload = useCallback((payloadOrUpdater: SetStateAction<PluggySyncPayload | null>) => {
+    setPluggyLastPayloadState(prev => {
+      const next = typeof payloadOrUpdater === 'function' ? (payloadOrUpdater as any)(prev) : payloadOrUpdater;
+      saveToStorage(STORAGE_KEYS.PLUGGY_LAST_PAYLOAD, next);
+      return next;
+    });
+  }, []);
 
   const updateLastModified = useCallback(() => {
     const now = new Date().toISOString();
@@ -1759,6 +1777,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         ignoredTxIds,
         expenseSnapshots,
         pluggyConfig,
+        pluggyLastPayload,
       },
       lastModified: lastModified,
     };
@@ -1769,7 +1788,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, 
     standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, 
     creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs, cltHolerites, vinculosOcupacionais, recebiveisParcelados, 
-    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, expenseSnapshots, pluggyConfig, lastModified
+    parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, expenseSnapshots, pluggyConfig, pluggyLastPayload, lastModified
   ]);
 
   const importData = useCallback(async (file: File) => {
@@ -1816,6 +1835,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setPluggyConfig(data.data.pluggyConfig);
         saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, data.data.pluggyConfig);
       }
+      if (data.data.pluggyLastPayload) {
+        setPluggyLastPayload(data.data.pluggyLastPayload);
+        saveToStorage(STORAGE_KEYS.PLUGGY_LAST_PAYLOAD, data.data.pluggyLastPayload);
+      }
       
       const newTimestamp = data.lastModified || new Date().toISOString();
       setLastModified(newTimestamp);
@@ -1824,7 +1847,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } catch (e) { 
       return { success: false, message: "Erro ao importar." }; 
     }
-  }, [recebiveisParcelados]);
+  }, [recebiveisParcelados, setPluggyLastPayload]);
 
   const syncPluggyData = useCallback(async (overrideItemId?: string): Promise<{
     success: boolean;
@@ -1833,6 +1856,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     statementCount?: number;
     logs?: string[];
     payload?: PluggySyncPayload;
+    detectedInstallments?: DetectedCardInstallment[];
   }> => {
     const targetItemId = (overrideItemId || pluggyConfig?.itemId || "").trim();
     if (!targetItemId) {
@@ -1867,6 +1891,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       let totalCardTxsAdded = 0;
       let totalStatementsCreated = 0;
+      let futureInstallmentsIgnored = 0;
+      const allDetectedInstallments: DetectedCardInstallment[] = [];
 
       const accounts = payload.accounts || [];
       const txsByAccount = payload.transactions || {};
@@ -1883,8 +1909,43 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         const accountTxs = txsByAccount[pluggyAcc.id] || [];
 
         if (isCredit) {
-          // Lançamento AUTOMÁTICO de cartão de crédito com deduplicação rigorosa
+          // 1. Identificar novas compras parceladas pendentes de cadastro no Gerenciar Compromissos
+          const detectedForAcc = groupDetectedInstallments(accountTxs, orbiumAccountId, billsTracker);
+          allDetectedInstallments.push(...detectedForAcc);
+
+          // 2. Processar cada transação do cartão
           for (const tx of accountTxs) {
+            const isCardPayment = isCardInvoicePayment(tx.description);
+            const parsed = parseInstallmentPattern(tx.description);
+
+            // Se for compra parcelada (não é pagamento de fatura):
+            if (!isCardPayment && parsed.isInstallment && parsed.totalInstallments > 1) {
+              const matchingBills = findMatchingCommitment(parsed.cleanDescription, orbiumAccountId, billsTracker);
+
+              // Se o compromisso JÁ existe no Gerenciar Compromissos:
+              if (matchingBills.length > 0) {
+                // Verificar se a data da transação é futura (mês posterior ao atual)
+                if (isFutureTransaction(tx.date)) {
+                  // Conforme escolha do usuário: "Ignorar parcelas futuras se o compromisso já existir"
+                  futureInstallmentsIgnored++;
+                  syncLogs.push(
+                    `[INFO] Parcela futura "${tx.description}" (${tx.date}) ignorada no extrato (já prevista no Gerenciar Compromissos).`
+                  );
+                  continue;
+                }
+              } else {
+                // Se o compromisso NÃO existe no Gerenciar Compromissos e é uma parcela futura (ex: 4/6, 5/6, 6/6),
+                // não devemos lançar no extrato antecipadamente; o compromisso foi capturado para confirmação no modal.
+                if (isFutureTransaction(tx.date)) {
+                  syncLogs.push(
+                    `[INFO] Parcela futura "${tx.description}" (${tx.date}) agrupada para confirmação no Gerenciar Compromissos.`
+                  );
+                  continue;
+                }
+              }
+            }
+
+            // Lançamento com deduplicação rigorosa (pagamentos de fatura ou compras à vista/do ciclo atual)
             const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
               ...transacoesV2,
               ...newCardTransactions
@@ -1929,6 +1990,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         setImportedStatements(updatedStatements);
       }
 
+      // Salva o payload no estado e em localStorage para persistência permanente da tela
+      setPluggyLastPayload(payload);
+
       const updatedConfig: PluggyConfig = {
         ...(pluggyConfig || initialPluggyConfig),
         itemId: targetItemId,
@@ -1938,17 +2002,26 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, updatedConfig);
       updateLastModified();
 
+      let summaryMsg = `Sincronização concluída com sucesso! ${totalCardTxsAdded} transação(ões) lançada(s) no cartão e ${totalStatementsCreated} extrato(s) gerado(s).`;
+      if (futureInstallmentsIgnored > 0) {
+        summaryMsg += ` (${futureInstallmentsIgnored} parcelas futuras mantidas no Gerenciar Compromissos sem duplicar extrato).`;
+      }
+      if (allDetectedInstallments.length > 0) {
+        summaryMsg += ` ${allDetectedInstallments.length} nova(s) compra(s) parcelada(s) detectada(s) para revisão.`;
+      }
+
       syncLogs.push(
-        `[${new Date().toLocaleTimeString()}] [SUCESSO] Sincronização finalizada: ${totalCardTxsAdded} lançamentos no Cartão de Crédito e ${totalStatementsCreated} extrato(s) OFX gerado(s).`
+        `[${new Date().toLocaleTimeString()}] [SUCESSO] ${summaryMsg}`
       );
 
       return {
         success: true,
-        message: `Sincronização concluída com sucesso! ${totalCardTxsAdded} transação(ões) de cartão lançada(s) e ${totalStatementsCreated} extrato(s) de conta corrente gerado(s).`,
+        message: summaryMsg,
         cardCount: totalCardTxsAdded,
         statementCount: totalStatementsCreated,
         logs: syncLogs,
         payload,
+        detectedInstallments: allDetectedInstallments,
       };
     } catch (err: any) {
       syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] ${err.message || 'Falha na sincronização'}`);
@@ -1960,7 +2033,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSyncingPluggy(false);
     }
-  }, [pluggyConfig, contasMovimento, transacoesV2, importedStatements, standardizationRules, updateLastModified]);
+  }, [pluggyConfig, contasMovimento, transacoesV2, importedStatements, standardizationRules, billsTracker, setPluggyLastPayload, updateLastModified]);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {
@@ -2517,6 +2590,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // Pluggy Open Finance
     pluggyConfig,
     updatePluggyConfig,
+    pluggyLastPayload,
+    setPluggyLastPayload,
     syncPluggyData,
     isSyncingPluggy,
 
@@ -2526,7 +2601,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
     vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
     expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
-    pluggyConfig, updatePluggyConfig, syncPluggyData, isSyncingPluggy,
+    pluggyConfig, updatePluggyConfig, pluggyLastPayload, setPluggyLastPayload, syncPluggyData, isSyncingPluggy,
     cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
     addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
     addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,
