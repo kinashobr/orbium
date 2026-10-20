@@ -1,157 +1,139 @@
-# Ajuste no Open Finance & Motor de Cartão de Crédito e Compromissos
+# Reformulação do Open Finance: Categorização, Lançamentos, Agrupamento e Anti-Duplicidade
 
-Ajuste do fluxo de Open Finance para persistência local dos dados sincronizados (evitando requisições desnecessárias à API ao navegar entre telas), correção contábil de pagamentos de fatura ("Pagamento recebido" como receita/crédito positivo) e inteligência na detecção de compras parceladas no cartão de crédito integradas ao Gerenciar Compromissos, prevenindo duplicações e lançamentos indevidos de parcelas futuras no extrato.
+Ajuste completo da arquitetura do módulo de Open Finance para separar responsabilidades entre busca de dados e lançamento contábil, introduzir categorização automática preditiva, agrupar despesas parceladas de forma compacta e eliminar qualquer duplicidade de transações e pagamentos de fatura.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Decisões confirmadas pelo usuário na Fase 1:**
-> - **Compras parceladas detectadas no cartão:** Exibir aviso ou prévia modal para confirmação antes de cadastrar no *Gerenciar Compromissos*.
-> - **Compras à vista (sem parcelamento):** Lançar diretamente no extrato do cartão no ciclo atual com deduplicação estrita.
-> - **Parcelas futuras (ex: 4/6, 5/6, 6/6):** Ignorar no extrato atual se o compromisso já existir no *Gerenciar Compromissos*, mantendo o extrato limpo e fiel ao ciclo financeiro vigente.
-
-- **Persistência de Dados (Item 1 do chamado):** Os dados da última sincronização (`accounts`, `transactions`, `lastSyncAt`) passam a ser salvos no `FinanceContext` e espelhados no `localStorage`. Ao sair e voltar para a página de Open Finance, a interface carrega instantaneamente o último estado obtido sem disparar chamadas de API. Novas chamadas ocorrem **exclusivamente** quando o usuário clica no botão "Sincronizar" ou "Atualizar Dados".
-- **Normalização de "Pagamento recebido":** Transações contendo "Pagamento recebido", "Pagamento de fatura", "Credit card payment", "Pgto fatura" passam a ser classificadas como fluxo de entrada (`flow: 'in'`), operação `receita` (crédito no cartão que amortiza o saldo devedor), marcando automaticamente como paga a fatura correspondente no `billsTracker`.
+> **Decisões confirmadas pelo usuário:**
+> - **Botão Lançar e Desfazer:** Execução direta com 1 clique sem modais de confirmação (`AlertDialog` removido), mantendo feedback claro e imediato via Sonner toast.
+> - **Novo botão de Extrato de Conta Corrente:** Posicionado no topo, logo ao lado do botão **Sincronizar**, com o título **"Disponibilizar Extrato"**, enviando o extrato para a tela de *Revisão de Extrato*.
+> - **Despesas parceladas:** Agrupadas em linha compacta fixa, destacando o valor total da compra e o valor individual de cada parcela (ex: 6x de R$ 129,90 = R$ 779,40).
+> - **Proporção do layout:** Card de Contas Bancárias reduzido para ~33% (`lg:col-span-4`) e Card de Transações expandido para ~67% (`lg:col-span-8`), garantindo área visual nobre para a nova coluna de categorias.
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **O que faz:** Transforma o módulo de Open Finance em uma ferramenta rápida e econômica em chamadas de API, garantindo coerência contábil no cartão de crédito. Separa com precisão o que é despesa à vista (que entra no extrato do cartão), o que é pagamento de fatura (entrada de crédito) e o que são compras parceladas (que alimentam o *Gerenciar Compromissos* e só vencem mês a mês nas faturas corretas).
-- **Público-alvo:** Usuários que conectam suas contas bancárias via Pluggy e precisam de controle orçamentário sem duplicidade entre extrato e faturas futuras.
-- **Valor agregado:** Redução de consumo de quota da API Pluggy, eliminação de distorções no saldo do cartão e automação do cadastro de crediários/parcelamentos com aprovação em 1 clique.
+- **O que faz:**
+  1. **Separação de Papéis:** O botão **Sincronizar** passa a ter o papel único e exclusivo de buscar os dados atualizados da Pluggy API e salvá-los no estado/cache local. Não faz lançamentos automáticos no extrato nem cria extratos não solicitados.
+  2. **Botão Disponibilizar Extrato:** Criação de botão dedicado no cabeçalho superior (ao lado de Sincronizar) para gerar os lotes de extrato de contas correntes e disponibilizá-los na esteira de *Revisão de Extrato*.
+  3. **Botão Lançar & Desfazer:** Adição do botão **Lançar** ao lado do botão **Desfazer** no cabeçalho do card de Transações. Ambos atuam instantaneamente sem modais de bloqueio.
+  4. **Categorias Inteligentes:** Coluna de categoria adicionada diretamente no card de transações. O sistema atribui categorias automaticamente cruzando a descrição da transação com o histórico de lançamentos cadastrados (`transacoesV2`) e regras de padronização ativas, permitindo ajuste manual inline.
+  5. **Agrupamento de Despesas Parceladas:** Linha consolidada para parcelamentos (ex: *On Fitness*), exibindo a quantidade de parcelas, o valor de cada parcela e o montante total.
+  6. **Eliminação de Duplicidades:** Correção da lógica de verificação de duplicidade impedindo re-criações em sucessivos cliques ou após desfazer, e eliminação da duplicação de débito na conta corrente quando o pagamento de fatura já constar no extrato bancário.
+  7. **Redistribuição de Espaço:** Rebalanceamento da proporção visual entre Contas Bancárias (33%) e Transações (67%).
 
 ---
 
 ### 2. User Experience & Visual Design
 
-#### Fluxos Principais do Usuário
-1. **Navegação Fluida (Zero Overhead de API):**
-   - Ao acessar **Open Finance**, os cartões de saldo e lista de transações são renderizados imediatamente com os dados da última sincronização.
-   - Indicador sutil de timestamp: *"Última atualização: 19/10/2026 às 14:30"*.
-   - Apenas o clique intencional em **"Sincronizar"** ativa o spinner e consome a API.
-2. **Identificação e Tratamento de Pagamentos:**
-   - Transações como *"Pagamento recebido - R$ 460,21"* aparecem com valor verde positivo (`+ R$ 460,21`), ícone de quitação e badge descritivo *"Pagamento de Fatura"*.
-3. **Prévia de Compras Parceladas Identificadas:**
-   - Durante a sincronização, o motor identifica padrões de parcelamento (ex: `On Fitness 1/6`, `Mapfre*Pcl11de12`).
-   - Se for uma compra parcelada nova ainda não registrada, surge um diálogo elegante:
-     - **Título:** *"Novas Compras Parceladas Detectadas"*
-     - **Card de Resumo:** Estabelecimento, valor da parcela, quantidade de parcelas (ex: 6x de R$ 129,90 = R$ 779,40), data inicial e conta de cartão.
-     - **Ação:** Botão *"Cadastrar no Gerenciar Compromissos"* ou *"Lançar apenas parcela do mês"*.
-4. **Extrato Limpo:**
-   - Parcelas com vencimento em meses futuros não poluem as transações vigentes do cartão nem distorcem o limite/saldo do ciclo.
+#### Hierarquia e Layout dos Cards
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│ CABEÇALHO DA PÁGINA: Open Finance                                                          │
+│                                           [Disponibilizar Extrato]  [  Sincronizar (Pluggy) ]│
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
 
-#### Identidade Visual & Tipografia
-- Alinhado com o design system do Orbium:
-  - Fundo neutro limpo (`bg-background` / `bg-surface-light` e `dark:bg-surface-dark`).
-  - Cores semânticas rígidas: Despesas em vermelho destrutivo, entradas e quitações em esmeralda (`#10b981`), cartões em roxo/índigo.
-  - Tipografia numérica estritamente tabular (`font-mono tabular-nums`).
-  - Ausência de "pills" estáticas supérfluas, priorizando tipografia limpa com separadores sutis.
+┌───────────────────────────────────────┬─────────────────────────────────────────────────────┐
+│ CONTAS BANCÁRIAS (col-span-4, ~33%)   │ TRANSAÇÕES OPEN FINANCE (col-span-8, ~67%)          │
+├───────────────────────────────────────┼─────────────────────────────────────────────────────┤
+│ • Itaú Corrente ... R$ 5.420,00       │ [Filtro Conta ▼]             [Lançar]  [Desfazer]   │
+│   [Vínculo Orbium: Itaú Principal]    ├─────────────────────────────────────────────────────┤
+│                                       │ Data  │ Descrição     │ Categoria      │ Valor      │
+│ • Nubank Cartão ... R$ 1.890,00       ├───────┼───────────────┼────────────────┼────────────┤
+│   [Vínculo Orbium: Cartão Nubank]     │ 18/10 │ Uber Viagens  │ [Transporte ▼] │ - R$ 24,90 │
+│                                       │ 15/10 │ On Fitness    │ [Saúde ▼]      │ - R$ 779,40│
+│                                       │       │ (6x R$ 129,90)│                │ (Parcelado)│
+│                                       │ 10/10 │ Pgto Fatura   │ [Amortização]  │ + R$ 460,21│
+└───────────────────────────────────────┴─────────────────────────────────────────────────────┘
+```
+
+#### Regras de Estilo e Anti-Slop
+- Tipografia: Números e valores monetários com classe `font-mono tabular-nums`.
+- Cores: Despesas em `text-destructive`, pagamentos/receitas em tom esmeralda positivo (`text-emerald-600 dark:text-emerald-400`).
+- Sem badges decorativas excessivas: Metadados limpos com separadores tipográficos sutis (`·`).
+- Select de categoria ágil: trigger compacto de 28px de altura, com busca e seleção fluida sem estourar as margens.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decisão 1: Persistência Local dos Dados da Pluggy (`ORBIUM_PLUGGY_LAST_PAYLOAD`)**
-  - *Abordagem:* Salvar o `PluggySyncPayload` completo no `localStorage` sob a chave `ORBIUM_PLUGGY_LAST_PAYLOAD`, carregando-o no estado inicial do `FinanceContext`.
-  - *Por que:* Elimina requisições automáticas no `useEffect` de montagem. O usuário pode alternar entre abas (Dashboard, DRE, Contas a Pagar, Open Finance) livremente sem perder os dados da tela e sem consumir requisições desnecessárias.
-- **Decisão 2: Regex Universal para Detecção de Parcelamento**
-  - *Abordagem:* Suportar múltiplos formatos bancários brasileiros:
-    1. `(\d+)\s*\/\s*(\d+)` $\rightarrow$ *"On Fitness 3/6"*
-    2. `(?:pcl|parcela)\s*(\d+)\s*(?:de|\/)\s*(\d+)` $\rightarrow$ *"Mapfre*Pcl11de12"*
-    3. `(\d+)\s*de\s*(\d+)` $\rightarrow$ *"Compra 2 de 5"*
-  - *Por que:* Bancos emissores (Itaú, Nubank, Bradesco, Santander, Inter) utilizam nomenclaturas distintas na fatura do cartão.
-- **Decisão 3: Verificação de Existência Prévia no `billsTracker`**
-  - *Abordagem:* Antes de sugerir um novo compromisso ou lançar uma transação, o sistema faz match no `billsTracker` pelo nome base normalizado e conta de cartão. Se o compromisso já existir, parcelas futuras são suprimidas do extrato de transações imediatas para não duplicar valores já previstos na fatura.
-- **Decisão 4: Normalização Contábil de "Pagamento recebido"**
-  - *Abordagem:* Expandir o detector de pagamento de cartão (`isCardPayment`) para incluir termos como `pagamento recebido`, `pgto recebido`, `pagamento efetuado`, invertendo o sinal contábil para entrada no cartão (`flow: 'in'`, `operationType: 'receita'`).
+- **Decisão 1: Sincronizar Exclusivamente como Leitor da Pluggy**
+  - *Abordagem:* `syncPluggyData` apenas consulta a API e persiste o payload limpo no contexto. Lançamentos em `transacoesV2` só acontecem se o usuário clicar explicitamente em **Lançar**.
+  - *Por que:* Atende perfeitamente ao pedido do usuário ("o botão Sincronizar deverá servir exclusivamente para buscar dados da Pluggy"), dando previsibilidade e controle absoluto ao usuário.
+- **Decisão 2: Algoritmo de Autoatribuição de Categorias por Similaridade**
+  - *Abordagem:* Ao carregar ou sincronizar transações, a função `predictTransactionCategory(tx, transacoesV2, standardizationRules)` verifica:
+    1. Regras de padronização ativas (`matchCriteria`).
+    2. Correspondência histórica em `transacoesV2` por similaridade de descrição ou termos-chave do estabelecimento.
+    3. Categorias padrão para transações de amortização/fatura (`transferencia`).
+  - *Por que:* O sistema aprende com os lançamentos prévios do usuário sem necessidade de configuração repetitiva.
+- **Decisão 3: Agrupamento Inteligente no Card de Transações**
+  - *Abordagem:* Transações identificadas como parceladas do mesmo estabelecimento e quantidade de parcelas são consolidadas em uma única linha no grid. O valor da parcela é exibido de forma secundária (`6x de R$ 129,90`), e o total consolidado é destacado.
+  - *Por que:* Evita poluir a visualização com 6 ou 12 linhas repetidas da mesma compra.
+- **Decisão 4: Proteção Anti-Duplicação de Pagamento de Fatura**
+  - *Abordagem:* Antes de gerar débito em conta corrente para pagamento de fatura, o sistema verifica se a conta corrente de pagamento já possui lançamento com a mesma data e valor aproximado ou menção à fatura. Se já existir, a transação da conta corrente NÃO é duplicada; apenas o crédito da fatura é conciliado.
 
 ---
 
 ### 4. Technical Architecture & Data Strategy
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        OPEN FINANCE SYNC ENGINE                        │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Sincronizar (On Demand)
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                   PLUGGY API PROXY (/api/pluggy/data)                  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Retorna Accounts & Transactions
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                        PARSER & CLASSIFICADOR                          │
-├────────────────────────────────────────────────────────────────────────┤
-│ 1. É Conta Corrente?                                                  │
-│    └── Gera ImportedStatement pendente para conferência                │
-│                                                                        │
-│ 2. É Cartão de Crédito?                                                │
-│    ├── A. "Pagamento recebido"?                                        │
-│    │      └── Classifica como flow: 'in' (+ Crédito na fatura)         │
-│    │                                                                   │
-│    ├── B. Compra Parcelada (ex: 3/6 ou Pcl11de12)?                     │
-│    │      ├── Se compromisso JÁ existe no billsTracker:                │
-│    │      │   └── Se for parcela futura: IGNORA (já previsto)          │
-│    │      │   └── Se for parcela atual: concilia com a fatura          │
-│    │      └── Se compromisso NÃO existe:                               │
-│    │          └── Abre Diálogo de Confirmação para cadastrar           │
-│    │              em Compras Parceladas (Gerenciar Compromissos)       │
-│    │                                                                   │
-│    └── C. Compra à Vista (Single)?                                     │
-│           └── Lança direto em transacoesV2 (com deduplicação estrita)  │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                  CACHE PERSISTENTE (FinanceContext)                    │
-│   • pluggyLastPayload em localStorage                                  │
-│   • Navegação entre telas restaura instantaneamente sem novas chamadas │
-└────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────┐           ┌────────────────────────────────┐
+│   Botão "Sincronizar"   │ ────────> │  Busca Pluggy API & Cache      │
+└─────────────────────────┘           │  (Sem escrita em transações)   │
+                                      └────────────────┬───────────────┘
+                                                       │
+                                                       ▼
+┌─────────────────────────┐           ┌────────────────────────────────┐
+│   Card de Transações    │ <──────── │  Autoatribuição de Categoria   │
+│   (Nova proporção 67%)  │           │  + Agrupamento de Parceladas   │
+└────────────┬────────────┘           └────────────────────────────────┘
+             │
+   ┌─────────┴─────────┐
+   ▼                   ▼
+[Lançar]           [Desfazer]
+   │                   │
+   ▼                   ▼
+Lança em           Remove do extrato
+transacoesV2       sem modais de
+com validação      confirmação
+anti-duplicidade   (1 clique)
 ```
 
-#### Modelo de Dados e Estados Atualizados
-- **`pluggyLastPayload`:** Armazena `{ accounts: PluggyAccount[], transactions: Record<string, PluggyTransaction[]>, lastSyncAt: string }` no contexto e em `localStorage`.
-- **`PendingInstallmentPurchase`:**
-  ```typescript
-  interface PendingInstallmentPurchase {
-    tempId: string;
-    description: string;
-    cleanMerchantName: string;
-    currentInstallment: number;
-    totalInstallments: number;
-    installmentAmount: number;
-    totalAmount: number;
-    firstDueDate: string;
-    accountId: string;
-    rawTransaction: PluggyTransaction;
-  }
-  ```
-- **Modal de Confirmação (`InstallmentReviewDialog`):**
-  Componente que exibe a lista de compras parceladas recém-descobertas antes de cadastrá-las no `billsTracker` via `addPurchaseInstallments`.
+#### Modificações de Componentes
+1. **`src/pages/OpenFinanceSettings.tsx`:**
+   - Grid reconfigurado de `lg:col-span-6 / lg:col-span-6` para `lg:col-span-4 / lg:col-span-8`.
+   - Adicionado botão **"Disponibilizar Extrato"** no topo, junto com **"Sincronizar"**.
+   - Adicionado botão **"Lançar"** no card de transações ao lado de **"Desfazer"**.
+   - Removido `AlertDialog` de confirmação do Desfazer e de Lançar (execução direta com notificação sonner).
+   - Inserida coluna / seletor de Categoria com autoatribuição preditiva.
+   - Agrupamento visual das parcelas com valor total + valor individual.
+2. **`src/lib/pluggyAdapter.ts`:**
+   - Implementada função `predictTransactionCategory` com base no histórico de `transacoesV2` e regras.
+   - Refinada a função `isCreditCardTransactionDuplicate` para tratar pagamentos já existentes e evitar duplicação em conta corrente.
+   - Função utilitária de agrupamento de transações parceladas para a interface.
+3. **`src/contexts/FinanceContext.tsx`:**
+   - Ajustada `syncPluggyData` para não gravar automaticamente em `transacoesV2` nem em `importedStatements` sem comando do usuário.
+   - Criada a função `generateCheckingStatementsFromPluggy` para o botão dedicado "Disponibilizar Extrato".
+   - Criada a função `commitPluggyTransactions` para o botão "Lançar", com proteção contra duplicidade de fatura.
 
 ---
 
-### 5. Plano de Execução Detalhado
+### 5. Plano de Execução Sequencial
 
-1. **`src/types/pluggy.ts` & `src/types/finance.ts`:**
-   - Adicionar tipagem para `PendingInstallmentPurchase` e cache `PluggyCachedData`.
-2. **`src/lib/pluggyAdapter.ts`:**
-   - Expandir `isCardPayment` para cobrir `"pagamento recebido"`, `"pgto recebido"`, etc.
-   - Criar funções de extração de parcelamento: `detectInstallmentPattern(description: string)`.
-   - Criar filtro inteligente para classificar transações de cartão entre compras à vista, pagamentos e parcelas a serem revisadas/ignoradas.
-3. **`src/contexts/FinanceContext.tsx`:**
-   - Adicionar `pluggyLastPayload` ao estado e persistência no `localStorage`.
-   - Atualizar `syncPluggyData` para não lançar parcelas futuras se o compromisso já estiver registrado no `billsTracker`.
-   - Retornar compras parceladas pendentes detectadas no resultado da sincronização.
-4. **`src/pages/OpenFinanceSettings.tsx`:**
-   - Inicializar `data` diretamente a partir do `pluggyLastPayload` do `FinanceContext`.
-   - Adicionar o modal/alerta de confirmação para compras parceladas detectadas.
-   - Corrigir a exibição das transações para refletir pagamentos com valor positivo e verde.
-5. **Validação & Testes:**
-   - Testar o fluxo de sair e voltar da tela de Open Finance sem perder os dados.
-   - Testar o comportamento das transações listadas pelo usuário (On Fitness 1/6 a 6/6, Mapfre, Pagamento recebido).
-   - Executar `compile_applet` e `lint_applet`.
+1. **Camada de Adaptação (`src/lib/pluggyAdapter.ts`):**
+   - Implementar `predictTransactionCategory` e funções de agrupamento de parcelas.
+   - Aprimorar verificação de duplicidade de faturas contra extratos existentes.
+2. **Camada de Estado (`src/contexts/FinanceContext.tsx`):**
+   - Limitar `syncPluggyData` à busca e cache do payload.
+   - Implementar `generateCheckingStatementsFromPluggy` e `commitPluggyTransactions`.
+3. **Camada de Interface (`src/pages/OpenFinanceSettings.tsx`):**
+   - Atualizar layout com proporção 4/8 (33% / 67%).
+   - Inserir botão "Disponibilizar Extrato" no cabeçalho.
+   - Inserir botão "Lançar" ao lado de "Desfazer" e remover modais de diálogo.
+   - Exibir coluna de categoria com seleção direta e agrupamento de compras parceladas.
+4. **Validação:**
+   - Executar `compile_applet` e `lint_applet` para assegurar integridade completa do código TypeScript.

@@ -63,7 +63,9 @@ import {
   parseInstallmentPattern,
   findMatchingCommitment,
   isFutureTransaction,
-  groupDetectedInstallments
+  groupDetectedInstallments,
+  isInvoicePaymentAlreadyInChecking,
+  predictTransactionCategory
 } from "@/lib/pluggyAdapter";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
@@ -534,6 +536,21 @@ interface FinanceContextType {
   }>;
   isSyncingPluggy: boolean;
   undoPluggyCardTransactions: (targetAccountId?: string) => number;
+  generateCheckingStatementsFromPluggy: () => {
+    success: boolean;
+    statementCount: number;
+    message: string;
+    logs: string[];
+  };
+  commitPluggyTransactions: (
+    targetAccountId?: string,
+    categoryOverrides?: Record<string, string>
+  ) => {
+    success: boolean;
+    count: number;
+    message: string;
+    logs: string[];
+  };
 
   // Exportação e Importação
   exportData: () => void;
@@ -1870,7 +1887,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     setIsSyncingPluggy(true);
     const syncLogs: string[] = [
-      `[${new Date().toLocaleTimeString()}] Disparando sincronização sob demanda para Item ID "${targetItemId.substring(0, 8)}..."`
+      `[${new Date().toLocaleTimeString()}] Buscando dados atualizados da Pluggy para Item ID "${targetItemId.substring(0, 8)}..."`
     ];
 
     try {
@@ -1890,75 +1907,268 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         throw new Error(errMsg);
       }
 
-      let totalCardTxsAdded = 0;
-      let totalStatementsCreated = 0;
-      let futureInstallmentsIgnored = 0;
-      const allDetectedInstallments: DetectedCardInstallment[] = [];
+      // Salva o payload no estado e em localStorage para persistência permanente da tela
+      setPluggyLastPayload(payload);
+      saveToStorage(STORAGE_KEYS.PLUGGY_LAST_PAYLOAD, payload);
 
+      const updatedConfig: PluggyConfig = {
+        ...(pluggyConfig || initialPluggyConfig),
+        itemId: targetItemId,
+        lastSyncAt: new Date().toISOString(),
+      };
+      setPluggyConfig(updatedConfig);
+      saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, updatedConfig);
+      updateLastModified();
+
+      // Identifica se há compras parceladas novas para notificação no banner
+      const allDetectedInstallments: DetectedCardInstallment[] = [];
       const accounts = payload.accounts || [];
       const txsByAccount = payload.transactions || {};
-
-      const newCardTransactions: TransacaoCompleta[] = [];
-      let updatedStatements: ImportedStatement[] = [...importedStatements];
-
       for (const pluggyAcc of accounts) {
         const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
         if (!orbiumAccountId) continue;
-
         const orbiumAccount = contasMovimento.find(a => a.id === orbiumAccountId);
         const isCredit = pluggyAcc.type === 'CREDIT' || orbiumAccount?.accountType === 'cartao_credito';
-        const accountTxs = txsByAccount[pluggyAcc.id] || [];
-
         if (isCredit) {
-          // 1. Identificar novas compras parceladas pendentes de cadastro no Gerenciar Compromissos
-          // Passamos creditCardConfigs para validação cruzada entre cartões e contas de pagamento
+          const accountTxs = txsByAccount[pluggyAcc.id] || [];
           const detectedForAcc = groupDetectedInstallments(accountTxs, orbiumAccountId, billsTracker, creditCardConfigs);
           allDetectedInstallments.push(...detectedForAcc);
+        }
+      }
 
-          // 2. Processar cada transação do cartão
-          for (const tx of accountTxs) {
-            const isCardPayment = isCardInvoicePayment(tx.description);
-            const parsed = parseInstallmentPattern(tx.description);
-            const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
-            const cleanAmt = Math.abs(rawAmt);
+      const totalTxsFound = Object.values(txsByAccount).reduce((sum, list) => sum + list.length, 0);
+      const summaryMsg = `Dados bancários atualizados com sucesso da Pluggy! (${accounts.length} contas e ${totalTxsFound} movimentações obtidas).`;
+      syncLogs.push(`[${new Date().toLocaleTimeString()}] [SUCESSO] ${summaryMsg}`);
 
-            // Se for pagamento de fatura ("Pagamento recebido", "pgto fatura", etc.):
-            // Deve ser lançado como TRANSFERÊNCIA entre contas (da Conta de Pagamento Padrão para o Cartão)
-            if (isCardPayment) {
-              const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
-                ...transacoesV2,
-                ...newCardTransactions
-              ]);
+      return {
+        success: true,
+        message: summaryMsg,
+        logs: syncLogs,
+        payload,
+        detectedInstallments: allDetectedInstallments,
+      };
+    } catch (err: any) {
+      syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] ${err.message || 'Falha na sincronização'}`);
+      return {
+        success: false,
+        message: err.message || "Erro ao conectar com a API Pluggy.",
+        logs: syncLogs,
+      };
+    } finally {
+      setIsSyncingPluggy(false);
+    }
+  }, [pluggyConfig, contasMovimento, billsTracker, creditCardConfigs, setPluggyLastPayload, updateLastModified]);
 
-              if (!isDuplicate) {
-                const cardConfig = creditCardConfigs.find(c => c.accountId === orbiumAccountId || c.id === orbiumAccountId);
-                const defaultPaymentAccountId = cardConfig?.defaultPaymentAccountId;
-                const paymentAccount = defaultPaymentAccountId 
-                  ? contasMovimento.find(c => c.id === defaultPaymentAccountId)
-                  : undefined;
+  const generateCheckingStatementsFromPluggy = useCallback((): {
+    success: boolean;
+    statementCount: number;
+    message: string;
+    logs: string[];
+  } => {
+    const logs: string[] = [];
+    const payload = pluggyLastPayload;
+    if (!payload || !payload.accounts || payload.accounts.length === 0) {
+      return {
+        success: false,
+        statementCount: 0,
+        message: "Nenhum dado sincronizado da Pluggy disponível. Clique em Sincronizar primeiro.",
+        logs: [`[${new Date().toLocaleTimeString()}] [AVISO] Tentativa de gerar extrato sem dados da Pluggy.`]
+      };
+    }
 
-                const transferGroupId = generateTransferGroupId();
-                let dateFormatted = format(new Date(), 'yyyy-MM-dd');
-                if (tx.date) {
-                  try {
-                    const parsedDate = parseDateLocal(tx.date.substring(0, 10));
-                    dateFormatted = format(parsedDate, 'yyyy-MM-dd');
-                  } catch {
-                    dateFormatted = tx.date.substring(0, 10);
-                  }
-                }
+    let updatedStatements = [...importedStatements];
+    let createdCount = 0;
+    const txsByAccount = payload.transactions || {};
 
-                // 2.1. Lançamento no Cartão de Crédito (Amortização / Entrada de Transferência)
-                const cardTx: TransacaoCompleta = {
+    for (const pluggyAcc of payload.accounts) {
+      const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
+      if (!orbiumAccountId) continue;
+
+      const orbiumAccount = contasMovimento.find(a => a.id === orbiumAccountId);
+      const isCredit = pluggyAcc.type === 'CREDIT' || orbiumAccount?.accountType === 'cartao_credito';
+      // Gera extrato exclusivamente para contas correntes
+      if (isCredit) continue;
+
+      const accountTxs = txsByAccount[pluggyAcc.id] || [];
+      if (accountTxs.length === 0) continue;
+
+      const statement = buildPluggyImportedStatement(
+        accountTxs,
+        orbiumAccountId,
+        orbiumAccount?.name || pluggyAcc.name,
+        standardizationRules,
+        false
+      );
+
+      const existingStmtIdx = updatedStatements.findIndex(
+        s => s.accountId === orbiumAccountId && s.fileName.startsWith("Pluggy API") && s.status === 'pending'
+      );
+
+      if (existingStmtIdx >= 0) {
+        updatedStatements[existingStmtIdx] = statement;
+      } else {
+        updatedStatements.push(statement);
+      }
+      createdCount++;
+      logs.push(`[${new Date().toLocaleTimeString()}] Extrato de conta corrente gerado para "${orbiumAccount?.name || pluggyAcc.name}" (${accountTxs.length} transações).`);
+    }
+
+    if (createdCount > 0) {
+      setImportedStatements(updatedStatements);
+      saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, updatedStatements);
+      updateLastModified();
+      return {
+        success: true,
+        statementCount: createdCount,
+        message: `${createdCount} extrato(s) de conta corrente disponibilizado(s) com sucesso na Revisão de Extrato!`,
+        logs
+      };
+    } else {
+      return {
+        success: false,
+        statementCount: 0,
+        message: "Nenhuma conta corrente vinculada com movimentações encontrada para gerar extrato.",
+        logs: [`[${new Date().toLocaleTimeString()}] Nenhuma conta corrente elegível encontrada.`]
+      };
+    }
+  }, [pluggyLastPayload, pluggyConfig, contasMovimento, importedStatements, standardizationRules, updateLastModified]);
+
+  const commitPluggyTransactions = useCallback((
+    targetAccountId?: string,
+    categoryOverrides?: Record<string, string>
+  ): {
+    success: boolean;
+    count: number;
+    message: string;
+    logs: string[];
+  } => {
+    const logs: string[] = [];
+    const payload = pluggyLastPayload;
+    if (!payload || !payload.accounts) {
+      return {
+        success: false,
+        count: 0,
+        message: "Nenhum dado sincronizado da Pluggy para lançar. Sincronize primeiro.",
+        logs: [`[${new Date().toLocaleTimeString()}] [AVISO] Tentativa de lançar sem dados da Pluggy.`]
+      };
+    }
+
+    const txsByAccount = payload.transactions || {};
+    const newTransactions: TransacaoCompleta[] = [];
+    let launchedCount = 0;
+    let skippedDuplicatesCount = 0;
+    const targetItemId = pluggyConfig?.itemId || "";
+
+    for (const pluggyAcc of payload.accounts) {
+      if (targetAccountId && targetAccountId !== 'all' && pluggyAcc.id !== targetAccountId) {
+        continue;
+      }
+
+      const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
+      if (!orbiumAccountId) continue;
+
+      const orbiumAccount = contasMovimento.find(a => a.id === orbiumAccountId);
+      const isCredit = pluggyAcc.type === 'CREDIT' || orbiumAccount?.accountType === 'cartao_credito';
+      const accountTxs = txsByAccount[pluggyAcc.id] || [];
+
+      if (isCredit) {
+        for (const tx of accountTxs) {
+          const isCardPayment = isCardInvoicePayment(tx.description);
+          const parsed = parseInstallmentPattern(tx.description);
+          const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
+          const cleanAmt = Math.abs(rawAmt);
+
+          // 1. Verificação rigorosa contra duplicidade no cartão de crédito
+          const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
+            ...transacoesV2,
+            ...newTransactions
+          ]);
+
+          if (isDuplicate) {
+            skippedDuplicatesCount++;
+            continue;
+          }
+
+          let dateFormatted = format(new Date(), 'yyyy-MM-dd');
+          if (tx.date) {
+            try {
+              const parsedDate = parseDateLocal(tx.date.substring(0, 10));
+              dateFormatted = format(parsedDate, 'yyyy-MM-dd');
+            } catch {
+              dateFormatted = tx.date.substring(0, 10);
+            }
+          }
+
+          if (isCardPayment) {
+            // Pagamento de fatura:
+            const cardConfig = creditCardConfigs.find(c => c.accountId === orbiumAccountId || c.id === orbiumAccountId);
+            const defaultPaymentAccountId = cardConfig?.defaultPaymentAccountId;
+            const paymentAccount = defaultPaymentAccountId 
+              ? contasMovimento.find(c => c.id === defaultPaymentAccountId)
+              : undefined;
+
+            const transferGroupId = generateTransferGroupId();
+
+            // Lançamento no Cartão de Crédito (Amortização da dívida / Entrada de transferência)
+            const cardTx: TransacaoCompleta = {
+              id: generateTransactionId(),
+              date: dateFormatted,
+              accountId: orbiumAccountId,
+              flow: 'in',
+              operationType: 'transferencia',
+              domain: 'operational',
+              amount: cleanAmt,
+              categoryId: null,
+              description: tx.description || 'Pagamento de Fatura',
+              links: {
+                investmentId: null,
+                loanId: null,
+                transferGroupId,
+                parcelaId: null,
+                vehicleTransactionId: null,
+                pluggyTransactionId: tx.id,
+                pluggyItemId: targetItemId,
+              },
+              conciliated: true,
+              attachments: [],
+              meta: {
+                source: 'pluggy_open_finance',
+                isCardPayment: true,
+                pluggyTransactionId: tx.id,
+                pluggyItemId: targetItemId,
+                originalAmount: tx.amount,
+                createdAt: new Date().toISOString(),
+              }
+            };
+            newTransactions.push(cardTx);
+            launchedCount++;
+
+            // Proteção ANTI-DUPLICAÇÃO no pagamento de fatura:
+            // Se a conta corrente de pagamento já possui esse débito registrado, NÃO criamos duplicata!
+            if (paymentAccount) {
+              const alreadyInChecking = isInvoicePaymentAlreadyInChecking(
+                paymentAccount.id,
+                cleanAmt,
+                dateFormatted,
+                [...transacoesV2, ...newTransactions]
+              );
+
+              if (alreadyInChecking) {
+                logs.push(
+                  `[PAGAMENTO FATURA] O débito de R$ ${cleanAmt.toFixed(2)} já existe na conta corrente "${paymentAccount.name}" ("${alreadyInChecking.description}"). Duplicação evitada com sucesso!`
+                );
+              } else {
+                // Se NÃO existe na conta corrente, criamos a contrapartida da transferência
+                const checkingTx: TransacaoCompleta = {
                   id: generateTransactionId(),
                   date: dateFormatted,
-                  accountId: orbiumAccountId,
-                  flow: 'in',
+                  accountId: paymentAccount.id,
+                  flow: 'transfer_out',
                   operationType: 'transferencia',
                   domain: 'operational',
                   amount: cleanAmt,
-                  categoryId: null, // Transferência nunca possui categoria de receita
-                  description: tx.description || 'Pagamento de Fatura',
+                  categoryId: null,
+                  description: `Pagamento de Fatura — ${orbiumAccount?.name || 'Cartão'}`,
                   links: {
                     investmentId: null,
                     loanId: null,
@@ -1979,197 +2189,102 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     createdAt: new Date().toISOString(),
                   }
                 };
-                newCardTransactions.push(cardTx);
-                totalCardTxsAdded++;
-
-                // 2.2. Lançamento na Conta Corrente de Pagamento Padrão (Saída de Transferência)
-                if (paymentAccount) {
-                  const checkingTx: TransacaoCompleta = {
-                    id: generateTransactionId(),
-                    date: dateFormatted,
-                    accountId: paymentAccount.id,
-                    flow: 'transfer_out',
-                    operationType: 'transferencia',
-                    domain: 'operational',
-                    amount: cleanAmt,
-                    categoryId: null,
-                    description: `Pagamento de Fatura — ${orbiumAccount?.name || 'Cartão'}`,
-                    links: {
-                      investmentId: null,
-                      loanId: null,
-                      transferGroupId,
-                      parcelaId: null,
-                      vehicleTransactionId: null,
-                      pluggyTransactionId: tx.id,
-                      pluggyItemId: targetItemId,
-                    },
-                    conciliated: true,
-                    attachments: [],
-                    meta: {
-                      source: 'pluggy_open_finance',
-                      isCardPayment: true,
-                      pluggyTransactionId: tx.id,
-                      pluggyItemId: targetItemId,
-                      originalAmount: tx.amount,
-                      createdAt: new Date().toISOString(),
-                    }
-                  };
-                  newCardTransactions.push(checkingTx);
-                  syncLogs.push(
-                    `[PAGAMENTO FATURA] Transferência de R$ ${cleanAmt.toFixed(2)} vinculada da conta "${paymentAccount.name}" para amortizar a fatura do cartão "${orbiumAccount?.name}".`
-                  );
-                } else {
-                  syncLogs.push(
-                    `[PAGAMENTO FATURA] Pagamento de fatura de R$ ${cleanAmt.toFixed(2)} registrado no cartão como amortização (transferência). Dica: vincule a Conta de Pagamento Padrão no Gerenciar Compromissos.`
-                  );
-                }
-
-                // Se houver uma fatura pendente correspondente no billsTracker para este cartão, atualiza como paga
-                setBillsTracker(prevBills => prevBills.map(b => {
-                  if (
-                    b.sourceType === 'card_invoice' && 
-                    !b.isPaid && 
-                    (b.sourceRef === cardConfig?.id || b.cardId === cardConfig?.id || b.suggestedAccountId === orbiumAccountId) &&
-                    Math.abs(b.expectedAmount - cleanAmt) < 5
-                  ) {
-                    return {
-                      ...b,
-                      isPaid: true,
-                      paymentDate: dateFormatted,
-                      transactionId: transferGroupId,
-                    };
-                  }
-                  return b;
-                }));
-              }
-              continue;
-            }
-
-            // Se for compra parcelada (não é pagamento de fatura):
-            if (parsed.isInstallment && parsed.totalInstallments > 1) {
-              const matchingBills = findMatchingCommitment({
-                cleanDescription: parsed.cleanDescription,
-                accountId: orbiumAccountId,
-                bills: billsTracker,
-                creditCardConfigs,
-                installmentAmount: cleanAmt,
-                totalInstallments: parsed.totalInstallments,
-                currentInstallment: parsed.currentInstallment,
-                transactionDate: tx.date,
-              });
-
-              // Se o compromisso JÁ existe no Gerenciar Compromissos:
-              if (matchingBills.length > 0) {
-                // Verificar se a data da transação é futura (mês posterior ao atual)
-                if (isFutureTransaction(tx.date)) {
-                  // Conforme preferência: "Ignorar parcelas futuras se o compromisso já existir"
-                  futureInstallmentsIgnored++;
-                  syncLogs.push(
-                    `[INFO] Parcela futura "${tx.description}" (${tx.date}) ignorada no extrato (já prevista no Gerenciar Compromissos sob "${matchingBills[0].description}").`
-                  );
-                  continue;
-                }
-              } else {
-                // Se o compromisso NÃO existe no Gerenciar Compromissos e é uma parcela futura (ex: 4/6, 5/6, 6/6),
-                // não devemos lançar no extrato antecipadamente; o compromisso foi capturado para confirmação no modal.
-                if (isFutureTransaction(tx.date)) {
-                  syncLogs.push(
-                    `[INFO] Parcela futura "${tx.description}" (${tx.date}) agrupada para confirmação no Gerenciar Compromissos.`
-                  );
-                  continue;
-                }
+                newTransactions.push(checkingTx);
               }
             }
 
-            // Lançamento com deduplicação rigorosa (compras à vista ou do ciclo atual)
-            const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
-              ...transacoesV2,
-              ...newCardTransactions
-            ]);
+            // Atualiza fatura no billsTracker se houver pendente
+            setBillsTracker(prevBills => prevBills.map(b => {
+              if (
+                b.sourceType === 'card_invoice' && 
+                !b.isPaid && 
+                (b.sourceRef === cardConfig?.id || b.cardId === cardConfig?.id || b.suggestedAccountId === orbiumAccountId) &&
+                Math.abs(b.expectedAmount - cleanAmt) < 5
+              ) {
+                return {
+                  ...b,
+                  isPaid: true,
+                  paymentDate: dateFormatted,
+                  transactionId: transferGroupId,
+                };
+              }
+              return b;
+            }));
 
-            if (!isDuplicate) {
-              const fullTx = convertPluggyToTransacaoCompleta(tx, orbiumAccountId, targetItemId);
-              newCardTransactions.push(fullTx);
-              totalCardTxsAdded++;
-            }
-          }
-        } else {
-          // Geração de Extrato OFX para conta corrente (para importação manual na tela de extratos)
-          if (accountTxs.length > 0) {
-            const statement = buildPluggyImportedStatement(
-              accountTxs,
-              orbiumAccountId,
-              orbiumAccount?.name || pluggyAcc.name,
+          } else {
+            // Despesa comum no cartão de crédito ou parcela
+            const overrideCat = categoryOverrides?.[tx.id] || 
+              (parsed.isInstallment ? categoryOverrides?.[`${pluggyAcc.id}_${parsed.cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '')}_${parsed.totalInstallments}_${Math.round(cleanAmt)}`] : undefined);
+            
+            const finalCatId = overrideCat || predictTransactionCategory(
+              tx.description || "",
+              'despesa',
+              transacoesV2,
               standardizationRules,
-              false
+              orbiumAccountId
             );
 
-            const existingStmtIdx = updatedStatements.findIndex(
-              s => s.accountId === orbiumAccountId && s.fileName.startsWith("Pluggy API") && s.status === 'pending'
-            );
-
-            if (existingStmtIdx >= 0) {
-              updatedStatements[existingStmtIdx] = statement;
-            } else {
-              updatedStatements.push(statement);
-            }
-            totalStatementsCreated++;
+            const cardTx: TransacaoCompleta = {
+              id: generateTransactionId(),
+              date: dateFormatted,
+              accountId: orbiumAccountId,
+              flow: 'out',
+              operationType: 'despesa',
+              domain: 'operational',
+              amount: cleanAmt,
+              categoryId: finalCatId,
+              description: tx.description || 'Compra no Cartão',
+              links: {
+                investmentId: null,
+                loanId: null,
+                transferGroupId: null,
+                parcelaId: null,
+                vehicleTransactionId: null,
+                pluggyTransactionId: tx.id,
+                pluggyItemId: targetItemId,
+              },
+              conciliated: true,
+              attachments: [],
+              meta: {
+                source: 'pluggy_open_finance',
+                isCardPayment: false,
+                pluggyTransactionId: tx.id,
+                pluggyItemId: targetItemId,
+                originalAmount: tx.amount,
+                createdAt: new Date().toISOString(),
+              }
+            };
+            newTransactions.push(cardTx);
+            launchedCount++;
           }
         }
       }
+    }
 
-      if (newCardTransactions.length > 0) {
-        setTransacoesV2(prev => [...prev, ...newCardTransactions]);
-      }
-
-      if (totalStatementsCreated > 0) {
-        setImportedStatements(updatedStatements);
-      }
-
-      // Salva o payload no estado e em localStorage para persistência permanente da tela
-      setPluggyLastPayload(payload);
-
-      const updatedConfig: PluggyConfig = {
-        ...(pluggyConfig || initialPluggyConfig),
-        itemId: targetItemId,
-        lastSyncAt: new Date().toISOString(),
-      };
-      setPluggyConfig(updatedConfig);
-      saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, updatedConfig);
+    if (newTransactions.length > 0) {
+      setTransacoesV2(prev => [...prev, ...newTransactions]);
       updateLastModified();
-
-      let summaryMsg = `Sincronização concluída com sucesso! ${totalCardTxsAdded} transação(ões) lançada(s) no cartão e ${totalStatementsCreated} extrato(s) gerado(s).`;
-      if (futureInstallmentsIgnored > 0) {
-        summaryMsg += ` (${futureInstallmentsIgnored} parcelas futuras mantidas no Gerenciar Compromissos sem duplicar extrato).`;
-      }
-      if (allDetectedInstallments.length > 0) {
-        summaryMsg += ` ${allDetectedInstallments.length} nova(s) compra(s) parcelada(s) detectada(s) para revisão.`;
-      }
-
-      syncLogs.push(
-        `[${new Date().toLocaleTimeString()}] [SUCESSO] ${summaryMsg}`
-      );
-
+      const msg = `${launchedCount} transação(ões) lançada(s) com sucesso no sistema!${skippedDuplicatesCount > 0 ? ` (${skippedDuplicatesCount} duplicadas ignoradas)` : ''}`;
+      logs.push(`[${new Date().toLocaleTimeString()}] [SUCESSO] ${msg}`);
       return {
         success: true,
-        message: summaryMsg,
-        cardCount: totalCardTxsAdded,
-        statementCount: totalStatementsCreated,
-        logs: syncLogs,
-        payload,
-        detectedInstallments: allDetectedInstallments,
+        count: launchedCount,
+        message: msg,
+        logs
       };
-    } catch (err: any) {
-      syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] ${err.message || 'Falha na sincronização'}`);
+    } else {
+      const msg = skippedDuplicatesCount > 0 
+        ? "Todas as transações já foram lançadas anteriormente (nenhuma duplicidade gerada)."
+        : "Nenhuma transação nova encontrada para lançar.";
+      logs.push(`[${new Date().toLocaleTimeString()}] [INFO] ${msg}`);
       return {
-        success: false,
-        message: err.message || "Erro ao conectar com a API Pluggy.",
-        logs: syncLogs,
+        success: true,
+        count: 0,
+        message: msg,
+        logs
       };
-    } finally {
-      setIsSyncingPluggy(false);
     }
-  }, [pluggyConfig, contasMovimento, transacoesV2, importedStatements, standardizationRules, billsTracker, creditCardConfigs, setPluggyLastPayload, updateLastModified]);
+  }, [pluggyLastPayload, pluggyConfig, contasMovimento, transacoesV2, creditCardConfigs, standardizationRules, setBillsTracker, updateLastModified]);
 
   const undoPluggyCardTransactions = useCallback((targetAccountId?: string): number => {
     const toRemoveIds = new Set<string>();
@@ -2769,6 +2884,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     syncPluggyData,
     isSyncingPluggy,
     undoPluggyCardTransactions,
+    generateCheckingStatementsFromPluggy,
+    commitPluggyTransactions,
 
     lastModified,
     exportData, importData,
@@ -2777,6 +2894,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
     expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
     pluggyConfig, updatePluggyConfig, pluggyLastPayload, setPluggyLastPayload, syncPluggyData, isSyncingPluggy, undoPluggyCardTransactions,
+    generateCheckingStatementsFromPluggy, commitPluggyTransactions,
     cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
     addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
     addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,

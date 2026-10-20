@@ -270,6 +270,247 @@ export function isCreditCardTransactionDuplicate(
 }
 
 /**
+ * Atribui automaticamente categorias com base nas regras de padronização ativas
+ * e no histórico de transações já cadastradas no sistema (transacoesV2).
+ */
+export function predictTransactionCategory(
+  description: string,
+  operationType: OperationType = 'despesa',
+  existingTxs: TransacaoCompleta[] = [],
+  rules: StandardizationRule[] = [],
+  accountId?: string
+): string | null {
+  if (!description) return null;
+  const descTrim = description.trim();
+  const descLower = descTrim.toLowerCase();
+
+  // 1. Regras de padronização configuradas pelo usuário
+  for (const rule of rules) {
+    if (rule.targetAccountId && accountId && rule.targetAccountId !== accountId) continue;
+    try {
+      const regex = new RegExp(rule.matchCriteria, 'i');
+      if (regex.test(descTrim) && rule.assignedCategoryId) {
+        return rule.assignedCategoryId;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2. Histórico de transações cadastradas no sistema
+  // 2.1. Match exato ou quase exato de descrição
+  const exactMatches = existingTxs.filter(t => 
+    t.categoryId && 
+    t.description && 
+    t.description.trim().toLowerCase() === descLower
+  );
+  if (exactMatches.length > 0) {
+    const categoryCounts: Record<string, number> = {};
+    exactMatches.forEach(t => {
+      if (t.categoryId) {
+        categoryCounts[t.categoryId] = (categoryCounts[t.categoryId] || 0) + 1;
+      }
+    });
+    const sorted = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+    if (sorted[0]) return sorted[0][0];
+  }
+
+  // 2.2. Match por radical do estabelecimento (remove números de parcelas como 3/6, caracteres especiais)
+  const cleanedDesc = descLower
+    .replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '')
+    .replace(/(?:pcl|parcela)\s*\d+/g, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .trim();
+  
+  const tokens = cleanedDesc
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && !['ltda', 'sao', 'brasil', 'com', 'pagamento', 'fatura', 'cartao', 'pix', 'de'].includes(w));
+
+  if (tokens.length > 0) {
+    const categoryScores: Record<string, number> = {};
+    existingTxs.forEach(t => {
+      if (!t.categoryId || !t.description) return;
+      const histLower = t.description.toLowerCase();
+      let matches = 0;
+      tokens.forEach(tok => {
+        if (histLower.includes(tok)) matches++;
+      });
+      if (matches > 0 && t.categoryId) {
+        categoryScores[t.categoryId] = (categoryScores[t.categoryId] || 0) + matches;
+      }
+    });
+
+    const sortedScores = Object.entries(categoryScores).sort((a, b) => b[1] - a[1]);
+    if (sortedScores[0] && sortedScores[0][1] >= 1) {
+      return sortedScores[0][0];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Verifica se um pagamento de fatura já foi contabilizado na conta corrente de pagamento
+ * para evitar duplicar a saída do banco.
+ */
+export function isInvoicePaymentAlreadyInChecking(
+  paymentAccountId: string,
+  amount: number,
+  invoiceDate: string,
+  existingTxs: TransacaoCompleta[]
+): TransacaoCompleta | undefined {
+  return existingTxs.find(t => {
+    if (t.accountId !== paymentAccountId) return false;
+    if (t.flow !== 'out' && t.flow !== 'transfer_out') return false;
+    const sameAmount = Math.abs(t.amount - amount) < 1.00;
+    if (!sameAmount) return false;
+
+    try {
+      const tDate = parseDateLocal(t.date.substring(0, 10));
+      const targetDate = parseDateLocal(invoiceDate.substring(0, 10));
+      const diffDays = Math.abs((tDate.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays <= 7) {
+        const descLower = (t.description || '').toLowerCase();
+        const isInvoiceKeyword = descLower.includes('fatura') || 
+                                 descLower.includes('cartao') || 
+                                 descLower.includes('itau') || 
+                                 descLower.includes('nubank') || 
+                                 descLower.includes('santander') || 
+                                 descLower.includes('bradesco') || 
+                                 descLower.includes('inter') || 
+                                 descLower.includes('pagamento');
+        if (isInvoiceKeyword || diffDays <= 1) {
+          return true;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  });
+}
+
+export interface GroupedDisplayTransaction {
+  key: string;
+  isInstallmentGroup: boolean;
+  displayDescription: string;
+  originalDescription: string;
+  accountName?: string;
+  pluggyAccId: string;
+  date: string;
+  dates: string[];
+  totalInstallments: number;
+  currentInstallments: number[];
+  installmentAmount: number;
+  totalAmount: number;
+  isExpense: boolean;
+  isCardPayment: boolean;
+  txIds: string[];
+  rawTxs: PluggyTransaction[];
+  suggestedCategoryId: string | null;
+}
+
+/**
+ * Agrupa transações para exibição compacta no card de Transações:
+ * Agrupa compras parceladas do mesmo estabelecimento e quantidade total de parcelas.
+ */
+export function groupTransactionsForDisplay(
+  items: { tx: PluggyTransaction; pluggyAccId: string }[],
+  availableAccounts: { id: string; name?: string; type?: string }[],
+  existingTxs: TransacaoCompleta[] = [],
+  rules: StandardizationRule[] = []
+): GroupedDisplayTransaction[] {
+  const result: GroupedDisplayTransaction[] = [];
+  const installmentGroups: Record<string, GroupedDisplayTransaction> = {};
+
+  for (const { tx, pluggyAccId } of items) {
+    const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
+    const cleanAmt = Math.abs(rawAmt);
+    const desc = (tx.description || "Transação").trim();
+    const isCardPayment = isCardInvoicePayment(desc);
+    const acc = availableAccounts.find(a => a.id === pluggyAccId);
+    const isCredit = acc?.type === 'CREDIT';
+    const isExpense = isCredit ? !isCardPayment : rawAmt < 0;
+    const dateStr = tx.date ? tx.date.substring(0, 10) : format(new Date(), 'yyyy-MM-dd');
+    const parsed = parseInstallmentPattern(desc);
+
+    const suggestedCat = predictTransactionCategory(
+      desc,
+      isExpense ? 'despesa' : (isCardPayment ? 'transferencia' : 'receita'),
+      existingTxs,
+      rules,
+      pluggyAccId
+    );
+
+    // Se for compra parcelada (ex: 3/6, Pcl 2 de 10) e não for pagamento de fatura
+    if (parsed.isInstallment && parsed.totalInstallments > 1 && !isCardPayment) {
+      const groupKey = `${pluggyAccId}_${parsed.cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '')}_${parsed.totalInstallments}_${Math.round(cleanAmt)}`;
+      
+      if (!installmentGroups[groupKey]) {
+        const totalAmount = Math.round(cleanAmt * parsed.totalInstallments * 100) / 100;
+        const newGroup: GroupedDisplayTransaction = {
+          key: groupKey,
+          isInstallmentGroup: true,
+          displayDescription: parsed.cleanDescription,
+          originalDescription: desc,
+          accountName: acc?.name || "Conta",
+          pluggyAccId,
+          date: dateStr,
+          dates: [dateStr],
+          totalInstallments: parsed.totalInstallments,
+          currentInstallments: [parsed.currentInstallment],
+          installmentAmount: cleanAmt,
+          totalAmount,
+          isExpense: true,
+          isCardPayment: false,
+          txIds: [tx.id],
+          rawTxs: [tx],
+          suggestedCategoryId: suggestedCat
+        };
+        installmentGroups[groupKey] = newGroup;
+        result.push(newGroup);
+      } else {
+        const group = installmentGroups[groupKey];
+        if (!group.currentInstallments.includes(parsed.currentInstallment)) {
+          group.currentInstallments.push(parsed.currentInstallment);
+        }
+        if (!group.dates.includes(dateStr)) {
+          group.dates.push(dateStr);
+        }
+        group.txIds.push(tx.id);
+        group.rawTxs.push(tx);
+        if (dateStr > group.date) {
+          group.date = dateStr;
+        }
+      }
+    } else {
+      // Transação avulsa comum ou pagamento de fatura
+      result.push({
+        key: tx.id || `tx_${Math.random()}`,
+        isInstallmentGroup: false,
+        displayDescription: desc,
+        originalDescription: desc,
+        accountName: acc?.name || "Conta",
+        pluggyAccId,
+        date: dateStr,
+        dates: [dateStr],
+        totalInstallments: 1,
+        currentInstallments: [1],
+        installmentAmount: cleanAmt,
+        totalAmount: cleanAmt,
+        isExpense,
+        isCardPayment,
+        txIds: [tx.id],
+        rawTxs: [tx],
+        suggestedCategoryId: suggestedCat
+      });
+    }
+  }
+
+  return result.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+}
+
+/**
  * Empacota uma lista de transações da Pluggy em um ImportedStatement completo,
  * permitindo que seja revisado ou arquivado no mesmo padrão que um extrato OFX tradicional.
  */
