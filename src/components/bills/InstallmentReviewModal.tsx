@@ -77,7 +77,7 @@ export function InstallmentReviewModal({
       <DialogContent className="max-w-2xl p-6 rounded-2xl bg-surface-light dark:bg-surface-dark border-border/50">
         <DialogHeader className="space-y-1.5 pb-2 border-b border-border/40">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
               <ShoppingBag className="w-5 h-5" />
             </div>
             <div>
@@ -111,7 +111,7 @@ export function InstallmentReviewModal({
                     <span className="font-bold text-sm text-foreground truncate">
                       {item.cleanDescription}
                     </span>
-                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-semibold text-purple-600 dark:text-purple-400 border-purple-500/30">
+                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-semibold text-primary border-primary/30 bg-primary/5">
                       {item.totalInstallments}x de {formatCurrency(item.installmentAmount)}
                     </Badge>
                   </div>
@@ -170,7 +170,7 @@ export function InstallmentReviewModal({
             <Button
               size="sm"
               onClick={handleRegisterAll}
-              className="w-full sm:w-auto text-xs h-9 font-bold bg-purple-600 hover:bg-purple-700 text-white gap-1.5 shadow-sm"
+              className="w-full sm:w-auto text-xs h-9 font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-sm"
             >
               <Check className="w-3.5 h-3.5" />
               <span>Cadastrar Todas ({items.length})</span>

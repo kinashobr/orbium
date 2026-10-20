@@ -533,6 +533,7 @@ interface FinanceContextType {
     detectedInstallments?: DetectedCardInstallment[];
   }>;
   isSyncingPluggy: boolean;
+  undoPluggyCardTransactions: (targetAccountId?: string) => number;
 
   // Exportação e Importação
   exportData: () => void;
@@ -1910,26 +1911,161 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
         if (isCredit) {
           // 1. Identificar novas compras parceladas pendentes de cadastro no Gerenciar Compromissos
-          const detectedForAcc = groupDetectedInstallments(accountTxs, orbiumAccountId, billsTracker);
+          // Passamos creditCardConfigs para validação cruzada entre cartões e contas de pagamento
+          const detectedForAcc = groupDetectedInstallments(accountTxs, orbiumAccountId, billsTracker, creditCardConfigs);
           allDetectedInstallments.push(...detectedForAcc);
 
           // 2. Processar cada transação do cartão
           for (const tx of accountTxs) {
             const isCardPayment = isCardInvoicePayment(tx.description);
             const parsed = parseInstallmentPattern(tx.description);
+            const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
+            const cleanAmt = Math.abs(rawAmt);
+
+            // Se for pagamento de fatura ("Pagamento recebido", "pgto fatura", etc.):
+            // Deve ser lançado como TRANSFERÊNCIA entre contas (da Conta de Pagamento Padrão para o Cartão)
+            if (isCardPayment) {
+              const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
+                ...transacoesV2,
+                ...newCardTransactions
+              ]);
+
+              if (!isDuplicate) {
+                const cardConfig = creditCardConfigs.find(c => c.accountId === orbiumAccountId || c.id === orbiumAccountId);
+                const defaultPaymentAccountId = cardConfig?.defaultPaymentAccountId;
+                const paymentAccount = defaultPaymentAccountId 
+                  ? contasMovimento.find(c => c.id === defaultPaymentAccountId)
+                  : undefined;
+
+                const transferGroupId = generateTransferGroupId();
+                let dateFormatted = format(new Date(), 'yyyy-MM-dd');
+                if (tx.date) {
+                  try {
+                    const parsedDate = parseDateLocal(tx.date.substring(0, 10));
+                    dateFormatted = format(parsedDate, 'yyyy-MM-dd');
+                  } catch {
+                    dateFormatted = tx.date.substring(0, 10);
+                  }
+                }
+
+                // 2.1. Lançamento no Cartão de Crédito (Amortização / Entrada de Transferência)
+                const cardTx: TransacaoCompleta = {
+                  id: generateTransactionId(),
+                  date: dateFormatted,
+                  accountId: orbiumAccountId,
+                  flow: 'in',
+                  operationType: 'transferencia',
+                  domain: 'operational',
+                  amount: cleanAmt,
+                  categoryId: null, // Transferência nunca possui categoria de receita
+                  description: tx.description || 'Pagamento de Fatura',
+                  links: {
+                    investmentId: null,
+                    loanId: null,
+                    transferGroupId,
+                    parcelaId: null,
+                    vehicleTransactionId: null,
+                    pluggyTransactionId: tx.id,
+                    pluggyItemId: targetItemId,
+                  },
+                  conciliated: true,
+                  attachments: [],
+                  meta: {
+                    source: 'pluggy_open_finance',
+                    isCardPayment: true,
+                    pluggyTransactionId: tx.id,
+                    pluggyItemId: targetItemId,
+                    originalAmount: tx.amount,
+                    createdAt: new Date().toISOString(),
+                  }
+                };
+                newCardTransactions.push(cardTx);
+                totalCardTxsAdded++;
+
+                // 2.2. Lançamento na Conta Corrente de Pagamento Padrão (Saída de Transferência)
+                if (paymentAccount) {
+                  const checkingTx: TransacaoCompleta = {
+                    id: generateTransactionId(),
+                    date: dateFormatted,
+                    accountId: paymentAccount.id,
+                    flow: 'transfer_out',
+                    operationType: 'transferencia',
+                    domain: 'operational',
+                    amount: cleanAmt,
+                    categoryId: null,
+                    description: `Pagamento de Fatura — ${orbiumAccount?.name || 'Cartão'}`,
+                    links: {
+                      investmentId: null,
+                      loanId: null,
+                      transferGroupId,
+                      parcelaId: null,
+                      vehicleTransactionId: null,
+                      pluggyTransactionId: tx.id,
+                      pluggyItemId: targetItemId,
+                    },
+                    conciliated: true,
+                    attachments: [],
+                    meta: {
+                      source: 'pluggy_open_finance',
+                      isCardPayment: true,
+                      pluggyTransactionId: tx.id,
+                      pluggyItemId: targetItemId,
+                      originalAmount: tx.amount,
+                      createdAt: new Date().toISOString(),
+                    }
+                  };
+                  newCardTransactions.push(checkingTx);
+                  syncLogs.push(
+                    `[PAGAMENTO FATURA] Transferência de R$ ${cleanAmt.toFixed(2)} vinculada da conta "${paymentAccount.name}" para amortizar a fatura do cartão "${orbiumAccount?.name}".`
+                  );
+                } else {
+                  syncLogs.push(
+                    `[PAGAMENTO FATURA] Pagamento de fatura de R$ ${cleanAmt.toFixed(2)} registrado no cartão como amortização (transferência). Dica: vincule a Conta de Pagamento Padrão no Gerenciar Compromissos.`
+                  );
+                }
+
+                // Se houver uma fatura pendente correspondente no billsTracker para este cartão, atualiza como paga
+                setBillsTracker(prevBills => prevBills.map(b => {
+                  if (
+                    b.sourceType === 'card_invoice' && 
+                    !b.isPaid && 
+                    (b.sourceRef === cardConfig?.id || b.cardId === cardConfig?.id || b.suggestedAccountId === orbiumAccountId) &&
+                    Math.abs(b.expectedAmount - cleanAmt) < 5
+                  ) {
+                    return {
+                      ...b,
+                      isPaid: true,
+                      paymentDate: dateFormatted,
+                      transactionId: transferGroupId,
+                    };
+                  }
+                  return b;
+                }));
+              }
+              continue;
+            }
 
             // Se for compra parcelada (não é pagamento de fatura):
-            if (!isCardPayment && parsed.isInstallment && parsed.totalInstallments > 1) {
-              const matchingBills = findMatchingCommitment(parsed.cleanDescription, orbiumAccountId, billsTracker);
+            if (parsed.isInstallment && parsed.totalInstallments > 1) {
+              const matchingBills = findMatchingCommitment({
+                cleanDescription: parsed.cleanDescription,
+                accountId: orbiumAccountId,
+                bills: billsTracker,
+                creditCardConfigs,
+                installmentAmount: cleanAmt,
+                totalInstallments: parsed.totalInstallments,
+                currentInstallment: parsed.currentInstallment,
+                transactionDate: tx.date,
+              });
 
               // Se o compromisso JÁ existe no Gerenciar Compromissos:
               if (matchingBills.length > 0) {
                 // Verificar se a data da transação é futura (mês posterior ao atual)
                 if (isFutureTransaction(tx.date)) {
-                  // Conforme escolha do usuário: "Ignorar parcelas futuras se o compromisso já existir"
+                  // Conforme preferência: "Ignorar parcelas futuras se o compromisso já existir"
                   futureInstallmentsIgnored++;
                   syncLogs.push(
-                    `[INFO] Parcela futura "${tx.description}" (${tx.date}) ignorada no extrato (já prevista no Gerenciar Compromissos).`
+                    `[INFO] Parcela futura "${tx.description}" (${tx.date}) ignorada no extrato (já prevista no Gerenciar Compromissos sob "${matchingBills[0].description}").`
                   );
                   continue;
                 }
@@ -1945,7 +2081,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               }
             }
 
-            // Lançamento com deduplicação rigorosa (pagamentos de fatura ou compras à vista/do ciclo atual)
+            // Lançamento com deduplicação rigorosa (compras à vista ou do ciclo atual)
             const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
               ...transacoesV2,
               ...newCardTransactions
@@ -2033,7 +2169,45 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsSyncingPluggy(false);
     }
-  }, [pluggyConfig, contasMovimento, transacoesV2, importedStatements, standardizationRules, billsTracker, setPluggyLastPayload, updateLastModified]);
+  }, [pluggyConfig, contasMovimento, transacoesV2, importedStatements, standardizationRules, billsTracker, creditCardConfigs, setPluggyLastPayload, updateLastModified]);
+
+  const undoPluggyCardTransactions = useCallback((targetAccountId?: string): number => {
+    const toRemoveIds = new Set<string>();
+    const transferGroupIdsToRemove = new Set<string>();
+
+    // 1. Identificar transações lançadas pela integração Open Finance no cartão
+    transacoesV2.forEach(t => {
+      const isFromPluggy = t.meta?.source === 'pluggy_open_finance' || !!t.links?.pluggyTransactionId;
+      if (!isFromPluggy) return;
+
+      const acc = contasMovimento.find(c => c.id === t.accountId);
+      const isCardAcc = acc?.accountType === 'cartao_credito';
+      const matchesTarget = !targetAccountId || targetAccountId === 'all' || t.accountId === targetAccountId;
+
+      if (matchesTarget && (isCardAcc || t.meta?.isCardPayment)) {
+        toRemoveIds.add(t.id);
+        if (t.links?.transferGroupId) {
+          transferGroupIdsToRemove.add(t.links.transferGroupId);
+        }
+      }
+    });
+
+    // 2. Se houver transferências pareadas (ex: débito de pagamento de fatura em conta corrente), remove o par
+    if (transferGroupIdsToRemove.size > 0) {
+      transacoesV2.forEach(t => {
+        if (t.links?.transferGroupId && transferGroupIdsToRemove.has(t.links.transferGroupId)) {
+          toRemoveIds.add(t.id);
+        }
+      });
+    }
+
+    if (toRemoveIds.size > 0) {
+      setTransacoesV2(prev => prev.filter(t => !toRemoveIds.has(t.id)));
+      updateLastModified();
+    }
+
+    return toRemoveIds.size;
+  }, [transacoesV2, contasMovimento, updateLastModified]);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {
@@ -2594,6 +2768,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     setPluggyLastPayload,
     syncPluggyData,
     isSyncingPluggy,
+    undoPluggyCardTransactions,
 
     lastModified,
     exportData, importData,
@@ -2601,7 +2776,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
     vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
     expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
-    pluggyConfig, updatePluggyConfig, pluggyLastPayload, setPluggyLastPayload, syncPluggyData, isSyncingPluggy,
+    pluggyConfig, updatePluggyConfig, pluggyLastPayload, setPluggyLastPayload, syncPluggyData, isSyncingPluggy, undoPluggyCardTransactions,
     cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
     addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
     addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,

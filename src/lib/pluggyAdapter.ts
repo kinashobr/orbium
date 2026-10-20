@@ -7,7 +7,8 @@ import {
   generateTransactionId,
   OperationType,
   FlowType,
-  BillTracker
+  BillTracker,
+  CreditCardConfig
 } from "@/types/finance";
 import { PluggyTransaction, DetectedCardInstallment } from "@/types/pluggy";
 import { format, isAfter, endOfMonth } from "date-fns";
@@ -115,18 +116,17 @@ export function convertPluggyTransactionToOrbium(
   // Na Pluggy, compras no cartão costumam vir positivas (+), mas no Orbium (partidas dobradas) são saídas (despesas).
   // Pagamentos de fatura ("credit card payment", "pgto fatura", "pagamento recebido", etc.) devem ser entradas/créditos (receita).
   let isDebit = rawAmount < 0 || tx.type === 'DEBIT';
-  let operationType: 'despesa' | 'receita' = 'despesa';
+  let operationType: OperationType = 'despesa';
 
   const isCardPayment = isCardInvoicePayment(desc);
 
   if (isCreditCard) {
     if (isCardPayment) {
-      // Pagamento de fatura é entrada/crédito na ótica do cartão (diminui a dívida)
-      operationType = 'receita';
+      // Pagamento de fatura deve ser transferência (amortização de dívida), NUNCA receita!
+      operationType = 'transferencia';
       isDebit = false;
     } else {
       // Compras normais no cartão na Pluggy vêm positivas (+), mas no Orbium são despesas (saídas)
-      // Se vier negativo, também é despesa.
       operationType = 'despesa';
       isDebit = true;
     }
@@ -155,11 +155,11 @@ export function convertPluggyTransactionToOrbium(
     amount: cleanAmount,
     originalDescription: desc,
     accountId: targetAccountId,
-    categoryId: null,
+    categoryId: null, // Pagamento de fatura e transferências não possuem categoria de despesa/receita
     operationType,
     description: desc,
     isTransfer: isLikelyTransfer || isCardPayment,
-    destinationAccountId: null,
+    destinationAccountId: isCardPayment ? targetAccountId : null,
     tempInvestmentId: null,
     tempLoanId: null,
     tempParcelaId: null,
@@ -177,14 +177,16 @@ export function convertPluggyTransactionToOrbium(
 export function convertPluggyToTransacaoCompleta(
   tx: PluggyTransaction,
   targetAccountId: string,
-  itemId: string
+  itemId: string,
+  transferGroupId?: string
 ): TransacaoCompleta {
   let rawAmount = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
   const desc = (tx.description || "Compra no Cartão").trim();
 
   const isCardPayment = isCardInvoicePayment(desc);
 
-  const operationType: OperationType = isCardPayment ? 'receita' : 'despesa';
+  // Pagamento de fatura deve ser do tipo 'transferencia' (entre contas), não 'receita'
+  const operationType: OperationType = isCardPayment ? 'transferencia' : 'despesa';
   const flow: FlowType = isCardPayment ? 'in' : 'out';
   const cleanAmount = Math.abs(rawAmount);
 
@@ -211,6 +213,7 @@ export function convertPluggyToTransacaoCompleta(
     links: {
       pluggyTransactionId: tx.id,
       pluggyItemId: itemId,
+      transferGroupId: transferGroupId || null,
     },
     conciliated: true,
     attachments: [],
@@ -329,23 +332,156 @@ function applyPluggyStandardizationRules(
   });
 }
 
+export interface MatchingCommitmentOptions {
+  cleanDescription?: string;
+  accountId: string;
+  bills: BillTracker[];
+  creditCardConfigs?: CreditCardConfig[];
+  installmentAmount?: number;
+  totalInstallments?: number;
+  currentInstallment?: number;
+  transactionDate?: string;
+}
+
 /**
- * Localiza se já existe um compromisso cadastrado no billsTracker para a descrição e conta especificadas.
+ * Verifica se a conta do compromisso no billsTracker é compatível com o cartão de crédito da transação.
+ */
+export function isAccountCompatible(
+  b: BillTracker,
+  accountId?: string,
+  creditCardConfigs?: CreditCardConfig[]
+): boolean {
+  if (!accountId) return true;
+  // Se o compromisso não vinculou conta específica, é compatível com qualquer conta
+  if (!b.suggestedAccountId && !b.cardId) return true;
+
+  // Vínculo direto de conta
+  if (b.suggestedAccountId === accountId) return true;
+
+  // Vínculo via configuração de Cartão de Crédito
+  if (creditCardConfigs && creditCardConfigs.length > 0) {
+    const cardConfig = creditCardConfigs.find(c => c.accountId === accountId || c.id === accountId);
+    if (cardConfig) {
+      if (b.cardId === cardConfig.id) return true;
+      if (b.suggestedAccountId === cardConfig.accountId) return true;
+      // Compatível se o usuário definiu a Conta de Pagamento Padrão como débito
+      if (b.suggestedAccountId === cardConfig.defaultPaymentAccountId) return true;
+    }
+    if (b.cardId) {
+      const billCard = creditCardConfigs.find(c => c.id === b.cardId);
+      if (billCard && billCard.accountId === accountId) return true;
+    }
+  }
+
+  // Compras parceladas (purchase_installment): frequentemente cadastradas na conta corrente onde a fatura é debitada.
+  // Permitimos compatibilidade para validação da assinatura financeira (mesmo valor e número de parcelas).
+  if (b.sourceType === 'purchase_installment') {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Localiza se já existe um compromisso cadastrado no billsTracker para a descrição,
+ * valor e número de parcelas especificados (mesmo com nomenclatura personalizada pelo usuário).
  */
 export function findMatchingCommitment(
-  cleanDescription: string,
-  accountId: string,
-  bills: BillTracker[]
+  cleanDescriptionOrOptions: string | MatchingCommitmentOptions,
+  accountIdArg?: string,
+  billsArg?: BillTracker[]
 ): BillTracker[] {
+  let cleanDescription = '';
+  let accountId = '';
+  let bills: BillTracker[] = [];
+  let creditCardConfigs: CreditCardConfig[] | undefined;
+  let installmentAmount: number | undefined;
+  let totalInstallments: number | undefined;
+  let currentInstallment: number | undefined;
+  let transactionDate: string | undefined;
+
+  if (typeof cleanDescriptionOrOptions === 'object') {
+    cleanDescription = cleanDescriptionOrOptions.cleanDescription || '';
+    accountId = cleanDescriptionOrOptions.accountId || '';
+    bills = cleanDescriptionOrOptions.bills || [];
+    creditCardConfigs = cleanDescriptionOrOptions.creditCardConfigs;
+    installmentAmount = cleanDescriptionOrOptions.installmentAmount;
+    totalInstallments = cleanDescriptionOrOptions.totalInstallments;
+    currentInstallment = cleanDescriptionOrOptions.currentInstallment;
+    transactionDate = cleanDescriptionOrOptions.transactionDate;
+  } else {
+    cleanDescription = cleanDescriptionOrOptions || '';
+    accountId = accountIdArg || '';
+    bills = billsArg || [];
+  }
+
   const normClean = cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!normClean) return [];
 
   return bills.filter(b => {
     if (b.isExcluded) return false;
-    const matchesAccount = !b.suggestedAccountId || b.suggestedAccountId === accountId || b.cardId === accountId;
-    if (!matchesAccount) return false;
-    const normBillDesc = b.description.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return normBillDesc.includes(normClean) || normClean.includes(normBillDesc);
+    
+    // Verifica compatibilidade de conta (cartão ou conta de débito da fatura)
+    if (!isAccountCompatible(b, accountId, creditCardConfigs)) return false;
+
+    // 1. Text description match (se o nome bater total ou parcialmente)
+    if (normClean) {
+      const normBillDesc = b.description.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (normBillDesc.includes(normClean) || normClean.includes(normBillDesc)) {
+        return true;
+      }
+    }
+
+    // 2. Financial & Installments match:
+    // O usuário personalizou o nome (ex: cadastrou 'Academia' e no banco veio 'On Fitness 3/6' com R$ 129,90)
+    if (installmentAmount && installmentAmount > 0) {
+      const amountDiff = Math.abs((b.expectedAmount || 0) - installmentAmount);
+      const isSameAmount = amountDiff < 0.05;
+
+      if (isSameAmount) {
+        // Extração de parcelas da descrição do compromisso (ex: "Academia (1/6)" ou "Pcl 1 de 6")
+        const slashMatch = b.description.match(/(?:[*\s(-]|^)(\d{1,2})\s*[/de]+\s*(\d{1,2})\b/i);
+        const bCur = b.parcelaNumber || (slashMatch ? parseInt(slashMatch[1], 10) : undefined);
+        const bTotal = b.totalInstallments || (slashMatch ? parseInt(slashMatch[2], 10) : undefined);
+
+        // Se ambos informam o total de parcelas e coincidem (ex: 6 parcelas de R$ 129,90)
+        if (totalInstallments && bTotal && totalInstallments === bTotal) {
+          return true;
+        }
+
+        // Se o grupo do compromisso no billsTracker possui o mesmo número total de parcelas
+        if (totalInstallments && b.sourceRef) {
+          const groupCount = bills.filter(x => x.sourceRef === b.sourceRef && !x.isExcluded).length;
+          if (groupCount === totalInstallments) {
+            return true;
+          }
+        }
+
+        // Se coincidir o número da parcela (ex: parcela 3)
+        if (currentInstallment && bCur && currentInstallment === bCur) {
+          return true;
+        }
+
+        // Se a data de vencimento estiver no mesmo mês/ano da transação
+        if (transactionDate && b.dueDate) {
+          try {
+            const bDate = parseDateLocal(b.dueDate.substring(0, 10));
+            const tDate = parseDateLocal(transactionDate.substring(0, 10));
+            if (bDate.getFullYear() === tDate.getFullYear() && bDate.getMonth() === tDate.getMonth()) {
+              return true;
+            }
+          } catch {
+            // ignore
+          }
+        }
+
+        // Se for compra parcelada (purchase_installment) com o mesmo valor de parcela
+        if (b.sourceType === 'purchase_installment') {
+          return true;
+        }
+      }
+    }
+
+    return false;
   });
 }
 
@@ -369,7 +505,8 @@ export function isFutureTransaction(txDateStr: string, referenceDate: Date = new
 export function groupDetectedInstallments(
   transactions: PluggyTransaction[],
   targetAccountId: string,
-  existingBills: BillTracker[]
+  existingBills: BillTracker[],
+  creditCardConfigs?: CreditCardConfig[]
 ): DetectedCardInstallment[] {
   const groups: Record<string, {
     cleanDesc: string;
@@ -386,14 +523,23 @@ export function groupDetectedInstallments(
     const parsed = parseInstallmentPattern(tx.description);
     if (!parsed.isInstallment || parsed.totalInstallments <= 1) continue;
 
-    const normKey = `${parsed.cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '')}_${parsed.totalInstallments}`;
-
-    // Se já existe compromisso cadastrado para esse estabelecimento no billsTracker, pula
-    const matchingBills = findMatchingCommitment(parsed.cleanDescription, targetAccountId, existingBills);
-    if (matchingBills.length > 0) continue;
-
     const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
     const cleanAmt = Math.abs(rawAmt);
+
+    // Se já existe compromisso cadastrado para esse parcelamento no billsTracker, pula
+    const matchingBills = findMatchingCommitment({
+      cleanDescription: parsed.cleanDescription,
+      accountId: targetAccountId,
+      bills: existingBills,
+      creditCardConfigs,
+      installmentAmount: cleanAmt,
+      totalInstallments: parsed.totalInstallments,
+      currentInstallment: parsed.currentInstallment,
+      transactionDate: tx.date
+    });
+    if (matchingBills.length > 0) continue;
+
+    const normKey = `${parsed.cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '')}_${parsed.totalInstallments}`;
 
     if (!groups[normKey]) {
       groups[normKey] = {
@@ -415,6 +561,36 @@ export function groupDetectedInstallments(
   const result: DetectedCardInstallment[] = [];
 
   for (const [key, g] of Object.entries(groups)) {
+    // Verificação robusta a nível de grupo: existe compromisso nessa conta com mesmo valor e parcelas?
+    const existsByFinancial = existingBills.some(b => {
+      if (b.isExcluded) return false;
+      if (!isAccountCompatible(b, targetAccountId, creditCardConfigs)) return false;
+
+      const sameAmount = Math.abs((b.expectedAmount || 0) - g.amount) < 0.05;
+      if (!sameAmount) return false;
+
+      // Extrai número total de parcelas do compromisso
+      const slashMatch = b.description.match(/(?:[*\s(-]|^)(\d{1,2})\s*[/de]+\s*(\d{1,2})\b/i);
+      const bTotal = b.totalInstallments || (slashMatch ? parseInt(slashMatch[2], 10) : undefined);
+
+      if (bTotal && bTotal === g.totalInstallments) return true;
+
+      // Se o grupo no billsTracker tiver a mesma quantidade de parcelas
+      if (b.sourceRef) {
+        const groupCount = existingBills.filter(x => x.sourceRef === b.sourceRef && !x.isExcluded).length;
+        if (groupCount === g.totalInstallments) return true;
+      }
+
+      // Se for uma compra parcelada registrada com o mesmo valor unitário
+      if (b.sourceType === 'purchase_installment') {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (existsByFinancial) continue;
+
     // Ordena as datas para estimar a primeira parcela
     g.dates.sort((a, b) => a.instNum - b.instNum);
     const firstRecorded = g.dates[0];

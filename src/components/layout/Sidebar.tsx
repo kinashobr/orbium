@@ -24,7 +24,10 @@ import {
   Sparkles,
   RefreshCw,
   Landmark,
-  Cloud
+  Cloud,
+  CloudDownload,
+  CloudUpload,
+  HardDrive
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useFinance } from "@/contexts/FinanceContext";
@@ -68,7 +71,7 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const finance = useFinance();
-  const { isConnected: isConnectedDrive, isSyncing: isSyncingDrive, saveToDrive } = useGoogleDrive();
+  const { isConnected: isConnectedDrive, isSyncing: isSyncingDrive, saveToDrive, loadFromDrive } = useGoogleDrive();
   const { 
     exportData, 
     importData,
@@ -236,6 +239,14 @@ export function Sidebar() {
     saveToDrive(dataToSave);
   };
 
+  const handleQuickLoadDrive = async () => {
+    if (!isConnectedDrive) {
+      initiateGoogleAuth();
+      return;
+    }
+    await loadFromDrive();
+  };
+
   const NavItem = ({ item }: { item: NavItemData }) => {
     const isActive = location.pathname === item.path;
     const Icon = item.icon;
@@ -315,12 +326,12 @@ export function Sidebar() {
       <div className="px-2 pb-4 space-y-1.5 mt-auto shrink-0">
         <Separator className="mx-2 mb-2 opacity-30" />
         
-        {/* Barra de Ações Rápidas: Open Finance & Nuvem (Design Consistente: Apenas Ícones com Descrição Flutuante) */}
+        {/* Barra de Ações Rápidas: Open Finance & Nuvem Google Drive (Apenas Ícones com Descrição Flutuante) */}
         <div className={cn(
           "grid gap-1.5 p-1 rounded-2xl bg-muted/30 border border-border/40",
           collapsed ? "grid-cols-1" : "grid-cols-3"
         )}>
-          {/* 1. Open Finance (Navegar) */}
+          {/* 1. Open Finance (Abrir Tela) */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -344,24 +355,7 @@ export function Sidebar() {
             </TooltipContent>
           </Tooltip>
 
-          {/* 2. Sincronizar Open Finance */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleQuickSyncPluggy}
-                disabled={isSyncingPluggy}
-                className="relative flex items-center justify-center h-9 w-full rounded-xl bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40 transition-all duration-200 active:scale-95 disabled:opacity-50 shadow-2xs"
-                aria-label="Atualizar Open Finance"
-              >
-                <RefreshCw size={15} className={cn(isSyncingPluggy && "animate-spin text-primary")} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
-              {isSyncingPluggy ? "Sincronizando Open Finance..." : "Atualizar Dados Open Finance"}
-            </TooltipContent>
-          </Tooltip>
-
-          {/* 3. Nuvem (Google Drive) */}
+          {/* 2. Nuvem Google Drive: Sincronizar */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -373,9 +367,9 @@ export function Sidebar() {
                     ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40" 
                     : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60"
                 )}
-                aria-label="Nuvem (Google Drive)"
+                aria-label="Sincronizar Nuvem (Google Drive)"
               >
-                <Cloud size={16} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                <CloudUpload size={16} className={cn(isSyncingDrive && "animate-spin text-primary")} />
                 {isConnectedDrive && (
                   <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
                 )}
@@ -384,6 +378,30 @@ export function Sidebar() {
             <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
               {isConnectedDrive 
                 ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Sincronizar Nuvem (Drive)") 
+                : "Conectar Nuvem (Google Drive)"}
+            </TooltipContent>
+          </Tooltip>
+
+          {/* 3. Nuvem Google Drive: Baixar Dados */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleQuickLoadDrive}
+                disabled={isSyncingDrive}
+                className={cn(
+                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 group shadow-2xs",
+                  isConnectedDrive 
+                    ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40" 
+                    : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60"
+                )}
+                aria-label="Baixar Dados da Nuvem (Google Drive)"
+              >
+                <CloudDownload size={16} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
+              {isConnectedDrive 
+                ? (isSyncingDrive ? "Baixando da Nuvem..." : "Baixar Dados da Nuvem (Drive)") 
                 : "Conectar Nuvem (Google Drive)"}
             </TooltipContent>
           </Tooltip>
@@ -477,8 +495,8 @@ export function Sidebar() {
 
               <Separator className="opacity-40" />
 
-              {/* Seção 2: Sincronização & Backup (Apenas Ícones com Descrição Flutuante) */}
-              <div className="space-y-2.5">
+              {/* Seção 2: Sincronização & Backup (Diferenciação clara entre Nuvem e Backup Local, apenas ícones) */}
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Database className="w-3.5 h-3.5 text-muted-foreground" />
@@ -492,108 +510,153 @@ export function Sidebar() {
                 </div>
 
                 <TooltipProvider delayDuration={100} skipDelayDuration={0}>
-                  <div className="grid grid-cols-5 gap-1.5 p-2 rounded-2xl bg-muted/30 border border-border/50">
-                    {/* 1. Open Finance (Navegação) */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => {
-                            setAjustesPopoverOpen(false);
-                            navigate("/open-finance");
-                          }}
-                          className="relative h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 shadow-2xs"
-                          aria-label="Open Finance"
-                          title="Open Finance (Conexões)"
-                        >
-                          <Landmark size={17} />
-                          {pluggyConfig?.itemId && (
-                            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
-                        Open Finance (Conexões)
-                      </TooltipContent>
-                    </Tooltip>
+                  <div className="space-y-2.5">
+                    {/* Bloco 1: Nuvem (Google Drive & Open Finance) */}
+                    <div className="p-2.5 rounded-2xl bg-primary/[0.04] dark:bg-primary/[0.06] border border-primary/20 space-y-2">
+                      <div className="flex items-center justify-between px-0.5">
+                        <div className="flex items-center gap-1.5 text-primary">
+                          <Cloud className="w-3.5 h-3.5" />
+                          <span className="text-[9px] font-black uppercase tracking-wider">Nuvem & Conexões</span>
+                        </div>
+                        {isConnectedDrive && (
+                          <span className="flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Drive Ativo
+                          </span>
+                        )}
+                      </div>
 
-                    {/* 2. Sincronizar Open Finance */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={handleQuickSyncPluggy}
-                          disabled={isSyncingPluggy}
-                          className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs"
-                          aria-label="Sincronizar Open Finance"
-                          title="Sincronizar Open Finance"
-                        >
-                          <RefreshCw size={16} className={cn(isSyncingPluggy && "animate-spin text-primary")} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
-                        {isSyncingPluggy ? "Sincronizando..." : "Sincronizar Open Finance"}
-                      </TooltipContent>
-                    </Tooltip>
+                      <div className="grid grid-cols-4 gap-1.5">
+                        {/* 1. Open Finance (Navegação) */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => {
+                                setAjustesPopoverOpen(false);
+                                navigate("/open-finance");
+                              }}
+                              className="relative h-10 w-full rounded-xl border border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 shadow-2xs"
+                              aria-label="Abrir Open Finance"
+                            >
+                              <Landmark size={17} />
+                              {pluggyConfig?.itemId && (
+                                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
+                              )}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                            Open Finance (Conexões Bancárias)
+                          </TooltipContent>
+                        </Tooltip>
 
-                    {/* 3. Nuvem (Google Drive) */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={handleQuickSyncDrive}
-                          disabled={isSyncingDrive}
-                          className={cn(
-                            "relative h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs",
-                            isConnectedDrive ? "text-primary" : "text-muted-foreground"
-                          )}
-                          aria-label="Nuvem (Google Drive)"
-                          title={isConnectedDrive ? "Sincronizar Nuvem (Drive)" : "Conectar Google Drive"}
-                        >
-                          <Cloud size={17} className={cn(isSyncingDrive && "animate-spin text-primary")} />
-                          {isConnectedDrive && (
-                            <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
-                        {isConnectedDrive 
-                          ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Sincronizar Nuvem (Drive)") 
-                          : "Conectar Google Drive"}
-                      </TooltipContent>
-                    </Tooltip>
+                        {/* 2. Sincronizar Open Finance */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleQuickSyncPluggy}
+                              disabled={isSyncingPluggy}
+                              className="h-10 w-full rounded-xl border border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs"
+                              aria-label="Sincronizar Open Finance"
+                            >
+                              <RefreshCw size={16} className={cn(isSyncingPluggy && "animate-spin text-primary")} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                            {isSyncingPluggy ? "Sincronizando..." : "Sincronizar Open Finance"}
+                          </TooltipContent>
+                        </Tooltip>
 
-                    {/* 4. Exportar Backup Local */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={handleExport}
-                          className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-emerald-500/10 hover:border-emerald-500/40 text-muted-foreground hover:text-emerald-500 flex items-center justify-center transition-all active:scale-95 shadow-2xs"
-                          aria-label="Exportar Backup"
-                          title="Exportar Backup (.json)"
-                        >
-                          <Download size={17} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
-                        Exportar Backup (.json)
-                      </TooltipContent>
-                    </Tooltip>
+                        {/* 3. Nuvem: Sincronizar Google Drive */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleQuickSyncDrive}
+                              disabled={isSyncingDrive}
+                              className={cn(
+                                "relative h-10 w-full rounded-xl border border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs",
+                                isConnectedDrive ? "text-primary" : "text-muted-foreground"
+                              )}
+                              aria-label="Sincronizar com Nuvem Google Drive"
+                            >
+                              <CloudUpload size={17} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                              {isConnectedDrive && (
+                                <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
+                              )}
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                            {isConnectedDrive 
+                              ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Nuvem: Sincronizar Dados (Drive)") 
+                              : "Nuvem: Conectar Google Drive"}
+                          </TooltipContent>
+                        </Tooltip>
 
-                    {/* 5. Restaurar Backup */}
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={handleImportClick}
-                          className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 shadow-2xs"
-                          aria-label="Restaurar Backup"
-                          title="Restaurar Backup (.json)"
-                        >
-                          <Upload size={17} />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
-                        Restaurar Backup (.json)
-                      </TooltipContent>
-                    </Tooltip>
-                    <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
+                        {/* 4. Nuvem: Baixar dados do Google Drive */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleQuickLoadDrive}
+                              disabled={isSyncingDrive}
+                              className={cn(
+                                "h-10 w-full rounded-xl border border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs",
+                                isConnectedDrive ? "text-primary" : "text-muted-foreground"
+                              )}
+                              aria-label="Baixar Dados da Nuvem Google Drive"
+                            >
+                              <CloudDownload size={17} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                            {isConnectedDrive 
+                              ? (isSyncingDrive ? "Baixando da Nuvem..." : "Nuvem: Baixar Dados (Drive)") 
+                              : "Nuvem: Conectar Google Drive"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
+                    </div>
+
+                    {/* Bloco 2: Backup Local (Arquivo JSON no computador) */}
+                    <div className="p-2.5 rounded-2xl bg-muted/40 border border-border/60 space-y-2">
+                      <div className="flex items-center gap-1.5 px-0.5 text-muted-foreground">
+                        <HardDrive className="w-3.5 h-3.5" />
+                        <span className="text-[9px] font-black uppercase tracking-wider">Backup Local (Arquivo)</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {/* 1. Exportar Arquivo Local */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleExport}
+                              className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-emerald-500/10 hover:border-emerald-500/40 text-muted-foreground hover:text-emerald-500 flex items-center justify-center transition-all active:scale-95 shadow-2xs"
+                              aria-label="Exportar Backup Local (.json)"
+                            >
+                              <Download size={17} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                            Backup Local: Baixar Arquivo (.json)
+                          </TooltipContent>
+                        </Tooltip>
+
+                        {/* 2. Restaurar Arquivo Local */}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={handleImportClick}
+                              className="h-10 w-full rounded-xl border border-border/50 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground hover:text-primary flex items-center justify-center transition-all active:scale-95 shadow-2xs"
+                              aria-label="Restaurar Backup Local (.json)"
+                            >
+                              <Upload size={17} />
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
+                            Backup Local: Restaurar Arquivo (.json)
+                          </TooltipContent>
+                        </Tooltip>
+                        <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
+                      </div>
+                    </div>
                   </div>
                 </TooltipProvider>
               </div>

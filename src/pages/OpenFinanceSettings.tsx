@@ -25,7 +25,8 @@ import {
   ChevronUp,
   KeyRound,
   Landmark,
-  ShoppingBag
+  ShoppingBag,
+  RotateCcw
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { isCardInvoicePayment, parseInstallmentPattern } from "@/lib/pluggyAdapter";
 import { InstallmentReviewModal } from "@/components/bills/InstallmentReviewModal";
 
@@ -44,7 +55,8 @@ export default function OpenFinanceSettings() {
     contasMovimento, 
     addContaMovimento,
     syncPluggyData,
-    isSyncingPluggy
+    isSyncingPluggy,
+    undoPluggyCardTransactions
   } = useFinance();
 
   const [inputItemId, setInputItemId] = useState(pluggyConfig?.itemId || "");
@@ -52,6 +64,7 @@ export default function OpenFinanceSettings() {
   const [selectedTxAccount, setSelectedTxAccount] = useState<string>("all");
   const [pendingInstallments, setPendingInstallments] = useState<DetectedCardInstallment[]>([]);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
+  const [showUndoDialog, setShowUndoDialog] = useState(false);
   
   // Controle de visibilidade do Item ID (oculto por padrão se já configurado)
   const [showItemIdConfig, setShowItemIdConfig] = useState(!pluggyConfig?.itemId);
@@ -130,6 +143,23 @@ export default function OpenFinanceSettings() {
       toast.success(result.message);
     } else {
       toast.error(result.message);
+    }
+  };
+
+  // Desfazer lançamentos do cartão de crédito importados pelo Open Finance
+  const handleUndoCardTransactions = () => {
+    const targetAccId = selectedTxAccount !== "all" ? selectedTxAccount : undefined;
+    const removedCount = undoPluggyCardTransactions(targetAccId);
+    setShowUndoDialog(false);
+
+    if (removedCount > 0) {
+      toast.success(`${removedCount} lançamento(s) de cartão desfeito(s) com sucesso!`);
+      setLogs(prev => [
+        ...prev,
+        `[${new Date().toLocaleTimeString()}] [DESFAZER] ${removedCount} lançamento(s) de cartão de crédito removido(s) do sistema.`
+      ]);
+    } else {
+      toast.info("Nenhum lançamento do cartão de crédito do Open Finance encontrado para remover.");
     }
   };
 
@@ -324,9 +354,9 @@ export default function OpenFinanceSettings() {
 
         {/* BANNER DE COMPRAS PARCELADAS IDENTIFICADAS */}
         {pendingInstallments.length > 0 && (
-          <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-fade-in">
+          <div className="p-4 rounded-2xl bg-primary/10 border border-primary/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-fade-in">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/20 text-purple-600 dark:text-purple-300 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-primary/20 text-primary flex items-center justify-center shrink-0">
                 <ShoppingBag className="w-5 h-5" />
               </div>
               <div>
@@ -341,7 +371,7 @@ export default function OpenFinanceSettings() {
             <Button
               size="sm"
               onClick={() => setShowInstallmentsModal(true)}
-              className="h-9 px-4 text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shrink-0 shadow-sm"
+              className="h-9 px-4 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shrink-0 shadow-sm"
             >
               Revisar e Cadastrar
             </Button>
@@ -470,10 +500,10 @@ export default function OpenFinanceSettings() {
                                   Criar Conta
                                 </Button>
                               ) : (
-                                <Badge variant="secondary" className="text-[10px] py-1 px-2 text-emerald-600 dark:text-emerald-400 gap-1 font-semibold">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  {isCredit ? "Lançamento Automático" : "Extrato Pendente"}
-                                </Badge>
+                                <div className="inline-flex items-center rounded-full border border-emerald-500/25 bg-emerald-500/10 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 text-[10px] py-1 px-2.5 gap-1 font-semibold shadow-2xs">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span>{isCredit ? "Lançamento Automático" : "Extrato Pendente"}</span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -500,21 +530,34 @@ export default function OpenFinanceSettings() {
                   </div>
                 </div>
 
-                {availableAccounts.length > 0 && (
-                  <Select value={selectedTxAccount} onValueChange={setSelectedTxAccount}>
-                    <SelectTrigger className="h-8 w-36 text-xs">
-                      <SelectValue placeholder="Filtrar..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all" className="text-xs">Todas as Contas</SelectItem>
-                      {availableAccounts.map(a => (
-                        <SelectItem key={a.id} value={a.id} className="text-xs">
-                          {a.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowUndoDialog(true)}
+                    className="h-8 text-xs font-semibold border-border/70 hover:bg-muted text-foreground gap-1.5 rounded-xl transition-all shadow-2xs"
+                    title="Desfazer lançamentos importados do cartão de crédito"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+                    <span className="hidden sm:inline">Desfazer</span>
+                  </Button>
+
+                  {availableAccounts.length > 0 && (
+                    <Select value={selectedTxAccount} onValueChange={setSelectedTxAccount}>
+                      <SelectTrigger className="h-8 w-36 text-xs">
+                        <SelectValue placeholder="Filtrar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all" className="text-xs">Todas as Contas</SelectItem>
+                        {availableAccounts.map(a => (
+                          <SelectItem key={a.id} value={a.id} className="text-xs">
+                            {a.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 py-2">
@@ -682,6 +725,36 @@ export default function OpenFinanceSettings() {
           items={pendingInstallments}
           onItemsChange={setPendingInstallments}
         />
+
+        {/* Modal de Confirmação para Desfazer Lançamentos do Cartão */}
+        <AlertDialog open={showUndoDialog} onOpenChange={setShowUndoDialog}>
+          <AlertDialogContent className="rounded-2xl max-w-md p-6 bg-surface-light dark:bg-surface-dark border-border/50">
+            <AlertDialogHeader className="space-y-2">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <AlertDialogTitle className="text-lg font-bold text-foreground">
+                Desfazer lançamentos do cartão de crédito?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-xs text-muted-foreground leading-relaxed">
+                Esta ação removerá as transações que foram lançadas automaticamente no cartão de crédito pela sincronização do Open Finance (incluindo débitos de pagamentos de fatura vinculados na conta corrente).
+                <br /><br />
+                Seus compromissos cadastrados no Gerenciar Compromissos e outros lançamentos manuais não serão alterados. Você poderá sincronizar novamente quando desejar.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-4 gap-2">
+              <AlertDialogCancel className="text-xs rounded-xl h-9">
+                Cancelar
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleUndoCardTransactions}
+                className="text-xs rounded-xl h-9 font-bold bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                Sim, Desfazer Lançamentos
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
       </div>
     </MainLayout>
