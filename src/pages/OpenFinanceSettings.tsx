@@ -58,6 +58,9 @@ export default function OpenFinanceSettings() {
     commitPluggyTransactions,
     categoriasV2,
     transacoesV2,
+    importedStatements,
+    billsTracker,
+    creditCardConfigs,
     standardizationRules
   } = useFinance();
 
@@ -148,20 +151,16 @@ export default function OpenFinanceSettings() {
     }
   };
 
-  // Disponibilizar extrato bancário de contas correntes para a tela de Revisão de Extrato
-  const handleGenerateCheckingStatements = () => {
-    const result = generateCheckingStatementsFromPluggy();
+  // Disponibilizar extrato bancário de contas correntes para a tela de Revisão de Extrato (permanece na tela com toast breve)
+  const handleGenerateCheckingStatements = (targetPluggyAccountId?: string) => {
+    const targetAccId = targetPluggyAccountId || (selectedTxAccount !== "all" ? selectedTxAccount : undefined);
+    const result = generateCheckingStatementsFromPluggy(targetAccId);
     if (result.logs) {
       setLogs(prev => [...prev, ...result.logs]);
     }
 
     if (result.success) {
-      toast.success(result.message, {
-        action: {
-          label: "Ver Extratos",
-          onClick: () => navigate("/revisao-extrato")
-        }
-      });
+      toast.success(result.message);
     } else {
       toast.info(result.message);
     }
@@ -263,15 +262,55 @@ export default function OpenFinanceSettings() {
     return list.map(t => ({ tx: t, pluggyAccId: selectedTxAccount }));
   }, [data, selectedTxAccount]);
 
-  // Transações agrupadas para o grid (despesas parceladas consolidadas com valor total e parcela)
+  // Categorias oficiais do sistema ordenadas alfabeticamente
+  const sortedCategories = useMemo(() => {
+    return [...categoriasV2].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+  }, [categoriasV2]);
+
+  // Conta selecionada atualmente no filtro de transações
+  const selectedAccountObj = useMemo(() => {
+    if (selectedTxAccount === "all") return null;
+    return availableAccounts.find(a => a.id === selectedTxAccount) || null;
+  }, [selectedTxAccount, availableAccounts]);
+
+  // Se a conta selecionada é uma Conta Corrente
+  const isCheckingAccountSelected = useMemo(() => {
+    if (!selectedAccountObj) return false;
+    const linkedId = pluggyConfig?.linkedAccounts?.[selectedAccountObj.id];
+    const linkedAcc = contasMovimento.find(c => c.id === linkedId);
+    return selectedAccountObj.type !== 'CREDIT' && linkedAcc?.accountType !== 'cartao_credito';
+  }, [selectedAccountObj, pluggyConfig?.linkedAccounts, contasMovimento]);
+
+  // Se a conta selecionada é um Cartão de Crédito
+  const isCreditCardSelected = useMemo(() => {
+    if (!selectedAccountObj) return false;
+    const linkedId = pluggyConfig?.linkedAccounts?.[selectedAccountObj.id];
+    const linkedAcc = contasMovimento.find(c => c.id === linkedId);
+    return selectedAccountObj.type === 'CREDIT' || linkedAcc?.accountType === 'cartao_credito';
+  }, [selectedAccountObj, pluggyConfig?.linkedAccounts, contasMovimento]);
+
+  // Transações agrupadas para o grid: deduplicadas e filtradas para exibir estritamente valores a tratar
   const groupedDisplayItems = useMemo(() => {
-    return groupTransactionsForDisplay(
-      displayedTransactions,
+    return groupTransactionsForDisplay({
+      items: displayedTransactions,
       availableAccounts,
-      transacoesV2,
-      standardizationRules
-    );
-  }, [displayedTransactions, availableAccounts, transacoesV2, standardizationRules]);
+      linkedAccounts: pluggyConfig?.linkedAccounts || {},
+      existingTxs: transacoesV2,
+      importedStatements,
+      billsTracker,
+      creditCardConfigs,
+      rules: standardizationRules
+    });
+  }, [
+    displayedTransactions, 
+    availableAccounts, 
+    pluggyConfig?.linkedAccounts, 
+    transacoesV2, 
+    importedStatements, 
+    billsTracker, 
+    creditCardConfigs, 
+    standardizationRules
+  ]);
 
   // Alteração manual de categoria inline
   const handleCategoryChange = (key: string, categoryId: string) => {
@@ -617,41 +656,72 @@ export default function OpenFinanceSettings() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  {/* BOTÃO LANÇAR (NOVO - 1 clique, sem modal) */}
-                  <Button
-                    size="sm"
-                    onClick={handleCommitTransactions}
-                    disabled={groupedDisplayItems.length === 0}
-                    className="h-8 px-3.5 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 rounded-xl transition-all shadow-sm"
-                    title="Lança as movimentações diretamente no sistema sem modal de confirmação"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>Lançar</span>
-                  </Button>
+                  {/* Se for Conta Corrente: exibe o botão Disponibilizar Extrato e oculta Lançar/Desfazer */}
+                  {isCheckingAccountSelected ? (
+                    <Button
+                      size="sm"
+                      onClick={() => handleGenerateCheckingStatements(selectedTxAccount)}
+                      disabled={groupedDisplayItems.length === 0}
+                      className="h-8 px-3.5 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 rounded-xl transition-all shadow-sm"
+                      title="Disponibiliza o extrato bancário desta conta corrente na tela de Revisão de Extrato"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Disponibilizar Extrato</span>
+                    </Button>
+                  ) : (
+                    <>
+                      {/* BOTÃO LANÇAR (Disponível para Cartão de Crédito ou Todas as Contas) */}
+                      <Button
+                        size="sm"
+                        onClick={handleCommitTransactions}
+                        disabled={groupedDisplayItems.length === 0}
+                        className="h-8 px-3.5 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 rounded-xl transition-all shadow-sm"
+                        title="Lança as movimentações de cartão diretamente no sistema sem modal de confirmação"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Lançar</span>
+                      </Button>
 
-                  {/* BOTÃO DESFAZER (1 clique, sem modal) */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleUndoCardTransactions}
-                    className="h-8 px-3 text-xs font-semibold border-border/70 hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-600 dark:hover:text-rose-400 text-foreground gap-1.5 rounded-xl transition-all shadow-2xs"
-                    title="Desfaz instantaneamente os lançamentos importados do cartão de crédito"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
-                    <span>Desfazer</span>
-                  </Button>
+                      {/* BOTÃO DESFAZER (Disponível para Cartão de Crédito ou Todas as Contas) */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleUndoCardTransactions}
+                        className="h-8 px-3 text-xs font-semibold border-border/70 hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-600 dark:hover:text-rose-400 text-foreground gap-1.5 rounded-xl transition-all shadow-2xs"
+                        title="Desfaz instantaneamente os lançamentos importados do cartão de crédito"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span>Desfazer</span>
+                      </Button>
+
+                      {/* Se "Todas as Contas", disponibiliza também o botão de extrato */}
+                      {selectedTxAccount === "all" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateCheckingStatements()}
+                          disabled={availableAccounts.filter(a => a.type !== 'CREDIT').length === 0}
+                          className="h-8 px-3 text-xs font-semibold border-border/70 hover:border-primary/40 text-foreground gap-1.5 rounded-xl transition-all shadow-2xs"
+                          title="Disponibiliza os extratos bancários de todas as contas correntes"
+                        >
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                          <span>Extratos</span>
+                        </Button>
+                      )}
+                    </>
+                  )}
 
                   {/* Filtro por conta */}
                   {availableAccounts.length > 0 && (
                     <Select value={selectedTxAccount} onValueChange={setSelectedTxAccount}>
-                      <SelectTrigger className="h-8 w-36 text-xs">
+                      <SelectTrigger className="h-8 w-40 text-xs">
                         <SelectValue placeholder="Filtrar..." />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all" className="text-xs">Todas as Contas</SelectItem>
                         {availableAccounts.map(a => (
                           <SelectItem key={a.id} value={a.id} className="text-xs">
-                            {a.name}
+                            {a.name} ({a.type === 'CREDIT' ? 'Cartão' : 'Corrente'})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -660,39 +730,91 @@ export default function OpenFinanceSettings() {
                 </div>
               </div>
 
-              {/* CABEÇALHO DA TABELA DE TRANSAÇÕES COM COLUNA DE CATEGORIA */}
+              {/* CABEÇALHO DA TABELA CONTEXTUAL: SIMPLIFICADO PARA CONTA CORRENTE / DETALHADO PARA CARTÃO */}
               {groupedDisplayItems.length > 0 && (
-                <div className="pt-3 pb-1 px-2 grid grid-cols-12 gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/30">
-                  <div className="col-span-5 sm:col-span-5">Data / Descrição</div>
-                  <div className="col-span-4 sm:col-span-4">Categoria</div>
-                  <div className="col-span-3 sm:col-span-3 text-right">Valor</div>
-                </div>
+                isCheckingAccountSelected ? (
+                  <div className="pt-3 pb-1.5 px-3 grid grid-cols-12 gap-3 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/30">
+                    <div className="col-span-3">Data</div>
+                    <div className="col-span-6">Histórico</div>
+                    <div className="col-span-3 text-right">Valor</div>
+                  </div>
+                ) : (
+                  <div className="pt-3 pb-1.5 px-3 grid grid-cols-12 gap-2 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/30">
+                    <div className="col-span-5 sm:col-span-5">Data / Descrição</div>
+                    <div className="col-span-4 sm:col-span-4">Categoria</div>
+                    <div className="col-span-3 sm:col-span-3 text-right">Valor</div>
+                  </div>
+                )
               )}
 
               <div className="flex-1 py-1">
                 {groupedDisplayItems.length === 0 ? (
-                  <div className="py-20 text-center space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Nenhuma transação para exibir no momento.
-                    </p>
+                  <div className="py-20 text-center space-y-3">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-bold text-foreground">Tudo em dia!</h4>
+                      <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                        {isCheckingAccountSelected 
+                          ? "Nenhuma movimentação pendente a tratar nesta conta corrente. Todas já foram disponibilizadas em extratos ou lançadas."
+                          : "Nenhuma movimentação pendente a tratar no momento. Todos os valores já foram lançados ou conciliados."}
+                      </p>
+                    </div>
                     {availableAccounts.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={handleTriggerSync}
                         disabled={isSyncingPluggy}
-                        className="text-xs rounded-xl"
+                        className="text-xs rounded-xl font-semibold gap-1.5 mt-2"
                       >
-                        Carregar Transações
+                        <RefreshCw className={cn("w-3.5 h-3.5", isSyncingPluggy && "animate-spin")} />
+                        <span>Buscar Novas Movimentações</span>
                       </Button>
                     )}
                   </div>
                 ) : (
                   <div className="max-h-[500px] overflow-y-auto divide-y divide-border/30 scrollbar-thin pr-1">
                     {groupedDisplayItems.map((item) => {
+                      // Se for Conta Corrente selecionada: mostra apenas Data, Histórico e Valor para visualização rápida
+                      if (isCheckingAccountSelected) {
+                        return (
+                          <div key={item.key} className="py-2.5 px-3 hover:bg-muted/20 transition-colors grid grid-cols-12 gap-3 items-center text-xs">
+                            {/* Data */}
+                            <div className="col-span-3 text-muted-foreground font-mono text-xs">
+                              {item.date ? format(parseDateLocal(item.date), "dd/MM/yyyy") : "--"}
+                            </div>
+
+                            {/* Histórico */}
+                            <div className="col-span-6 min-w-0 pr-2">
+                              <p className="font-semibold text-foreground truncate" title={item.originalDescription}>
+                                {item.originalDescription || item.displayDescription}
+                              </p>
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {item.accountName}
+                              </span>
+                            </div>
+
+                            {/* Valor */}
+                            <div className="col-span-3 text-right shrink-0">
+                              <span className={cn(
+                                "font-bold block text-xs font-mono tabular-nums",
+                                item.isExpense ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
+                              )}>
+                                {item.isExpense ? "- " : "+ "}{formatCurrency(item.totalAmount)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Se for Cartão de Crédito ou visão geral: exibe detalhamento com seletor de categorias do sistema
                       const effectiveCategoryId = assignedCategories[item.key] !== undefined 
                         ? assignedCategories[item.key] 
                         : (item.suggestedCategoryId || "");
+
+                      const isItemFromChecking = availableAccounts.find(a => a.id === item.pluggyAccId)?.type !== 'CREDIT';
 
                       return (
                         <div key={item.key} className="py-2.5 px-2 hover:bg-muted/20 transition-colors grid grid-cols-12 gap-2 items-center text-xs">
@@ -717,16 +839,20 @@ export default function OpenFinanceSettings() {
                               ) : null}
 
                               <span className="text-[10px] text-muted-foreground font-mono">
-                                {item.date} • {item.accountName}
+                                {item.date ? format(parseDateLocal(item.date), "dd/MM/yyyy") : item.date} • {item.accountName}
                               </span>
                             </div>
                           </div>
 
-                          {/* COLUNA 2: CATEGORIA COM AUTO-ATRIBUIÇÃO E SELECT INLINE */}
+                          {/* COLUNA 2: CATEGORIA COM DADOS REAIS DO SISTEMA OU INDICADOR DE TRANSFERÊNCIA */}
                           <div className="col-span-4 sm:col-span-4 min-w-0">
                             {item.isCardPayment ? (
                               <span className="text-[11px] text-muted-foreground italic font-medium px-2 py-1 rounded bg-muted/30">
                                 Transferência
+                              </span>
+                            ) : isItemFromChecking ? (
+                              <span className="text-[11px] text-muted-foreground italic font-medium px-2 py-1 rounded bg-muted/30" title="Movimentações de conta corrente são categorizadas na Revisão de Extrato">
+                                Via Extrato
                               </span>
                             ) : (
                               <div className="flex items-center gap-1">
@@ -739,14 +865,11 @@ export default function OpenFinanceSettings() {
                                   </SelectTrigger>
                                   <SelectContent className="max-h-60">
                                     <SelectItem value="none" className="text-xs text-muted-foreground">-- Sem Categoria --</SelectItem>
-                                    {categoriasV2.map((cat) => (
+                                    {sortedCategories.map((cat) => (
                                       <SelectItem key={cat.id} value={cat.id} className="text-xs">
-                                        <div className="flex items-center gap-1.5">
-                                          <div 
-                                            className="w-2 h-2 rounded-full shrink-0" 
-                                            style={{ backgroundColor: cat.color || '#94a3b8' }} 
-                                          />
-                                          <span className="truncate">{cat.name}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm shrink-0">{cat.icon || '🏷️'}</span>
+                                          <span className="truncate">{cat.label}</span>
                                         </div>
                                       </SelectItem>
                                     ))}
@@ -772,7 +895,7 @@ export default function OpenFinanceSettings() {
                                 <span className={cn(
                                   "font-bold block text-xs font-mono tabular-nums",
                                   item.isExpense ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
-                                )}>
+                                  )}>
                                   {item.isExpense ? "- " : "+ "}{formatCurrency(item.totalAmount)}
                                 </span>
                                 <span className="text-[10px] text-muted-foreground block">

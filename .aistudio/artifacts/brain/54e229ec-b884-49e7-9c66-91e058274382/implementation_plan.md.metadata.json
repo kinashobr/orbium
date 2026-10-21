@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação para reestruturação do Open Finance no Orbium:\n- Adição de coluna de Categoria com algoritmo de autoatribuição preditiva baseada no histórico de lançamentos.\n- Botão \"Lançar\" direto no card de transações e execução com 1 clique (sem modais de confirmação nem para lançar nem para desfazer).\n- Agrupamento compacto e fixo de compras parceladas exibindo valor total e valor da parcela.\n- Eliminação definitiva de duplicidades no Sincronizar e correção da duplicidade de pagamento de fatura em conta corrente.\n- Reajuste da proporção horizontal dos cards em 30% (Contas: 4 colunas / 33%; Transações: 8 colunas / 67%).\n- Separação estrita de papéis: Sincronizar busca dados exclusivamente da Pluggy; novo botão \"Disponibilizar Extrato\" no topo gera os extratos para revisão.",
-  "updatedAt":  "2026-10-20T14:12:14.628034662Z",
+  "summary":  "Plano de implementação detalhado para as melhorias do módulo de Open Finance, abrangendo: (1) integração das categorias reais do sistema (categoriasV2) com ícones e rótulos oficiais; (2) motor robusto de deduplicação evitando duplicidades de pagamentos de fatura e checagem cruzada com lançamentos manuais, extratos OFX e Gerenciar Compromissos (billsTracker); (3) adaptação contextual da visualização para Conta Corrente (exibição simplificada de Data, Histórico e Valor, ocultação dos botões Lançar/Desfazer e exibição do botão Disponibilizar Extrato sem redirecionamento forçado); e (4) filtragem estrita para exibir apenas valores pendentes a tratar (ocultando transações já lançadas, disponibilizadas ou cadastradas em compromissos).",
+  "updatedAt":  "2026-10-21T12:54:27.873110876Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

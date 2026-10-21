@@ -21,9 +21,11 @@ export function isCardInvoicePayment(description?: string): boolean {
   if (!description) return false;
   const lower = description.toLowerCase().trim();
   return lower.includes('pagamento de fatura') || 
+         lower.includes('pagamento fatura') || 
          lower.includes('credit card payment') || 
          lower.includes('pgto fatura') || 
          lower.includes('pagamento de cartao') ||
+         lower.includes('pagamento cartao') ||
          lower.includes('fatura paga') ||
          lower.includes('pagamento recebido') ||
          lower.includes('pgto recebido') ||
@@ -228,7 +230,8 @@ export function convertPluggyToTransacaoCompleta(
 }
 
 /**
- * Verifica com rigor se a transação do cartão já existe no sistema para evitar duplicações em múltiplas atualizações.
+ * Verifica com rigor se a transação do cartão já existe no sistema para evitar duplicações em múltiplas atualizações
+ * ou lançamentos prévios via extrato bancário (OFX) ou lançamento manual.
  */
 export function isCreditCardTransactionDuplicate(
   tx: PluggyTransaction,
@@ -247,6 +250,7 @@ export function isCreditCardTransactionDuplicate(
     }
   }
   const cleanDesc = (tx.description || "").trim().toLowerCase();
+  const isInvoicePayment = isCardInvoicePayment(cleanDesc);
 
   return existingTxs.some(existing => {
     // 1. Verificação por ID único da Pluggy
@@ -256,13 +260,74 @@ export function isCreditCardTransactionDuplicate(
     if (existing.links?.pluggyTransactionId && existing.links.pluggyTransactionId === tx.id) {
       return true;
     }
-    // 2. Verificação composta: mesma conta + data + valor com tolerância de 1 centavo + descrição
+
+    // 2. Se for Pagamento de Fatura: verificação especial multi-contas e tolerância de compensação bancária
+    if (isInvoicePayment) {
+      const sameAmount = Math.abs(existing.amount - cleanAmount) < 0.20;
+      if (!sameAmount) return false;
+
+      let dateDiffDays = 999;
+      try {
+        const eDate = parseDateLocal(existing.date.substring(0, 10));
+        const pDate = parseDateLocal(txDate);
+        dateDiffDays = Math.abs((eDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+      } catch {
+        dateDiffDays = 999;
+      }
+
+      if (dateDiffDays <= 5) {
+        // Se for no próprio cartão de crédito (entrada / crédito fatura / amortização)
+        if (existing.accountId === targetAccountId) {
+          if (existing.flow === 'in' || existing.operationType === 'transferencia' || existing.meta?.isCardPayment) {
+            return true;
+          }
+        }
+        // Se for débito em conta corrente (pagamento de fatura debitado no banco via OFX ou transferência)
+        if (existing.flow === 'out' || existing.flow === 'transfer_out') {
+          const eDescLower = (existing.description || '').toLowerCase();
+          const matchesKeyword = eDescLower.includes('fatura') ||
+                                 eDescLower.includes('cartao') ||
+                                 eDescLower.includes('pagamento') ||
+                                 eDescLower.includes('itau') ||
+                                 eDescLower.includes('nubank') ||
+                                 eDescLower.includes('santander') ||
+                                 eDescLower.includes('bradesco') ||
+                                 eDescLower.includes('inter') ||
+                                 eDescLower.includes('c6') ||
+                                 eDescLower.includes('gold');
+          if (matchesKeyword || dateDiffDays <= 1) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 3. Verificação de compra comum no cartão de crédito
     if (existing.accountId === targetAccountId) {
-      const sameAmount = Math.abs(existing.amount - cleanAmount) < 0.01;
-      const sameDate = existing.date === txDate;
-      const sameDesc = existing.description.trim().toLowerCase() === cleanDesc;
-      if (sameAmount && sameDate && sameDesc) {
-        return true;
+      const sameAmount = Math.abs(existing.amount - cleanAmount) < 0.05;
+      if (sameAmount) {
+        let dateDiffDays = 999;
+        try {
+          const eDate = parseDateLocal(existing.date.substring(0, 10));
+          const pDate = parseDateLocal(txDate);
+          dateDiffDays = Math.abs((eDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+        } catch {
+          dateDiffDays = 999;
+        }
+
+        if (dateDiffDays <= 3) {
+          const eDescLower = existing.description.trim().toLowerCase();
+          if (eDescLower === cleanDesc || eDescLower.includes(cleanDesc) || cleanDesc.includes(eDescLower)) {
+            return true;
+          }
+          // Comparação do radical do estabelecimento sem número de parcela
+          const clean1 = cleanDesc.replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '').replace(/[^a-z0-9]/g, '').trim();
+          const clean2 = eDescLower.replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '').replace(/[^a-z0-9]/g, '').trim();
+          if (clean1 && clean2 && (clean1.includes(clean2) || clean2.includes(clean1))) {
+            return true;
+          }
+        }
       }
     }
     return false;
@@ -411,27 +476,314 @@ export interface GroupedDisplayTransaction {
 }
 
 /**
+ * Verifica rigorosamente se uma transação da Pluggy já foi tratada:
+ * 1. Já lançada no sistema (transacoesV2) por qualquer meio (manual, OFX/extrato bancário ou Open Finance).
+ * 2. Já disponibilizada no módulo de Revisão de Extrato (importedStatements para conta corrente).
+ * 3. Já cadastrada no Gerenciar Compromissos (billsTracker: compras parceladas, faturas, despesas fixas).
+ */
+export function isPluggyTransactionAlreadyHandled(
+  tx: PluggyTransaction,
+  pluggyAccId: string,
+  linkedAccountId?: string,
+  isCredit: boolean = false,
+  existingTxs: TransacaoCompleta[] = [],
+  importedStatements: ImportedStatement[] = [],
+  billsTracker: BillTracker[] = [],
+  creditCardConfigs: CreditCardConfig[] = []
+): boolean {
+  const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
+  const cleanAmt = Math.abs(rawAmt);
+  const desc = (tx.description || "").trim();
+  const descLower = desc.toLowerCase();
+  const isCardPayment = isCardInvoicePayment(desc);
+  const txDate = tx.date ? tx.date.substring(0, 10) : format(new Date(), 'yyyy-MM-dd');
+
+  // 1. Verificação em transacoesV2 (já lançadas no sistema por qualquer método)
+  const isAlreadyInTxs = existingTxs.some(t => {
+    // 1.1 Match direto de ID da Pluggy
+    if (t.links?.pluggyTransactionId && t.links.pluggyTransactionId === tx.id) return true;
+    if (t.meta?.pluggyTransactionId && t.meta.pluggyTransactionId === tx.id) return true;
+
+    // 1.2 Pagamento de Fatura do Cartão de Crédito
+    if (isCardPayment) {
+      const sameAmt = Math.abs(t.amount - cleanAmt) < 0.20;
+      if (!sameAmt) return false;
+
+      let dateDiffDays = 999;
+      try {
+        const tDate = parseDateLocal(t.date.substring(0, 10));
+        const pDate = parseDateLocal(txDate);
+        dateDiffDays = Math.abs((tDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+      } catch {
+        dateDiffDays = 999;
+      }
+
+      if (dateDiffDays <= 7) {
+        // Se for no cartão de crédito vinculado (entrada ou amortização)
+        if (linkedAccountId && t.accountId === linkedAccountId) {
+          if (t.flow === 'in' || t.operationType === 'transferencia' || t.meta?.isCardPayment) {
+            return true;
+          }
+        }
+        // Se for na conta corrente de pagamento (débito de fatura lançado por OFX ou transferência)
+        if (t.flow === 'out' || t.flow === 'transfer_out') {
+          const tDescLower = (t.description || '').toLowerCase();
+          const matchesKeyword = tDescLower.includes('fatura') ||
+                                 tDescLower.includes('cartao') ||
+                                 tDescLower.includes('pagamento') ||
+                                 tDescLower.includes('itau') ||
+                                 tDescLower.includes('nubank') ||
+                                 tDescLower.includes('santander') ||
+                                 tDescLower.includes('bradesco') ||
+                                 tDescLower.includes('inter') ||
+                                 tDescLower.includes('c6') ||
+                                 tDescLower.includes('gold');
+          if (matchesKeyword || dateDiffDays <= 1) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    // 1.3 Transação regular no Cartão de Crédito
+    if (isCredit && linkedAccountId && t.accountId === linkedAccountId) {
+      const sameAmt = Math.abs(t.amount - cleanAmt) < 0.05;
+      if (sameAmt) {
+        let dateDiffDays = 999;
+        try {
+          const tDate = parseDateLocal(t.date.substring(0, 10));
+          const pDate = parseDateLocal(txDate);
+          dateDiffDays = Math.abs((tDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+        } catch {
+          dateDiffDays = 999;
+        }
+
+        if (dateDiffDays <= 3) {
+          const tDescLower = (t.description || '').toLowerCase();
+          if (tDescLower === descLower || tDescLower.includes(descLower) || descLower.includes(tDescLower)) {
+            return true;
+          }
+          const clean1 = descLower.replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '').replace(/[^a-z0-9]/g, '').trim();
+          const clean2 = tDescLower.replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '').replace(/[^a-z0-9]/g, '').trim();
+          if (clean1 && clean2 && (clean1.includes(clean2) || clean2.includes(clean1))) {
+            return true;
+          }
+        }
+      }
+    }
+
+    // 1.4 Transação de Conta Corrente (já contabilizada em transacoesV2)
+    if (!isCredit && linkedAccountId && t.accountId === linkedAccountId) {
+      const sameAmt = Math.abs(t.amount - cleanAmt) < 0.05;
+      if (sameAmt) {
+        let dateDiffDays = 999;
+        try {
+          const tDate = parseDateLocal(t.date.substring(0, 10));
+          const pDate = parseDateLocal(txDate);
+          dateDiffDays = Math.abs((tDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+        } catch {
+          dateDiffDays = 999;
+        }
+        if (dateDiffDays <= 1) {
+          const tDescLower = (t.description || '').toLowerCase();
+          if (tDescLower === descLower || tDescLower.includes(descLower) || descLower.includes(tDescLower)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  });
+
+  if (isAlreadyInTxs) return true;
+
+  // 2. Verificação em importedStatements (para conta corrente: já disponibilizado no módulo de extrato)
+  if (!isCredit && linkedAccountId) {
+    const isAlreadyInStatements = importedStatements.some(stmt => {
+      if (stmt.accountId !== linkedAccountId) return false;
+      return stmt.rawTransactions?.some(raw => {
+        if (raw.id === `pluggy_${tx.id}`) return true;
+        const sameAmt = Math.abs(raw.amount - cleanAmt) < 0.05;
+        if (!sameAmt) return false;
+        let dateDiffDays = 999;
+        try {
+          const rDate = parseDateLocal(raw.date.substring(0, 10));
+          const pDate = parseDateLocal(txDate);
+          dateDiffDays = Math.abs((rDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+        } catch {
+          dateDiffDays = 999;
+        }
+        if (dateDiffDays <= 1) {
+          const rawDesc = (raw.originalDescription || raw.description || '').toLowerCase();
+          return rawDesc === descLower || rawDesc.includes(descLower) || descLower.includes(rawDesc);
+        }
+        return false;
+      });
+    });
+    if (isAlreadyInStatements) return true;
+  }
+
+  // 3. Verificação em billsTracker (Gerenciar Compromissos)
+  const isAlreadyInBills = billsTracker.some(b => {
+    if (b.isExcluded) return false;
+    if (linkedAccountId && !isAccountCompatible(b, linkedAccountId, creditCardConfigs)) {
+      return false;
+    }
+
+    // Fatura de Cartão agendada no Gerenciar Compromissos
+    if (isCardPayment) {
+      if (b.sourceType === 'card_invoice') {
+        const sameAmt = Math.abs((b.expectedAmount || 0) - cleanAmt) < 2.00;
+        if (sameAmt) {
+          try {
+            const bDate = parseDateLocal(b.dueDate.substring(0, 10));
+            const pDate = parseDateLocal(txDate);
+            const diffDays = Math.abs((bDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+            if (diffDays <= 15) return true;
+          } catch {
+            return true;
+          }
+        }
+      }
+    }
+
+    // Compra parcelada cadastrada no Gerenciar Compromissos
+    const parsed = parseInstallmentPattern(desc);
+    if (parsed.isInstallment && parsed.totalInstallments > 1) {
+      const matching = findMatchingCommitment({
+        cleanDescription: parsed.cleanDescription,
+        accountId: linkedAccountId || pluggyAccId,
+        bills: billsTracker,
+        creditCardConfigs,
+        installmentAmount: cleanAmt,
+        totalInstallments: parsed.totalInstallments,
+        currentInstallment: parsed.currentInstallment,
+        transactionDate: txDate
+      });
+      if (matching.length > 0) return true;
+    }
+
+    // Despesa cadastrada no Gerenciar Compromissos com mesmo valor e descrição compatível
+    const sameAmt = Math.abs((b.expectedAmount || 0) - cleanAmt) < 0.05;
+    if (sameAmt && b.description) {
+      const bDescLower = b.description.toLowerCase();
+      if (bDescLower === descLower || descLower.includes(bDescLower) || bDescLower.includes(descLower)) {
+        try {
+          const bDate = parseDateLocal(b.dueDate.substring(0, 10));
+          const pDate = parseDateLocal(txDate);
+          const diffDays = Math.abs((bDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (diffDays <= 10) return true;
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    return false;
+  });
+
+  if (isAlreadyInBills) return true;
+
+  return false;
+}
+
+export interface GroupTransactionsOptions {
+  items: { tx: PluggyTransaction; pluggyAccId: string }[];
+  availableAccounts: { id: string; name?: string; type?: string }[];
+  existingTxs?: TransacaoCompleta[];
+  rules?: StandardizationRule[];
+  importedStatements?: ImportedStatement[];
+  billsTracker?: BillTracker[];
+  creditCardConfigs?: CreditCardConfig[];
+  linkedAccounts?: Record<string, string>;
+}
+
+/**
  * Agrupa transações para exibição compacta no card de Transações:
- * Agrupa compras parceladas do mesmo estabelecimento e quantidade total de parcelas.
+ * - Deduplica transações brutas de mesma assinatura (evitando duplicações de pagamentos de fatura ou itens repetidos)
+ * - Filtra transações que já foram tratadas (já lançadas no sistema, já disponibilizadas em extratos, ou cadastradas no Gerenciar Compromissos)
+ * - Agrupa compras parceladas do mesmo estabelecimento e quantidade total de parcelas.
  */
 export function groupTransactionsForDisplay(
-  items: { tx: PluggyTransaction; pluggyAccId: string }[],
-  availableAccounts: { id: string; name?: string; type?: string }[],
-  existingTxs: TransacaoCompleta[] = [],
-  rules: StandardizationRule[] = []
+  itemsOrOptions: { tx: PluggyTransaction; pluggyAccId: string }[] | GroupTransactionsOptions,
+  availableAccountsArg?: { id: string; name?: string; type?: string }[],
+  existingTxsArg: TransacaoCompleta[] = [],
+  rulesArg: StandardizationRule[] = [],
+  importedStatementsArg: ImportedStatement[] = [],
+  billsTrackerArg: BillTracker[] = [],
+  creditCardConfigsArg: CreditCardConfig[] = [],
+  linkedAccountsArg: Record<string, string> = {}
 ): GroupedDisplayTransaction[] {
+  let items: { tx: PluggyTransaction; pluggyAccId: string }[] = [];
+  let availableAccounts: { id: string; name?: string; type?: string }[] = [];
+  let existingTxs: TransacaoCompleta[] = [];
+  let rules: StandardizationRule[] = [];
+  let importedStatements: ImportedStatement[] = [];
+  let billsTracker: BillTracker[] = [];
+  let creditCardConfigs: CreditCardConfig[] = [];
+  let linkedAccounts: Record<string, string> = {};
+
+  if (Array.isArray(itemsOrOptions)) {
+    items = itemsOrOptions;
+    availableAccounts = availableAccountsArg || [];
+    existingTxs = existingTxsArg || [];
+    rules = rulesArg || [];
+    importedStatements = importedStatementsArg || [];
+    billsTracker = billsTrackerArg || [];
+    creditCardConfigs = creditCardConfigsArg || [];
+    linkedAccounts = linkedAccountsArg || {};
+  } else {
+    items = itemsOrOptions.items || [];
+    availableAccounts = itemsOrOptions.availableAccounts || [];
+    existingTxs = itemsOrOptions.existingTxs || [];
+    rules = itemsOrOptions.rules || [];
+    importedStatements = itemsOrOptions.importedStatements || [];
+    billsTracker = itemsOrOptions.billsTracker || [];
+    creditCardConfigs = itemsOrOptions.creditCardConfigs || [];
+    linkedAccounts = itemsOrOptions.linkedAccounts || {};
+  }
+
   const result: GroupedDisplayTransaction[] = [];
   const installmentGroups: Record<string, GroupedDisplayTransaction> = {};
+  const seenSignatures = new Set<string>();
 
   for (const { tx, pluggyAccId } of items) {
     const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
     const cleanAmt = Math.abs(rawAmt);
     const desc = (tx.description || "Transação").trim();
-    const isCardPayment = isCardInvoicePayment(desc);
+    const dateStr = tx.date ? tx.date.substring(0, 10) : format(new Date(), 'yyyy-MM-dd');
+
+    // 1. DEDUPLICAÇÃO DE ENTRADA: Evita que transações idênticas repetidas na API da Pluggy apareçam duplicadas
+    const rawSignature = `${pluggyAccId}_${dateStr}_${cleanAmt.toFixed(2)}_${desc.toLowerCase()}`;
+    if (seenSignatures.has(rawSignature)) {
+      continue;
+    }
+    seenSignatures.add(rawSignature);
+
     const acc = availableAccounts.find(a => a.id === pluggyAccId);
     const isCredit = acc?.type === 'CREDIT';
+    const linkedAccountId = linkedAccounts[pluggyAccId];
+
+    // 2. FILTRO DE VALORES A TRATAR: Oculta se já foi lançado em transacoesV2, se já está em importedStatements, ou no billsTracker
+    const isHandled = isPluggyTransactionAlreadyHandled(
+      tx,
+      pluggyAccId,
+      linkedAccountId,
+      isCredit,
+      existingTxs,
+      importedStatements,
+      billsTracker,
+      creditCardConfigs
+    );
+
+    if (isHandled) {
+      continue; // Não exibir se já foi tratado/lançado/disponibilizado!
+    }
+
+    const isCardPayment = isCardInvoicePayment(desc);
     const isExpense = isCredit ? !isCardPayment : rawAmt < 0;
-    const dateStr = tx.date ? tx.date.substring(0, 10) : format(new Date(), 'yyyy-MM-dd');
     const parsed = parseInstallmentPattern(desc);
 
     const suggestedCat = predictTransactionCategory(

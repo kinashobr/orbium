@@ -1,139 +1,124 @@
-# Reformulação do Open Finance: Categorização, Lançamentos, Agrupamento e Anti-Duplicidade
+# Open Finance — Refinamento de Conciliação, Deduplicação e Visualização Contextual
 
-Ajuste completo da arquitetura do módulo de Open Finance para separar responsabilidades entre busca de dados e lançamento contábil, introduzir categorização automática preditiva, agrupar despesas parceladas de forma compacta e eliminar qualquer duplicidade de transações e pagamentos de fatura.
+Melhoria abrangente do módulo de Open Finance para garantir categorização com dados reais do sistema, deduplicação precisa de faturas e movimentações, segregação de experiência entre Cartão de Crédito e Conta Corrente, e foco exclusivo em valores pendentes a tratar.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Decisões confirmadas pelo usuário:**
-> - **Botão Lançar e Desfazer:** Execução direta com 1 clique sem modais de confirmação (`AlertDialog` removido), mantendo feedback claro e imediato via Sonner toast.
-> - **Novo botão de Extrato de Conta Corrente:** Posicionado no topo, logo ao lado do botão **Sincronizar**, com o título **"Disponibilizar Extrato"**, enviando o extrato para a tela de *Revisão de Extrato*.
-> - **Despesas parceladas:** Agrupadas em linha compacta fixa, destacando o valor total da compra e o valor individual de cada parcela (ex: 6x de R$ 129,90 = R$ 779,40).
-> - **Proporção do layout:** Card de Contas Bancárias reduzido para ~33% (`lg:col-span-4`) e Card de Transações expandido para ~67% (`lg:col-span-8`), garantindo área visual nobre para a nova coluna de categorias.
+> **Decisões Alinhadas com o Usuário:**
+> - **Navegação no Extrato de Conta Corrente**: Ao clicar em "Disponibilizar Extrato", o usuário permanece na tela de Open Finance, recebendo uma notificação discreta (toast sonner) no canto inferior da tela confirmando a geração.
+> - **Valores a Tratar**: Transações já lançadas no sistema (`transacoesV2`), já disponibilizadas como extrato (`importedStatements`) ou cadastradas no módulo **Gerenciar Compromissos** (`billsTracker`) serão automaticamente ocultadas da lista de trabalho sem botão de alternância, mantendo a visualização 100% limpa com foco exclusivo no que resta tratar.
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **O que faz:**
-  1. **Separação de Papéis:** O botão **Sincronizar** passa a ter o papel único e exclusivo de buscar os dados atualizados da Pluggy API e salvá-los no estado/cache local. Não faz lançamentos automáticos no extrato nem cria extratos não solicitados.
-  2. **Botão Disponibilizar Extrato:** Criação de botão dedicado no cabeçalho superior (ao lado de Sincronizar) para gerar os lotes de extrato de contas correntes e disponibilizá-los na esteira de *Revisão de Extrato*.
-  3. **Botão Lançar & Desfazer:** Adição do botão **Lançar** ao lado do botão **Desfazer** no cabeçalho do card de Transações. Ambos atuam instantaneamente sem modais de bloqueio.
-  4. **Categorias Inteligentes:** Coluna de categoria adicionada diretamente no card de transações. O sistema atribui categorias automaticamente cruzando a descrição da transação com o histórico de lançamentos cadastrados (`transacoesV2`) e regras de padronização ativas, permitindo ajuste manual inline.
-  5. **Agrupamento de Despesas Parceladas:** Linha consolidada para parcelamentos (ex: *On Fitness*), exibindo a quantidade de parcelas, o valor de cada parcela e o montante total.
-  6. **Eliminação de Duplicidades:** Correção da lógica de verificação de duplicidade impedindo re-criações em sucessivos cliques ou após desfazer, e eliminação da duplicação de débito na conta corrente quando o pagamento de fatura já constar no extrato bancário.
-  7. **Redistribuição de Espaço:** Rebalanceamento da proporção visual entre Contas Bancárias (33%) e Transações (67%).
+- **O que faz**: Transforma a tela de Open Finance em uma esteira de conciliação inteligente e limpa, onde o usuário visualiza apenas transações pendentes de tratamento. A interface adapta-se dinamicamente ao tipo de conta selecionada:
+  - **Cartão de Crédito**: Oferece categorização inline completa usando o catálogo real de categorias do sistema (`categoriasV2`), detecção inteligente de pagamentos de fatura sem duplicações, e ações de "Lançar" e "Desfazer".
+  - **Conta Corrente**: Proporciona uma visualização rápida e desobstruída (Data, Histórico e Valor), ocultando controles desnecessários de categorização/lançamento direto e disponibilizando a geração direta do extrato OFX para conciliação no módulo de Revisão de Extrato.
+- **Público-alvo**: Usuários que buscam conciliação bancária rápida e sem ruídos, eliminando riscos de lançamentos repetidos ou confusão entre fluxos de fatura e extrato bancário.
+- **Valor Principal**: Eliminação de duplicidades, automação contextual conforme o tipo de conta e visualização focada apenas no saldo/itens a tratar.
 
 ---
 
 ### 2. User Experience & Visual Design
 
-#### Hierarquia e Layout dos Cards
-```
-┌─────────────────────────────────────────────────────────────────────────────────────────────┐
-│ CABEÇALHO DA PÁGINA: Open Finance                                                          │
-│                                           [Disponibilizar Extrato]  [  Sincronizar (Pluggy) ]│
-└─────────────────────────────────────────────────────────────────────────────────────────────┘
+#### Fluxo 1: Visualização Dinâmica por Tipo de Conta
+1. **Filtro "Todas as Contas" / "Cartão de Crédito"**:
+   - Cabeçalho da tabela exibe: *Data / Descrição*, *Categoria* (seletor com ícones e nomes reais), *Valor*.
+   - Botões de ação visíveis: **Lançar** (1 clique) e **Desfazer** (para reversão de cartão).
+2. **Filtro "Conta Corrente"**:
+   - Cabeçalho da tabela simplificado: *Data*, *Histórico*, *Valor*. Sem coluna de categoria.
+   - Botões "Lançar" e "Desfazer" são **ocultados** para evitar confusão do usuário.
+   - Botão **Disponibilizar Extrato** ganha destaque no topo da tabela ou barra de ações.
+   - Ao clicar em "Disponibilizar Extrato", o extrato é gerado e adicionado à lista de extratos do sistema, disparando um toast no canto inferior da tela sem retirar o usuário da página.
 
-┌───────────────────────────────────────┬─────────────────────────────────────────────────────┐
-│ CONTAS BANCÁRIAS (col-span-4, ~33%)   │ TRANSAÇÕES OPEN FINANCE (col-span-8, ~67%)          │
-├───────────────────────────────────────┼─────────────────────────────────────────────────────┤
-│ • Itaú Corrente ... R$ 5.420,00       │ [Filtro Conta ▼]             [Lançar]  [Desfazer]   │
-│   [Vínculo Orbium: Itaú Principal]    ├─────────────────────────────────────────────────────┤
-│                                       │ Data  │ Descrição     │ Categoria      │ Valor      │
-│ • Nubank Cartão ... R$ 1.890,00       ├───────┼───────────────┼────────────────┼────────────┤
-│   [Vínculo Orbium: Cartão Nubank]     │ 18/10 │ Uber Viagens  │ [Transporte ▼] │ - R$ 24,90 │
-│                                       │ 15/10 │ On Fitness    │ [Saúde ▼]      │ - R$ 779,40│
-│                                       │       │ (6x R$ 129,90)│                │ (Parcelado)│
-│                                       │ 10/10 │ Pgto Fatura   │ [Amortização]  │ + R$ 460,21│
-└───────────────────────────────────────┴─────────────────────────────────────────────────────┘
-```
+#### Fluxo 2: Filtro Estrito de Valores a Tratar
+- O grid analisa em tempo real:
+  - Transações já lançadas em `transacoesV2` (via Pluggy, via manual ou importação OFX anterior).
+  - Transações de conta corrente que já foram exportadas para `importedStatements`.
+  - Transações de cartão ou débito que já constam no **Gerenciar Compromissos** (`billsTracker`).
+- Se qualquer uma dessas condições for atendida, a transação é considerada **tratada** e removida da lista.
+- Quando todas estiverem tratadas, exibe um empty state positivo: *"Tudo em dia! Não há valores pendentes a tratar nesta conta."*
 
-#### Regras de Estilo e Anti-Slop
-- Tipografia: Números e valores monetários com classe `font-mono tabular-nums`.
-- Cores: Despesas em `text-destructive`, pagamentos/receitas em tom esmeralda positivo (`text-emerald-600 dark:text-emerald-400`).
-- Sem badges decorativas excessivas: Metadados limpos com separadores tipográficos sutis (`·`).
-- Select de categoria ágil: trigger compacto de 28px de altura, com busca e seleção fluida sem estourar as margens.
+#### Fluxo 3: Seletor de Categorias Reais do Sistema
+- Substituição de referências quebradas (`cat.name`, `cat.color`) pelo padrão oficial de `Categoria` do Orbium:
+  - `cat.label` (nome amigável da categoria: ex. "Alimentação", "Salário", "Transporte").
+  - `cat.icon` (ícone da categoria).
+  - Agrupamento ou indicação de natureza (`receita`, `despesa_fixa`, `despesa_variavel`).
+  - Cobertura de todas as categorias cadastradas e editadas pelo usuário no sistema.
 
 ---
 
 ### 3. Key Product Decisions & Trade-Offs
 
-- **Decisão 1: Sincronizar Exclusivamente como Leitor da Pluggy**
-  - *Abordagem:* `syncPluggyData` apenas consulta a API e persiste o payload limpo no contexto. Lançamentos em `transacoesV2` só acontecem se o usuário clicar explicitamente em **Lançar**.
-  - *Por que:* Atende perfeitamente ao pedido do usuário ("o botão Sincronizar deverá servir exclusivamente para buscar dados da Pluggy"), dando previsibilidade e controle absoluto ao usuário.
-- **Decisão 2: Algoritmo de Autoatribuição de Categorias por Similaridade**
-  - *Abordagem:* Ao carregar ou sincronizar transações, a função `predictTransactionCategory(tx, transacoesV2, standardizationRules)` verifica:
-    1. Regras de padronização ativas (`matchCriteria`).
-    2. Correspondência histórica em `transacoesV2` por similaridade de descrição ou termos-chave do estabelecimento.
-    3. Categorias padrão para transações de amortização/fatura (`transferencia`).
-  - *Por que:* O sistema aprende com os lançamentos prévios do usuário sem necessidade de configuração repetitiva.
-- **Decisão 3: Agrupamento Inteligente no Card de Transações**
-  - *Abordagem:* Transações identificadas como parceladas do mesmo estabelecimento e quantidade de parcelas são consolidadas em uma única linha no grid. O valor da parcela é exibido de forma secundária (`6x de R$ 129,90`), e o total consolidado é destacado.
-  - *Por que:* Evita poluir a visualização com 6 ou 12 linhas repetidas da mesma compra.
-- **Decisão 4: Proteção Anti-Duplicação de Pagamento de Fatura**
-  - *Abordagem:* Antes de gerar débito em conta corrente para pagamento de fatura, o sistema verifica se a conta corrente de pagamento já possui lançamento com a mesma data e valor aproximado ou menção à fatura. Se já existir, a transação da conta corrente NÃO é duplicada; apenas o crédito da fatura é conciliado.
+- **Decisão 1: Segregação Funcional Cartão vs. Conta Corrente**
+  - *Abordagem*: Conta corrente não categoriza no Open Finance; seu fluxo oficial no sistema é gerar extrato OFX e revisar no módulo de Revisão de Extrato (partidas dobradas). Cartão de crédito categoriza e lança direto ou agenda faturas.
+  - *Por que*: Evita duplicar a lógica contábil e elimina a confusão de lançar duas vezes (uma no Open Finance e outra na importação de extrato).
+- **Decisão 2: Deduplicação Rigorosa de Fatura e Verificação Cruzada**
+  - *Abordagem*: Identificar pagamentos de fatura não apenas pelo ID Pluggy, mas também por impressão digital financeira: mesmo valor ($\pm 0,05$), mesma conta/cartão e data próxima ($\pm 3$ dias) em `transacoesV2` (lançamentos manuais ou via OFX) ou em compromissos de fatura no `billsTracker`.
+  - *Por que*: Usuários frequentemente importam o extrato bancário onde o débito da fatura já aparece; lançar novamente via Open Finance gerava duplicidade de pagamento ("Pagamento recebido" duplicado).
+- **Decisão 3: Ocultação Definitiva de Itens Tratados**
+  - *Abordagem*: Não sobrecarregar a interface com botões de alternância. A lista do Open Finance é concebida como uma "caixa de entrada" com princípio de Inbox Zero.
 
 ---
 
 ### 4. Technical Architecture & Data Strategy
 
 ```
-┌─────────────────────────┐           ┌────────────────────────────────┐
-│   Botão "Sincronizar"   │ ────────> │  Busca Pluggy API & Cache      │
-└─────────────────────────┘           │  (Sem escrita em transações)   │
-                                      └────────────────┬───────────────┘
-                                                       │
-                                                       ▼
-┌─────────────────────────┐           ┌────────────────────────────────┐
-│   Card de Transações    │ <──────── │  Autoatribuição de Categoria   │
-│   (Nova proporção 67%)  │           │  + Agrupamento de Parceladas   │
-└────────────┬────────────┘           └────────────────────────────────┘
-             │
-   ┌─────────┴─────────┐
-   ▼                   ▼
-[Lançar]           [Desfazer]
-   │                   │
-   ▼                   ▼
-Lança em           Remove do extrato
-transacoesV2       sem modais de
-com validação      confirmação
-anti-duplicidade   (1 clique)
+┌────────────────────────────────────────────────────────────────────────┐
+│                        Pluggy Open Finance API                         │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │ Sincronização
+                                    ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│               pluggyAdapter.ts & groupTransactionsForDisplay           │
+│  - Deduplica transações brutas de entrada com mesma assinatura          │
+│  - Checa se tx já existe em transacoesV2 (manual, OFX ou Pluggy)       │
+│  - Checa se tx de conta corrente já está em importedStatements         │
+│  - Checa se tx bate com compromissos em billsTracker                   │
+│  - Filtra: mantém estritamente itens pendentes ("valores a tratar")    │
+└───────────────────────────────────┬────────────────────────────────────┘
+                                    │
+                  ┌─────────────────┴─────────────────┐
+                  ▼                                   ▼
+        [Conta Corrente Ativa]               [Cartão de Crédito Ativo]
+        - Oculta botões Lançar/Desfazer      - Exibe botões Lançar e Desfazer
+        - Exibe botão Disponibilizar Extrato - Exibe Select com categoriasV2
+        - Tabela simplificada:               - Tabela detalhada:
+          (Data, Histórico, Valor)             (Data/Descrição, Categoria, Valor)
+        - Gera extrato OFX silencioso com    - Commit direto em transacoesV2
+          toast inferior                       com prevenção de contrapartida
 ```
 
-#### Modificações de Componentes
-1. **`src/pages/OpenFinanceSettings.tsx`:**
-   - Grid reconfigurado de `lg:col-span-6 / lg:col-span-6` para `lg:col-span-4 / lg:col-span-8`.
-   - Adicionado botão **"Disponibilizar Extrato"** no topo, junto com **"Sincronizar"**.
-   - Adicionado botão **"Lançar"** no card de transações ao lado de **"Desfazer"**.
-   - Removido `AlertDialog` de confirmação do Desfazer e de Lançar (execução direta com notificação sonner).
-   - Inserida coluna / seletor de Categoria com autoatribuição preditiva.
-   - Agrupamento visual das parcelas com valor total + valor individual.
-2. **`src/lib/pluggyAdapter.ts`:**
-   - Implementada função `predictTransactionCategory` com base no histórico de `transacoesV2` e regras.
-   - Refinada a função `isCreditCardTransactionDuplicate` para tratar pagamentos já existentes e evitar duplicação em conta corrente.
-   - Função utilitária de agrupamento de transações parceladas para a interface.
-3. **`src/contexts/FinanceContext.tsx`:**
-   - Ajustada `syncPluggyData` para não gravar automaticamente em `transacoesV2` nem em `importedStatements` sem comando do usuário.
-   - Criada a função `generateCheckingStatementsFromPluggy` para o botão dedicado "Disponibilizar Extrato".
-   - Criada a função `commitPluggyTransactions` para o botão "Lançar", com proteção contra duplicidade de fatura.
+#### Alterações no Código:
 
----
+1. **`src/lib/pluggyAdapter.ts`**:
+   - Atualizar a função `groupTransactionsForDisplay` para aceitar:
+     - `importedStatements`: para verificar se transações de conta corrente já foram disponibilizadas em extratos.
+     - `billsTracker`: para verificar se compras parceladas ou compromissos já estão cadastrados.
+     - `transacoesV2`: para verificar transações já lançadas por qualquer canal.
+   - Refinar a função `isCardInvoicePayment` e o algoritmo de deduplicação na montagem da lista: se houver dois registros de pagamento de fatura idênticos vindos da API, agrupar e exibir apenas um.
+   - Excluir da lista exibida qualquer transação que já tenha correspondente confirmado em `transacoesV2`, `importedStatements` ou `billsTracker`.
 
-### 5. Plano de Execução Sequencial
+2. **`src/contexts/FinanceContext.tsx`**:
+   - Refinar `commitPluggyTransactions` para blindar pagamentos de fatura contra duplicidades originadas de extratos OFX já importados.
+   - Garantir que `generateCheckingStatementsFromPluggy` marque as transações processadas de conta corrente para que sumam imediatamente da lista de "valores a tratar" do Open Finance.
+   - Ajustar o toast de sucesso ao disponibilizar extrato: exibir toast sonner na parte inferior e permanecer na tela sem forçar `navigate`.
 
-1. **Camada de Adaptação (`src/lib/pluggyAdapter.ts`):**
-   - Implementar `predictTransactionCategory` e funções de agrupamento de parcelas.
-   - Aprimorar verificação de duplicidade de faturas contra extratos existentes.
-2. **Camada de Estado (`src/contexts/FinanceContext.tsx`):**
-   - Limitar `syncPluggyData` à busca e cache do payload.
-   - Implementar `generateCheckingStatementsFromPluggy` e `commitPluggyTransactions`.
-3. **Camada de Interface (`src/pages/OpenFinanceSettings.tsx`):**
-   - Atualizar layout com proporção 4/8 (33% / 67%).
-   - Inserir botão "Disponibilizar Extrato" no cabeçalho.
-   - Inserir botão "Lançar" ao lado de "Desfazer" e remover modais de diálogo.
-   - Exibir coluna de categoria com seleção direta e agrupamento de compras parceladas.
-4. **Validação:**
-   - Executar `compile_applet` e `lint_applet` para assegurar integridade completa do código TypeScript.
+3. **`src/pages/OpenFinanceSettings.tsx`**:
+   - Detectar o tipo da conta selecionada (`isCheckingAccount` vs `isCreditCard`):
+     - Se `isCheckingAccount`:
+       - Ocultar botões "Lançar" e "Desfazer".
+       - Exibir o botão "Disponibilizar Extrato" diretamente na barra de ações da tabela.
+       - Renderizar cabeçalho da tabela com 3 colunas: Data (col-span-3), Histórico (col-span-6), Valor (col-span-3 text-right).
+       - Ocultar seletor de categorias na listagem.
+     - Se `isCreditCard` ou "Todas":
+       - Exibir botões "Lançar" e "Desfazer".
+       - Renderizar colunas completas: Data / Descrição, Categoria (com dropdown usando `categoriasV2`), Valor.
+   - Corrigir o dropdown de categorias:
+     - Usar `cat.label` e `cat.icon` de `categoriasV2` do `FinanceContext`.
+     - Exibir o ícone oficial da categoria e o nome em texto limpo.
+   - Ajustar a mensagem quando a lista estiver vazia para indicar que não há valores a tratar.

@@ -536,7 +536,7 @@ interface FinanceContextType {
   }>;
   isSyncingPluggy: boolean;
   undoPluggyCardTransactions: (targetAccountId?: string) => number;
-  generateCheckingStatementsFromPluggy: () => {
+  generateCheckingStatementsFromPluggy: (targetPluggyAccountId?: string) => {
     success: boolean;
     statementCount: number;
     message: string;
@@ -1959,7 +1959,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }, [pluggyConfig, contasMovimento, billsTracker, creditCardConfigs, setPluggyLastPayload, updateLastModified]);
 
-  const generateCheckingStatementsFromPluggy = useCallback((): {
+  const generateCheckingStatementsFromPluggy = useCallback((targetPluggyAccountId?: string): {
     success: boolean;
     statementCount: number;
     message: string;
@@ -1981,6 +1981,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const txsByAccount = payload.transactions || {};
 
     for (const pluggyAcc of payload.accounts) {
+      if (targetPluggyAccountId && targetPluggyAccountId !== 'all' && pluggyAcc.id !== targetPluggyAccountId) {
+        continue;
+      }
+
       const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
       if (!orbiumAccountId) continue;
 
