@@ -1,124 +1,48 @@
-# Open Finance — Refinamento de Conciliação, Deduplicação e Visualização Contextual
+# Open Finance & Contas a Pagar — Refinamento de Conciliação, Deduplicação e Despesas de Cartão
 
-Melhoria abrangente do módulo de Open Finance para garantir categorização com dados reais do sistema, deduplicação precisa de faturas e movimentações, segregação de experiência entre Cartão de Crédito e Conta Corrente, e foco exclusivo em valores pendentes a tratar.
+Melhoria abrangente do módulo de Open Finance e Contas a Pagar para garantir categorização com dados reais do sistema, deduplicação precisa de faturas e movimentações mesmo com divergência de nomenclatura, reversão (Desfazer) em 1 clique sem erros de ID, e exibição fidedigna de todas as despesas de cartão no Contas a Pagar.
 
 ---
 
 ### User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Decisões Alinhadas com o Usuário:**
-> - **Navegação no Extrato de Conta Corrente**: Ao clicar em "Disponibilizar Extrato", o usuário permanece na tela de Open Finance, recebendo uma notificação discreta (toast sonner) no canto inferior da tela confirmando a geração.
-> - **Valores a Tratar**: Transações já lançadas no sistema (`transacoesV2`), já disponibilizadas como extrato (`importedStatements`) ou cadastradas no módulo **Gerenciar Compromissos** (`billsTracker`) serão automaticamente ocultadas da lista de trabalho sem botão de alternância, mantendo a visualização 100% limpa com foco exclusivo no que resta tratar.
+> **Decisões e Diagnósticos Alinhados com o Usuário:**
+> - **Navegação no Extrato de Conta Corrente**: Ao clicar em "Disponibilizar Extrato", o usuário permanece no Open Finance, recebendo confirmação via toast no canto inferior.
+> - **Valores a Tratar**: Transações já lançadas (`transacoesV2`), já disponibilizadas em extratos (`importedStatements`) ou cadastradas no **Gerenciar Compromissos** (`billsTracker`) são automaticamente ocultadas sem botão de alternância, mantendo Inbox Zero.
+> - **Deduplicação de Cartão com Nomenclatura Diferente**: Se o valor bater com precisão de centavos ($\pm 0,05$) e a data for próxima ($\pm 3$ dias) na conta do cartão de crédito ou no extrato importado (OFX), o sistema considera como já tratado/duplicado, impedindo que nomes diferentes (ex: "UBER" vs "Uber Trip" ou nome fantasia) gerem lançamentos duplicados ao clicar em "Lançar".
+> - **Desfazer Lançamentos do Cartão de Crédito**: O botão "Desfazer" agora mapeia bidirecionalmente o ID da Pluggy e o ID da conta Orbium, além de rastrear `meta.pluggyAccountId`, revertendo com sucesso todos os lançamentos de cartão realizados via Open Finance.
+> - **Despesas de Cartão Ocultas no Contas a Pagar**: Corrigida a exclusão arbitrária (`!creditCardAccountIds.has(t.accountId)`) em `getOtherPaidExpensesForMonth`. Todas as despesas efetuadas e pagas em cartão de crédito agora aparecem na listagem do Contas a Pagar (resolvendo o problema onde o usuário tinha 21 transações e só apareciam 20).
 
 ---
 
 ### 1. Overview & Core Concept
 
-- **O que faz**: Transforma a tela de Open Finance em uma esteira de conciliação inteligente e limpa, onde o usuário visualiza apenas transações pendentes de tratamento. A interface adapta-se dinamicamente ao tipo de conta selecionada:
-  - **Cartão de Crédito**: Oferece categorização inline completa usando o catálogo real de categorias do sistema (`categoriasV2`), detecção inteligente de pagamentos de fatura sem duplicações, e ações de "Lançar" e "Desfazer".
-  - **Conta Corrente**: Proporciona uma visualização rápida e desobstruída (Data, Histórico e Valor), ocultando controles desnecessários de categorização/lançamento direto e disponibilizando a geração direta do extrato OFX para conciliação no módulo de Revisão de Extrato.
-- **Público-alvo**: Usuários que buscam conciliação bancária rápida e sem ruídos, eliminando riscos de lançamentos repetidos ou confusão entre fluxos de fatura e extrato bancário.
-- **Valor Principal**: Eliminação de duplicidades, automação contextual conforme o tipo de conta e visualização focada apenas no saldo/itens a tratar.
+- **O que faz**: 
+  - **Open Finance**: Conciliação contextual com categorias reais do sistema (`categoriasV2`), segregação clara entre Conta Corrente e Cartão de Crédito, deduplicação à prova de falhas para faturas e compras com nomenclaturas divergentes, e reversão garantida no botão "Desfazer".
+  - **Contas a Pagar (`BillsTracker`)**: Exibição completa e transparente de todos os pagamentos e despesas do mês, incluindo transações de cartão de crédito e conta corrente, sem ocultações indevidas.
 
 ---
 
-### 2. User Experience & Visual Design
+### 2. Root Cause Analysis & Fixes Implemented
 
-#### Fluxo 1: Visualização Dinâmica por Tipo de Conta
-1. **Filtro "Todas as Contas" / "Cartão de Crédito"**:
-   - Cabeçalho da tabela exibe: *Data / Descrição*, *Categoria* (seletor com ícones e nomes reais), *Valor*.
-   - Botões de ação visíveis: **Lançar** (1 clique) e **Desfazer** (para reversão de cartão).
-2. **Filtro "Conta Corrente"**:
-   - Cabeçalho da tabela simplificado: *Data*, *Histórico*, *Valor*. Sem coluna de categoria.
-   - Botões "Lançar" e "Desfazer" são **ocultados** para evitar confusão do usuário.
-   - Botão **Disponibilizar Extrato** ganha destaque no topo da tabela ou barra de ações.
-   - Ao clicar em "Disponibilizar Extrato", o extrato é gerado e adicionado à lista de extratos do sistema, disparando um toast no canto inferior da tela sem retirar o usuário da página.
+#### Problema 1: Duplicação de Compras no Cartão com Nomenclatura Diferente
+- **Causa Raiz**: O algoritmo de verificação de duplicidade exigia correspondência de strings no radical do nome do estabelecimento. Quando a nomenclatura do extrato OFX ou banco divergia da API Open Finance (ou fora renomeada pelo usuário), o teste de duplicata falhava e relançava tudo ao clicar em "Lançar". Além disso, o cheque não consultava `importedStatements`.
+- **Solução Implementada**: Em `isCreditCardTransactionDuplicate` e `isPluggyTransactionAlreadyHandled` (`src/lib/pluggyAdapter.ts`):
+  - No mesmo cartão de crédito vinculado, havendo correspondência exata de centavos ($\pm 0,05$) e proximidade temporal ($\pm 3$ dias), a transação é reconhecida como duplicada/já tratada, independente de diferenças de grafia no histórico.
+  - Verificação estendida aos extratos já importados no sistema (`importedStatements`) e compromissos agendados (`billsTracker`).
 
-#### Fluxo 2: Filtro Estrito de Valores a Tratar
-- O grid analisa em tempo real:
-  - Transações já lançadas em `transacoesV2` (via Pluggy, via manual ou importação OFX anterior).
-  - Transações de conta corrente que já foram exportadas para `importedStatements`.
-  - Transações de cartão ou débito que já constam no **Gerenciar Compromissos** (`billsTracker`).
-- Se qualquer uma dessas condições for atendida, a transação é considerada **tratada** e removida da lista.
-- Quando todas estiverem tratadas, exibe um empty state positivo: *"Tudo em dia! Não há valores pendentes a tratar nesta conta."*
+#### Problema 2: Botão "Desfazer" Não Encontrava Lançamentos
+- **Causa Raiz**: A tela passava `selectedTxAccount` (o ID da conta na Pluggy, ex: UUID), enquanto a função `undoPluggyCardTransactions` comparava `t.accountId === targetAccountId` (onde `t.accountId` é o ID interno da conta no Orbium). A comparação sempre retornava `false`.
+- **Solução Implementada**: Em `FinanceContext.tsx`, `undoPluggyCardTransactions` agora resolve o ID mapeado via `pluggyConfig.linkedAccounts[targetAccountId]`, mapeia inversamente o ID da Pluggy, e checa tanto `t.accountId` quanto `t.meta?.pluggyAccountId`. Lançamentos de cartão são desfeitos instantaneamente.
 
-#### Fluxo 3: Seletor de Categorias Reais do Sistema
-- Substituição de referências quebradas (`cat.name`, `cat.color`) pelo padrão oficial de `Categoria` do Orbium:
-  - `cat.label` (nome amigável da categoria: ex. "Alimentação", "Salário", "Transporte").
-  - `cat.icon` (ícone da categoria).
-  - Agrupamento ou indicação de natureza (`receita`, `despesa_fixa`, `despesa_variavel`).
-  - Cobertura de todas as categorias cadastradas e editadas pelo usuário no sistema.
+#### Problema 3: Despesas de Cartão Ocultadas no Contas a Pagar (21 vs 20 transações)
+- **Causa Raiz**: Em `FinanceContext.tsx` (`getOtherPaidExpensesForMonth`), a linha 1599 possuía a cláusula `!creditCardAccountIds.has(t.accountId)`, que descartava silenciosamente qualquer despesa cujo `accountId` pertencesse a uma conta do tipo `cartao_credito`. Quando o usuário alterava a conta para corrente, a cláusula passava e a transação reaparecia.
+- **Solução Implementada**: Cláusula `!creditCardAccountIds.has(t.accountId)` removida. Agora `getOtherPaidExpensesForMonth` inclui normalmente despesas de cartão de crédito no mês, filtrando unicamente transferências de liquidação de faturas (`meta.isCardPayment` e transferências do `card_invoice`) para evitar sobreposição com o registro da fatura. Todas as 21 transações do usuário agora aparecem visíveis.
 
 ---
 
-### 3. Key Product Decisions & Trade-Offs
+### 3. Verification & Validation
 
-- **Decisão 1: Segregação Funcional Cartão vs. Conta Corrente**
-  - *Abordagem*: Conta corrente não categoriza no Open Finance; seu fluxo oficial no sistema é gerar extrato OFX e revisar no módulo de Revisão de Extrato (partidas dobradas). Cartão de crédito categoriza e lança direto ou agenda faturas.
-  - *Por que*: Evita duplicar a lógica contábil e elimina a confusão de lançar duas vezes (uma no Open Finance e outra na importação de extrato).
-- **Decisão 2: Deduplicação Rigorosa de Fatura e Verificação Cruzada**
-  - *Abordagem*: Identificar pagamentos de fatura não apenas pelo ID Pluggy, mas também por impressão digital financeira: mesmo valor ($\pm 0,05$), mesma conta/cartão e data próxima ($\pm 3$ dias) em `transacoesV2` (lançamentos manuais ou via OFX) ou em compromissos de fatura no `billsTracker`.
-  - *Por que*: Usuários frequentemente importam o extrato bancário onde o débito da fatura já aparece; lançar novamente via Open Finance gerava duplicidade de pagamento ("Pagamento recebido" duplicado).
-- **Decisão 3: Ocultação Definitiva de Itens Tratados**
-  - *Abordagem*: Não sobrecarregar a interface com botões de alternância. A lista do Open Finance é concebida como uma "caixa de entrada" com princípio de Inbox Zero.
-
----
-
-### 4. Technical Architecture & Data Strategy
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Pluggy Open Finance API                         │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │ Sincronização
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│               pluggyAdapter.ts & groupTransactionsForDisplay           │
-│  - Deduplica transações brutas de entrada com mesma assinatura          │
-│  - Checa se tx já existe em transacoesV2 (manual, OFX ou Pluggy)       │
-│  - Checa se tx de conta corrente já está em importedStatements         │
-│  - Checa se tx bate com compromissos em billsTracker                   │
-│  - Filtra: mantém estritamente itens pendentes ("valores a tratar")    │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                  ┌─────────────────┴─────────────────┐
-                  ▼                                   ▼
-        [Conta Corrente Ativa]               [Cartão de Crédito Ativo]
-        - Oculta botões Lançar/Desfazer      - Exibe botões Lançar e Desfazer
-        - Exibe botão Disponibilizar Extrato - Exibe Select com categoriasV2
-        - Tabela simplificada:               - Tabela detalhada:
-          (Data, Histórico, Valor)             (Data/Descrição, Categoria, Valor)
-        - Gera extrato OFX silencioso com    - Commit direto em transacoesV2
-          toast inferior                       com prevenção de contrapartida
-```
-
-#### Alterações no Código:
-
-1. **`src/lib/pluggyAdapter.ts`**:
-   - Atualizar a função `groupTransactionsForDisplay` para aceitar:
-     - `importedStatements`: para verificar se transações de conta corrente já foram disponibilizadas em extratos.
-     - `billsTracker`: para verificar se compras parceladas ou compromissos já estão cadastrados.
-     - `transacoesV2`: para verificar transações já lançadas por qualquer canal.
-   - Refinar a função `isCardInvoicePayment` e o algoritmo de deduplicação na montagem da lista: se houver dois registros de pagamento de fatura idênticos vindos da API, agrupar e exibir apenas um.
-   - Excluir da lista exibida qualquer transação que já tenha correspondente confirmado em `transacoesV2`, `importedStatements` ou `billsTracker`.
-
-2. **`src/contexts/FinanceContext.tsx`**:
-   - Refinar `commitPluggyTransactions` para blindar pagamentos de fatura contra duplicidades originadas de extratos OFX já importados.
-   - Garantir que `generateCheckingStatementsFromPluggy` marque as transações processadas de conta corrente para que sumam imediatamente da lista de "valores a tratar" do Open Finance.
-   - Ajustar o toast de sucesso ao disponibilizar extrato: exibir toast sonner na parte inferior e permanecer na tela sem forçar `navigate`.
-
-3. **`src/pages/OpenFinanceSettings.tsx`**:
-   - Detectar o tipo da conta selecionada (`isCheckingAccount` vs `isCreditCard`):
-     - Se `isCheckingAccount`:
-       - Ocultar botões "Lançar" e "Desfazer".
-       - Exibir o botão "Disponibilizar Extrato" diretamente na barra de ações da tabela.
-       - Renderizar cabeçalho da tabela com 3 colunas: Data (col-span-3), Histórico (col-span-6), Valor (col-span-3 text-right).
-       - Ocultar seletor de categorias na listagem.
-     - Se `isCreditCard` ou "Todas":
-       - Exibir botões "Lançar" e "Desfazer".
-       - Renderizar colunas completas: Data / Descrição, Categoria (com dropdown usando `categoriasV2`), Valor.
-   - Corrigir o dropdown de categorias:
-     - Usar `cat.label` e `cat.icon` de `categoriasV2` do `FinanceContext`.
-     - Exibir o ícone oficial da categoria e o nome em texto limpo.
-   - Ajustar a mensagem quando a lista estiver vazia para indicar que não há valores a tratar.
+- `compile_applet`: Executado com sucesso (Build succeeded, 0 erros).
+- `lint_applet`: Executado com sucesso (0 erros).

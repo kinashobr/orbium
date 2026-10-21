@@ -1583,23 +1583,42 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
     const trackerTxIds = new Set(billsTracker.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
-    const creditCardAccountIds = new Set(
-      contasMovimento.filter(c => c.accountType === 'cartao_credito').map(c => c.id)
-    );
+    
+    // Identificar transferências de pagamento de fatura registradas no billsTracker
+    const cardInvoiceTransferIds = new Set<string>();
+    billsTracker.forEach(b => {
+      if (b.sourceType === 'card_invoice' && b.transactionId) {
+        cardInvoiceTransferIds.add(b.transactionId);
+      }
+    });
+
     return transacoesV2.filter(t => {
         const transactionDate = parseDateLocal(t.date);
         return (
           isWithinInterval(transactionDate, { start: monthStart, end: monthEnd }) &&
           (t.flow === 'out' || t.flow === 'transfer_out') &&
           (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo' || t.operationType === 'veiculo' || t.operationType === 'imobilizado') &&
-          (t.meta.source !== 'import' || t.conciliated) &&
+          (t.meta?.source !== 'import' || t.conciliated) &&
           !trackerTxIds.has(t.id) &&
           (!t.links?.transferGroupId || !trackerTxIds.has(t.links.transferGroupId)) &&
-          t.meta.source !== 'bill_tracker' &&
-          !creditCardAccountIds.has(t.accountId)
+          (!t.links?.transferGroupId || !cardInvoiceTransferIds.has(t.links.transferGroupId)) &&
+          t.meta?.source !== 'bill_tracker' &&
+          !t.meta?.isCardPayment
         );
-    }).map(t => ({ id: t.id, type: 'external_paid', dueDate: t.date, paymentDate: t.date, expectedAmount: t.amount, description: t.description, suggestedAccountId: t.accountId, suggestedCategoryId: t.categoryId, sourceType: 'external_expense', isPaid: true, isExcluded: false }));
-  }, [billsTracker, transacoesV2, contasMovimento]);
+    }).map(t => ({ 
+      id: t.id, 
+      type: 'external_paid', 
+      dueDate: t.date, 
+      paymentDate: t.date, 
+      expectedAmount: t.amount, 
+      description: t.description, 
+      suggestedAccountId: t.accountId, 
+      suggestedCategoryId: t.categoryId, 
+      sourceType: 'external_expense', 
+      isPaid: true, 
+      isExcluded: false 
+    }));
+  }, [billsTracker, transacoesV2]);
 
   const autoPopulateFixedBills = useCallback((date: Date) => {
     const currentBills = getBillsForMonth(date);
@@ -2083,10 +2102,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           const cleanAmt = Math.abs(rawAmt);
 
           // 1. Verificação rigorosa contra duplicidade no cartão de crédito
-          const isDuplicate = isCreditCardTransactionDuplicate(tx, orbiumAccountId, [
-            ...transacoesV2,
-            ...newTransactions
-          ]);
+          const isDuplicate = isCreditCardTransactionDuplicate(
+            tx, 
+            orbiumAccountId, 
+            [...transacoesV2, ...newTransactions],
+            importedStatements,
+            billsTracker
+          );
 
           if (isDuplicate) {
             skippedDuplicatesCount++;
@@ -2139,6 +2161,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 source: 'pluggy_open_finance',
                 isCardPayment: true,
                 pluggyTransactionId: tx.id,
+                pluggyAccountId: pluggyAcc.id,
                 pluggyItemId: targetItemId,
                 originalAmount: tx.amount,
                 createdAt: new Date().toISOString(),
@@ -2188,6 +2211,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     source: 'pluggy_open_finance',
                     isCardPayment: true,
                     pluggyTransactionId: tx.id,
+                    pluggyAccountId: pluggyAcc.id,
                     pluggyItemId: targetItemId,
                     originalAmount: tx.amount,
                     createdAt: new Date().toISOString(),
@@ -2253,6 +2277,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 source: 'pluggy_open_finance',
                 isCardPayment: false,
                 pluggyTransactionId: tx.id,
+                pluggyAccountId: pluggyAcc.id,
                 pluggyItemId: targetItemId,
                 originalAmount: tx.amount,
                 createdAt: new Date().toISOString(),
@@ -2288,20 +2313,36 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         logs
       };
     }
-  }, [pluggyLastPayload, pluggyConfig, contasMovimento, transacoesV2, creditCardConfigs, standardizationRules, setBillsTracker, updateLastModified]);
+  }, [pluggyLastPayload, pluggyConfig, contasMovimento, transacoesV2, creditCardConfigs, standardizationRules, importedStatements, billsTracker, setBillsTracker, updateLastModified]);
 
   const undoPluggyCardTransactions = useCallback((targetAccountId?: string): number => {
     const toRemoveIds = new Set<string>();
     const transferGroupIdsToRemove = new Set<string>();
 
+    // Mapeamento bidirecional Pluggy ID <-> Orbium ID
+    const mappedOrbiumId = (targetAccountId && pluggyConfig?.linkedAccounts?.[targetAccountId])
+      ? pluggyConfig.linkedAccounts[targetAccountId]
+      : null;
+
+    let mappedPluggyId: string | null = null;
+    if (targetAccountId && pluggyConfig?.linkedAccounts) {
+      const entry = Object.entries(pluggyConfig.linkedAccounts).find(([pId, oId]) => oId === targetAccountId);
+      if (entry) mappedPluggyId = entry[0];
+    }
+
     // 1. Identificar transações lançadas pela integração Open Finance no cartão
     transacoesV2.forEach(t => {
-      const isFromPluggy = t.meta?.source === 'pluggy_open_finance' || !!t.links?.pluggyTransactionId;
+      const isFromPluggy = t.meta?.source === 'pluggy_open_finance' || !!t.links?.pluggyTransactionId || !!t.meta?.pluggyTransactionId;
       if (!isFromPluggy) return;
 
       const acc = contasMovimento.find(c => c.id === t.accountId);
       const isCardAcc = acc?.accountType === 'cartao_credito';
-      const matchesTarget = !targetAccountId || targetAccountId === 'all' || t.accountId === targetAccountId;
+
+      // Match da conta: aceita targetAccountId tanto sendo ID Orbium quanto ID Pluggy
+      const matchesTarget = !targetAccountId || targetAccountId === 'all' ||
+        t.accountId === targetAccountId ||
+        (mappedOrbiumId && t.accountId === mappedOrbiumId) ||
+        (t.meta?.pluggyAccountId && (t.meta.pluggyAccountId === targetAccountId || t.meta.pluggyAccountId === mappedPluggyId));
 
       if (matchesTarget && (isCardAcc || t.meta?.isCardPayment)) {
         toRemoveIds.add(t.id);
@@ -2326,7 +2367,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     return toRemoveIds.size;
-  }, [transacoesV2, contasMovimento, updateLastModified]);
+  }, [transacoesV2, contasMovimento, pluggyConfig, updateLastModified]);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
     setEmprestimos(prevLoans => prevLoans.map(loan => {

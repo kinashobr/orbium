@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação detalhado para as melhorias do módulo de Open Finance, abrangendo: (1) integração das categorias reais do sistema (categoriasV2) com ícones e rótulos oficiais; (2) motor robusto de deduplicação evitando duplicidades de pagamentos de fatura e checagem cruzada com lançamentos manuais, extratos OFX e Gerenciar Compromissos (billsTracker); (3) adaptação contextual da visualização para Conta Corrente (exibição simplificada de Data, Histórico e Valor, ocultação dos botões Lançar/Desfazer e exibição do botão Disponibilizar Extrato sem redirecionamento forçado); e (4) filtragem estrita para exibir apenas valores pendentes a tratar (ocultando transações já lançadas, disponibilizadas ou cadastradas em compromissos).",
-  "updatedAt":  "2026-10-21T12:54:27.873110876Z",
+  "summary":  "Implementation plan updated with resolutions for the credit card duplicate detection, undo action mapping, and resolution of hidden credit card expenses in Contas a Pagar.",
+  "updatedAt":  "2026-10-21T14:45:50.601520730Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

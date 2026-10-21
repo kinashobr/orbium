@@ -236,7 +236,9 @@ export function convertPluggyToTransacaoCompleta(
 export function isCreditCardTransactionDuplicate(
   tx: PluggyTransaction,
   targetAccountId: string,
-  existingTxs: TransacaoCompleta[]
+  existingTxs: TransacaoCompleta[],
+  importedStatements: ImportedStatement[] = [],
+  billsTracker: BillTracker[] = []
 ): boolean {
   let rawAmount = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
   const cleanAmount = Math.abs(rawAmount);
@@ -252,8 +254,9 @@ export function isCreditCardTransactionDuplicate(
   const cleanDesc = (tx.description || "").trim().toLowerCase();
   const isInvoicePayment = isCardInvoicePayment(cleanDesc);
 
-  return existingTxs.some(existing => {
-    // 1. Verificação por ID único da Pluggy
+  // 1. Verificação em transações já lançadas (transacoesV2)
+  const isDupInTxs = existingTxs.some(existing => {
+    // 1.1 Verificação por ID único da Pluggy
     if (existing.meta?.pluggyTransactionId && existing.meta.pluggyTransactionId === tx.id) {
       return true;
     }
@@ -261,7 +264,7 @@ export function isCreditCardTransactionDuplicate(
       return true;
     }
 
-    // 2. Se for Pagamento de Fatura: verificação especial multi-contas e tolerância de compensação bancária
+    // 1.2 Pagamento de Fatura: verificação especial multi-contas e tolerância de compensação bancária
     if (isInvoicePayment) {
       const sameAmount = Math.abs(existing.amount - cleanAmount) < 0.20;
       if (!sameAmount) return false;
@@ -275,7 +278,7 @@ export function isCreditCardTransactionDuplicate(
         dateDiffDays = 999;
       }
 
-      if (dateDiffDays <= 5) {
+      if (dateDiffDays <= 7) {
         // Se for no próprio cartão de crédito (entrada / crédito fatura / amortização)
         if (existing.accountId === targetAccountId) {
           if (existing.flow === 'in' || existing.operationType === 'transferencia' || existing.meta?.isCardPayment) {
@@ -303,7 +306,7 @@ export function isCreditCardTransactionDuplicate(
       return false;
     }
 
-    // 3. Verificação de compra comum no cartão de crédito
+    // 1.3 Verificação de compra comum no cartão de crédito
     if (existing.accountId === targetAccountId) {
       const sameAmount = Math.abs(existing.amount - cleanAmount) < 0.05;
       if (sameAmount) {
@@ -316,12 +319,18 @@ export function isCreditCardTransactionDuplicate(
           dateDiffDays = 999;
         }
 
+        // Mesmo no caso de nomenclatura diferente (ex: razão social vs nome fantasia ou renomeado pelo usuário),
+        // no mesmo cartão com valor em centavos idêntico e data dentro de 3 dias, é a mesma transação
         if (dateDiffDays <= 3) {
-          const eDescLower = existing.description.trim().toLowerCase();
+          return true;
+        }
+
+        // Com até 5 dias de diferença, verifica se compartilha radical do estabelecimento
+        if (dateDiffDays <= 5) {
+          const eDescLower = (existing.description || '').trim().toLowerCase();
           if (eDescLower === cleanDesc || eDescLower.includes(cleanDesc) || cleanDesc.includes(eDescLower)) {
             return true;
           }
-          // Comparação do radical do estabelecimento sem número de parcela
           const clean1 = cleanDesc.replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '').replace(/[^a-z0-9]/g, '').trim();
           const clean2 = eDescLower.replace(/\b\d{1,2}\s*[/de]+\s*\d{1,2}\b/g, '').replace(/[^a-z0-9]/g, '').trim();
           if (clean1 && clean2 && (clean1.includes(clean2) || clean2.includes(clean1))) {
@@ -332,6 +341,51 @@ export function isCreditCardTransactionDuplicate(
     }
     return false;
   });
+
+  if (isDupInTxs) return true;
+
+  // 2. Verificação no módulo de Extrato Importado (importedStatements para cartão ou conta)
+  const isAlreadyInStatements = importedStatements.some(stmt => {
+    if (stmt.accountId !== targetAccountId) return false;
+    return stmt.rawTransactions?.some(raw => {
+      if (raw.id === `pluggy_${tx.id}`) return true;
+      const sameAmt = Math.abs(raw.amount - cleanAmount) < 0.05;
+      if (!sameAmt) return false;
+      let dateDiffDays = 999;
+      try {
+        const rDate = parseDateLocal(raw.date.substring(0, 10));
+        const pDate = parseDateLocal(txDate);
+        dateDiffDays = Math.abs((rDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+      } catch {
+        dateDiffDays = 999;
+      }
+      return dateDiffDays <= 3;
+    });
+  });
+
+  if (isAlreadyInStatements) return true;
+
+  // 3. Verificação no Gerenciar Compromissos (billsTracker: compras parceladas ou recorrentes)
+  const isAlreadyInBills = billsTracker.some(b => {
+    if (b.isExcluded) return false;
+    const isTargetAcc = b.suggestedAccountId === targetAccountId || b.cardId === targetAccountId || b.sourceRef === targetAccountId;
+    if (!isTargetAcc) return false;
+
+    const sameAmt = Math.abs((b.expectedAmount || 0) - cleanAmount) < 0.05;
+    if (sameAmt) {
+      try {
+        const bDate = parseDateLocal(b.dueDate.substring(0, 10));
+        const pDate = parseDateLocal(txDate);
+        const diffDays = Math.abs((bDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 5) return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  });
+
+  return isAlreadyInBills;
 }
 
 /**
@@ -559,7 +613,13 @@ export function isPluggyTransactionAlreadyHandled(
           dateDiffDays = 999;
         }
 
+        // Mesmo com nomenclaturas divergentes (ex: extrato do cartão vs Open Finance),
+        // se o valor bater em centavos e a data for próxima (até 3 dias), é a mesma compra
         if (dateDiffDays <= 3) {
+          return true;
+        }
+
+        if (dateDiffDays <= 5) {
           const tDescLower = (t.description || '').toLowerCase();
           if (tDescLower === descLower || tDescLower.includes(descLower) || descLower.includes(tDescLower)) {
             return true;
@@ -599,8 +659,8 @@ export function isPluggyTransactionAlreadyHandled(
 
   if (isAlreadyInTxs) return true;
 
-  // 2. Verificação em importedStatements (para conta corrente: já disponibilizado no módulo de extrato)
-  if (!isCredit && linkedAccountId) {
+  // 2. Verificação em importedStatements (já disponibilizado/importado no módulo de extrato)
+  if (linkedAccountId) {
     const isAlreadyInStatements = importedStatements.some(stmt => {
       if (stmt.accountId !== linkedAccountId) return false;
       return stmt.rawTransactions?.some(raw => {
@@ -615,9 +675,15 @@ export function isPluggyTransactionAlreadyHandled(
         } catch {
           dateDiffDays = 999;
         }
-        if (dateDiffDays <= 1) {
-          const rawDesc = (raw.originalDescription || raw.description || '').toLowerCase();
-          return rawDesc === descLower || rawDesc.includes(descLower) || descLower.includes(rawDesc);
+        if (isCredit) {
+          // No extrato do cartão, mesmo valor em centavos até 3 dias é correspondência garantida
+          return dateDiffDays <= 3;
+        } else {
+          // Na conta corrente, até 1 dia com descrição compatível
+          if (dateDiffDays <= 1) {
+            const rawDesc = (raw.originalDescription || raw.description || '').toLowerCase();
+            return rawDesc === descLower || rawDesc.includes(descLower) || descLower.includes(rawDesc);
+          }
         }
         return false;
       });
