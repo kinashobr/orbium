@@ -154,7 +154,7 @@ export function BillsTrackerMobileList({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <div className="truncate flex-1">
-                      {!isPaid && !isExt && isBillTracker(bill) ? (
+                      {!isPaid || isExt ? (
                         <EditableCell
                           value={bill.description}
                           type="text"
@@ -207,6 +207,19 @@ export function BillsTrackerMobileList({
                       }
                     />
                   )}
+                  {isExt && (
+                    <div className="absolute -top-1 -right-1 flex gap-1">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="h-6 w-6 rounded-full shadow-md bg-background hover:bg-destructive hover:text-white transition-all scale-0 group-hover:scale-100"
+                        onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id); }}
+                        title="Excluir lançamento"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  )}
                   {!isPaid && !isExt && isBillTracker(bill) && (
                     <div className="absolute -top-1 -right-1 flex gap-1">
                        {(bill.sourceType === 'ad_hoc') ? (
@@ -233,6 +246,7 @@ export function BillsTrackerMobileList({
                 </div>
               </div>
             );
+
           })}
         </div>
       </div>

@@ -42,6 +42,7 @@ import {
   GroupedDisplayTransaction 
 } from "@/lib/pluggyAdapter";
 import { InstallmentReviewModal } from "@/components/bills/InstallmentReviewModal";
+import { EditableCell } from "@/components/EditableCell";
 
 export default function OpenFinanceSettings() {
   const navigate = useNavigate();
@@ -70,6 +71,7 @@ export default function OpenFinanceSettings() {
   const [pendingInstallments, setPendingInstallments] = useState<DetectedCardInstallment[]>([]);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
   const [assignedCategories, setAssignedCategories] = useState<Record<string, string>>({});
+  const [assignedDescriptions, setAssignedDescriptions] = useState<Record<string, string>>({});
   
   // Controle de visibilidade do Item ID (oculto por padrão se já configurado)
   const [showItemIdConfig, setShowItemIdConfig] = useState(!pluggyConfig?.itemId);
@@ -169,7 +171,7 @@ export default function OpenFinanceSettings() {
   // Lançar transações no sistema (execução direta em 1 clique sem modal)
   const handleCommitTransactions = () => {
     const targetAccId = selectedTxAccount !== "all" ? selectedTxAccount : undefined;
-    const result = commitPluggyTransactions(targetAccId, assignedCategories);
+    const result = commitPluggyTransactions(targetAccId, assignedCategories, assignedDescriptions);
 
     if (result.logs) {
       setLogs(prev => [...prev, ...result.logs]);
@@ -317,6 +319,16 @@ export default function OpenFinanceSettings() {
     setAssignedCategories(prev => ({
       ...prev,
       [key]: categoryId
+    }));
+  };
+
+  // Alteração manual de descrição antes de lançar
+  const handleDescriptionChange = (key: string, newDesc: string) => {
+    const trimmed = newDesc.trim();
+    if (!trimmed) return;
+    setAssignedDescriptions(prev => ({
+      ...prev,
+      [key]: trimmed
     }));
   };
 
@@ -821,9 +833,14 @@ export default function OpenFinanceSettings() {
                           
                           {/* COLUNA 1: DATA E DESCRIÇÃO (COM PARCELAMENTO COMPACTO) */}
                           <div className="col-span-5 sm:col-span-5 min-w-0 pr-1">
-                            <p className="font-semibold text-foreground truncate" title={item.originalDescription}>
-                              {item.displayDescription}
-                            </p>
+                            <div className="flex items-center gap-1">
+                              <EditableCell
+                                value={assignedDescriptions[item.key] !== undefined ? assignedDescriptions[item.key] : item.displayDescription}
+                                type="text"
+                                onSave={(v) => handleDescriptionChange(item.key, String(v))}
+                                className="font-semibold text-foreground truncate text-xs px-1.5 py-0.5 h-7 rounded bg-background/40 hover:bg-background border border-transparent hover:border-border/60 transition-colors cursor-pointer"
+                              />
+                            </div>
 
                             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                               {item.isInstallmentGroup ? (

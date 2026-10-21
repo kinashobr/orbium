@@ -544,7 +544,8 @@ interface FinanceContextType {
   };
   commitPluggyTransactions: (
     targetAccountId?: string,
-    categoryOverrides?: Record<string, string>
+    categoryOverrides?: Record<string, string>,
+    descriptionOverrides?: Record<string, string>
   ) => {
     success: boolean;
     count: number;
@@ -2058,7 +2059,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const commitPluggyTransactions = useCallback((
     targetAccountId?: string,
-    categoryOverrides?: Record<string, string>
+    categoryOverrides?: Record<string, string>,
+    descriptionOverrides?: Record<string, string>
   ): {
     success: boolean;
     count: number;
@@ -2135,6 +2137,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
             const transferGroupId = generateTransferGroupId();
 
+            const paymentOverrideDesc = descriptionOverrides?.[tx.id] || 
+              descriptionOverrides?.[`pay_${pluggyAcc.id}_${tx.id}`] ||
+              descriptionOverrides?.[`pay_${tx.id}`];
+
+            const finalPaymentDesc = paymentOverrideDesc || tx.description || 'Pagamento de Fatura';
+
             // Lançamento no Cartão de Crédito (Amortização da dívida / Entrada de transferência)
             const cardTx: TransacaoCompleta = {
               id: generateTransactionId(),
@@ -2145,7 +2153,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               domain: 'operational',
               amount: cleanAmt,
               categoryId: null,
-              description: tx.description || 'Pagamento de Fatura',
+              description: finalPaymentDesc,
               links: {
                 investmentId: null,
                 loanId: null,
@@ -2171,7 +2179,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             launchedCount++;
 
             // Proteção ANTI-DUPLICAÇÃO no pagamento de fatura:
-            // Se a conta corrente de pagamento já possui esse débito registrado, NÃO criamos duplicata!
             if (paymentAccount) {
               const alreadyInChecking = isInvoicePaymentAlreadyInChecking(
                 paymentAccount.id,
@@ -2185,7 +2192,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                   `[PAGAMENTO FATURA] O débito de R$ ${cleanAmt.toFixed(2)} já existe na conta corrente "${paymentAccount.name}" ("${alreadyInChecking.description}"). Duplicação evitada com sucesso!`
                 );
               } else {
-                // Se NÃO existe na conta corrente, criamos a contrapartida da transferência
                 const checkingTx: TransacaoCompleta = {
                   id: generateTransactionId(),
                   date: dateFormatted,
@@ -2241,11 +2247,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
           } else {
             // Despesa comum no cartão de crédito ou parcela
-            const overrideCat = categoryOverrides?.[tx.id] || 
-              (parsed.isInstallment ? categoryOverrides?.[`${pluggyAcc.id}_${parsed.cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '')}_${parsed.totalInstallments}_${Math.round(cleanAmt)}`] : undefined);
+            const installmentGroupKey = `${pluggyAcc.id}_${parsed.cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '')}_${parsed.totalInstallments}_${Math.round(cleanAmt)}`;
             
+            const overrideCat = categoryOverrides?.[tx.id] || 
+              (parsed.isInstallment ? categoryOverrides?.[installmentGroupKey] : undefined);
+            
+            const overrideDesc = descriptionOverrides?.[tx.id] || 
+              (parsed.isInstallment ? descriptionOverrides?.[installmentGroupKey] : undefined);
+            
+            const finalDescription = overrideDesc || tx.description || 'Compra no Cartão';
+
             const finalCatId = overrideCat || predictTransactionCategory(
-              tx.description || "",
+              finalDescription,
               'despesa',
               transacoesV2,
               standardizationRules,
@@ -2261,7 +2274,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
               domain: 'operational',
               amount: cleanAmt,
               categoryId: finalCatId,
-              description: tx.description || 'Compra no Cartão',
+              description: finalDescription,
               links: {
                 investmentId: null,
                 loanId: null,

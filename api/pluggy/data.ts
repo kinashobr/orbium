@@ -1,8 +1,58 @@
-import { PluggySyncPayload, PluggyIdentity, PluggyAccount, PluggyTransaction } from "../../src/types/pluggy";
+export interface PluggyIdentity {
+  id: string;
+  itemId: string;
+  fullName: string;
+  taxNumber: string;
+  documentType: string;
+  emails: string[];
+  phoneNumbers: string[];
+  institutionName?: string;
+  createdAt: string;
+}
+
+export interface PluggyAccount {
+  id: string;
+  itemId: string;
+  type: string;
+  name: string;
+  number: string;
+  agency?: string;
+  balance: number;
+  currencyCode: string;
+  bankData?: {
+    name: string;
+    primaryColor?: string;
+    logo?: string;
+  };
+}
+
+export interface PluggyTransaction {
+  id: string;
+  accountId: string;
+  description: string;
+  amount: number;
+  date: string;
+  category?: string;
+  type?: 'DEBIT' | 'CREDIT';
+  status?: 'POSTED' | 'PENDING';
+  operationType?: string;
+}
+
+export interface PluggySyncPayload {
+  identity: PluggyIdentity | null;
+  accounts: PluggyAccount[];
+  bills: any[];
+  investments: any[];
+  transactions: Record<string, PluggyTransaction[]>;
+  isSandboxOrDemo?: boolean;
+  logs?: string[];
+  rawResponse?: Record<string, any>;
+}
 
 export const config = {
   runtime: 'edge',
 };
+
 
 export async function testPluggyAuth(
   clientId: string,

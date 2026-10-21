@@ -357,6 +357,38 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     setShowNewBillModal(false);
     toast.success("Adicionado!");
   };
+
+  const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
+    const isTracker = trackerManagedBills.some(b => b.id === id);
+    if (isTracker) {
+      updateBill(id, updates);
+    } else {
+      setTransacoesV2(prev => prev.map(t => {
+        if (t.id === id) {
+          return {
+            ...t,
+            description: updates.description !== undefined ? updates.description : t.description,
+            amount: updates.expectedAmount !== undefined ? updates.expectedAmount : t.amount,
+            date: updates.paymentDate || updates.dueDate || t.date,
+            accountId: updates.suggestedAccountId !== undefined ? (updates.suggestedAccountId || t.accountId) : t.accountId,
+            categoryId: updates.suggestedCategoryId !== undefined ? (updates.suggestedCategoryId || null) : t.categoryId,
+          };
+        }
+        return t;
+      }));
+      toast.success("Lançamento do extrato atualizado!");
+    }
+  }, [trackerManagedBills, updateBill, setTransacoesV2]);
+
+  const handleDeleteBill = useCallback((id: string) => {
+    const isTracker = trackerManagedBills.some(b => b.id === id);
+    if (isTracker) {
+      deleteBill(id);
+    } else {
+      setTransacoesV2(prev => prev.filter(t => t.id !== id));
+      toast.success("Lançamento do extrato excluído com sucesso!");
+    }
+  }, [trackerManagedBills, deleteBill, setTransacoesV2]);
   
   const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => {
     setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);
@@ -448,7 +480,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
             </aside>
             <main className="flex-1 flex flex-col min-h-0 bg-muted/5 dark:bg-card overflow-hidden">
               <BillsTrackerList 
-                bills={combinedBills} onUpdateBill={updateBill} onDeleteBill={deleteBill} 
+                bills={combinedBills} onUpdateBill={handleUpdateBill} onDeleteBill={handleDeleteBill} 
                 onAddBill={handleAddBill} 
                 onTogglePaid={handleTogglePaid} currentDate={currentDate} 
               />

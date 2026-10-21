@@ -256,9 +256,49 @@ export default function BillsTracker() {
     }
   }, [contasMovimento, categoriasV2, emprestimos, creditCardConfigs, addTransacaoV2, updateBill, setTransacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
 
+  const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
+    const isTracker = trackerBillIds.has(id);
+    if (isTracker) {
+      updateBill(id, updates);
+    } else {
+      // Atualizar transação correspondente vinda do extrato (external_paid)
+      setTransacoesV2(prev => prev.map(t => {
+        if (t.id === id) {
+          const newDesc = updates.description !== undefined ? updates.description : t.description;
+          const newAmount = updates.expectedAmount !== undefined ? updates.expectedAmount : t.amount;
+          const newDate = updates.paymentDate || updates.dueDate || t.date;
+          const newAccountId = updates.suggestedAccountId !== undefined ? (updates.suggestedAccountId || t.accountId) : t.accountId;
+          const newCategoryId = updates.suggestedCategoryId !== undefined ? (updates.suggestedCategoryId || null) : t.categoryId;
+
+          return {
+            ...t,
+            description: newDesc,
+            amount: newAmount,
+            date: newDate,
+            accountId: newAccountId,
+            categoryId: newCategoryId,
+          };
+        }
+        return t;
+      }));
+      toast.success("Lançamento do extrato atualizado!");
+    }
+  }, [trackerBillIds, updateBill, setTransacoesV2]);
+
+  const handleDeleteBill = useCallback((id: string) => {
+    const isTracker = trackerBillIds.has(id);
+    if (isTracker) {
+      deleteBill(id);
+    } else {
+      setTransacoesV2(prev => prev.filter(t => t.id !== id));
+      toast.success("Lançamento do extrato excluído com sucesso!");
+    }
+  }, [trackerBillIds, deleteBill, setTransacoesV2]);
+
   const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => {
     setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);
   }, [setBillsTracker]);
+
 
   const handleFixBudget = useCallback(() => {
     const snapshot = buildSnapshotFromBills(
@@ -367,8 +407,8 @@ export default function BillsTracker() {
           <div className={cn("bg-card rounded-[2rem] border border-border/40 dark:border-white/5 p-2 shadow-sm w-full overflow-hidden", isLargeScreen ? "block" : "hidden")}>
             <BillsTrackerList 
               bills={combinedBills}
-              onUpdateBill={updateBill}
-              onDeleteBill={deleteBill}
+              onUpdateBill={handleUpdateBill}
+              onDeleteBill={handleDeleteBill}
               onAddBill={handleAddBill}
               onTogglePaid={handleTogglePaid}
               currentDate={currentDate}
@@ -379,8 +419,8 @@ export default function BillsTracker() {
           <div className={cn(isLargeScreen ? "hidden" : "block")}>
             <BillsTrackerMobileList 
               bills={combinedBills}
-              onUpdateBill={updateBill}
-              onDeleteBill={deleteBill}
+              onUpdateBill={handleUpdateBill}
+              onDeleteBill={handleDeleteBill}
               onAddBill={handleAddBill}
               onTogglePaid={handleTogglePaid}
               currentDate={currentDate}

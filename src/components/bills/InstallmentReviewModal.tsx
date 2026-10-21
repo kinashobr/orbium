@@ -10,6 +10,7 @@ import { CreditCard, CalendarCheck, Check, Trash2, ShoppingBag } from "lucide-re
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { parseDateLocal } from "@/lib/utils";
+import { EditableCell } from "@/components/EditableCell";
 
 interface InstallmentReviewModalProps {
   isOpen: boolean;
@@ -108,10 +109,18 @@ export function InstallmentReviewModal({
               >
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-sm text-foreground truncate">
-                      {item.cleanDescription}
-                    </span>
-                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-semibold text-primary border-primary/30 bg-primary/5">
+                    <EditableCell
+                      value={item.cleanDescription}
+                      type="text"
+                      onSave={(v) => {
+                        const trimmed = String(v).trim();
+                        if (trimmed) {
+                          onItemsChange(items.map(i => i.id === item.id ? { ...i, cleanDescription: trimmed } : i));
+                        }
+                      }}
+                      className="font-bold text-sm text-foreground truncate h-7 px-1.5 py-0.5 rounded bg-background/50 hover:bg-background border border-transparent hover:border-border/60 transition-colors cursor-pointer"
+                    />
+                    <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-semibold text-primary border-primary/30 bg-primary/5 shrink-0">
                       {item.totalInstallments}x de {formatCurrency(item.installmentAmount)}
                     </Badge>
                   </div>

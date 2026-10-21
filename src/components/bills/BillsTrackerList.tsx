@@ -41,17 +41,16 @@ const SOURCE_CONFIG: Record<BillSourceType | 'external_expense', { icon: React.E
   external_expense: { icon: CheckCircle2, color: 'text-success', label: 'Extrato' },
 };
 
-const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'type', 'category', 'amount', 'actions'] as const;
+const COLUMN_KEYS = ['pay', 'due', 'paymentDate', 'description', 'account', 'category', 'amount', 'actions'] as const;
 type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
   pay: 45,
   due: 100,
   paymentDate: 100,
-  description: 200,
-  account: 120,
-  type: 75,
-  category: 140,
+  description: 235,
+  account: 140,
+  category: 155,
   amount: 110,
   actions: 50,
 };
@@ -62,7 +61,6 @@ const columnHeaders: { key: ColumnKey, label: string, align?: 'center' | 'right'
   { key: 'paymentDate', label: 'Pgto' },
   { key: 'description', label: 'Descrição' },
   { key: 'account', label: 'Conta' },
-  { key: 'type', label: 'Tipo' },
   { key: 'category', label: 'Categoria' },
   { key: 'amount', label: 'Valor', align: 'right' },
   { key: 'actions', label: '', align: 'center' },
@@ -85,12 +83,21 @@ export function BillsTrackerList({
   
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
     try { 
-      const saved = localStorage.getItem('bills_column_widths'); 
-      return saved ? JSON.parse(saved) : INITIAL_WIDTHS; 
+      const savedStr = localStorage.getItem('bills_column_widths'); 
+      if (savedStr) {
+        const saved = JSON.parse(savedStr);
+        const result: Record<ColumnKey, number> = { ...INITIAL_WIDTHS };
+        (Object.keys(INITIAL_WIDTHS) as ColumnKey[]).forEach(k => {
+          if (typeof saved[k] === 'number') result[k] = saved[k];
+        });
+        return result;
+      }
+      return INITIAL_WIDTHS; 
     } catch { 
       return INITIAL_WIDTHS; 
     }
   });
+
   
   useEffect(() => { 
     localStorage.setItem('bills_column_widths', JSON.stringify(columnWidths)); 
@@ -153,13 +160,18 @@ export function BillsTrackerList({
   };
   
   const handleExcludeBill = (bill: BillTracker) => { if (bill.isPaid) return; onUpdateBill(bill.id, { isExcluded: true }); };
-  const handleUpdateExpectedAmount = (b: BillTracker, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
-  const handleUpdateSuggestedAccount = (b: BillTracker, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
+  const handleUpdateExpectedAmount = (b: BillDisplayItem, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
+  const handleUpdateSuggestedAccount = (b: BillDisplayItem, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
   
   const handleUpdateSuggestedCategory = (id: string, categoryId: string) => {
     const s = categoriasV2.find(c => c.id === categoryId);
-    const bill = bills.find(b => b.id === id) as BillTracker;
+    const bill = bills.find(b => b.id === id);
     if (!bill) return;
+
+    if (bill.type === 'external_paid') {
+      onUpdateBill(id, { suggestedCategoryId: categoryId });
+      return;
+    }
 
     let type: BillSourceType = bill.sourceType;
     const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(bill.sourceType);
@@ -169,7 +181,11 @@ export function BillsTrackerList({
   
   const [advanceDialog, setAdvanceDialog] = useState<{ bill: BillTracker; newDate: string; daysDiff: number } | null>(null);
 
-  const handleUpdateDueDate = (b: BillTracker, n: string) => {
+  const handleUpdateDueDate = (b: BillDisplayItem, n: string) => {
+    if (b.type === 'external_paid') {
+      onUpdateBill(b.id, { dueDate: n, paymentDate: n });
+      return;
+    }
     if (b.isPaid) return;
     const isInstallment = b.sourceType === 'loan_installment' || b.sourceType === 'insurance_installment';
     if (isInstallment) {
@@ -177,7 +193,7 @@ export function BillsTrackerList({
       const newDate = parseDateLocal(n);
       const daysDiff = Math.round((oldDate.getTime() - newDate.getTime()) / (1000 * 60 * 60 * 24));
       if (daysDiff > 0) {
-        setAdvanceDialog({ bill: b, newDate: n, daysDiff });
+        setAdvanceDialog({ bill: b as BillTracker, newDate: n, daysDiff });
         return;
       }
     }
@@ -201,7 +217,18 @@ export function BillsTrackerList({
     }
     setAdvanceDialog(null);
   };
-  const handleUpdatePaymentDate = (b: BillTracker, n: string) => { if (b.isPaid) { onUpdateBill(b.id, { paymentDate: n }); if (b.transactionId) { setTransacoesV2(prev => prev.map(t => (t.id === b.transactionId || (t.links?.transferGroupId && t.links.transferGroupId === b.transactionId)) ? { ...t, date: n } : t)); } } };
+  const handleUpdatePaymentDate = (b: BillDisplayItem, n: string) => {
+    if (b.type === 'external_paid') {
+      onUpdateBill(b.id, { paymentDate: n, dueDate: n });
+      return;
+    }
+    if (b.isPaid) {
+      onUpdateBill(b.id, { paymentDate: n });
+      if (b.transactionId) {
+        setTransacoesV2(prev => prev.map(t => (t.id === b.transactionId || (t.links?.transferGroupId && t.links.transferGroupId === b.transactionId)) ? { ...t, date: n } : t));
+      }
+    }
+  };
 
   const sortedBills = useMemo(() => {
     const tracker = bills.filter(isBillTracker).filter(b => !b.isExcluded);
@@ -311,36 +338,32 @@ export function BillsTrackerList({
                       </TableCell>
                       
                       <TableCell className={cn("text-xs font-bold px-4 py-1", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
-                        {isExt || isPaid ? (
+                        {isPaid && !isExt ? (
                           <div className="h-8 flex items-center px-3">{formatDate(bill.dueDate)}</div>
                         ) : (
                           <EditableCell 
                             value={bill.dueDate} 
                             type="date" 
-                            onSave={(v) => handleUpdateDueDate(bill as BillTracker, String(v))} 
+                            onSave={(v) => handleUpdateDueDate(bill, String(v))} 
                             className="text-xs h-8 bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3" 
                           />
                         )}
                       </TableCell>
                       
                       <TableCell className="text-xs font-bold px-4 py-1" style={{ width: columnWidths.paymentDate }}>
-                        {isPaid && bill.paymentDate ? (
-                          isExt ? (
-                            <div className="h-8 flex items-center px-3">{formatDate(bill.paymentDate)}</div>
-                          ) : (
-                            <EditableCell 
-                              value={bill.paymentDate} 
-                              type="date" 
-                              onSave={(v) => handleUpdatePaymentDate(bill as BillTracker, String(v))} 
-                              className="text-xs text-success h-8 bg-success/10 border-none shadow-none hover:bg-success/20 rounded-xl px-3 font-black" 
-                            />
-                          )
+                        {(bill.paymentDate || bill.dueDate) ? (
+                          <EditableCell 
+                            value={bill.paymentDate || bill.dueDate} 
+                            type="date" 
+                            onSave={(v) => handleUpdatePaymentDate(bill, String(v))} 
+                            className="text-xs text-success h-8 bg-success/10 border-none shadow-none hover:bg-success/20 rounded-xl px-3 font-black" 
+                          />
                         ) : <div className="h-8 flex items-center px-3 opacity-20">—</div>}
                       </TableCell>
                       
                       <TableCell className="text-xs px-4 py-1 font-black text-foreground" style={{ width: columnWidths.description }}>
                         <div className="w-full">
-                          {isExt || isPaid ? (
+                          {isPaid && !isExt ? (
                             <div className="h-8 flex items-center px-3 truncate">{bill.description}</div>
                           ) : (
                             <EditableCell 
@@ -354,7 +377,7 @@ export function BillsTrackerList({
                       </TableCell>
                       
                       <TableCell className="px-4 py-1" style={{ width: columnWidths.account }}>
-                        {isExt || isPaid ? (
+                        {isPaid && !isExt ? (
                           <div className="h-8 flex items-center px-3 text-xs font-bold opacity-80 truncate">
                             {contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}
                           </div>
@@ -362,17 +385,9 @@ export function BillsTrackerList({
                           <AccountSearchSelector
                             value={bill.suggestedAccountId}
                             accounts={accountOptions}
-                            onSelect={(v) => handleUpdateSuggestedAccount(bill as BillTracker, v)}
+                            onSelect={(v) => handleUpdateSuggestedAccount(bill, v)}
                           />
                         )}
-                      </TableCell>
-                      
-                      <TableCell className="px-4 py-1 text-center" style={{ width: columnWidths.type }}>
-                        <div className="h-8 flex items-center justify-center">
-                          <Badge variant="outline" className={cn("px-2 py-1 text-[9px] font-black uppercase border-none", cfg.color.replace('text-', 'bg-') + '/10', cfg.color)}>
-                            <Icon className="w-3.5 h-3.5 mr-1" /> {cfg.label.substring(0, 4)}
-                          </Badge>
-                        </div>
                       </TableCell>
                       
                       <TableCell className="px-4 py-1" style={{ width: columnWidths.category }}>
@@ -383,7 +398,7 @@ export function BillsTrackerList({
                             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-orange-500/10 text-orange-500 px-3"><Building2 className="w-3 h-3 mr-1" />Financiam.</Badge>
                           ) : bill.sourceType === 'insurance_installment' ? (
                             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-blue-500/10 text-blue-500 px-3"><Shield className="w-3 h-3 mr-1" />Seguro</Badge>
-                          ) : isExt || isPaid ? (
+                          ) : isPaid && !isExt ? (
                             <div className="text-xs font-bold opacity-70 flex items-center gap-1.5 px-3">{cat?.icon} {cat?.label || '—'}</div>
                           ) : (
                             <CategorySearchSelector
@@ -396,11 +411,11 @@ export function BillsTrackerList({
                       </TableCell>
                       
                       <TableCell className={cn("text-right font-black text-xs px-4 py-1 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
-                        {!isPaid && !isExt && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? (
+                        {isExt || (!isPaid && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment') ? (
                           <EditableCell 
                             value={bill.expectedAmount} 
                             type="currency" 
-                            onSave={(v) => handleUpdateExpectedAmount(bill as BillTracker, Number(v))} 
+                            onSave={(v) => handleUpdateExpectedAmount(bill, Number(v))} 
                             className="h-8 text-xs text-right font-black bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3" 
                           />
                         ) : (
@@ -410,7 +425,17 @@ export function BillsTrackerList({
                       
                       <TableCell className="text-center px-4 py-1 last:rounded-r-xl" style={{ width: columnWidths.actions }}>
                         <div className="h-8 flex items-center justify-center">
-                          {!isExt && !isPaid && (
+                          {isExt ? (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" 
+                              onClick={() => onDeleteBill(bill.id)}
+                              title="Excluir lançamento do extrato"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          ) : !isPaid && (
                             bill.sourceType === 'ad_hoc' ? (
                               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => onDeleteBill(bill.id)}>
                                 <Trash2 className="w-3.5 h-3.5" />
