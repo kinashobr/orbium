@@ -221,6 +221,8 @@ export default function OpenFinanceSettings() {
     }
   };
 
+  const handleTriggerSync = handleTriggerSyncAll;
+
   // Sincronizar uma conexão específica
   const handleTriggerSyncSingle = async (targetId: string) => {
     setLogs(prev => [
