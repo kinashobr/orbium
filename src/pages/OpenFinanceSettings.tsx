@@ -43,6 +43,8 @@ import {
 } from "@/lib/pluggyAdapter";
 import { InstallmentReviewModal } from "@/components/bills/InstallmentReviewModal";
 import { EditableCell } from "@/components/EditableCell";
+import { AccountSearchSelector } from "@/components/bills/AccountSearchSelector";
+import { CategorySearchSelector } from "@/components/bills/CategorySearchSelector";
 
 export default function OpenFinanceSettings() {
   const navigate = useNavigate();
@@ -98,7 +100,19 @@ export default function OpenFinanceSettings() {
       localStorage.setItem('open_finance_assigned_descriptions', JSON.stringify(assignedDescriptions));
     } catch {}
   }, [assignedDescriptions]);
-  const [showItemIdConfig, setShowItemIdConfig] = useState(!pluggyConfig?.itemId);
+  const configuredItemIds = useMemo(() => {
+    if (pluggyConfig?.itemIds && pluggyConfig.itemIds.length > 0) {
+      return pluggyConfig.itemIds;
+    }
+    if (pluggyConfig?.itemId) {
+      return [pluggyConfig.itemId];
+    }
+    return [];
+  }, [pluggyConfig?.itemIds, pluggyConfig?.itemId]);
+
+  const [newItemId, setNewItemId] = useState("");
+  const [newItemLabel, setNewItemLabel] = useState("");
+  const [showAddConnectionForm, setShowAddConnectionForm] = useState(false);
 
   // Console oculto por padrão
   const [showLogs, setShowLogs] = useState(false);
@@ -106,12 +120,6 @@ export default function OpenFinanceSettings() {
     `[${new Date().toLocaleTimeString()}] Painel Open Finance iniciado.`,
   ]);
   const logsEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (pluggyConfig?.itemId) {
-      setInputItemId(pluggyConfig.itemId);
-    }
-  }, [pluggyConfig?.itemId]);
 
   useEffect(() => {
     if (pluggyLastPayload) {
@@ -125,34 +133,99 @@ export default function OpenFinanceSettings() {
     }
   }, [logs, showLogs]);
 
-  // Salvar Item ID no contexto
-  const handleSaveItemId = () => {
-    const cleanId = inputItemId.trim();
+  // Adicionar nova conexão (Item ID)
+  const handleAddItemId = () => {
+    const cleanId = newItemId.trim();
     if (!cleanId) {
       toast.error("Informe um Item ID válido.");
       return;
     }
-    updatePluggyConfig({ itemId: cleanId });
-    setShowItemIdConfig(false);
+    if (configuredItemIds.includes(cleanId)) {
+      toast.warning("Este Item ID já está cadastrado.");
+      return;
+    }
+
+    const updatedItemIds = [...configuredItemIds, cleanId];
+    const updatedLabels = {
+      ...(pluggyConfig?.itemLabels || {}),
+      [cleanId]: newItemLabel.trim() || `Banco ${updatedItemIds.length}`,
+    };
+
+    updatePluggyConfig({
+      itemId: updatedItemIds[0],
+      itemIds: updatedItemIds,
+      itemLabels: updatedLabels,
+    });
+
+    setNewItemId("");
+    setNewItemLabel("");
+    setShowAddConnectionForm(false);
+    toast.success("Nova conexão de banco cadastrada com sucesso!");
     setLogs(prev => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] [CONFIG] Item ID salvo com sucesso.`
+      `[${new Date().toLocaleTimeString()}] [CONFIG] Nova conexão adicionada: ${cleanId.substring(0, 8)}... (${updatedLabels[cleanId]})`
     ]);
-    toast.success("Item ID configurado com sucesso!");
   };
 
-  // Disparar sincronização sob demanda (exclusivamente busca da Pluggy)
-  const handleTriggerSync = async () => {
-    const targetId = inputItemId.trim() || pluggyConfig?.itemId;
-    if (!targetId) {
-      setShowItemIdConfig(true);
-      toast.error("Informe o Item ID antes de sincronizar.");
+  // Remover conexão
+  const handleRemoveItemId = (idToRemove: string) => {
+    const updatedItemIds = configuredItemIds.filter(id => id !== idToRemove);
+    const updatedLabels = { ...(pluggyConfig?.itemLabels || {}) };
+    delete updatedLabels[idToRemove];
+
+    updatePluggyConfig({
+      itemId: updatedItemIds[0] || "",
+      itemIds: updatedItemIds,
+      itemLabels: updatedLabels,
+    });
+
+    toast.success("Conexão removida.");
+    setLogs(prev => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] [CONFIG] Conexão removida: ${idToRemove.substring(0, 8)}...`
+    ]);
+  };
+
+  // Sincronizar todas as conexões
+  const handleTriggerSyncAll = async () => {
+    if (configuredItemIds.length === 0) {
+      setShowAddConnectionForm(true);
+      toast.error("Cadastre ao menos uma conexão bancária (Item ID) antes de sincronizar.");
       return;
     }
 
     setLogs(prev => [
       ...prev,
-      `[${new Date().toLocaleTimeString()}] [INÍCIO] Buscando dados bancários da Pluggy...`
+      `[${new Date().toLocaleTimeString()}] [INÍCIO] Buscando dados de ${configuredItemIds.length} conexão(ões)...`
+    ]);
+
+    const result = await syncPluggyData();
+
+    if (result.logs && Array.isArray(result.logs)) {
+      setLogs(prev => [...prev, ...result.logs]);
+    }
+
+    if (result.payload) {
+      setData(result.payload);
+    }
+
+    if (result.detectedInstallments && result.detectedInstallments.length > 0) {
+      setPendingInstallments(result.detectedInstallments);
+      setShowInstallmentsModal(true);
+    }
+
+    if (result.success) {
+      toast.success(result.message);
+    } else {
+      toast.error(result.message);
+    }
+  };
+
+  // Sincronizar uma conexão específica
+  const handleTriggerSyncSingle = async (targetId: string) => {
+    setLogs(prev => [
+      ...prev,
+      `[${new Date().toLocaleTimeString()}] [INÍCIO] Sincronizando conexão ${targetId.substring(0, 8)}...`
     ]);
 
     const result = await syncPluggyData(targetId);
@@ -312,6 +385,19 @@ export default function OpenFinanceSettings() {
     return [...categoriasV2].sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
   }, [categoriasV2]);
 
+  // Opções formatadas para o AccountSearchSelector de filtro por conta
+  const filterAccountOptions = useMemo(() => {
+    return availableAccounts.map(a => ({
+      id: a.id,
+      name: `${a.name} (${a.type === 'CREDIT' ? 'Cartão' : 'Corrente'})`,
+      accountType: a.type === 'CREDIT' ? 'cartao_credito' : 'corrente',
+      currency: 'BRL',
+      initialBalance: 0,
+      createdAt: new Date().toISOString(),
+      meta: {},
+    } as any));
+  }, [availableAccounts]);
+
   // Conta selecionada atualmente no filtro de transações
   const selectedAccountObj = useMemo(() => {
     if (selectedTxAccount === "all") return null;
@@ -423,102 +509,145 @@ export default function OpenFinanceSettings() {
           </div>
         </header>
 
-        {/* BARRA OU CARD DO ITEM ID COM SEPARAÇÃO DE AÇÕES */}
-        {!showItemIdConfig && pluggyConfig?.itemId ? (
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3.5 sm:p-4 rounded-2xl bg-surface-light dark:bg-surface-dark border border-border/40 shadow-sm">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+        {/* GERENCIADOR DE MÚLTIPLAS CONEXÕES (ITEM IDs) */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-surface-light dark:bg-surface-dark border border-border/50 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <Landmark className="w-4 h-4" />
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-foreground">Conexão Bancária Ativa</span>
-                  <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-mono text-muted-foreground">
-                    ID: {pluggyConfig.itemId.substring(0, 8)}••••••••
-                  </Badge>
-                </div>
-                {pluggyConfig.lastSyncAt && (
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Última sincronização: {format(parseDateLocal(pluggyConfig.lastSyncAt.substring(0, 10)), "dd/MM/yyyy")} às {new Date(pluggyConfig.lastSyncAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                )}
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Conexões Bancárias ({configuredItemIds.length})</h3>
+                <p className="text-[11px] text-muted-foreground">Cada banco integrado no Pluggy possui seu próprio Item ID</p>
               </div>
             </div>
 
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={() => setShowItemIdConfig(true)}
-                className="text-xs h-9 px-3 text-muted-foreground hover:text-foreground gap-1.5"
+                onClick={() => setShowAddConnectionForm(!showAddConnectionForm)}
+                className="h-8 text-xs font-semibold gap-1.5 border-border/70"
               >
-                <Settings2 className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Alterar ID</span>
+                <PlusCircle className="w-3.5 h-3.5 text-primary" />
+                <span>Nova Conexão</span>
               </Button>
 
-              {/* BOTÃO SINCRONIZAR: Busca exclusiva de dados da Pluggy */}
               <Button
-                onClick={handleTriggerSync}
-                disabled={isSyncingPluggy}
+                onClick={handleTriggerSyncAll}
+                disabled={isSyncingPluggy || configuredItemIds.length === 0}
                 size="sm"
-                className="h-9 px-4 rounded-xl font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm gap-2"
-                title="Busca dados atualizados de contas e transações da Pluggy"
+                className="h-8 px-3.5 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5 shadow-sm"
               >
                 <RefreshCw className={cn("w-3.5 h-3.5", isSyncingPluggy && "animate-spin")} />
-                <span>{isSyncingPluggy ? "Sincronizando..." : "Sincronizar"}</span>
+                <span>{isSyncingPluggy ? "Sincronizando..." : "Sincronizar Todas"}</span>
               </Button>
             </div>
           </div>
-        ) : (
-          <div className="p-4 sm:p-5 rounded-2xl bg-surface-light dark:bg-surface-dark border border-border/50 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-primary" />
-                <h3 className="text-sm font-bold text-foreground">Configuração da Conexão</h3>
-              </div>
-              {pluggyConfig?.itemId && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowItemIdConfig(false)}
-                  className="text-xs h-8 text-muted-foreground"
-                >
-                  Ocultar
-                </Button>
-              )}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
-              <div className="sm:col-span-6">
-                <Input
-                  value={inputItemId}
-                  onChange={(e) => setInputItemId(e.target.value)}
-                  placeholder="Informe o Item ID da conexão..."
-                  className="font-mono text-xs h-10 bg-background"
-                />
+          {/* FORMULÁRIO DE ADIÇÃO DE NOVO ITEM ID */}
+          {showAddConnectionForm && (
+            <div className="p-3.5 rounded-xl bg-muted/30 border border-primary/20 space-y-3 animate-fade-in">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-primary" />
+                  Cadastrar Conexão (Item ID)
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => setShowAddConnectionForm(false)} className="h-6 text-[10px] text-muted-foreground">
+                  Cancelar
+                </Button>
               </div>
-              <div className="sm:col-span-6 flex items-center gap-2 flex-wrap">
-                <Button
-                  variant="outline"
-                  onClick={handleSaveItemId}
-                  className="flex-1 text-xs h-10 font-semibold gap-1.5 border-border/70"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  Salvar
-                </Button>
 
-                <Button
-                  onClick={handleTriggerSync}
-                  disabled={isSyncingPluggy || !inputItemId.trim()}
-                  className="flex-1 text-xs h-10 font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
-                >
-                  <RefreshCw className={cn("w-3.5 h-3.5", isSyncingPluggy && "animate-spin")} />
-                  Sincronizar
-                </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                <div className="sm:col-span-4">
+                  <Input
+                    value={newItemLabel}
+                    onChange={(e) => setNewItemLabel(e.target.value)}
+                    placeholder="Nome do Banco (ex: Nubank, Itaú)..."
+                    className="text-xs h-9 bg-background"
+                  />
+                </div>
+                <div className="sm:col-span-5">
+                  <Input
+                    value={newItemId}
+                    onChange={(e) => setNewItemId(e.target.value)}
+                    placeholder="Informe o Item ID..."
+                    className="font-mono text-xs h-9 bg-background"
+                  />
+                </div>
+                <div className="sm:col-span-3">
+                  <Button
+                    onClick={handleAddItemId}
+                    disabled={!newItemId.trim()}
+                    className="w-full h-9 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    Adicionar
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* LISTA DE CONEXÕES CADASTRADAS */}
+          {configuredItemIds.length === 0 ? (
+            <div className="py-6 text-center space-y-2 border border-dashed rounded-xl border-border/60">
+              <p className="text-xs font-medium text-muted-foreground">Nenhuma conexão cadastrada no momento.</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddConnectionForm(true)}
+                className="h-8 text-xs font-semibold gap-1.5"
+              >
+                <PlusCircle className="w-3.5 h-3.5 text-primary" />
+                Cadastrar Primeiro Item ID
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+              {configuredItemIds.map((itemId) => {
+                const label = pluggyConfig?.itemLabels?.[itemId] || "Conexão Bancária";
+                return (
+                  <div key={itemId} className="p-3 rounded-xl border border-border/50 bg-card hover:border-primary/30 transition-all flex items-center justify-between gap-2 text-xs">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-foreground truncate max-w-[130px]">{label}</span>
+                        <Badge variant="outline" className="text-[9px] py-0 px-1 font-mono text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                          Ativo
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground font-mono truncate mt-0.5">
+                        ID: {itemId.substring(0, 8)}••••••••
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleTriggerSyncSingle(itemId)}
+                        disabled={isSyncingPluggy}
+                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-primary"
+                        title="Sincronizar apenas esta conexão"
+                      >
+                        <RefreshCw className={cn("w-3.5 h-3.5", isSyncingPluggy && "animate-spin")} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveItemId(itemId)}
+                        className="h-7 w-7 rounded-lg text-muted-foreground hover:text-destructive"
+                        title="Remover conexão"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* BANNER DE COMPRAS PARCELADAS IDENTIFICADAS */}
         {pendingInstallments.length > 0 && (
@@ -637,22 +766,15 @@ export default function OpenFinanceSettings() {
 
                           {/* Seletor de Vínculo */}
                           <div className="pt-2 border-t border-border/30 space-y-1.5">
-                            <Select
-                              value={linkedOrbiumId || "none"}
-                              onValueChange={(val) => handleLinkAccount(acc.id, val)}
-                            >
-                              <SelectTrigger className="h-7 text-[11px]">
-                                <SelectValue placeholder="Vincular à conta..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">-- Não vinculada --</SelectItem>
-                                {contasMovimento.map((cm) => (
-                                  <SelectItem key={cm.id} value={cm.id} className="text-xs">
-                                    {cm.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            <AccountSearchSelector
+                              value={linkedOrbiumId}
+                              accounts={contasMovimento}
+                              onSelect={(val) => handleLinkAccount(acc.id, val)}
+                              allowClear
+                              clearLabel="-- Não vinculada --"
+                              placeholder="Vincular à conta..."
+                              size="sm"
+                            />
 
                             {!linkedOrbiumId ? (
                               <Button
@@ -753,21 +875,19 @@ export default function OpenFinanceSettings() {
                     </>
                   )}
 
-                  {/* Filtro por conta */}
+                  {/* Filtro por conta com busca padronizada */}
                   {availableAccounts.length > 0 && (
-                    <Select value={selectedTxAccount} onValueChange={setSelectedTxAccount}>
-                      <SelectTrigger className="h-8 w-40 text-xs">
-                        <SelectValue placeholder="Filtrar..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all" className="text-xs">Todas as Contas</SelectItem>
-                        {availableAccounts.map(a => (
-                          <SelectItem key={a.id} value={a.id} className="text-xs">
-                            {a.name} ({a.type === 'CREDIT' ? 'Cartão' : 'Corrente'})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="w-48 sm:w-56">
+                      <AccountSearchSelector
+                        value={selectedTxAccount === "all" ? null : selectedTxAccount}
+                        accounts={filterAccountOptions}
+                        onSelect={(val) => setSelectedTxAccount(val === "none" ? "all" : val)}
+                        allowClear
+                        clearLabel="Todas as Contas"
+                        placeholder="Todas as Contas"
+                        size="sm"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -910,26 +1030,16 @@ export default function OpenFinanceSettings() {
                                 Via Extrato
                               </span>
                             ) : (
-                              <div className="flex items-center gap-1">
-                                <Select
-                                  value={effectiveCategoryId || "none"}
-                                  onValueChange={(val) => handleCategoryChange(item.key, val === "none" ? "" : val, item.txIds)}
-                                >
-                                  <SelectTrigger className="h-7 text-[11px] bg-background border-border/60 rounded-lg px-2 text-foreground font-medium truncate">
-                                    <SelectValue placeholder="Categorizar..." />
-                                  </SelectTrigger>
-                                  <SelectContent className="max-h-60">
-                                    <SelectItem value="none" className="text-xs text-muted-foreground">-- Sem Categoria --</SelectItem>
-                                    {sortedCategories.map((cat) => (
-                                      <SelectItem key={cat.id} value={cat.id} className="text-xs">
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-sm shrink-0">{cat.icon || '🏷️'}</span>
-                                          <span className="truncate">{cat.label}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
+                              <div className="flex items-center gap-1 min-w-0">
+                                <CategorySearchSelector
+                                  value={effectiveCategoryId}
+                                  categories={sortedCategories}
+                                  onSelect={(val) => handleCategoryChange(item.key, val, item.txIds)}
+                                  allowClear
+                                  clearLabel="-- Sem Categoria --"
+                                  placeholder="Categorizar..."
+                                  size="sm"
+                                />
                               </div>
                             )}
                           </div>

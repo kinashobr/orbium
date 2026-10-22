@@ -14,6 +14,8 @@ import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
+import { AccountSearchSelector } from "@/components/bills/AccountSearchSelector";
+
 interface StatementManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -114,21 +116,13 @@ export function StatementManagerDialog({ open, onOpenChange, initialAccountId, o
 
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Conta Alvo</Label>
-            <Select value={selectedAccountId} onValueChange={setSelectedAccountId}>
-              <SelectTrigger className="h-12 border-2 rounded-2xl bg-card hover:border-primary/30 transition-all">
-                <SelectValue placeholder="Escolha a conta..." />
-              </SelectTrigger>
-              <SelectContent>
-                {corrienteAccounts.map(a => (
-                  <SelectItem key={a.id} value={a.id}>
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-4 h-4" />
-                      <span className="font-bold">{a.name}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AccountSearchSelector
+              value={selectedAccountId}
+              accounts={corrienteAccounts}
+              onSelect={setSelectedAccountId}
+              placeholder="Escolha a conta..."
+              size="lg"
+            />
           </div>
         </DialogHeader>
         

@@ -67,7 +67,9 @@ export interface PluggyTransaction {
 }
 
 export interface PluggyConfig {
-  itemId: string;
+  itemId: string; // Legado / principal
+  itemIds?: string[]; // Lista de múltiplos Item IDs
+  itemLabels?: Record<string, string>; // Rótulo opcional por itemId (ex: "Nubank", "Itaú")
   linkedAccounts: Record<string, string>; // pluggyAccountId -> orbiumAccountId
   linkedCards: Record<string, string>; // pluggyCardId -> orbiumCardAccountId
   linkedInvestments: Record<string, string>; // pluggyInvestmentId -> orbiumAccountId

@@ -459,7 +459,7 @@ export default function RevisaoExtrato() {
 
   return (
     <MainLayout>
-      <div className="space-y-4 pb-2 flex flex-col h-full w-full max-w-full">
+      <div className="space-y-4 pb-2 flex flex-col w-full max-w-full">
         {/* Header Superior */}
         <header className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 px-1 animate-fade-in w-full shrink-0">
           <div className="flex items-center gap-3">
@@ -542,15 +542,15 @@ export default function RevisaoExtrato() {
           </div>
         </header>
 
-        {/* Conteúdo Principal da Tabela */}
-        <div className="flex-1 bg-card rounded-[2rem] border border-border/40 p-4 shadow-soft flex flex-col min-h-[420px] w-full overflow-hidden">
+        {/* Conteúdo Principal da Tabela - Altura adaptativa ao conteúdo para evitar áreas em branco */}
+        <div className="w-full bg-card rounded-[2rem] border border-border/40 p-4 shadow-soft flex flex-col h-auto max-h-[calc(100vh-220px)] overflow-hidden transition-all duration-300">
           {loading ? (
-            <div className="flex-1 flex flex-col items-center justify-center opacity-60">
+            <div className="py-16 flex flex-col items-center justify-center opacity-60">
               <Loader2 className="w-9 h-9 animate-spin mb-3 text-primary" />
               <p className="font-black uppercase tracking-widest text-xs">Carregando dados do extrato...</p>
             </div>
           ) : activeTab === 'pending' ? (
-            <div className="flex-1 w-full overflow-x-auto scrollbar-material">
+            <div className="w-full overflow-auto scrollbar-thin-custom min-h-0">
               <TransactionReviewTable
                 transactions={pendingTransactions}
                 accounts={accounts}
@@ -570,7 +570,7 @@ export default function RevisaoExtrato() {
               />
             </div>
           ) : (
-            <div className="flex-1 w-full overflow-x-auto scrollbar-material">
+            <div className="w-full overflow-auto scrollbar-thin-custom min-h-0">
               <ContabilizedReviewTable
                 transactions={contabilizedTransactions}
                 categories={categories}

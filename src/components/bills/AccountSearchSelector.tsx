@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Building2, CreditCard } from "lucide-react";
+import { Check, Building2, CreditCard, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -18,16 +18,28 @@ import {
 } from "@/components/ui/popover";
 import { ContaCorrente } from "@/types/finance";
 
-interface AccountSearchSelectorProps {
-  value: string | null;
+export interface AccountSearchSelectorProps {
+  value: string | null | undefined;
   accounts: ContaCorrente[];
   onSelect: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+  allowClear?: boolean;
+  clearLabel?: string;
+  disabled?: boolean;
+  size?: 'sm' | 'default' | 'lg';
 }
 
 export function AccountSearchSelector({
   value,
   accounts,
   onSelect,
+  placeholder = "SELECIONE...",
+  className,
+  allowClear = false,
+  clearLabel = "-- Não vinculada --",
+  disabled = false,
+  size = 'default',
 }: AccountSearchSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const selectedAccount = accounts.find((a) => a.id === value);
@@ -36,44 +48,46 @@ export function AccountSearchSelector({
     e.stopPropagation();
   };
 
+  const sizeClasses = {
+    sm: "h-8 text-[10px] px-2.5 rounded-xl",
+    default: "h-9 text-[10px] px-3 rounded-xl",
+    lg: "h-11 text-xs px-4 rounded-2xl border-2 bg-card hover:border-primary/30",
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="flex h-9 w-full items-center justify-between rounded-xl bg-background/50 px-3 text-[10px] font-black uppercase transition-colors hover:bg-background focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          type="button"
+          disabled={disabled}
+          className={cn(
+            "flex w-full items-center justify-between font-black uppercase transition-all duration-200 border border-transparent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+            selectedAccount
+              ? "bg-primary/10 text-primary border-primary/20"
+              : "bg-background/60 text-foreground/80 hover:bg-background border-border/40",
+            sizeClasses[size],
+            className
+          )}
         >
-          <span className="truncate flex items-center gap-1.5">
+          <span className="truncate flex items-center gap-2 min-w-0">
             {selectedAccount ? (
               <>
                 {selectedAccount.accountType === 'cartao_credito' ? (
-                  <CreditCard className="h-3 w-3 opacity-50" />
+                  <CreditCard className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                 ) : (
-                  <Building2 className="h-3 w-3 opacity-50" />
+                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                 )}
                 <span className="truncate">{selectedAccount.name}</span>
               </>
             ) : (
-              <span className="opacity-40">...</span>
+              <span className="opacity-40 truncate">{placeholder}</span>
             )}
           </span>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-3 w-3 opacity-30"
-          >
-            <path d="m6 9 6 6 6-6" />
-          </svg>
+          <ChevronDown className="h-3.5 w-3.5 opacity-40 shrink-0 ml-1.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent 
-        className="w-[220px] p-0 z-[300] shadow-2xl border-border/40 rounded-2xl overflow-hidden" 
+        className="w-[240px] p-0 z-[300] shadow-2xl border-border/40 rounded-2xl overflow-hidden bg-card" 
         align="start"
         onWheel={handleWheel}
       >
@@ -89,7 +103,22 @@ export function AccountSearchSelector({
             <CommandEmpty className="py-6 text-[9px] text-center font-black uppercase opacity-30 tracking-widest">
               Não encontrado
             </CommandEmpty>
-            <CommandGroup className="p-1.5">
+            <CommandGroup className="p-1.5 space-y-0.5">
+              {allowClear && (
+                <CommandItem
+                  value={clearLabel}
+                  onSelect={() => {
+                    onSelect("none");
+                    setOpen(false);
+                  }}
+                  className="text-[10px] font-black uppercase flex items-center justify-between py-2 px-3 cursor-pointer rounded-xl text-muted-foreground hover:bg-muted/50 transition-colors"
+                >
+                  <span className="truncate">{clearLabel}</span>
+                  {(!value || value === "none") && (
+                    <Check className="h-3 w-3 text-primary shrink-0" />
+                  )}
+                </CommandItem>
+              )}
               {accounts.map((account) => (
                 <CommandItem
                   key={account.id}
@@ -102,14 +131,14 @@ export function AccountSearchSelector({
                 >
                   <div className="flex items-center gap-2 truncate">
                     {account.accountType === 'cartao_credito' ? (
-                      <CreditCard className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                      <CreditCard className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                     ) : (
-                      <Building2 className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                      <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
                     )}
                     <span className="truncate">{account.name}</span>
                   </div>
                   {value === account.id && (
-                    <Check className="h-3 w-3 text-primary shrink-0" />
+                    <Check className="h-3.5 w-3.5 text-primary shrink-0 ml-1" />
                   )}
                 </CommandItem>
               ))}

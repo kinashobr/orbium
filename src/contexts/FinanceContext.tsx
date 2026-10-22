@@ -2004,87 +2004,148 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     payload?: PluggySyncPayload;
     detectedInstallments?: DetectedCardInstallment[];
   }> => {
-    const targetItemId = (overrideItemId || pluggyConfig?.itemId || "").trim();
-    if (!targetItemId) {
+    let targetItemIds: string[] = [];
+    if (overrideItemId && overrideItemId.trim()) {
+      targetItemIds = overrideItemId.split(',').map(s => s.trim()).filter(Boolean);
+    } else if (pluggyConfig?.itemIds && pluggyConfig.itemIds.length > 0) {
+      targetItemIds = pluggyConfig.itemIds.filter(Boolean);
+    } else if (pluggyConfig?.itemId) {
+      targetItemIds = [pluggyConfig.itemId.trim()];
+    }
+
+    if (targetItemIds.length === 0) {
       return {
         success: false,
-        message: "Nenhum ITEM_ID configurado para o Open Finance. Acesse a tela de Open Finance para informar seu ITEM_ID.",
+        message: "Nenhum ITEM_ID configurado para o Open Finance. Acesse a tela de Open Finance para cadastrar suas conexões.",
         logs: [`[${new Date().toLocaleTimeString()}] [AVISO] Nenhum ITEM_ID informado para sincronização.`]
       };
     }
 
     setIsSyncingPluggy(true);
     const syncLogs: string[] = [
-      `[${new Date().toLocaleTimeString()}] Buscando dados atualizados da Pluggy para Item ID "${targetItemId.substring(0, 8)}..."`
+      `[${new Date().toLocaleTimeString()}] Iniciando sincronização do Open Finance para ${targetItemIds.length} conexão(ões)...`
     ];
 
-    try {
-      const response = await fetch('/api/pluggy/data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ itemId: targetItemId }),
-      });
+    const combinedAccounts: PluggyAccount[] = [];
+    const combinedBills: any[] = [];
+    const combinedInvestments: any[] = [];
+    const combinedTransactions: Record<string, PluggyTransaction[]> = {};
+    let combinedIdentity: PluggyIdentity | null = null;
 
-      const payload: PluggySyncPayload = await response.json();
-      if (payload.logs && Array.isArray(payload.logs)) {
-        syncLogs.push(...payload.logs);
-      }
+    let successfulSyncs = 0;
 
-      if (!response.ok || (payload as any).error) {
-        const errMsg = (payload as any).error || `Erro HTTP ${response.status}`;
-        throw new Error(errMsg);
-      }
+    for (const itemId of targetItemIds) {
+      const itemLabel = pluggyConfig?.itemLabels?.[itemId] || itemId.substring(0, 8);
+      syncLogs.push(`[${new Date().toLocaleTimeString()}] Buscando dados da conexão "${itemLabel}" (${itemId.substring(0, 8)}...)...`);
 
-      // Salva o payload no estado e em localStorage para persistência permanente da tela
-      setPluggyLastPayload(payload);
-      saveToStorage(STORAGE_KEYS.PLUGGY_LAST_PAYLOAD, payload);
+      try {
+        const response = await fetch('/api/pluggy/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ itemId }),
+        });
 
-      const updatedConfig: PluggyConfig = {
-        ...(pluggyConfig || initialPluggyConfig),
-        itemId: targetItemId,
-        lastSyncAt: new Date().toISOString(),
-      };
-      setPluggyConfig(updatedConfig);
-      saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, updatedConfig);
-      updateLastModified();
-
-      // Identifica se há compras parceladas novas para notificação no banner
-      const allDetectedInstallments: DetectedCardInstallment[] = [];
-      const accounts = payload.accounts || [];
-      const txsByAccount = payload.transactions || {};
-      for (const pluggyAcc of accounts) {
-        const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
-        if (!orbiumAccountId) continue;
-        const orbiumAccount = contasMovimento.find(a => a.id === orbiumAccountId);
-        const isCredit = pluggyAcc.type === 'CREDIT' || orbiumAccount?.accountType === 'cartao_credito';
-        if (isCredit) {
-          const accountTxs = txsByAccount[pluggyAcc.id] || [];
-          const detectedForAcc = groupDetectedInstallments(accountTxs, orbiumAccountId, billsTracker, creditCardConfigs);
-          allDetectedInstallments.push(...detectedForAcc);
+        const payload: PluggySyncPayload = await response.json();
+        if (payload.logs && Array.isArray(payload.logs)) {
+          syncLogs.push(...payload.logs);
         }
+
+        if (!response.ok || (payload as any).error) {
+          const errMsg = (payload as any).error || `Erro HTTP ${response.status}`;
+          syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] Falha ao sincronizar Item ID "${itemId.substring(0, 8)}...": ${errMsg}`);
+          continue;
+        }
+
+        successfulSyncs++;
+        if (!combinedIdentity && payload.identity) {
+          combinedIdentity = payload.identity;
+        }
+
+        if (payload.accounts && Array.isArray(payload.accounts)) {
+          payload.accounts.forEach(acc => {
+            if (!combinedAccounts.some(a => a.id === acc.id)) {
+              combinedAccounts.push(acc);
+            }
+          });
+        }
+
+        if (payload.bills && Array.isArray(payload.bills)) {
+          combinedBills.push(...payload.bills);
+        }
+
+        if (payload.investments && Array.isArray(payload.investments)) {
+          combinedInvestments.push(...payload.investments);
+        }
+
+        if (payload.transactions && typeof payload.transactions === 'object') {
+          Object.entries(payload.transactions).forEach(([accId, txs]) => {
+            combinedTransactions[accId] = txs;
+          });
+        }
+      } catch (err: any) {
+        syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] Conexão ${itemId.substring(0, 8)}...: ${err.message || 'Falha na requisição'}`);
       }
+    }
 
-      const totalTxsFound = Object.values(txsByAccount).reduce((sum, list) => sum + list.length, 0);
-      const summaryMsg = `Dados bancários atualizados com sucesso da Pluggy! (${accounts.length} contas e ${totalTxsFound} movimentações obtidas).`;
-      syncLogs.push(`[${new Date().toLocaleTimeString()}] [SUCESSO] ${summaryMsg}`);
-
-      return {
-        success: true,
-        message: summaryMsg,
-        logs: syncLogs,
-        payload,
-        detectedInstallments: allDetectedInstallments,
-      };
-    } catch (err: any) {
-      syncLogs.push(`[${new Date().toLocaleTimeString()}] [ERRO] ${err.message || 'Falha na sincronização'}`);
+    if (successfulSyncs === 0) {
+      setIsSyncingPluggy(false);
       return {
         success: false,
-        message: err.message || "Erro ao conectar com a API Pluggy.",
+        message: "Não foi possível sincronizar nenhuma das conexões Open Finance configuradas.",
         logs: syncLogs,
       };
-    } finally {
-      setIsSyncingPluggy(false);
     }
+
+    const combinedPayload: PluggySyncPayload = {
+      identity: combinedIdentity,
+      accounts: combinedAccounts,
+      bills: combinedBills,
+      investments: combinedInvestments,
+      transactions: combinedTransactions,
+      isSandboxOrDemo: false,
+      logs: syncLogs,
+    };
+
+    setPluggyLastPayload(combinedPayload);
+    saveToStorage(STORAGE_KEYS.PLUGGY_LAST_PAYLOAD, combinedPayload);
+
+    const primaryItemId = targetItemIds[0] || pluggyConfig?.itemId || "";
+    const updatedConfig: PluggyConfig = {
+      ...(pluggyConfig || initialPluggyConfig),
+      itemId: primaryItemId,
+      itemIds: targetItemIds,
+      lastSyncAt: new Date().toISOString(),
+    };
+    setPluggyConfig(updatedConfig);
+    saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, updatedConfig);
+    updateLastModified();
+
+    // Identifica se há compras parceladas novas para notificação no banner
+    const allDetectedInstallments: DetectedCardInstallment[] = [];
+    for (const pluggyAcc of combinedAccounts) {
+      const orbiumAccountId = pluggyConfig?.linkedAccounts?.[pluggyAcc.id];
+      if (!orbiumAccountId) continue;
+      const orbiumAccount = contasMovimento.find(a => a.id === orbiumAccountId);
+      const isCredit = pluggyAcc.type === 'CREDIT' || orbiumAccount?.accountType === 'cartao_credito';
+      if (isCredit) {
+        const accountTxs = combinedTransactions[pluggyAcc.id] || [];
+        const detectedForAcc = groupDetectedInstallments(accountTxs, orbiumAccountId, billsTracker, creditCardConfigs);
+        allDetectedInstallments.push(...detectedForAcc);
+      }
+    }
+
+    const totalTxsFound = Object.values(combinedTransactions).reduce((sum, list) => sum + list.length, 0);
+    const summaryMsg = `Sincronização concluída com sucesso! (${successfulSyncs}/${targetItemIds.length} conexões, ${combinedAccounts.length} contas e ${totalTxsFound} movimentações obtidas).`;
+    syncLogs.push(`[${new Date().toLocaleTimeString()}] [SUCESSO] ${summaryMsg}`);
+
+    setIsSyncingPluggy(false);
+    return {
+      success: true,
+      message: summaryMsg,
+      logs: syncLogs,
+      payload: combinedPayload,
+      detectedInstallments: allDetectedInstallments,
+    };
   }, [pluggyConfig, contasMovimento, billsTracker, creditCardConfigs, setPluggyLastPayload, updateLastModified]);
 
   const generateCheckingStatementsFromPluggy = useCallback((targetPluggyAccountId?: string): {

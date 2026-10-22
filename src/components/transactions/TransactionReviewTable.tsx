@@ -189,11 +189,11 @@ export function TransactionReviewTable({
   // Estado Vazio (Inbox Zero)
   if (transactions.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center">
-        <div className="w-16 h-16 rounded-3xl bg-success/10 border border-success/20 flex items-center justify-center text-success mb-4 animate-in zoom-in duration-300">
-          <CheckCircle2 className="w-8 h-8" />
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-success/10 border border-success/20 flex items-center justify-center text-success mb-3 animate-in zoom-in duration-300">
+          <CheckCircle2 className="w-7 h-7" />
         </div>
-        <h3 className="text-base font-bold text-foreground">
+        <h3 className="text-sm font-bold text-foreground">
           Nenhum lançamento pendente a tratar
         </h3>
         <p className="text-xs text-muted-foreground max-w-sm mt-1">
@@ -353,7 +353,7 @@ export function TransactionReviewTable({
 
   // Desktop Table View
   return (
-    <div className="w-full overflow-x-auto scrollbar-material">
+    <div className="w-full">
       <Table style={{ minWidth: `${totalWidth}px` }} className="table-fixed w-full">
         <TableHeader className="bg-card sticky top-0 z-30">
           <TableRow className="hover:bg-transparent border-b border-border/40 h-12">

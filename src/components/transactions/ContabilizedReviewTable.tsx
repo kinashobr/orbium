@@ -51,11 +51,11 @@ export function ContabilizedReviewTable({
 
   if (transactions.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-muted/30 border border-border/40 flex items-center justify-center text-muted-foreground/60 mb-4">
+      <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-muted/30 border border-border/40 flex items-center justify-center text-muted-foreground/60 mb-3">
           <RotateCcw className="w-6 h-6" />
         </div>
-        <h3 className="text-base font-bold text-foreground">Nenhuma transação contabilizada no período</h3>
+        <h3 className="text-sm font-bold text-foreground">Nenhuma transação contabilizada no período</h3>
         <p className="text-xs text-muted-foreground max-w-sm mt-1">
           Os lançamentos conciliados e importados desta conta para o período selecionado aparecerão aqui caso precise revisá-los ou estorná-los.
         </p>
@@ -64,7 +64,7 @@ export function ContabilizedReviewTable({
   }
 
   return (
-    <div className="w-full overflow-x-auto scrollbar-material">
+    <div className="w-full">
       <Table className="table-fixed min-w-[760px] w-full">
         <TableHeader className="bg-card sticky top-0 z-20">
           <TableRow className="hover:bg-transparent border-b border-border/40 h-12">
