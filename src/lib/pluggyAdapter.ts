@@ -238,7 +238,8 @@ export function isCreditCardTransactionDuplicate(
   targetAccountId: string,
   existingTxs: TransacaoCompleta[],
   importedStatements: ImportedStatement[] = [],
-  billsTracker: BillTracker[] = []
+  billsTracker: BillTracker[] = [],
+  creditCardConfigs: CreditCardConfig[] = []
 ): boolean {
   let rawAmount = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
   const cleanAmount = Math.abs(rawAmount);
@@ -366,10 +367,32 @@ export function isCreditCardTransactionDuplicate(
   if (isAlreadyInStatements) return true;
 
   // 3. Verificação no Gerenciar Compromissos (billsTracker: compras parceladas ou recorrentes)
+  const parsed = parseInstallmentPattern(tx.description);
+  if (parsed.isInstallment && parsed.totalInstallments > 1) {
+    const matchingBills = findMatchingCommitment({
+      cleanDescription: parsed.cleanDescription,
+      accountId: targetAccountId,
+      bills: billsTracker,
+      creditCardConfigs,
+      installmentAmount: cleanAmount,
+      totalInstallments: parsed.totalInstallments,
+      currentInstallment: parsed.currentInstallment,
+      transactionDate: txDate
+    });
+    if (matchingBills.length > 0) {
+      return true;
+    }
+  }
+
   const isAlreadyInBills = billsTracker.some(b => {
     if (b.isExcluded) return false;
-    const isTargetAcc = b.suggestedAccountId === targetAccountId || b.cardId === targetAccountId || b.sourceRef === targetAccountId;
+    const isTargetAcc = isAccountCompatible(b, targetAccountId, creditCardConfigs);
     if (!isTargetAcc) return false;
+
+    if (isInvoicePayment && b.sourceType === 'card_invoice') {
+      const sameAmt = Math.abs((b.expectedAmount || 0) - cleanAmount) < 2.00;
+      if (sameAmt) return true;
+    }
 
     const sameAmt = Math.abs((b.expectedAmount || 0) - cleanAmount) < 0.05;
     if (sameAmt) {
@@ -377,7 +400,7 @@ export function isCreditCardTransactionDuplicate(
         const bDate = parseDateLocal(b.dueDate.substring(0, 10));
         const pDate = parseDateLocal(txDate);
         const diffDays = Math.abs((bDate.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 5) return true;
+        if (diffDays <= 31) return true;
       } catch {
         return false;
       }

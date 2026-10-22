@@ -7,11 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pin, Save, AlertCircle, Check, X, ArrowLeft } from "lucide-react";
-import { StandardizationRule, ImportedTransaction, Categoria, OperationType, CATEGORY_NATURE_LABELS } from "@/types/finance";
+import { StandardizationRule, ImportedTransaction, Categoria, OperationType } from "@/types/finance";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CategorySearchSelector } from "@/components/bills/CategorySearchSelector";
+import { OperationSearchSelector } from "./OperationSearchSelector";
 
 interface StandardizationRuleFormModalProps {
   open: boolean;
@@ -163,44 +165,31 @@ export function StandardizationRuleFormModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Operação *</Label>
-                <Select
+                <OperationSearchSelector
                   value={operationType}
-                  onValueChange={(v) => {
-                      setOperationType(v as OperationType);
-                      if (NON_CATEGORY_OPERATIONS.includes(v as OperationType)) setCategoryId(null);
+                  className="h-11 text-xs"
+                  onSelect={(v) => {
+                    setOperationType(v);
+                    if (NON_CATEGORY_OPERATIONS.includes(v)) setCategoryId(null);
                   }}
-                >
-                  <SelectTrigger className="h-12 border-2 rounded-xl">
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent className="z-[210]">
-                    {STANDARDIZABLE_OPERATIONS.map(op => (
-                      <SelectItem key={op.value} value={op.value}>
-                        <span className={cn("flex items-center gap-2", op.color)}>{op.label}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                />
               </div>
               
               <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Categoria {categoryRequired ? '*' : ''}</Label>
-                <Select
-                  value={categoryId || ''}
-                  onValueChange={setCategoryId}
-                  disabled={!categoryRequired}
-                >
-                  <SelectTrigger className="h-12 border-2 rounded-xl">
-                    <SelectValue placeholder={categoryRequired ? "Selecione..." : "Não aplicável"} />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60 z-[210]">
-                    {getCategoryOptions.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id} className="text-xs font-medium">
-                        {cat.icon} {cat.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Categoria {categoryRequired ? '*' : ''}
+                </Label>
+                {categoryRequired ? (
+                  <CategorySearchSelector
+                    value={categoryId || null}
+                    categories={getCategoryOptions}
+                    onSelect={(val) => setCategoryId(val)}
+                  />
+                ) : (
+                  <div className="h-9 flex items-center px-3 rounded-xl bg-muted/20 text-[10px] font-bold text-muted-foreground opacity-50 uppercase">
+                    Não aplicável
+                  </div>
+                )}
               </div>
             </div>
 

@@ -29,3 +29,55 @@ export function validateTransaction(tx: TransacaoCompleta): { valid: boolean; me
 
   return { valid: true };
 }
+
+export function isImportedTransactionReady(tx: {
+  isPotentialDuplicate?: boolean;
+  operationType?: OperationType | null;
+  categoryId?: string | null;
+  destinationAccountId?: string | null;
+  accountId?: string;
+  tempInvestmentId?: string | null;
+  tempLoanId?: string | null;
+  tempParcelaId?: string | null;
+  tempVehicleOperation?: string | null;
+  tempAssetOperation?: string | null;
+}): boolean {
+  if (tx.isPotentialDuplicate) return false;
+  if (!tx.operationType) return false;
+
+  switch (tx.operationType) {
+    case 'receita':
+    case 'despesa':
+    case 'rendimento':
+      return Boolean(tx.categoryId);
+    case 'transferencia':
+      return Boolean(tx.destinationAccountId && tx.destinationAccountId !== tx.accountId);
+    case 'aplicacao':
+    case 'resgate':
+      return Boolean(tx.tempInvestmentId);
+    case 'pagamento_emprestimo':
+      return Boolean(tx.tempLoanId && tx.tempParcelaId);
+    case 'liberacao_emprestimo':
+      return true;
+    case 'veiculo':
+      return Boolean(tx.tempVehicleOperation || tx.tempAssetOperation || tx.categoryId);
+    default:
+      return Boolean(tx.categoryId);
+  }
+}
+
+export function isTransactionIncome(
+  operationType: OperationType | null | undefined,
+  accountType?: string
+): boolean {
+  if (!operationType) return false;
+  const isInvestment = ['renda_fixa', 'poupanca', 'cripto', 'reserva', 'objetivo'].includes(accountType || '');
+  if (isInvestment) {
+    // Para conta de investimento: Aplicação é ENTRADA de saldo (+), Resgate é SAÍDA (-)
+    return ['aplicacao', 'rendimento', 'receita'].includes(operationType);
+  }
+  // Para conta corrente e demais: Resgate é ENTRADA (+), Aplicação é SAÍDA (-)
+  return ['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(operationType);
+}
+
+

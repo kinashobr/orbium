@@ -70,10 +70,34 @@ export default function OpenFinanceSettings() {
   const [selectedTxAccount, setSelectedTxAccount] = useState<string>("all");
   const [pendingInstallments, setPendingInstallments] = useState<DetectedCardInstallment[]>([]);
   const [showInstallmentsModal, setShowInstallmentsModal] = useState(false);
-  const [assignedCategories, setAssignedCategories] = useState<Record<string, string>>({});
-  const [assignedDescriptions, setAssignedDescriptions] = useState<Record<string, string>>({});
-  
-  // Controle de visibilidade do Item ID (oculto por padrão se já configurado)
+  const [assignedCategories, setAssignedCategories] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('open_finance_assigned_categories');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [assignedDescriptions, setAssignedDescriptions] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('open_finance_assigned_descriptions');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('open_finance_assigned_categories', JSON.stringify(assignedCategories));
+    } catch {}
+  }, [assignedCategories]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('open_finance_assigned_descriptions', JSON.stringify(assignedDescriptions));
+    } catch {}
+  }, [assignedDescriptions]);
   const [showItemIdConfig, setShowItemIdConfig] = useState(!pluggyConfig?.itemId);
 
   // Console oculto por padrão
@@ -191,13 +215,32 @@ export default function OpenFinanceSettings() {
   // Desfazer lançamentos importados do cartão de crédito (execução direta em 1 clique sem modal)
   const handleUndoCardTransactions = () => {
     const targetAccId = selectedTxAccount !== "all" ? selectedTxAccount : undefined;
-    const removedCount = undoPluggyCardTransactions(targetAccId);
+    const { count: removedCount, restoredDescriptions, restoredCategories } = undoPluggyCardTransactions(targetAccId);
 
     if (removedCount > 0) {
+      if (restoredDescriptions && Object.keys(restoredDescriptions).length > 0) {
+        setAssignedDescriptions(prev => {
+          const updated = { ...prev, ...restoredDescriptions };
+          try {
+            localStorage.setItem('open_finance_assigned_descriptions', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+      }
+      if (restoredCategories && Object.keys(restoredCategories).length > 0) {
+        setAssignedCategories(prev => {
+          const updated = { ...prev, ...restoredCategories };
+          try {
+            localStorage.setItem('open_finance_assigned_categories', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+      }
+
       toast.success(`${removedCount} lançamento(s) de cartão desfeito(s) com sucesso!`);
       setLogs(prev => [
         ...prev,
-        `[${new Date().toLocaleTimeString()}] [DESFAZER] ${removedCount} lançamento(s) de cartão de crédito removido(s) do sistema.`
+        `[${new Date().toLocaleTimeString()}] [DESFAZER] ${removedCount} lançamento(s) de cartão de crédito removido(s) do sistema. Descrições personalizadas preservadas.`
       ]);
     } else {
       toast.info("Nenhum lançamento do cartão de crédito do Open Finance encontrado para remover.");
@@ -315,21 +358,33 @@ export default function OpenFinanceSettings() {
   ]);
 
   // Alteração manual de categoria inline
-  const handleCategoryChange = (key: string, categoryId: string) => {
-    setAssignedCategories(prev => ({
-      ...prev,
-      [key]: categoryId
-    }));
+  const handleCategoryChange = (key: string, categoryId: string, txIds?: string[]) => {
+    setAssignedCategories(prev => {
+      const updated = { ...prev, [key]: categoryId };
+      if (txIds && Array.isArray(txIds)) {
+        txIds.forEach(id => { updated[id] = categoryId; });
+      }
+      try {
+        localStorage.setItem('open_finance_assigned_categories', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   };
 
   // Alteração manual de descrição antes de lançar
-  const handleDescriptionChange = (key: string, newDesc: string) => {
+  const handleDescriptionChange = (key: string, newDesc: string, txIds?: string[]) => {
     const trimmed = newDesc.trim();
     if (!trimmed) return;
-    setAssignedDescriptions(prev => ({
-      ...prev,
-      [key]: trimmed
-    }));
+    setAssignedDescriptions(prev => {
+      const updated = { ...prev, [key]: trimmed };
+      if (txIds && Array.isArray(txIds)) {
+        txIds.forEach(id => { updated[id] = trimmed; });
+      }
+      try {
+        localStorage.setItem('open_finance_assigned_descriptions', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   };
 
   // Ações de logs
@@ -401,19 +456,6 @@ export default function OpenFinanceSettings() {
                 <span className="hidden sm:inline">Alterar ID</span>
               </Button>
 
-              {/* NOVO BOTÃO: Disponibilizar Extrato de Conta Corrente */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleGenerateCheckingStatements}
-                disabled={availableAccounts.length === 0}
-                className="h-9 px-3.5 rounded-xl font-semibold border-border/70 hover:border-primary/40 text-foreground hover:bg-muted shadow-2xs gap-1.5"
-                title="Disponibiliza o extrato bancário das contas correntes na tela de Revisão de Extrato"
-              >
-                <FileText className="w-3.5 h-3.5 text-primary" />
-                <span>Disponibilizar Extrato</span>
-              </Button>
-
               {/* BOTÃO SINCRONIZAR: Busca exclusiva de dados da Pluggy */}
               <Button
                 onClick={handleTriggerSync}
@@ -463,18 +505,6 @@ export default function OpenFinanceSettings() {
                 >
                   <Save className="w-3.5 h-3.5" />
                   Salvar
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerateCheckingStatements}
-                  disabled={availableAccounts.length === 0}
-                  className="flex-1 text-xs h-10 font-semibold border-border/70 hover:border-primary/40 gap-1.5"
-                  title="Disponibiliza o extrato bancário das contas correntes"
-                >
-                  <FileText className="w-3.5 h-3.5 text-primary" />
-                  <span>Disponibilizar Extrato</span>
                 </Button>
 
                 <Button
@@ -824,7 +854,15 @@ export default function OpenFinanceSettings() {
                       // Se for Cartão de Crédito ou visão geral: exibe detalhamento com seletor de categorias do sistema
                       const effectiveCategoryId = assignedCategories[item.key] !== undefined 
                         ? assignedCategories[item.key] 
-                        : (item.suggestedCategoryId || "");
+                        : (item.txIds && item.txIds.some(id => assignedCategories[id] !== undefined)
+                            ? assignedCategories[item.txIds.find(id => assignedCategories[id] !== undefined)!]
+                            : (item.suggestedCategoryId || ""));
+
+                      const customDescValue = assignedDescriptions[item.key] !== undefined 
+                        ? assignedDescriptions[item.key] 
+                        : (item.txIds && item.txIds.some(id => assignedDescriptions[id] !== undefined)
+                            ? assignedDescriptions[item.txIds.find(id => assignedDescriptions[id] !== undefined)!]
+                            : item.displayDescription);
 
                       const isItemFromChecking = availableAccounts.find(a => a.id === item.pluggyAccId)?.type !== 'CREDIT';
 
@@ -835,9 +873,9 @@ export default function OpenFinanceSettings() {
                           <div className="col-span-5 sm:col-span-5 min-w-0 pr-1">
                             <div className="flex items-center gap-1">
                               <EditableCell
-                                value={assignedDescriptions[item.key] !== undefined ? assignedDescriptions[item.key] : item.displayDescription}
+                                value={customDescValue}
                                 type="text"
-                                onSave={(v) => handleDescriptionChange(item.key, String(v))}
+                                onSave={(v) => handleDescriptionChange(item.key, String(v), item.txIds)}
                                 className="font-semibold text-foreground truncate text-xs px-1.5 py-0.5 h-7 rounded bg-background/40 hover:bg-background border border-transparent hover:border-border/60 transition-colors cursor-pointer"
                               />
                             </div>
@@ -875,7 +913,7 @@ export default function OpenFinanceSettings() {
                               <div className="flex items-center gap-1">
                                 <Select
                                   value={effectiveCategoryId || "none"}
-                                  onValueChange={(val) => handleCategoryChange(item.key, val === "none" ? "" : val)}
+                                  onValueChange={(val) => handleCategoryChange(item.key, val === "none" ? "" : val, item.txIds)}
                                 >
                                   <SelectTrigger className="h-7 text-[11px] bg-background border-border/60 rounded-lg px-2 text-foreground font-medium truncate">
                                     <SelectValue placeholder="Categorizar..." />

@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan updated with resolutions for the credit card duplicate detection, undo action mapping, and resolution of hidden credit card expenses in Contas a Pagar.",
-  "updatedAt":  "2026-10-21T14:45:50.601520730Z",
+  "summary":  "Plano detalhado de implementação para modernização e refinamento completo da tela de Revisão de Extrato (unificação de descrição, abas Pendentes/Contabilizadas, seletores com busca, seleção em lote, preservação de edições ao salvar regras, exclusão e desfazer contabilização).",
+  "updatedAt":  "2026-10-22T13:08:02.319052699Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

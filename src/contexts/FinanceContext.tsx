@@ -58,6 +58,7 @@ import { PluggyConfig, PluggySyncPayload, DetectedCardInstallment } from "@/type
 import { 
   convertPluggyToTransacaoCompleta, 
   isCreditCardTransactionDuplicate, 
+  isPluggyTransactionAlreadyHandled,
   buildPluggyImportedStatement,
   isCardInvoicePayment,
   parseInstallmentPattern,
@@ -404,8 +405,11 @@ interface FinanceContextType {
   deleteImportedStatement: (statementId: string) => void;
   getTransactionsForReview: (accountId: string, range: DateRange) => ImportedTransaction[];
   updateImportedStatement: (statementId: string, updates: Partial<ImportedStatement>) => void;
+  deleteImportedTransaction: (transactionId: string) => void;
+  updateImportedTransactionDraft: (transactionId: string, updates: Partial<ImportedTransaction>) => void;
   contabilizeImportedTransaction: (statementId: string, transactionId: string, data: Partial<ImportedTransaction>) => void;
   uncontabilizeImportedTransaction: (transactionId: string) => void;
+  uncontabilizeTransactionsBatch: (transactionIds: string[]) => void;
   
   // Execução de Transação Unificada
   executeTransaction: (
@@ -535,7 +539,11 @@ interface FinanceContextType {
     detectedInstallments?: DetectedCardInstallment[];
   }>;
   isSyncingPluggy: boolean;
-  undoPluggyCardTransactions: (targetAccountId?: string) => number;
+  undoPluggyCardTransactions: (targetAccountId?: string) => {
+    count: number;
+    restoredDescriptions: Record<string, string>;
+    restoredCategories: Record<string, string>;
+  };
   generateCheckingStatementsFromPluggy: (targetPluggyAccountId?: string) => {
     success: boolean;
     statementCount: number;
@@ -1080,10 +1088,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const originalDesc = tx.originalDescription.toLowerCase();
       for (const rule of rules) {
         if (originalDesc.includes(rule.pattern.toLowerCase())) {
-          updatedTx.categoryId = rule.categoryId;
-          updatedTx.operationType = rule.operationType;
-          updatedTx.description = rule.descriptionTemplate;
-          updatedTx.isTransfer = rule.operationType === 'transferencia';
+          if (!updatedTx.description || updatedTx.description === updatedTx.originalDescription) {
+            updatedTx.description = rule.descriptionTemplate;
+          }
+          if (!updatedTx.categoryId) {
+            updatedTx.categoryId = rule.categoryId;
+          }
+          if (!updatedTx.operationType || updatedTx.operationType === 'receita' || updatedTx.operationType === 'despesa') {
+            updatedTx.operationType = rule.operationType;
+            updatedTx.isTransfer = rule.operationType === 'transferencia';
+          }
           break;
         }
       }
@@ -1098,18 +1112,44 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         ? parseOFX(content, accountId) 
         : parseCSV(content, accountId);
       if (rawTransactions.length === 0) return { success: false, message: "Nenhuma transação válida encontrada." };
+      
       const processedTransactions = applyRules(rawTransactions, standardizationRules);
-      const dates = processedTransactions.map(t => parseDateLocal(t.date)).sort((a, b) => a.getTime() - b.getTime());
+      
+      // Deduplicar: não reimportar transações que já existem nos extratos desta conta
+      const existingTxKeys = new Set<string>();
+      importedStatements
+        .filter(s => s.accountId === accountId)
+        .forEach(s => {
+          s.rawTransactions.forEach(t => {
+            const key = `${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
+            existingTxKeys.add(key);
+          });
+        });
+
+      const newTransactionsOnly = processedTransactions.filter(t => {
+        const key = `${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
+        return !existingTxKeys.has(key);
+      });
+
+      if (newTransactionsOnly.length === 0) {
+        return { success: false, message: "Este arquivo (ou todas as suas transações) já foi importado anteriormente." };
+      }
+
+      const dates = newTransactionsOnly.map(t => parseDateLocal(t.date)).sort((a, b) => a.getTime() - b.getTime());
       const startDate = dates[0] ? format(dates[0], 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
       const endDate = dates[dates.length - 1] ? format(dates[dates.length - 1], 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd');
       const newStatement: ImportedStatement = {
           id: generateStatementId(), accountId, fileName: file.name, importDate: new Date().toISOString(),
-          startDate, endDate, status: 'pending', rawTransactions: processedTransactions,
+          startDate, endDate, status: 'pending', rawTransactions: newTransactionsOnly,
       };
       setImportedStatements(prev => [...prev, newStatement]);
-      return { success: true, message: `${processedTransactions.length} transações carregadas.` };
+      const ignoredCount = processedTransactions.length - newTransactionsOnly.length;
+      return { 
+        success: true, 
+        message: `${newTransactionsOnly.length} transações carregadas${ignoredCount > 0 ? ` (${ignoredCount} duplicadas ignoradas)` : ''}.` 
+      };
     } catch (e: any) { return { success: false, message: e.message || "Erro ao processar o arquivo." }; }
-  }, [standardizationRules, applyRules]);
+  }, [standardizationRules, applyRules, importedStatements]);
 
   const deleteImportedStatement = useCallback((statementId: string) => {
     setImportedStatements(prev => prev.filter(s => s.id !== statementId));
@@ -1117,6 +1157,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   const updateImportedStatement = useCallback((statementId: string, updates: Partial<ImportedStatement>) => {
     setImportedStatements(prev => prev.map(s => s.id === statementId ? { ...s, ...updates } : s));
+  }, []);
+
+  const deleteImportedTransaction = useCallback((transactionId: string) => {
+    setImportedStatements(prev => prev.map(s => {
+      const filtered = s.rawTransactions.filter(t => t.id !== transactionId);
+      if (filtered.length !== s.rawTransactions.length) {
+        const pendingCount = filtered.filter(t => !t.isContabilized).length;
+        return {
+          ...s,
+          rawTransactions: filtered,
+          status: filtered.length === 0 ? 'complete' : (pendingCount === 0 ? 'complete' : 'partial')
+        };
+      }
+      return s;
+    }).filter(s => s.rawTransactions.length > 0));
+  }, []);
+
+  const updateImportedTransactionDraft = useCallback((transactionId: string, updates: Partial<ImportedTransaction>) => {
+    setImportedStatements(prev => prev.map(s => {
+      const idx = s.rawTransactions.findIndex(t => t.id === transactionId);
+      if (idx !== -1) {
+        const updatedRaw = [...s.rawTransactions];
+        updatedRaw[idx] = { ...updatedRaw[idx], ...updates };
+        return { ...s, rawTransactions: updatedRaw };
+      }
+      return s;
+    }));
   }, []);
 
   const executeTransaction = useCallback((
@@ -1267,44 +1334,85 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   }, [billsTracker, updateBill, veiculos]);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
-    setTransacoesV2(prev => prev.filter(t => t.id !== transactionId));
-    setImportedStatements(prev => prev.map(s => {
-        let updated = false;
-        const newRawTransactions = s.rawTransactions.map(t => {
-                if (t.contabilizedTransactionId === transactionId) {
-		        updated = true;
-		        return {
-		        	...t,
-		        	isContabilized: false,
-		        	contabilizedTransactionId: undefined,
-		        	categoryId: null,
-		        	operationType: null,
-		        	description: t.originalDescription,
-		        	isTransfer: false,
-		        	destinationAccountId: null,
-		        	tempInvestmentId: null,
-		        	tempLoanId: null,
-		        	tempParcelaId: null,
-		        	tempVehicleOperation: null,
-		        	tempAssetType: undefined,
-		        	tempAssetOperation: undefined,
-		        	tempAssetId: undefined,
-		        };
-            }
-            return t;
-        });
-        if (updated) {
-            const pendingCount = newRawTransactions.filter(t => !t.isContabilized).length;
-            return { ...s, rawTransactions: newRawTransactions, status: pendingCount === 0 ? 'complete' : 'partial' };
-        }
-        return s;
+    const targetTx = transacoesV2.find(t => t.id === transactionId);
+    const transferGroupId = targetTx?.links?.transferGroupId;
+
+    setTransacoesV2(prev => prev.filter(t => {
+      if (t.id === transactionId) return false;
+      if (transferGroupId && t.links?.transferGroupId === transferGroupId) return false;
+      return true;
     }));
-  }, [setTransacoesV2]);
+
+    setImportedStatements(prev => prev.map(s => {
+      let updated = false;
+      const newRawTransactions = s.rawTransactions.map(t => {
+        if (t.contabilizedTransactionId === transactionId) {
+          updated = true;
+          return {
+            ...t,
+            isContabilized: false,
+            contabilizedTransactionId: undefined,
+          };
+        }
+        return t;
+      });
+      if (updated) {
+        const pendingCount = newRawTransactions.filter(t => !t.isContabilized).length;
+        return { ...s, rawTransactions: newRawTransactions, status: pendingCount === 0 ? 'complete' : 'partial' };
+      }
+      return s;
+    }));
+  }, [transacoesV2, setTransacoesV2]);
+
+  const uncontabilizeTransactionsBatch = useCallback((transactionIds: string[]) => {
+    if (!transactionIds.length) return;
+    const idSet = new Set(transactionIds);
+    const transferGroupIdsToRemove = new Set<string>();
+
+    transacoesV2.forEach(t => {
+      if (idSet.has(t.id) && t.links?.transferGroupId) {
+        transferGroupIdsToRemove.add(t.links.transferGroupId);
+      }
+    });
+
+    setTransacoesV2(prev => prev.filter(t => {
+      if (idSet.has(t.id)) return false;
+      if (t.links?.transferGroupId && transferGroupIdsToRemove.has(t.links.transferGroupId)) return false;
+      return true;
+    }));
+
+    setImportedStatements(prev => prev.map(s => {
+      let updated = false;
+      const newRawTransactions = s.rawTransactions.map(t => {
+        if (t.contabilizedTransactionId && idSet.has(t.contabilizedTransactionId)) {
+          updated = true;
+          return {
+            ...t,
+            isContabilized: false,
+            contabilizedTransactionId: undefined,
+          };
+        }
+        return t;
+      });
+      if (updated) {
+        const pendingCount = newRawTransactions.filter(t => !t.isContabilized).length;
+        return { ...s, rawTransactions: newRawTransactions, status: pendingCount === 0 ? 'complete' : 'partial' };
+      }
+      return s;
+    }));
+  }, [transacoesV2, setTransacoesV2]);
   
   const getTransactionsForReview = useCallback((accountId: string, range: DateRange): ImportedTransaction[] => {
     const allRawTransactions: ImportedTransaction[] = [];
+    const seenRawKeys = new Set<string>();
     importedStatements.filter(s => s.accountId === accountId).forEach(s => {
-        s.rawTransactions.filter(t => !t.isContabilized).forEach(t => allRawTransactions.push(t));
+        s.rawTransactions.filter(t => !t.isContabilized).forEach(t => {
+          const key = `${t.accountId}_${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
+          if (!seenRawKeys.has(key)) {
+            seenRawKeys.add(key);
+            allRawTransactions.push(t);
+          }
+        });
     });
     
     // Identificar se a conta é de cartão de crédito
@@ -2103,13 +2211,31 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           const rawAmt = typeof tx.amount === 'number' ? tx.amount : parseFloat(tx.amount || '0');
           const cleanAmt = Math.abs(rawAmt);
 
-          // 1. Verificação rigorosa contra duplicidade no cartão de crédito
+          // 1. Verificação com isPluggyTransactionAlreadyHandled (garante que itens já tratados ou compromissos não sejam lançados)
+          const isAlreadyHandled = isPluggyTransactionAlreadyHandled(
+            tx,
+            pluggyAcc.id,
+            orbiumAccountId,
+            isCredit,
+            [...transacoesV2, ...newTransactions],
+            importedStatements,
+            billsTracker,
+            creditCardConfigs
+          );
+
+          if (isAlreadyHandled) {
+            skippedDuplicatesCount++;
+            continue;
+          }
+
+          // 2. Verificação rigorosa contra duplicidade no cartão de crédito
           const isDuplicate = isCreditCardTransactionDuplicate(
             tx, 
             orbiumAccountId, 
             [...transacoesV2, ...newTransactions],
             importedStatements,
-            billsTracker
+            billsTracker,
+            creditCardConfigs
           );
 
           if (isDuplicate) {
@@ -2293,6 +2419,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                 pluggyAccountId: pluggyAcc.id,
                 pluggyItemId: targetItemId,
                 originalAmount: tx.amount,
+                originalDescription: tx.description,
+                userCustomDescription: overrideDesc || (finalDescription !== tx.description ? finalDescription : undefined),
+                itemKey: parsed.isInstallment ? installmentGroupKey : tx.id,
                 createdAt: new Date().toISOString(),
               }
             };
@@ -2328,9 +2457,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }, [pluggyLastPayload, pluggyConfig, contasMovimento, transacoesV2, creditCardConfigs, standardizationRules, importedStatements, billsTracker, setBillsTracker, updateLastModified]);
 
-  const undoPluggyCardTransactions = useCallback((targetAccountId?: string): number => {
+  const undoPluggyCardTransactions = useCallback((targetAccountId?: string): {
+    count: number;
+    restoredDescriptions: Record<string, string>;
+    restoredCategories: Record<string, string>;
+  } => {
     const toRemoveIds = new Set<string>();
     const transferGroupIdsToRemove = new Set<string>();
+    const restoredDescriptions: Record<string, string> = {};
+    const restoredCategories: Record<string, string> = {};
 
     // Mapeamento bidirecional Pluggy ID <-> Orbium ID
     const mappedOrbiumId = (targetAccountId && pluggyConfig?.linkedAccounts?.[targetAccountId])
@@ -2362,6 +2497,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         if (t.links?.transferGroupId) {
           transferGroupIdsToRemove.add(t.links.transferGroupId);
         }
+
+        // Salvar descrições personalizadas e categorias para restaurar na interface do Open Finance
+        const pTxId = t.links?.pluggyTransactionId || t.meta?.pluggyTransactionId;
+        const itemKey = (t.meta as any)?.itemKey || pTxId;
+        const customDesc = (t.meta as any)?.userCustomDescription || t.description;
+
+        if (pTxId && customDesc) {
+          restoredDescriptions[pTxId] = customDesc;
+        }
+        if (itemKey && customDesc) {
+          restoredDescriptions[itemKey] = customDesc;
+        }
+        if (pTxId && t.categoryId) {
+          restoredCategories[pTxId] = t.categoryId;
+        }
+        if (itemKey && t.categoryId) {
+          restoredCategories[itemKey] = t.categoryId;
+        }
       }
     });
 
@@ -2379,7 +2532,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       updateLastModified();
     }
 
-    return toRemoveIds.size;
+    return {
+      count: toRemoveIds.size,
+      restoredDescriptions,
+      restoredCategories,
+    };
   }, [transacoesV2, contasMovimento, pluggyConfig, updateLastModified]);
 
   const markLoanParcelPaid = useCallback((loanId: number, valorPago: number, dataPagamento: string, parcelaNumber?: number) => {
@@ -2853,7 +3010,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,
-    importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction,
+    importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch,
     executeTransaction,
     dateRanges, setDateRanges, alertStartDate, setAlertStartDate, revenueForecasts, setMonthlyRevenueForecast: (k: string, v: number) => setRevenueForecasts(p => ({ ...p, [k]: v })), getRevenueForPreviousMonth,
     getTotalReceitas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
@@ -2973,7 +3130,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,
-    uncontabilizeImportedTransaction, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
+    uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
     updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno
   ]);
 
