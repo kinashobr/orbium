@@ -43,6 +43,7 @@ export function VehicleTechnicalCard({ veiculo, onUpdateVeiculo }: VehicleTechni
   const [editValorVeiculo, setEditValorVeiculo] = useState(veiculo.valorVeiculo || 0);
   const [editPlaca, setEditPlaca] = useState(veiculo.placa || "");
   const [editRenavam, setEditRenavam] = useState(veiculo.renavam || "");
+  const [editChassi, setEditChassi] = useState(veiculo.chassi || "");
   const [editCrlvDados, setEditCrlvDados] = useState(veiculo.crlvDados || "");
 
   // Copiar dados individuais para a área de transferência
@@ -75,6 +76,7 @@ export function VehicleTechnicalCard({ veiculo, onUpdateVeiculo }: VehicleTechni
       valorVeiculo: Number(editValorVeiculo),
       placa: editPlaca.toUpperCase().replace(/[^A-Z0-9-]/g, ""),
       renavam: editRenavam.replace(/\D/g, ""),
+      chassi: editChassi.toUpperCase().trim(),
       crlvDados: editCrlvDados,
     });
 
@@ -218,6 +220,26 @@ export function VehicleTechnicalCard({ veiculo, onUpdateVeiculo }: VehicleTechni
               onClick={() => handleCopy(veiculo.renavam || "", "RENAVAM")}
             >
               <Copy className="w-3 h-3" /> Copiar RENAVAM
+            </Button>
+          )}
+        </div>
+
+        {/* CHASSI */}
+        <div className="p-4 rounded-2xl bg-card border border-border/50 flex flex-col justify-between space-y-2">
+          <div>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest block">Chassi</span>
+            <span className="font-mono font-bold text-base text-foreground mt-1 block truncate">
+              {veiculo.chassi || "Não informado"}
+            </span>
+          </div>
+          {veiculo.chassi && (
+            <Button 
+              size="sm" 
+              variant="outline" 
+              className="h-8 rounded-xl text-xs font-bold gap-1 mt-2" 
+              onClick={() => handleCopy(veiculo.chassi || "", "Chassi")}
+            >
+              <Copy className="w-3 h-3" /> Copiar Chassi
             </Button>
           )}
         </div>

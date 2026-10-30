@@ -1980,6 +1980,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.pluggyConfig) {
         setPluggyConfig(data.data.pluggyConfig);
         saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, data.data.pluggyConfig);
+        if (data.data.pluggyConfig.assignedCategories) {
+          try { localStorage.setItem('open_finance_assigned_categories', JSON.stringify(data.data.pluggyConfig.assignedCategories)); } catch {}
+        }
+        if (data.data.pluggyConfig.assignedDescriptions) {
+          try { localStorage.setItem('open_finance_assigned_descriptions', JSON.stringify(data.data.pluggyConfig.assignedDescriptions)); } catch {}
+        }
       }
       if (data.data.pluggyLastPayload) {
         setPluggyLastPayload(data.data.pluggyLastPayload);

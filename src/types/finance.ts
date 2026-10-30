@@ -215,6 +215,7 @@ export interface Veiculo {
   // Novos campos para informações completas e obrigações
   placa?: string;
   renavam?: string;
+  chassi?: string;
   crlvDados?: string;
   fotoUrl?: string;
   proximaTrocaOleoData?: string;

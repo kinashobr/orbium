@@ -73,6 +73,8 @@ export interface PluggyConfig {
   linkedAccounts: Record<string, string>; // pluggyAccountId -> orbiumAccountId
   linkedCards: Record<string, string>; // pluggyCardId -> orbiumCardAccountId
   linkedInvestments: Record<string, string>; // pluggyInvestmentId -> orbiumAccountId
+  assignedCategories?: Record<string, string>; // Rascunho de categorias atribuídas no Open Finance
+  assignedDescriptions?: Record<string, string>; // Rascunho de descrições personalizadas no Open Finance
   lastSyncAt?: string;
 }
 

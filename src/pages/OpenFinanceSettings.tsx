@@ -75,17 +75,21 @@ export default function OpenFinanceSettings() {
   const [assignedCategories, setAssignedCategories] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem('open_finance_assigned_categories');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
+      if (saved) return JSON.parse(saved);
+      if (pluggyConfig?.assignedCategories) return pluggyConfig.assignedCategories;
       return {};
+    } catch {
+      return pluggyConfig?.assignedCategories || {};
     }
   });
   const [assignedDescriptions, setAssignedDescriptions] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem('open_finance_assigned_descriptions');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
+      if (saved) return JSON.parse(saved);
+      if (pluggyConfig?.assignedDescriptions) return pluggyConfig.assignedDescriptions;
       return {};
+    } catch {
+      return pluggyConfig?.assignedDescriptions || {};
     }
   });
 
@@ -93,13 +97,19 @@ export default function OpenFinanceSettings() {
     try {
       localStorage.setItem('open_finance_assigned_categories', JSON.stringify(assignedCategories));
     } catch {}
-  }, [assignedCategories]);
+    if (assignedCategories && Object.keys(assignedCategories).length > 0) {
+      updatePluggyConfig({ assignedCategories });
+    }
+  }, [assignedCategories, updatePluggyConfig]);
 
   useEffect(() => {
     try {
       localStorage.setItem('open_finance_assigned_descriptions', JSON.stringify(assignedDescriptions));
     } catch {}
-  }, [assignedDescriptions]);
+    if (assignedDescriptions && Object.keys(assignedDescriptions).length > 0) {
+      updatePluggyConfig({ assignedDescriptions });
+    }
+  }, [assignedDescriptions, updatePluggyConfig]);
   const configuredItemIds = useMemo(() => {
     if (pluggyConfig?.itemIds && pluggyConfig.itemIds.length > 0) {
       return pluggyConfig.itemIds;

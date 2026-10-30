@@ -15,13 +15,15 @@ import {
   Plus, 
   Check, 
   Pencil,
-  Trash2
+  Trash2,
+  Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, parseDateLocal } from "@/lib/utils";
 import { format } from "date-fns";
+import { useFinance } from "@/contexts/FinanceContext";
 
 interface VehicleFiscalAndDocsDockProps {
   veiculo: Veiculo;
@@ -30,28 +32,32 @@ interface VehicleFiscalAndDocsDockProps {
 }
 
 export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDynamicEdit }: VehicleFiscalAndDocsDockProps) {
+  const { transacoesV2 } = useFinance();
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editingDocName, setEditingDocName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Tributos
+  // Buscar pagamentos no extrato/transações
+  const ipvaTx = transacoesV2.find(t => 
+    (t.meta?.assetId === veiculo.id || t.links?.vehicleTransactionId === String(veiculo.id)) && 
+    (t.meta?.obligationType === 'ipva' || t.description.toLowerCase().includes('ipva'))
+  );
+
+  const licTx = transacoesV2.find(t => 
+    (t.meta?.assetId === veiculo.id || t.links?.vehicleTransactionId === String(veiculo.id)) && 
+    (t.meta?.obligationType === 'licenciamento' || t.description.toLowerCase().includes('licenciamento'))
+  );
+
   const ipvaVal = veiculo.ipvaValor || 345.29;
-  const ipvaPago = veiculo.ipvaPago !== false;
+  const ipvaPago = !!ipvaTx || veiculo.ipvaPago !== false;
+  const ipvaDatePgto = ipvaTx?.date || veiculo.ipvaVencimento;
+
   const licVal = veiculo.licenciamentoValor || 94.61;
-  const licPago = veiculo.licenciamentoPago !== false;
+  const licPago = !!licTx || veiculo.licenciamentoPago !== false;
+  const licDatePgto = licTx?.date || veiculo.licenciamentoVencimento;
 
   // Documentos cadastrados no veículo (sem hardcode estático)
   const docsList: VehicleDocument[] = veiculo.documentos || [];
-
-  const handleToggleIpva = () => {
-    onUpdateVeiculo(veiculo.id, { ipvaPago: !ipvaPago });
-    toast.success(`IPVA marcado como ${!ipvaPago ? "Quitado" : "Pendente"}`);
-  };
-
-  const handleToggleLic = () => {
-    onUpdateVeiculo(veiculo.id, { licenciamentoPago: !licPago });
-    toast.success(`Licenciamento marcado como ${!licPago ? "Quitado" : "Pendente"}`);
-  };
 
   // Direct File Upload handler (without intermediate modal)
   const handleDirectFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -127,11 +133,11 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
   return (
     <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       
-      {/* SEFAZ & DETRAN STATUS DOCK - COM DUPLO CLIQUE PARA ATIVAR EDIÇÃO DINÂMICA */}
+      {/* STATUS DOCK */}
       <div 
         onDoubleClick={() => onToggleDynamicEdit?.()}
         className="lg:col-span-7 flex flex-col justify-between p-6 lg:p-7 rounded-3xl bg-card border border-border/80 shadow-sm gap-4 transition-colors select-none cursor-pointer hover:border-primary/40"
-        title="Duplo clique para editar o cadastro fiscal do veículo em tela"
+        title="Duplo clique para editar o cadastro em tela"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -139,8 +145,8 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-display font-black text-base lg:text-lg text-foreground">Obrigações Tributárias 2026</h3>
-              <span className="text-xs font-bold uppercase text-muted-foreground">Status Fazendário de São Paulo / Brasil</span>
+              <h3 className="font-display font-black text-base lg:text-lg text-foreground">Taxas & Licenciamento Anual</h3>
+              <span className="text-xs font-bold uppercase text-muted-foreground">Encargos fiscais, tributos e datas de quitação</span>
             </div>
           </div>
         </div>
@@ -148,19 +154,21 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           {/* IPVA Capsule */}
           <div 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleIpva();
-            }}
-            className="flex items-center justify-between p-4 rounded-2xl bg-muted/40 hover:bg-muted border border-border/50 transition-all cursor-pointer select-none group"
+            className="flex items-center justify-between p-4 rounded-2xl bg-muted/40 border border-border/50 select-none"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center text-primary shadow-sm border border-border/50">
                 <Receipt className="w-5 h-5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">IPVA Exercício 2026</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">IPVA Exercício</span>
                 <span className="font-mono text-sm font-black text-foreground">{formatCurrency(ipvaVal)}</span>
+                {ipvaDatePgto && (
+                  <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Calendar className="w-3 h-3 text-primary" />
+                    Pgto: {format(parseDateLocal(ipvaDatePgto), "dd/MM/yyyy")}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -175,19 +183,21 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
 
           {/* Licenciamento Capsule */}
           <div 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleLic();
-            }}
-            className="flex items-center justify-between p-4 rounded-2xl bg-muted/40 hover:bg-muted border border-border/40 transition-all cursor-pointer select-none group"
+            className="flex items-center justify-between p-4 rounded-2xl bg-muted/40 border border-border/40 select-none"
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-card flex items-center justify-center text-primary shadow-sm border border-border/50">
                 <FileCheck className="w-5 h-5" />
               </div>
               <div className="flex flex-col">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase">Licenciamento Anual</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Licenciamento DETRAN</span>
                 <span className="font-mono text-sm font-black text-foreground">{formatCurrency(licVal)}</span>
+                {licDatePgto && (
+                  <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <Calendar className="w-3 h-3 text-primary" />
+                    Pgto: {format(parseDateLocal(licDatePgto), "dd/MM/yyyy")}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -202,7 +212,7 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
         </div>
 
         <div className="flex items-center justify-between px-1 text-[11px] font-medium text-muted-foreground italic">
-          <span>💡 Clique nos cards para alternar quitação ou duplo clique para editar.</span>
+          <span>💡 Status e data de quitação sincronizados com o extrato de transações.</span>
         </div>
       </div>
 

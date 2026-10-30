@@ -92,6 +92,23 @@ export function VehicleObligationsTab({
     });
   }, [categoriasV2]);
 
+  // Pagamentos no extrato
+  const ipvaTx = useMemo(() => transacoesV2.find(t => 
+    (t.meta?.assetId === veiculo.id || t.links?.vehicleTransactionId === String(veiculo.id)) && 
+    (t.meta?.obligationType === 'ipva' || t.description.toLowerCase().includes('ipva'))
+  ), [transacoesV2, veiculo.id]);
+
+  const licTx = useMemo(() => transacoesV2.find(t => 
+    (t.meta?.assetId === veiculo.id || t.links?.vehicleTransactionId === String(veiculo.id)) && 
+    (t.meta?.obligationType === 'licenciamento' || t.description.toLowerCase().includes('licenciamento'))
+  ), [transacoesV2, veiculo.id]);
+
+  const isIpvaPagoExtrato = !!ipvaTx || veiculo.ipvaPago === true;
+  const ipvaDataPgto = ipvaTx?.date || (veiculo.ipvaPago ? veiculo.ipvaVencimento : null);
+
+  const isLicPagoExtrato = !!licTx || veiculo.licenciamentoPago === true;
+  const licDataPgto = licTx?.date || (veiculo.licenciamentoPago ? veiculo.licenciamentoVencimento : null);
+
   // Sincronizar dados padrão quando o veículo muda ou abas abrem
   useEffect(() => {
     if (contasMovimento.length > 0) {
@@ -287,7 +304,7 @@ export function VehicleObligationsTab({
         {/* CARD IPVA */}
         <div className={cn(
           "rounded-[2rem] p-6 border transition-all relative overflow-hidden flex flex-col justify-between",
-          veiculo.ipvaPago ? "bg-success/[0.03] border-success/30" :
+          isIpvaPagoExtrato ? "bg-success/[0.03] border-success/30" :
           isIpvaVencido ? "bg-destructive/[0.03] border-destructive/30" :
           "bg-card border-border/60 hover:border-primary/40 shadow-sm"
         )}>
@@ -296,33 +313,33 @@ export function VehicleObligationsTab({
               <div className="flex items-center gap-3">
                 <div className={cn(
                   "w-10 h-10 rounded-xl flex items-center justify-center font-bold",
-                  veiculo.ipvaPago ? "bg-success/15 text-success" :
+                  isIpvaPagoExtrato ? "bg-success/15 text-success" :
                   isIpvaVencido ? "bg-destructive/15 text-destructive" :
                   "bg-warning/15 text-warning"
                 )}>
-                  {veiculo.ipvaPago ? <CheckCircle2 className="w-5 h-5" /> :
+                  {isIpvaPagoExtrato ? <CheckCircle2 className="w-5 h-5" /> :
                    isIpvaVencido ? <AlertTriangle className="w-5 h-5" /> :
                    <Calendar className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-foreground">IPVA {new Date().getFullYear()}</h3>
+                  <h3 className="font-black text-base text-foreground">IPVA Exercício</h3>
                   <p className="text-xs text-muted-foreground font-medium">Imposto Sobre Veículos</p>
                 </div>
               </div>
 
               <Badge className={cn(
                 "border-none font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider",
-                veiculo.ipvaPago ? "bg-success/15 text-success" :
+                isIpvaPagoExtrato ? "bg-success/15 text-success" :
                 isIpvaVencido ? "bg-destructive/15 text-destructive" :
                 "bg-warning/15 text-warning"
               )}>
-                {veiculo.ipvaPago ? "Quitado" : isIpvaVencido ? "Em Atraso" : "Pendente"}
+                {isIpvaPagoExtrato ? "Quitado" : isIpvaVencido ? "Em Atraso" : "Pendente"}
               </Badge>
             </div>
 
             <div className="space-y-3 my-6">
               <div className="flex justify-between items-baseline">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Valor Estimado/Real:</span>
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Valor:</span>
                 <span className="font-black text-xl text-foreground tabular-nums">
                   {formatCurrency(ipvaValorFinal)}
                 </span>
@@ -333,36 +350,33 @@ export function VehicleObligationsTab({
                   {ipvaVencimento ? format(parseDateLocal(ipvaVencimento), "dd/MM/yyyy") : "Não definido"}
                 </span>
               </div>
+              {ipvaDataPgto && (
+                <div className="flex justify-between items-center text-xs pt-1 border-t border-border/30">
+                  <span className="font-bold text-muted-foreground uppercase tracking-widest">Data de Pgto:</span>
+                  <span className="font-black text-primary tabular-nums">
+                    {format(parseDateLocal(ipvaDataPgto), "dd/MM/yyyy")}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="pt-4 border-t border-border/40">
-            {veiculo.ipvaPago ? (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="w-full rounded-xl text-xs font-bold text-success border-success/30 bg-success/5 hover:bg-success/10"
-                onClick={() => onUpdateVeiculo(veiculo.id, { ipvaPago: false })}
-              >
-                <Check className="w-3.5 h-3.5 mr-1.5" /> Reabrir e Marcar como Pendente
-              </Button>
-            ) : (
-              <Button 
-                size="sm" 
-                className="w-full rounded-xl text-xs font-black uppercase tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-                onClick={() => setOpenSection(openSection === 'ipva' ? null : 'ipva')}
-              >
-                {openSection === 'ipva' ? "Fechar Form" : "Registrar Pagamento IPVA"}
-                {openSection === 'ipva' ? <ChevronUp className="w-4 h-4 ml-1.5" /> : <ChevronDown className="w-4 h-4 ml-1.5" />}
-              </Button>
-            )}
+            <Button 
+              size="sm" 
+              className="w-full rounded-xl text-xs font-black uppercase tracking-wider bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+              onClick={() => setOpenSection(openSection === 'ipva' ? null : 'ipva')}
+            >
+              {openSection === 'ipva' ? "Fechar Form" : "Registrar Novo Pagamento"}
+              {openSection === 'ipva' ? <ChevronUp className="w-4 h-4 ml-1.5" /> : <ChevronDown className="w-4 h-4 ml-1.5" />}
+            </Button>
           </div>
         </div>
 
         {/* CARD LICENCIAMENTO */}
         <div className={cn(
           "rounded-[2rem] p-6 border transition-all relative overflow-hidden flex flex-col justify-between",
-          veiculo.licenciamentoPago ? "bg-success/[0.03] border-success/30" :
+          isLicPagoExtrato ? "bg-success/[0.03] border-success/30" :
           isLicVencido ? "bg-destructive/[0.03] border-destructive/30" :
           "bg-card border-border/60 hover:border-primary/40 shadow-sm"
         )}>
@@ -371,11 +385,11 @@ export function VehicleObligationsTab({
               <div className="flex items-center gap-3">
                 <div className={cn(
                   "w-10 h-10 rounded-xl flex items-center justify-center font-bold",
-                  veiculo.licenciamentoPago ? "bg-success/15 text-success" :
+                  isLicPagoExtrato ? "bg-success/15 text-success" :
                   isLicVencido ? "bg-destructive/15 text-destructive" :
                   "bg-warning/15 text-warning"
                 )}>
-                  {veiculo.licenciamentoPago ? <CheckCircle2 className="w-5 h-5" /> :
+                  {isLicPagoExtrato ? <CheckCircle2 className="w-5 h-5" /> :
                    isLicVencido ? <AlertTriangle className="w-5 h-5" /> :
                    <FileText className="w-5 h-5" />}
                 </div>
@@ -387,17 +401,17 @@ export function VehicleObligationsTab({
 
               <Badge className={cn(
                 "border-none font-black text-[10px] px-3 py-1 rounded-full uppercase tracking-wider",
-                veiculo.licenciamentoPago ? "bg-success/15 text-success" :
+                isLicPagoExtrato ? "bg-success/15 text-success" :
                 isLicVencido ? "bg-destructive/15 text-destructive" :
                 "bg-warning/15 text-warning"
               )}>
-                {veiculo.licenciamentoPago ? "Quitado" : isLicVencido ? "Em Atraso" : "Pendente"}
+                {isLicPagoExtrato ? "Quitado" : isLicVencido ? "Em Atraso" : "Pendente"}
               </Badge>
             </div>
 
             <div className="space-y-3 my-6">
               <div className="flex justify-between items-baseline">
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Taxa de Licenciamento:</span>
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Taxa:</span>
                 <span className="font-black text-xl text-foreground tabular-nums">
                   {formatCurrency(licValorFinal)}
                 </span>
@@ -408,6 +422,14 @@ export function VehicleObligationsTab({
                   {licVencimento ? format(parseDateLocal(licVencimento), "dd/MM/yyyy") : "Não definido"}
                 </span>
               </div>
+              {licDataPgto && (
+                <div className="flex justify-between items-center text-xs pt-1 border-t border-border/30">
+                  <span className="font-bold text-muted-foreground uppercase tracking-widest">Data de Pgto:</span>
+                  <span className="font-black text-primary tabular-nums">
+                    {format(parseDateLocal(licDataPgto), "dd/MM/yyyy")}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

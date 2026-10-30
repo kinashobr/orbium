@@ -35,6 +35,7 @@ export function VehicleFormModal({ isOpen, onClose, veiculoToEdit }: VehicleForm
   const [valorFipeInput, setValorFipeInput] = useState("0,00");
   const [placa, setPlaca] = useState("");
   const [renavam, setRenavam] = useState("");
+  const [chassi, setChassi] = useState("");
 
   const [ipvaValorInput, setIpvaValorInput] = useState("0,00");
   const [ipvaVencimento, setIpvaVencimento] = useState("");
@@ -53,6 +54,7 @@ export function VehicleFormModal({ isOpen, onClose, veiculoToEdit }: VehicleForm
         setValorFipeInput((veiculoToEdit.valorFipe || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
         setPlaca(veiculoToEdit.placa || "");
         setRenavam(veiculoToEdit.renavam || "");
+        setChassi(veiculoToEdit.chassi || "");
 
         setIpvaValorInput((veiculoToEdit.ipvaValor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
         setIpvaVencimento(veiculoToEdit.ipvaVencimento || "");
@@ -68,6 +70,7 @@ export function VehicleFormModal({ isOpen, onClose, veiculoToEdit }: VehicleForm
         setValorFipeInput("0,00");
         setPlaca("");
         setRenavam("");
+        setChassi("");
         setIpvaValorInput("0,00");
         setIpvaVencimento("");
         setLicenciaValorInput("0,00");
@@ -111,6 +114,7 @@ export function VehicleFormModal({ isOpen, onClose, veiculoToEdit }: VehicleForm
       valorFipe,
       placa: placa.toUpperCase().replace(/[^A-Z0-9-]/g, ""),
       renavam: renavam.replace(/\D/g, ""),
+      chassi: chassi.toUpperCase().trim(),
       ipvaValor,
       ipvaVencimento,
       licenciamentoValor,
@@ -206,8 +210,8 @@ export function VehicleFormModal({ isOpen, onClose, veiculoToEdit }: VehicleForm
               </div>
             </div>
 
-            {/* Placa e RENAVAM */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Placa, RENAVAM e Chassi */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-muted-foreground uppercase">Placa Mercosul</Label>
                 <Input
@@ -224,6 +228,15 @@ export function VehicleFormModal({ isOpen, onClose, veiculoToEdit }: VehicleForm
                   className="h-11 rounded-xl font-mono font-bold border-border"
                   value={renavam}
                   onChange={e => setRenavam(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold text-muted-foreground uppercase">Chassi</Label>
+                <Input
+                  placeholder="Ex: 9BW..."
+                  className="h-11 rounded-xl font-mono font-bold uppercase border-border"
+                  value={chassi}
+                  onChange={e => setChassi(e.target.value)}
                 />
               </div>
             </div>

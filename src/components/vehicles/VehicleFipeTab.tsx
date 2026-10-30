@@ -230,7 +230,14 @@ export function VehicleFipeTab({ veiculo, onUpdateVeiculo }: VehicleFipeTabProps
               />
               <Tooltip 
                 formatter={(value: any) => [formatCurrency(Number(value)), "Valor FIPE"]}
-                contentStyle={{ borderRadius: '16px', background: 'rgba(15,23,42,0.9)', color: '#fff', border: 'none' }}
+                contentStyle={{ 
+                  borderRadius: '16px', 
+                  backgroundColor: '#1e293b', 
+                  borderColor: '#334155', 
+                  color: '#f8fafc', 
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)' 
+                }}
+                itemStyle={{ color: '#38bdf8', fontWeight: 'bold' }}
               />
               <Area type="monotone" dataKey="valor" stroke={colors.primary} strokeWidth={3} fillOpacity={1} fill="url(#colorFipe)" />
             </AreaChart>

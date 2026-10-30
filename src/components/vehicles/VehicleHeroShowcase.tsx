@@ -38,6 +38,7 @@ interface VehicleHeroShowcaseProps {
 export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: VehicleHeroShowcaseProps) {
   const [copiedPlaca, setCopiedPlaca] = useState(false);
   const [copiedRenavam, setCopiedRenavam] = useState(false);
+  const [copiedChassi, setCopiedChassi] = useState(false);
   
   // Controle da Seção de Edição Dinâmica do Cadastro em Tela (substitui tela antiga e modais)
   const [isEditingDynamic, setIsEditingDynamic] = useState(false);
@@ -57,6 +58,7 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
   const [editValorFipe, setEditValorFipe] = useState(veiculo.valorFipe || 0);
   const [editPlaca, setEditPlaca] = useState(veiculo.placa || "");
   const [editRenavam, setEditRenavam] = useState(veiculo.renavam || "");
+  const [editChassi, setEditChassi] = useState(veiculo.chassi || "");
   const [editCrlvDados, setEditCrlvDados] = useState(veiculo.crlvDados || "");
 
   // Gestor de Controle de IPVA & Licenciamento Anual
@@ -68,9 +70,9 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
   const [editLicenciamentoVencimento, setEditLicenciamentoVencimento] = useState(veiculo.licenciamentoVencimento || "");
   const [editLicenciamentoPago, setEditLicenciamentoPago] = useState(veiculo.licenciamentoPago !== false);
 
-  const handleCopy = (text: string, type: "placa" | "renavam") => {
+  const handleCopy = (text: string, type: "placa" | "renavam" | "chassi") => {
     if (!text) {
-      toast.error(`Nenhum dado registrado para ${type === "placa" ? "Placa" : "RENAVAM"}`);
+      toast.error(`Nenhum dado registrado para ${type === "placa" ? "Placa" : type === "renavam" ? "RENAVAM" : "Chassi"}`);
       return;
     }
     navigator.clipboard.writeText(text);
@@ -78,10 +80,14 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
       setCopiedPlaca(true);
       setTimeout(() => setCopiedPlaca(false), 2000);
       toast.success("Placa copiada para a área de transferência!");
-    } else {
+    } else if (type === "renavam") {
       setCopiedRenavam(true);
       setTimeout(() => setCopiedRenavam(false), 2000);
       toast.success("RENAVAM copiado para a área de transferência!");
+    } else {
+      setCopiedChassi(true);
+      setTimeout(() => setCopiedChassi(false), 2000);
+      toast.success("Chassi copiado para a área de transferência!");
     }
   };
 
@@ -126,6 +132,7 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
       valorFipe: Number(editValorFipe),
       placa: editPlaca.toUpperCase().replace(/[^A-Z0-9-]/g, ""),
       renavam: editRenavam.replace(/\D/g, ""),
+      chassi: editChassi.toUpperCase().trim(),
       crlvDados: editCrlvDados,
       ipvaValor: Number(editIpvaValor),
       ipvaVencimento: editIpvaVencimento,
@@ -230,6 +237,27 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
                   <Check className="w-3.5 h-3.5 text-primary ml-1" />
                 ) : (
                   <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-amber-500 transition-colors ml-1" />
+                )}
+              </div>
+
+              {/* CHASSI com Ícone de Documento/Segurança */}
+              <div 
+                onClick={() => handleCopy(veiculo.chassi || "", "chassi")}
+                className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none"
+              >
+                <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                  <FileText className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-none">Chassi</span>
+                  <span className="font-mono text-xs font-black tracking-wider text-foreground truncate max-w-[120px]">
+                    {veiculo.chassi || "NÃO INF."}
+                  </span>
+                </div>
+                {copiedChassi ? (
+                  <Check className="w-3.5 h-3.5 text-primary ml-1" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-blue-500 transition-colors ml-1" />
                 )}
               </div>
             </div>
@@ -429,6 +457,16 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
                   value={editRenavam}
                   onChange={e => setEditRenavam(e.target.value)}
                   className="h-10 text-xs font-mono font-bold rounded-xl"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Chassi (VIN)</Label>
+                <Input 
+                  value={editChassi}
+                  onChange={e => setEditChassi(e.target.value)}
+                  className="h-10 text-xs font-mono font-bold uppercase rounded-xl"
+                  placeholder="Ex: 9BW..."
                 />
               </div>
 

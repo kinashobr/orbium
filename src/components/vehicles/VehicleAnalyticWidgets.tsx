@@ -218,8 +218,9 @@ export function VehicleAnalyticWidgets({
       avgKmL = veiculo.tipo === 'moto' ? 31.2 : 12.8;
     }
 
-    // Histórico de pontos para o gráfico de barras
-    let historyKmLPoints = segments.map(s => ({
+    // Histórico de pontos para o gráfico de barras apenas dos períodos informados pelo usuário
+    const userInformedSegments = segments.filter(s => s.deltaKm !== undefined || s.litros > 0);
+    const historyKmLPoints = (userInformedSegments.length > 0 ? userInformedSegments : segments).map(s => ({
       date: s.date,
       kmL: s.kmL,
       litros: s.litros,
@@ -229,18 +230,12 @@ export function VehicleAnalyticWidgets({
       custoKm: s.custoKm
     }));
 
-    if (historyKmLPoints.length === 0) {
-      historyKmLPoints = [
-        { date: "Abast. 1", kmL: Number((avgKmL * 0.92).toFixed(1)), litros: 10, amount: 50, odometro: 10000, deltaKm: undefined, custoKm: undefined },
-        { date: "Abast. 2", kmL: Number((avgKmL * 0.98).toFixed(1)), litros: 11, amount: 57.2, odometro: 10300, deltaKm: 300, custoKm: 0.19 },
-        { date: "Atual", kmL: avgKmL, litros: 12, amount: 62, odometro: 10620, deltaKm: 320, custoKm: 0.19 }
-      ];
-    }
+    const hasUserData = userInformedSegments.length > 0;
 
     const validCustos = historyKmLPoints.map(p => p.custoKm).filter((c): c is number => c !== undefined && c > 0);
     const avgCustoKm = validCustos.length > 0 
       ? Number((validCustos.reduce((a, b) => a + b, 0) / validCustos.length).toFixed(2)) 
-      : Number((5.8 / avgKmL).toFixed(2));
+      : Number((5.8 / (avgKmL || 1)).toFixed(2));
 
     return {
       avgKmL,
@@ -248,7 +243,8 @@ export function VehicleAnalyticWidgets({
       totalTrackedKm,
       avgCustoKm,
       historyKmLPoints,
-      fuelCount: fuelEntries.length
+      fuelCount: fuelEntries.length,
+      hasUserData
     };
   }, [veiculo]);
 
@@ -397,18 +393,18 @@ export function VehicleAnalyticWidgets({
               Valor Compra: <strong className="text-foreground">{formatCurrency(veiculo.valorVeiculo || 21000)}</strong>
             </span>
 
-            {/* Gráfico Sparkline FIPE Ajustado */}
-            <div className="h-28 w-full relative mt-3">
+            {/* Gráfico Sparkline FIPE Ajustado para ocupar mais espaço interno */}
+            <div className="h-32 w-full relative mt-2">
               {(() => {
                 const values = fipeHistoryData.map(d => d.valor);
                 const minV = Math.min(...values);
                 const maxV = Math.max(...values);
                 const range = maxV - minV || 1;
                 const width = 320;
-                const height = 100;
-                const padX = 16;
-                const padYTop = 16;
-                const padYBottom = 16;
+                const height = 110;
+                const padX = 8;
+                const padYTop = 6;
+                const padYBottom = 6;
                 const usableW = width - padX * 2;
                 const usableH = height - padYTop - padYBottom;
 
@@ -427,13 +423,13 @@ export function VehicleAnalyticWidgets({
                   dPath += ` C ${mx},${curr.y} ${mx},${next.y} ${next.x},${next.y}`;
                 }
 
-                const areaPath = `${dPath} L ${points[points.length - 1].x},${height - 4} L ${points[0].x},${height - 4} Z`;
+                const areaPath = `${dPath} L ${points[points.length - 1].x},${height - 2} L ${points[0].x},${height - 2} Z`;
 
                 return (
                   <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${width} ${height}`}>
                     <defs>
                       <linearGradient id="fipeWidgetGradFixed" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="rgb(245, 158, 11)" stopOpacity="0.25" />
+                        <stop offset="0%" stopColor="rgb(245, 158, 11)" stopOpacity="0.3" />
                         <stop offset="100%" stopColor="rgb(245, 158, 11)" stopOpacity="0.0" />
                       </linearGradient>
                     </defs>
@@ -472,22 +468,22 @@ export function VehicleAnalyticWidgets({
                             onMouseLeave={() => setHoveredFipeIndex(null)}
                           />
 
-                          {/* Floating Tooltip Bubble on Hover */}
+                          {/* Floating Tooltip Bubble on Hover (Ajustada cor legível) */}
                           {isHovered && (
                             <g className="animate-in fade-in zoom-in-95 duration-150 pointer-events-none">
                               <rect
                                 x={Math.min(Math.max(pt.x - 48, 4), width - 100)}
-                                y={Math.max(pt.y - 32, 2)}
+                                y={Math.max(pt.y - 30, 2)}
                                 width="96"
                                 height="22"
                                 rx="6"
-                                className="fill-zinc-900 dark:fill-zinc-100 stroke-border"
+                                className="fill-slate-800 dark:fill-slate-900 stroke-amber-500/40"
                               />
                               <text
                                 x={Math.min(Math.max(pt.x, 52), width - 52)}
-                                y={Math.max(pt.y - 18, 16)}
+                                y={Math.max(pt.y - 16, 16)}
                                 textAnchor="middle"
-                                className="fill-zinc-100 dark:fill-zinc-900 font-mono font-bold text-[10px]"
+                                className="fill-slate-100 font-mono font-bold text-[10px]"
                               >
                                 {pt.date}: {formatCurrency(pt.val)}
                               </text>
@@ -503,7 +499,7 @@ export function VehicleAnalyticWidgets({
           </div>
         </div>
 
-        {/* WIDGET C: CONSUMO DE COMBUSTÍVEL - CORRIGIDO ESPAÇO EXTRA E INTEGRADO ODÔMETRO/RODAGEM */}
+        {/* WIDGET C: CONSUMO DE COMBUSTÍVEL - GRÁFICO MAIOR VERTICALMENTE & APENAS DADOS INFORMADOS */}
         <div className="flex flex-col justify-start gap-2 p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
@@ -514,7 +510,7 @@ export function VehicleAnalyticWidgets({
                 <span className="font-display font-bold text-sm text-foreground block leading-tight">
                   Consumo & Rodagem
                 </span>
-                <span className="text-[10px] font-bold uppercase text-muted-foreground">Eficiência Média & KM</span>
+                <span className="text-[10px] font-bold uppercase text-muted-foreground">Eficiência Média do Veículo</span>
               </div>
             </div>
           </div>
@@ -525,32 +521,19 @@ export function VehicleAnalyticWidgets({
               <span className="font-display font-black text-2xl text-foreground">
                 {fuelMetrics.avgKmL} <span className="text-xs font-bold text-muted-foreground">km/l</span>
               </span>
-              <span className="text-xs font-bold text-primary font-mono bg-primary/10 px-2 py-0.5 rounded-md">
-                {(100 / fuelMetrics.avgKmL).toFixed(1)} L/100km
-              </span>
             </div>
 
-            {/* Badges do Odômetro & Rodagem */}
-            <div className="flex items-center gap-1.5 flex-wrap mt-1">
-              {fuelMetrics.lastKnownOdometer > 0 && (
-                <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-lg border border-border/40">
+            {/* Apenas Odômetro em badge se disponível */}
+            {fuelMetrics.lastKnownOdometer > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2.5 py-0.5 rounded-lg border border-border/40">
                   🚗 Odômetro: <strong className="text-foreground">{fuelMetrics.lastKnownOdometer.toLocaleString('pt-BR')} KM</strong>
                 </span>
-              )}
-              {fuelMetrics.totalTrackedKm > 0 && (
-                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
-                  ⚡ +{fuelMetrics.totalTrackedKm.toLocaleString('pt-BR')} KM rodados
-                </span>
-              )}
-              {fuelMetrics.avgCustoKm > 0 && (
-                <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-lg border border-border/40">
-                  💸 R$ {fuelMetrics.avgCustoKm.toFixed(2)}/KM
-                </span>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* GRÁFICO DE BARRAS DE HISTÓRICO DE CONSUMO COM ODÔMETRO */}
-            <div className="mt-3 space-y-1">
+            {/* GRÁFICO DE BARRAS DE HISTÓRICO DE CONSUMO MAIOR VERTICALMENTE */}
+            <div className="mt-2 space-y-1">
               <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground mb-1">
                 <span className="flex items-center gap-1">
                   <BarChart2 className="w-3.5 h-3.5 text-primary" /> Histórico Abastecimentos
@@ -558,37 +541,44 @@ export function VehicleAnalyticWidgets({
                 <span className="font-mono text-[9px]">km/l</span>
               </div>
 
-              {/* Gráfico de Barras de Consumo */}
-              <div className="h-20 w-full flex items-end justify-between gap-1.5 pt-2 pb-1 px-1.5 bg-muted/20 rounded-2xl border border-border/40">
-                {fuelMetrics.historyKmLPoints.map((pt, idx) => {
-                  const maxKmL = Math.max(...fuelMetrics.historyKmLPoints.map(p => p.kmL)) || 40;
-                  const heightPercent = Math.min(100, Math.max(30, (pt.kmL / (maxKmL * 1.15)) * 100));
-                  
-                  return (
-                    <div key={idx} className="flex-1 h-full flex flex-col items-center justify-end gap-1 group relative">
-                      {/* Tooltip Hover no card */}
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-[9px] font-mono font-bold px-2 py-1 rounded-md whitespace-nowrap pointer-events-none z-20 shadow-md">
-                        {pt.date}: {pt.kmL} km/l {pt.odometro ? `• ${pt.odometro.toLocaleString('pt-BR')} KM` : ''} {pt.litros ? `• ${pt.litros}L` : ''}
+              {fuelMetrics.hasUserData ? (
+                /* Gráfico de Barras Ampliado Verticalmente (h-32) sem alterar tamanho do card */
+                <div className="h-32 w-full flex items-end justify-between gap-1.5 pt-2 pb-1 px-2 bg-muted/20 rounded-2xl border border-border/40">
+                  {fuelMetrics.historyKmLPoints.map((pt, idx) => {
+                    const maxKmL = Math.max(...fuelMetrics.historyKmLPoints.map(p => p.kmL)) || 40;
+                    const heightPercent = Math.min(100, Math.max(25, (pt.kmL / (maxKmL * 1.15)) * 100));
+                    
+                    return (
+                      <div key={idx} className="flex-1 h-full flex flex-col items-center justify-end gap-1 group relative">
+                        {/* Tooltip Hover com cores claras e legíveis */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-800 text-slate-100 text-[9px] font-mono font-bold px-2 py-1 rounded-md whitespace-nowrap pointer-events-none z-20 shadow-lg border border-slate-700">
+                          {pt.date}: {pt.kmL} km/l {pt.odometro ? `• ${pt.odometro.toLocaleString('pt-BR')} KM` : ''} {pt.litros ? `• ${pt.litros}L` : ''}
+                        </div>
+
+                        {/* Valor Numérico do Consumo Acima da Barra */}
+                        <span className="text-[10px] font-mono font-extrabold text-primary group-hover:scale-110 transition-transform">
+                          {pt.kmL.toFixed(1)}
+                        </span>
+
+                        {/* Barra de Consumo Maior */}
+                        <div className="w-full max-w-[28px] bg-primary/20 group-hover:bg-primary/30 rounded-t-lg transition-all flex items-end overflow-hidden" style={{ height: `${heightPercent}%` }}>
+                          <div className="w-full bg-gradient-to-t from-primary/80 to-primary rounded-t-lg transition-all" style={{ height: "85%" }} />
+                        </div>
+
+                        {/* Rótulo de Data do Abastecimento */}
+                        <span className="text-[9px] font-mono font-bold text-muted-foreground truncate w-full text-center">
+                          {pt.date}
+                        </span>
                       </div>
-
-                      {/* Valor Numérico do Consumo Acima da Barra */}
-                      <span className="text-[10px] font-mono font-extrabold text-primary group-hover:scale-110 transition-transform">
-                        {pt.kmL.toFixed(1)}
-                      </span>
-
-                      {/* Barra de Consumo */}
-                      <div className="w-full max-w-[28px] bg-primary/20 group-hover:bg-primary/30 rounded-t-lg transition-all flex items-end overflow-hidden" style={{ height: `${heightPercent}%` }}>
-                        <div className="w-full bg-gradient-to-t from-primary/80 to-primary rounded-t-lg transition-all" style={{ height: "85%" }} />
-                      </div>
-
-                      {/* Rótulo de Data do Abastecimento */}
-                      <span className="text-[9px] font-mono font-bold text-muted-foreground truncate w-full text-center">
-                        {pt.date}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="h-28 w-full flex flex-col items-center justify-center p-4 bg-muted/10 rounded-2xl border border-dashed border-border/60 text-center">
+                  <span className="text-xs font-bold text-muted-foreground">Nenhum histórico de média registrado</span>
+                  <span className="text-[10px] text-muted-foreground/80 mt-0.5">O gráfico será gerado quando houver abastecimentos cadastrados.</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
