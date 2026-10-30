@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import ReceitasDespesas from "./pages/ReceitasDespesas";
 import Emprestimos from "./pages/Emprestimos";
 import Veiculos from "./pages/Veiculos";
+import VehicleDetailPage from "./pages/VehicleDetailPage";
 import Relatorios from "./pages/Relatorios";
 import Investimentos from "./pages/Investimentos";
 import BillsTracker from "./pages/BillsTracker";
@@ -37,6 +38,7 @@ const App = () => (
               <Route path="/receitas-despesas" element={<ReceitasDespesas />} />
               <Route path="/emprestimos" element={<Emprestimos />} />
               <Route path="/veiculos" element={<Veiculos />} />
+              <Route path="/veiculos/:id" element={<VehicleDetailPage />} />
               <Route path="/investimentos" element={<Investimentos />} />
               <Route path="/relatorios" element={<Relatorios />} />
               <Route path="/contas-pagar" element={<BillsTracker />} />

@@ -26,7 +26,7 @@ interface BillsTrackerMobileListProps {
   onUpdateBill: (id: string, updates: Partial<BillTracker>) => void;
   onDeleteBill: (id: string) => void;
   onAddBill: (bill: Omit<BillTracker, "id" | "isPaid" | "type">) => void;
-  onTogglePaid: (bill: BillTracker, isChecked: boolean) => void;
+  onTogglePaid: (bill: BillDisplayItem, isChecked: boolean) => void;
   currentDate: Date;
 }
 
@@ -124,17 +124,16 @@ export function BillsTrackerMobileList({
         </div>
 
         <div className="grid gap-3">
-          {items.map((bill) => {
+          {items.map((bill, index) => {
             const cfg = SOURCE_CONFIG_MOBILE[bill.sourceType] || SOURCE_CONFIG_MOBILE.ad_hoc;
             const Icon = cfg.icon;
-            const isExt = isExternalPaidBill(bill);
-            const isPaid = bill.isPaid || isExt;
+            const isPaid = bill.isPaid;
             const cat = categoriasV2.find(c => c.id === bill.suggestedCategoryId);
             const account = contasMovimento.find(a => a.id === bill.suggestedAccountId);
 
             return (
               <div
-                key={bill.id}
+                key={`mobile_bill_${key}_${bill.type}_${bill.id}_${index}`}
                 className={cn(
                   "relative group rounded-[1.5rem] border p-4 flex gap-4 items-center transition-all duration-300",
                   isPaid ? "bg-success/[0.03] border-success/10 opacity-80" :
@@ -154,18 +153,12 @@ export function BillsTrackerMobileList({
                 <div className="flex-1 min-w-0 space-y-1">
                   <div className="flex items-center justify-between gap-2">
                     <div className="truncate flex-1">
-                      {!isPaid || isExt ? (
-                        <EditableCell
-                          value={bill.description}
-                          type="text"
-                          onSave={(v) => onUpdateBill(bill.id, { description: String(v) })}
-                          className="text-sm font-black bg-transparent border-none p-0 h-auto focus-visible:ring-0 truncate"
-                        />
-                      ) : (
-                        <p className="text-sm font-black text-foreground truncate">
-                          {bill.description}
-                        </p>
-                      )}
+                      <EditableCell
+                        value={bill.description}
+                        type="text"
+                        onSave={(v) => onUpdateBill(bill.id, { description: String(v) })}
+                        className="text-sm font-black bg-transparent border-none p-0 h-auto focus-visible:ring-0 truncate"
+                      />
                     </div>
                     <p className={cn(
                       "text-sm font-black tabular-nums shrink-0",
@@ -196,51 +189,31 @@ export function BillsTrackerMobileList({
                 </div>
 
                 <div className="flex flex-col items-center justify-center pl-2 border-l border-border/10 shrink-0">
-                  {isExt ? (
-                    <CheckCircle2 className="w-6 h-6 text-success/40" />
-                  ) : (
-                    <Checkbox
-                      className="h-6 w-6 rounded-lg border-2 data-[state=checked]:bg-success data-[state=checked]:border-success"
-                      checked={bill.isPaid}
-                      onCheckedChange={(checked) =>
-                        onTogglePaid(bill as BillTracker, checked as boolean)
-                      }
-                    />
-                  )}
-                  {isExt && (
+                  <Checkbox
+                    className="h-6 w-6 rounded-lg border-2 data-[state=checked]:bg-success data-[state=checked]:border-success"
+                    checked={bill.isPaid}
+                    onCheckedChange={(checked) =>
+                      onTogglePaid(bill, checked as boolean)
+                    }
+                  />
+                  {!isPaid && (
                     <div className="absolute -top-1 -right-1 flex gap-1">
                       <Button
                         variant="secondary"
                         size="icon"
                         className="h-6 w-6 rounded-full shadow-md bg-background hover:bg-destructive hover:text-white transition-all scale-0 group-hover:scale-100"
-                        onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id); }}
-                        title="Excluir lançamento"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isBillTracker(bill) && bill.sourceType !== 'ad_hoc') {
+                            handleExcludeBill(bill);
+                          } else {
+                            onDeleteBill(bill.id);
+                          }
+                        }}
+                        title={isBillTracker(bill) && bill.sourceType !== 'ad_hoc' ? "Remover do mês" : "Excluir conta"}
                       >
                         <Trash2 className="w-3 h-3" />
                       </Button>
-                    </div>
-                  )}
-                  {!isPaid && !isExt && isBillTracker(bill) && (
-                    <div className="absolute -top-1 -right-1 flex gap-1">
-                       {(bill.sourceType === 'ad_hoc') ? (
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-6 w-6 rounded-full shadow-md bg-background hover:bg-destructive hover:text-white transition-all scale-0 group-hover:scale-100"
-                          onClick={(e) => { e.stopPropagation(); onDeleteBill(bill.id); }}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          size="icon"
-                          className="h-6 w-6 rounded-full shadow-md bg-background hover:bg-destructive hover:text-white transition-all scale-0 group-hover:scale-100"
-                          onClick={(e) => { e.stopPropagation(); handleExcludeBill(bill); }}
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      )}
                     </div>
                   )}
                 </div>

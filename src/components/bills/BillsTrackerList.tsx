@@ -26,7 +26,7 @@ interface BillsTrackerListProps {
   onUpdateBill: (id: string, updates: Partial<BillTracker>) => void;
   onDeleteBill: (id: string) => void;
   onAddBill: (bill: Omit<BillTracker, "id" | "isPaid" | "type">) => void;
-  onTogglePaid: (bill: BillTracker, isChecked: boolean) => void;
+  onTogglePaid: (bill: BillDisplayItem, isChecked: boolean) => void;
   currentDate: Date;
 }
 
@@ -160,19 +160,36 @@ export function BillsTrackerList({
   };
   
   const handleExcludeBill = (bill: BillTracker) => { if (bill.isPaid) return; onUpdateBill(bill.id, { isExcluded: true }); };
-  const handleUpdateExpectedAmount = (b: BillDisplayItem, n: number) => { onUpdateBill(b.id, { expectedAmount: n }); };
-  const handleUpdateSuggestedAccount = (b: BillDisplayItem, n: string) => { onUpdateBill(b.id, { suggestedAccountId: n }); };
+  const handleUpdateExpectedAmount = (b: BillDisplayItem, n: number) => { 
+    if (b.isPaid) {
+      toast.error("Desfaça o pagamento ('Pg') antes de alterar o valor.");
+      return;
+    }
+    onUpdateBill(b.id, { expectedAmount: n }); 
+  };
+  const handleUpdateSuggestedAccount = (b: BillDisplayItem, n: string) => { 
+    if (b.isPaid) {
+      toast.error("Desfaça o pagamento ('Pg') antes de alterar a conta.");
+      return;
+    }
+    onUpdateBill(b.id, { suggestedAccountId: n }); 
+  };
   
   const handleUpdateSuggestedCategory = (id: string, categoryId: string) => {
-    const s = categoriasV2.find(c => c.id === categoryId);
     const bill = bills.find(b => b.id === id);
     if (!bill) return;
+
+    if (bill.isPaid) {
+      toast.error("Desfaça o pagamento ('Pg') antes de alterar a categoria.");
+      return;
+    }
 
     if (bill.type === 'external_paid') {
       onUpdateBill(id, { suggestedCategoryId: categoryId });
       return;
     }
 
+    const s = categoriasV2.find(c => c.id === categoryId);
     let type: BillSourceType = bill.sourceType;
     const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(bill.sourceType);
     if (s && isFlexibleType) { type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; }
@@ -186,7 +203,10 @@ export function BillsTrackerList({
       onUpdateBill(b.id, { dueDate: n, paymentDate: n });
       return;
     }
-    if (b.isPaid) return;
+    if (b.isPaid) {
+      toast.error("Desfaça o pagamento ('Pg') antes de alterar o vencimento.");
+      return;
+    }
     const isInstallment = b.sourceType === 'loan_installment' || b.sourceType === 'insurance_installment';
     if (isInstallment) {
       const oldDate = parseDateLocal(b.dueDate);
@@ -315,7 +335,7 @@ export function BillsTrackerList({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sortedBills.map((bill) => {
+                {sortedBills.map((bill, index) => {
                   const isExt = isExternalPaidBill(bill);
                   const cfg = SOURCE_CONFIG[bill.sourceType] || SOURCE_CONFIG.ad_hoc;
                   const Icon = cfg.icon;
@@ -324,34 +344,43 @@ export function BillsTrackerList({
                   const cat = expenseCategories.find(c => c.id === bill.suggestedCategoryId);
                   return (
                     <TableRow
-                      key={bill.id}
+                      key={`bill_row_${bill.type}_${bill.id}_${index}`}
                       className={cn(
                         "group transition-all duration-200 h-12 border-none rounded-xl",
-                        isExt && "opacity-60",
                         isOver && "bg-destructive/[0.04] hover:bg-destructive/[0.08]",
-                        isPaid && !isExt && "bg-success/[0.04] hover:bg-success/[0.08]",
+                        isPaid && !isOver && "bg-success/[0.03] hover:bg-success/[0.07]",
                         !isPaid && !isOver && "bg-muted/20 hover:bg-muted/40"
                       )}
                     >
                       <TableCell className="text-center px-4 py-1 first:rounded-l-xl" style={{ width: columnWidths.pay }}>
-                        {isExt ? <CheckCircle2 className="w-5 h-5 text-success mx-auto" /> : <Checkbox checked={isPaid} onCheckedChange={(c) => onTogglePaid(bill as BillTracker, c as boolean)} className="h-5 w-5 rounded-lg border-2" />}
+                        <Checkbox 
+                          checked={isPaid} 
+                          onCheckedChange={(c) => onTogglePaid(bill, c as boolean)} 
+                          className="h-5 w-5 rounded-lg border-2 data-[state=checked]:bg-success data-[state=checked]:border-success" 
+                        />
                       </TableCell>
                       
                       <TableCell className={cn("text-xs font-bold px-4 py-1", isOver && "text-destructive")} style={{ width: columnWidths.due }}>
-                        {isPaid && !isExt ? (
-                          <div className="h-8 flex items-center px-3">{formatDate(bill.dueDate)}</div>
+                        {isPaid ? (
+                          <div 
+                            className="h-8 flex items-center px-3 text-xs font-bold opacity-75 cursor-not-allowed select-none"
+                            title="Despesa já lançada. Desmarque 'Pg' antes de alterar a data de vencimento."
+                            onClick={() => toast.info("Desfaça o pagamento ('Pg') antes de alterar o vencimento desta despesa.")}
+                          >
+                            {formatDate(bill.dueDate)}
+                          </div>
                         ) : (
                           <EditableCell 
                             value={bill.dueDate} 
                             type="date" 
                             onSave={(v) => handleUpdateDueDate(bill, String(v))} 
-                            className="text-xs h-8 bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3" 
+                            className="text-xs h-8 bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3 font-bold" 
                           />
                         )}
                       </TableCell>
                       
                       <TableCell className="text-xs font-bold px-4 py-1" style={{ width: columnWidths.paymentDate }}>
-                        {(bill.paymentDate || bill.dueDate) ? (
+                        {(bill.paymentDate || (isPaid ? bill.dueDate : null)) ? (
                           <EditableCell 
                             value={bill.paymentDate || bill.dueDate} 
                             type="date" 
@@ -363,28 +392,29 @@ export function BillsTrackerList({
                       
                       <TableCell className="text-xs px-4 py-1 font-black text-foreground" style={{ width: columnWidths.description }}>
                         <div className="w-full">
-                          {isPaid && !isExt ? (
-                            <div className="h-8 flex items-center px-3 truncate">{bill.description}</div>
-                          ) : (
-                            <EditableCell 
-                              value={bill.description} 
-                              type="text" 
-                              onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} 
-                              className="text-xs h-8 font-black bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3 w-full truncate" 
-                            />
-                          )}
+                          <EditableCell 
+                            value={bill.description} 
+                            type="text" 
+                            onSave={(v) => onUpdateBill(bill.id, { description: String(v) })} 
+                            className="text-xs h-8 font-black bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3 w-full truncate" 
+                          />
                         </div>
                       </TableCell>
                       
                       <TableCell className="px-4 py-1" style={{ width: columnWidths.account }}>
-                        {isPaid && !isExt ? (
-                          <div className="h-8 flex items-center px-3 text-xs font-bold opacity-80 truncate">
-                            {contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}
+                        {isPaid ? (
+                          <div 
+                            className="h-8 flex items-center px-3 text-xs font-bold opacity-75 truncate bg-background/20 rounded-xl cursor-not-allowed select-none border border-transparent"
+                            title="Despesa já lançada. Desmarque 'Pg' para alterar a conta."
+                            onClick={() => toast.info("Desfaça o pagamento ('Pg') antes de alterar a conta desta despesa.")}
+                          >
+                            <span className="truncate">{contasMovimento.find(a => a.id === bill.suggestedAccountId)?.name || 'N/A'}</span>
                           </div>
                         ) : (
                           <AccountSearchSelector
                             value={bill.suggestedAccountId}
                             accounts={accountOptions}
+                            variant="table"
                             onSelect={(v) => handleUpdateSuggestedAccount(bill, v)}
                           />
                         )}
@@ -398,12 +428,20 @@ export function BillsTrackerList({
                             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-orange-500/10 text-orange-500 px-3"><Building2 className="w-3 h-3 mr-1" />Financiam.</Badge>
                           ) : bill.sourceType === 'insurance_installment' ? (
                             <Badge variant="outline" className="text-[9px] font-black uppercase border-none bg-blue-500/10 text-blue-500 px-3"><Shield className="w-3 h-3 mr-1" />Seguro</Badge>
-                          ) : isPaid && !isExt ? (
-                            <div className="text-xs font-bold opacity-70 flex items-center gap-1.5 px-3">{cat?.icon} {cat?.label || '—'}</div>
+                          ) : isPaid ? (
+                            <div 
+                              className="h-8 flex items-center gap-1.5 px-3 text-xs font-bold opacity-75 truncate bg-background/20 rounded-xl cursor-not-allowed select-none border border-transparent"
+                              title="Despesa já lançada. Desmarque 'Pg' para alterar a categoria."
+                              onClick={() => toast.info("Desfaça o pagamento ('Pg') antes de alterar a categoria desta despesa.")}
+                            >
+                              <span className="text-xs shrink-0">{cat?.icon || '🏷️'}</span>
+                              <span className="truncate">{cat?.label || '—'}</span>
+                            </div>
                           ) : (
                             <CategorySearchSelector
                               value={bill.suggestedCategoryId}
                               categories={expenseCategories}
+                              variant="table"
                               onSelect={(v) => handleUpdateSuggestedCategory(bill.id, v)}
                             />
                           )}
@@ -411,7 +449,7 @@ export function BillsTrackerList({
                       </TableCell>
                       
                       <TableCell className={cn("text-right font-black text-xs px-4 py-1 tabular-nums", isPaid ? "text-success" : "text-destructive")} style={{ width: columnWidths.amount }}>
-                        {isExt || (!isPaid && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment') ? (
+                        {!isPaid && bill.sourceType !== 'loan_installment' && bill.sourceType !== 'insurance_installment' ? (
                           <EditableCell 
                             value={bill.expectedAmount} 
                             type="currency" 
@@ -419,33 +457,27 @@ export function BillsTrackerList({
                             className="h-8 text-xs text-right font-black bg-background/50 border-none shadow-none hover:bg-background rounded-xl px-3" 
                           />
                         ) : (
-                          <div className="h-8 flex items-center justify-end px-3">{formatCurrency(bill.expectedAmount)}</div>
+                          <div 
+                            className="h-8 flex items-center justify-end px-3 font-black cursor-not-allowed select-none"
+                            title="Despesa já lançada. Desmarque 'Pg' antes de alterar o valor."
+                            onClick={() => toast.info("Desfaça o pagamento ('Pg') antes de alterar o valor desta despesa.")}
+                          >
+                            {formatCurrency(bill.expectedAmount)}
+                          </div>
                         )}
                       </TableCell>
                       
                       <TableCell className="text-center px-4 py-1 last:rounded-r-xl" style={{ width: columnWidths.actions }}>
                         <div className="h-8 flex items-center justify-center">
-                          {isExt ? (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" 
-                              onClick={() => onDeleteBill(bill.id)}
-                              title="Excluir lançamento do extrato"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          ) : !isPaid && (
-                            bill.sourceType === 'ad_hoc' ? (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => onDeleteBill(bill.id)}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            ) : (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" onClick={() => handleExcludeBill(bill as BillTracker)}>
-                                <X className="w-3.5 h-3.5" />
-                              </Button>
-                            )
-                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 rounded-full text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors" 
+                            onClick={() => onDeleteBill(bill.id)}
+                            title={isExt ? "Excluir lançamento do extrato" : (bill.sourceType === 'ad_hoc' ? "Excluir conta avulsa" : "Remover do mês")}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>

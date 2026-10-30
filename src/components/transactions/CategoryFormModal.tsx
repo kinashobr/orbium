@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { TrendingUp, TrendingDown, Repeat, Check, Sparkles, ArrowLeft } from "lucide-react";
+import { TrendingUp, TrendingDown, Repeat, Check, ArrowLeft, Search, X } from "lucide-react";
 import { Categoria, CategoryNature, generateCategoryId, getCategoryTypeFromNature } from "@/types/finance";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -22,10 +21,88 @@ interface CategoryFormModalProps {
   defaultLabel?: string;
 }
 
-const EMOJI_BY_CATEGORY = {
-  receita: ["💰", "💳", "🏦", "📈", "💼", "🧑‍💻", "🎯", "🛠️", "📝"],
-  despesa_fixa: ["🏠", "💊", "🛏️", "🔌", "📱", "🚗", "🧾", "🐶", "🍼", "🎓", "🛡️", "🏋️"],
-  despesa_variavel: ["🍽️", "🍕", "☕", "🎮", "🎬", "🎧", "🎨", "🎥", "✈️", "⛽", "🛒", "👕", "📚", "🎁", "📦", "💸"]
+interface EmojiSearchItem {
+  emoji: string;
+  keywords: string[];
+}
+
+// Complete rich Emoji database with Portuguese search keywords including tooth 🦷, glasses 👓, etc.
+const EMOJI_DATABASE: Record<CategoryNature, EmojiSearchItem[]> = {
+  receita: [
+    { emoji: "💰", keywords: ["dinheiro", "saco", "salario", "receita", "renda", "lucro", "money", "pagamento"] },
+    { emoji: "💳", keywords: ["cartao", "credito", "debito", "banco", "pix"] },
+    { emoji: "🏦", keywords: ["banco", "agencia", "deposito", "transferencia"] },
+    { emoji: "📈", keywords: ["investimento", "grafico", "acoes", "rendimento", "alta"] },
+    { emoji: "💼", keywords: ["trabalho", "maleta", "emprego", "freelance", "salario"] },
+    { emoji: "🧑‍💻", keywords: ["tech", "programador", "servico", "home office"] },
+    { emoji: "🎯", keywords: ["meta", "alvo", "comissao", "bonus"] },
+    { emoji: "🛠️", keywords: ["servico", "manutencao", "prestacao", "obra"] },
+    { emoji: "📝", keywords: ["nota", "fatura", "contrato"] },
+    { emoji: "💵", keywords: ["dolar", "nota", "dinheiro", "cash"] },
+    { emoji: "🪙", keywords: ["moeda", "troco", "cripto"] },
+    { emoji: "💎", keywords: ["patrimonio", "luxo", "joia"] },
+    { emoji: "📊", keywords: ["relatorio", "balanco", "faturamento"] },
+    { emoji: "🏆", keywords: ["premio", "conquista", "bonus"] },
+    { emoji: "🧧", keywords: ["envelope", "presente", "pix"] },
+    { emoji: "💸", keywords: ["transferencia", "envio", "renda"] },
+    { emoji: "🏢", keywords: ["empresa", "cnpj", "sociedade"] },
+    { emoji: "✨", keywords: ["extra", "bicos", "outros"] },
+  ],
+  despesa_fixa: [
+    { emoji: "🦷", keywords: ["dente", "dentista", "odontologia", "aparelho", "saude"] },
+    { emoji: "👓", keywords: ["oculos", "otica", "visao", "lentes", "saude"] },
+    { emoji: "🩺", keywords: ["medico", "consulta", "estetoscopio", "exame", "saude"] },
+    { emoji: "🏥", keywords: ["hospital", "clinica", "pronto socorro", "convenio"] },
+    { emoji: "💊", keywords: ["farmacia", "remedio", "plano de saude", "medicamento"] },
+    { emoji: "🏠", keywords: ["casa", "aluguel", "moradia", "home", "imovel"] },
+    { emoji: "🏢", keywords: ["apartamento", "condominio", "predio"] },
+    { emoji: "🔑", keywords: ["chave", "aluguel", "prestacao"] },
+    { emoji: "⚡", keywords: ["energia", "luz", "eletricidade", "conta"] },
+    { emoji: "🔌", keywords: ["tomada", "eletronicos", "equipamentos"] },
+    { emoji: "💧", keywords: ["agua", "saneamento", "hidraulica"] },
+    { emoji: "🔥", keywords: ["gas", "botijao", "aquecimento"] },
+    { emoji: "📶", keywords: ["wifi", "internet", "fibra", "banda larga"] },
+    { emoji: "📱", keywords: ["celular", "plano", "operadora", "telefone"] },
+    { emoji: "🚗", keywords: ["carro", "ipva", "seguro", "financiamento"] },
+    { emoji: "🎓", keywords: ["faculdade", "escola", "mensalidade", "curso"] },
+    { emoji: "📚", keywords: ["material", "livros", "estudo"] },
+    { emoji: "🍼", keywords: ["filhos", "bebe", "creche"] },
+    { emoji: "🐶", keywords: ["pet", "cachorro", "plano de saude pet"] },
+    { emoji: "🐱", keywords: ["gato", "pet", "racao"] },
+    { emoji: "🏋️", keywords: ["academia", "personal", "mensalidade", "treino"] },
+    { emoji: "🧾", keywords: ["iptu", "imposto", "taxa", "boleto"] },
+    { emoji: "🔒", keywords: ["seguranca", "alarme", "monitoramento"] },
+  ],
+  despesa_variavel: [
+    { emoji: "🍽️", keywords: ["restaurante", "almoco", "jantar", "comida"] },
+    { emoji: "🍕", keywords: ["pizza", "delivery", "ifood", "lanche"] },
+    { emoji: "🍔", keywords: ["hamburguer", "fastfood", "lanche"] },
+    { emoji: "☕", keywords: ["cafe", "expresso", "padaria"] },
+    { emoji: "🛒", keywords: ["mercado", "supermercado", "compras", "feira"] },
+    { emoji: "🥩", keywords: ["carne", "churrasco", "acougue"] },
+    { emoji: "🍣", keywords: ["sushi", "japones", "comida"] },
+    { emoji: "🛍️", keywords: ["shopping", "compras", "loja"] },
+    { emoji: "👕", keywords: ["roupa", "vestuario", "moda"] },
+    { emoji: "👟", keywords: ["tenis", "sapato", "calcado"] },
+    { emoji: "💇", keywords: ["cabeleireiro", "barbeiro", "corte", "cabelo"] },
+    { emoji: "💅", keywords: ["manicure", "unha", "beleza", "estetica"] },
+    { emoji: "🍦", keywords: ["sorvete", "sobremesa", "doce"] },
+    { emoji: "🍷", keywords: ["vinho", "bebida", "jantar"] },
+    { emoji: "🍺", keywords: ["cerveja", "bar", "happy hour", "chopp"] },
+    { emoji: "🎮", keywords: ["games", "jogos", "steam", "playstation"] },
+    { emoji: "🎬", keywords: ["cinema", "filmes", "teatro", "netflix"] },
+    { emoji: "🍿", keywords: ["pipoca", "snack", "lazer", "cinema"] },
+    { emoji: "🎧", keywords: ["musica", "spotify", "fone"] },
+    { emoji: "🎟️", keywords: ["ingresso", "show", "evento", "festa"] },
+    { emoji: "✈️", keywords: ["viagem", "passagem", "ferias", "hotel"] },
+    { emoji: "⛽", keywords: ["combustivel", "gasolina", "etanol", "posto"] },
+    { emoji: "🧰", keywords: ["mecanico", "oficina", "reparo"] },
+    { emoji: "🚕", keywords: ["uber", "taxi", "99", "corrida"] },
+    { emoji: "🚲", keywords: ["bike", "bicicleta", "transporte"] },
+    { emoji: "⚽", keywords: ["futebol", "esporte", "jogo"] },
+    { emoji: "🎁", keywords: ["presente", "aniversario"] },
+    { emoji: "🧹", keywords: ["faxina", "diarista", "limpeza"] },
+  ]
 };
 
 export function CategoryFormModal({
@@ -42,10 +119,11 @@ export function CategoryFormModal({
   const [label, setLabel] = useState("");
   const [icon, setIcon] = useState("📦");
   const [nature, setNature] = useState<CategoryNature>(defaultNature);
+  const [emojiSearch, setEmojiSearch] = useState("");
 
   const isEditing = !!category;
 
-  // Body scroll lock for mobile fullscreen
+  // Body scroll lock for mobile
   useEffect(() => {
     if (isMobile && open) {
       document.body.style.overflow = 'hidden';
@@ -62,12 +140,39 @@ export function CategoryFormModal({
       setLabel(category.label);
       setIcon(category.icon || "📦");
       setNature(category.nature || defaultNature);
+      setEmojiSearch("");
     } else if (open) {
       setLabel(defaultLabel);
       setIcon("📦");
       setNature(defaultNature);
+      setEmojiSearch("");
     }
   }, [open, category, defaultNature, defaultLabel]);
+
+  // Filter emojis based on inline search term or nature
+  const filteredEmojis = useMemo(() => {
+    const term = emojiSearch.trim().toLowerCase();
+    if (!term) {
+      return (EMOJI_DATABASE[nature] || EMOJI_DATABASE.despesa_variavel).map(item => item.emoji);
+    }
+
+    // Search across ALL nature categories when searching
+    const results: string[] = [];
+    Object.values(EMOJI_DATABASE).forEach(list => {
+      list.forEach(item => {
+        if (
+          item.emoji.includes(term) ||
+          item.keywords.some(k => k.toLowerCase().includes(term))
+        ) {
+          if (!results.includes(item.emoji)) {
+            results.push(item.emoji);
+          }
+        }
+      });
+    });
+
+    return results;
+  }, [nature, emojiSearch]);
 
   const handleSubmit = () => {
     if (!label.trim()) {
@@ -93,172 +198,167 @@ export function CategoryFormModal({
         hideCloseButton
         fullscreen={isMobile}
         className={cn(
-          "p-0 shadow-2xl bg-card flex flex-col",
-          // +30% width on desktop (28rem -> ~36.4rem)
-          !isMobile && "max-w-[36.4rem] max-h-[90vh] rounded-[2rem]"
+          "p-0 shadow-2xl bg-card flex flex-col border border-border/40 overflow-hidden",
+          // Same height as CategoryListModal: h-[85vh] for perfect vertical consistency!
+          !isMobile && "max-w-3xl h-[85vh] rounded-[2rem]"
         )}
       >
+        {/* Header with compact Nature Buttons */}
         <DialogHeader 
-          className="px-6 sm:px-8 pt-6 sm:pt-10 pb-6 bg-muted/50 dark:bg-black/30 shrink-0 border-b border-border/40 relative"
-          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 1rem)' } : undefined}
+          className="px-5 sm:px-6 py-4 bg-muted/30 dark:bg-black/30 shrink-0 border-b border-border/40 relative"
+          style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top) + 0.75rem)' } : undefined}
         >
-          <div className="flex items-center gap-4">
-            {isMobile && (
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => onOpenChange(false)}
-                className="rounded-full h-10 w-10 shrink-0"
-              >
-                <ArrowLeft className="h-6 w-6" />
-              </Button>
-            )}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* Title & Active Icon */}
+            <div className="flex items-center gap-3">
+              {isMobile && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={() => onOpenChange(false)}
+                  className="rounded-full h-8 w-8 shrink-0"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+              )}
 
-            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-xl shadow-primary/30">
-              <Sparkles className="w-6 h-6 sm:w-7 sm:h-7" />
+              <div className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-bold text-lg shadow-md shrink-0">
+                <span>{icon}</span>
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-black tracking-tight text-foreground">
+                  {isEditing ? "Editar Categoria" : "Nova Categoria"}
+                </DialogTitle>
+                <DialogDescription className="text-[11px] font-semibold text-muted-foreground">
+                  Identificação e classificação do fluxo
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
-                {isEditing ? "Editar Categoria" : "Nova Categoria"}
-              </DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">
-                Defina o Padrão Visual
-              </DialogDescription>
+
+            {/* Nature Compact Pill Selector in Header */}
+            <div className="flex items-center gap-1 bg-muted/60 dark:bg-black/20 p-1 rounded-xl border border-border/40">
+              {[
+                { id: 'receita', label: 'Receita', icon: TrendingUp, color: 'text-emerald-500' },
+                { id: 'despesa_fixa', label: 'Despesa Fixa', icon: Repeat, color: 'text-purple-500' },
+                { id: 'despesa_variavel', label: 'Despesa Variável', icon: TrendingDown, color: 'text-rose-500' }
+              ].map(opt => {
+                const isSelected = nature === opt.id;
+                const IconComp = opt.icon;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setNature(opt.id as CategoryNature)}
+                    className={cn(
+                      "px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap",
+                      isSelected
+                        ? "bg-card text-foreground shadow-xs border border-border/40 font-black"
+                        : "text-muted-foreground hover:text-foreground hover:bg-card/40"
+                    )}
+                  >
+                    <IconComp className={cn("w-3.5 h-3.5", opt.color)} />
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </DialogHeader>
 
-        {/* Desktop: use native/system scroll; Mobile: keep ScrollArea */}
-        {isMobile ? (
-          <ScrollArea className="flex-1 scrollbar-material">
-            <div className="p-6 sm:p-8 space-y-8 pb-32 sm:pb-8">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome da Categoria</Label>
-                <Input
-                  placeholder="Ex: Alimentação"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  className="h-12 border-2 dark:border-white/10 rounded-2xl bg-card dark:bg-white/5 font-bold"
-                />
-              </div>
-
-              <div className="space-y-3">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Natureza do Fluxo</Label>
-                <RadioGroup value={nature} onValueChange={(v) => setNature(v as CategoryNature)} className="grid grid-cols-1 gap-2">
-                  {[
-                    { id: 'receita', label: 'Receita', icon: TrendingUp, color: 'text-success', bg: 'bg-success/5' },
-                    { id: 'despesa_fixa', label: 'Despesa Fixa', icon: Repeat, color: 'text-primary', bg: 'bg-primary/5' },
-                    { id: 'despesa_variavel', label: 'Despesa Variável', icon: TrendingDown, color: 'text-destructive', bg: 'bg-destructive/5' }
-                  ].map(opt => (
-                    <Label key={opt.id} className={cn(
-                      "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                      nature === opt.id ? "border-primary bg-primary/5" : "border-border/40 bg-card hover:border-primary/30"
-                    )}>
-                      <RadioGroupItem value={opt.id} className="sr-only" />
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", nature === opt.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                        <opt.icon className="w-5 h-5" />
-                      </div>
-                      <span className={cn("font-black text-sm uppercase tracking-wider", nature === opt.id ? "text-primary" : "text-muted-foreground")}>
-                        {opt.label}
-                      </span>
-                      {nature === opt.id && <Check className="ml-auto w-5 h-5 text-primary" />}
-                    </Label>
-                  ))}
-                </RadioGroup>
-              </div>
-
-              <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Ícone (Emoji)</Label>
-                <div className="p-4 rounded-3xl bg-muted/20 dark:bg-white/5 border border-border/40 dark:border-white/5 grid grid-cols-5 sm:grid-cols-6 gap-2">
-                  {(EMOJI_BY_CATEGORY[nature] || EMOJI_BY_CATEGORY.despesa_variavel).map(emoji => (
-                    <button
-                      key={emoji}
-                      onClick={() => setIcon(emoji)}
-                      className={cn(
-                        "w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center text-xl rounded-xl transition-all active:scale-95",
-                        icon === emoji ? "bg-primary shadow-lg scale-110" : "hover:bg-card active:bg-card"
-                      )}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              </div>
+        {/* Modal Main Content Body with Fine Scrollbar */}
+        <ScrollArea className="flex-1 px-5 sm:px-6 py-5 scrollbar-material">
+          <div className="space-y-6 pb-20 sm:pb-4">
+            {/* Name Input */}
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                Nome da Categoria
+              </Label>
+              <Input
+                placeholder="Ex: Alimentação, Salário, Internet, Dentista, Óculos..."
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                className="h-10 border-2 dark:border-white/10 rounded-xl bg-card font-bold text-sm px-3.5 focus-visible:ring-primary"
+                autoFocus
+              />
             </div>
-          </ScrollArea>
-        ) : (
-          <div className="flex-1 overflow-y-auto scrollbar-material">
-            <div className="p-6 sm:p-8 space-y-8 pb-32 sm:pb-8">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Nome da Categoria</Label>
-                <Input
-                  placeholder="Ex: Alimentação"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  className="h-12 border-2 dark:border-white/10 rounded-2xl bg-card dark:bg-white/5 font-bold"
-                />
-              </div>
 
-              <div className="space-y-3">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Natureza do Fluxo</Label>
-                <RadioGroup value={nature} onValueChange={(v) => setNature(v as CategoryNature)} className="grid grid-cols-1 gap-2">
-                  {[
-                    { id: 'receita', label: 'Receita', icon: TrendingUp, color: 'text-success', bg: 'bg-success/5' },
-                    { id: 'despesa_fixa', label: 'Despesa Fixa', icon: Repeat, color: 'text-primary', bg: 'bg-primary/5' },
-                    { id: 'despesa_variavel', label: 'Despesa Variável', icon: TrendingDown, color: 'text-destructive', bg: 'bg-destructive/5' }
-                  ].map(opt => (
-                    <Label key={opt.id} className={cn(
-                      "flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                      nature === opt.id ? "border-primary bg-primary/5" : "border-border/40 bg-card hover:border-primary/30"
-                    )}>
-                      <RadioGroupItem value={opt.id} className="sr-only" />
-                      <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", nature === opt.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                        <opt.icon className="w-5 h-5" />
-                      </div>
-                      <span className={cn("font-black text-sm uppercase tracking-wider", nature === opt.id ? "text-primary" : "text-muted-foreground")}>
-                        {opt.label}
-                      </span>
-                      {nature === opt.id && <Check className="ml-auto w-5 h-5 text-primary" />}
-                    </Label>
-                  ))}
-                </RadioGroup>
-              </div>
+            {/* Emoji Selection Section with Inline Search */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
+                  Selecione o Ícone (Emoji)
+                </Label>
 
-              <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Ícone (Emoji)</Label>
-                <div className="p-4 rounded-3xl bg-muted/20 dark:bg-white/5 border border-border/40 dark:border-white/5 grid grid-cols-5 sm:grid-cols-6 gap-2">
-                  {(EMOJI_BY_CATEGORY[nature] || EMOJI_BY_CATEGORY.despesa_variavel).map(emoji => (
-                    <button
-                      key={emoji}
-                      onClick={() => setIcon(emoji)}
-                      className={cn(
-                        "w-11 h-11 sm:w-10 sm:h-10 flex items-center justify-center text-xl rounded-xl transition-all active:scale-95",
-                        icon === emoji ? "bg-primary shadow-lg scale-110" : "hover:bg-card active:bg-card"
-                      )}
+                {/* Inline Search Input with Icon */}
+                <div className="relative w-48 sm:w-56">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={emojiSearch}
+                    onChange={(e) => setEmojiSearch(e.target.value)}
+                    placeholder="Buscar (ex: dente, oculos)..."
+                    className="pl-8 pr-7 h-8 text-xs rounded-lg bg-card border font-medium"
+                  />
+                  {emojiSearch && (
+                    <button 
+                      onClick={() => setEmojiSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5"
                     >
-                      {emoji}
+                      <X className="w-3 h-3" />
                     </button>
-                  ))}
+                  )}
                 </div>
+              </div>
+
+              {/* Emoji Grid Container with Fine Scrollbar */}
+              <div className="p-3.5 rounded-2xl bg-muted/20 dark:bg-white/5 border border-border/40 min-h-[160px] max-h-[260px] overflow-y-auto scrollbar-material">
+                {filteredEmojis.length === 0 ? (
+                  <div className="py-10 text-center text-xs font-semibold text-muted-foreground">
+                    Nenhum emoji encontrado para "{emojiSearch}". Tente buscar por ex: "dente", "oculos", "carro", "casa".
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-7 sm:grid-cols-10 md:grid-cols-12 gap-1.5">
+                    {filteredEmojis.map(e => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => setIcon(e)}
+                        className={cn(
+                          "w-9 h-9 flex items-center justify-center text-lg rounded-xl transition-all active:scale-95",
+                          icon === e 
+                            ? "bg-primary text-primary-foreground shadow-xs font-bold scale-110" 
+                            : "hover:bg-card hover:shadow-2xs"
+                        )}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-        )}
+        </ScrollArea>
 
+        {/* Footer */}
         <DialogFooter 
           className={cn(
-            "p-6 sm:p-8 bg-muted/10 dark:bg-black/20 border-t dark:border-white/5 shrink-0 flex flex-col-reverse sm:flex-row gap-3",
-            isMobile && "fixed bottom-0 left-0 right-0 bg-card"
+            "p-3.5 sm:p-4 bg-muted/20 border-t border-border/40 shrink-0 flex flex-col-reverse sm:flex-row gap-2.5 justify-end",
+            isMobile && "fixed bottom-0 left-0 right-0 bg-card z-10"
           )}
-          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' } : undefined}
+          style={isMobile ? { paddingBottom: 'calc(env(safe-area-inset-bottom) + 0.75rem)' } : undefined}
         >
-          {!isMobile && (
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-full h-12 px-6 font-black text-[10px] uppercase tracking-widest text-muted-foreground hover:text-foreground w-full sm:w-auto">
-              FECHAR
-            </Button>
-          )}
-          <Button onClick={handleSubmit} className="flex-1 rounded-full h-12 bg-primary text-primary-foreground font-black text-sm gap-2 shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
-            <Check className="w-5 h-5" />
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)} 
+            className="rounded-xl h-9 px-5 font-bold text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground w-full sm:w-auto"
+          >
+            CANCELAR
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            className="rounded-xl h-9 px-5 bg-primary text-primary-foreground font-black text-xs uppercase tracking-wider gap-2 shadow-md shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] transition-all w-full sm:w-auto"
+          >
+            <Check className="w-4 h-4" />
             {isEditing ? "SALVAR ALTERAÇÕES" : "CRIAR CATEGORIA"}
           </Button>
         </DialogFooter>

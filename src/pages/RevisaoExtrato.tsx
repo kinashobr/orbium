@@ -108,7 +108,7 @@ export default function RevisaoExtrato() {
 
   // Carregar transações pendentes da conta
   const loadTransactions = useCallback(() => {
-    if (!accountId || !reviewRange.from || !reviewRange.to) {
+    if (!accountId) {
       setTransactionsToReview([]);
       return;
     }
@@ -134,9 +134,7 @@ export default function RevisaoExtrato() {
 
   // Transações contabilizadas do período para esta conta
   const contabilizedTransactions = useMemo(() => {
-    if (!accountId || !reviewRange.from || !reviewRange.to) return [];
-    const from = startOfDay(reviewRange.from);
-    const to = endOfDay(reviewRange.to);
+    if (!accountId) return [];
 
     const contabilizedTxIds = new Set<string>();
     importedStatements
@@ -147,13 +145,19 @@ export default function RevisaoExtrato() {
           .forEach(t => contabilizedTxIds.add(t.contabilizedTransactionId!));
       });
 
+    const hasInterval = Boolean(reviewRange.from && reviewRange.to);
+    const from = reviewRange.from ? startOfDay(reviewRange.from) : undefined;
+    const to = reviewRange.to ? endOfDay(reviewRange.to) : undefined;
+
     return transacoesV2.filter(t => {
       if (t.accountId !== accountId) return false;
-      try {
-        const d = parseDateLocal(t.date);
-        if (!isWithinInterval(d, { start: from, end: to })) return false;
-      } catch {
-        return false;
+      if (hasInterval && from && to) {
+        try {
+          const d = parseDateLocal(t.date);
+          if (!isWithinInterval(d, { start: from, end: to })) return false;
+        } catch {
+          return false;
+        }
       }
       return contabilizedTxIds.has(t.id) || t.meta?.source === 'import';
     });
@@ -282,6 +286,7 @@ export default function RevisaoExtrato() {
       const currentAcc = accounts.find(a => a.id === tx.accountId);
       const isCreditCard = currentAcc?.accountType === 'cartao_credito';
       const isInvestment = ['renda_fixa', 'poupanca', 'cripto', 'reserva', 'objetivo'].includes(currentAcc?.accountType || '');
+      const isTransfer = tx.isTransfer || tx.operationType === 'transferencia';
 
       let flow: FlowType = getFlowTypeFromOperation(
         tx.operationType!,
@@ -298,9 +303,13 @@ export default function RevisaoExtrato() {
         // Em conta corrente: Resgate entra dinheiro (+) e Aplicação sai (-)
         if (tx.operationType === 'aplicacao') flow = 'transfer_out';
         if (tx.operationType === 'resgate') flow = 'transfer_in';
+        if (isTransfer) {
+          const isIncoming = (tx as any).initialOperationType === 'receita' || (tx.amount > 0 && tx.operationType === 'receita');
+          flow = isIncoming ? 'transfer_in' : 'transfer_out';
+        }
       }
 
-      const transferGroupId = (tx.isTransfer || tx.operationType === 'aplicacao' || tx.operationType === 'resgate')
+      const transferGroupId = (isTransfer || tx.operationType === 'aplicacao' || tx.operationType === 'resgate')
         ? generateTransferGroupId()
         : null;
 
@@ -336,7 +345,7 @@ export default function RevisaoExtrato() {
       };
 
       if (transferGroupId) {
-        const targetId = tx.isTransfer ? tx.destinationAccountId : tx.tempInvestmentId;
+        const targetId = isTransfer ? tx.destinationAccountId : tx.tempInvestmentId;
         if (targetId && targetId !== tx.accountId) {
           newTransactions.push(baseTx);
 
@@ -349,12 +358,12 @@ export default function RevisaoExtrato() {
             accountId: targetId,
             flow: counterFlow,
             domain: counterDomain as TransactionDomain,
-            description: tx.description || (tx.isTransfer ? "Transferência" : (tx.operationType === 'aplicacao' ? 'Aplicação' : 'Resgate')),
+            description: tx.description || (isTransfer ? "Transferência" : (tx.operationType === 'aplicacao' ? 'Aplicação' : 'Resgate')),
             links: {
               ...baseTx.links,
               investmentId: (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') ? baseTx.accountId : baseTx.links.investmentId
             },
-            conciliated: false
+            conciliated: true
           });
         } else {
           newTransactions.push(baseTx);

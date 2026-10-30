@@ -28,6 +28,7 @@ export interface AccountSearchSelectorProps {
   clearLabel?: string;
   disabled?: boolean;
   size?: 'sm' | 'default' | 'lg';
+  variant?: 'default' | 'table';
 }
 
 export function AccountSearchSelector({
@@ -40,6 +41,7 @@ export function AccountSearchSelector({
   clearLabel = "-- Não vinculada --",
   disabled = false,
   size = 'default',
+  variant = 'default',
 }: AccountSearchSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const selectedAccount = accounts.find((a) => a.id === value);
@@ -54,6 +56,8 @@ export function AccountSearchSelector({
     lg: "h-11 text-xs px-4 rounded-2xl border-2 bg-card hover:border-primary/30",
   };
 
+  const isTable = variant === 'table';
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -61,11 +65,21 @@ export function AccountSearchSelector({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex w-full items-center justify-between font-black uppercase transition-all duration-200 border border-transparent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-            selectedAccount
-              ? "bg-primary/10 text-primary border-primary/20"
-              : "bg-background/60 text-foreground/80 hover:bg-background border-border/40",
-            sizeClasses[size],
+            "flex w-full items-center justify-between transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+            isTable
+              ? cn(
+                  "h-8 px-3 rounded-xl font-bold text-xs border-none shadow-none",
+                  selectedAccount
+                    ? "bg-background/50 text-foreground hover:bg-background"
+                    : "bg-background/50 text-muted-foreground/50 hover:bg-background"
+                )
+              : cn(
+                  "font-black uppercase border border-transparent",
+                  selectedAccount
+                    ? "bg-primary/10 text-primary border-primary/20"
+                    : "bg-background/60 text-foreground/80 hover:bg-background border-border/40",
+                  sizeClasses[size]
+                ),
             className
           )}
         >
@@ -75,7 +89,7 @@ export function AccountSearchSelector({
                 {selectedAccount.accountType === 'cartao_credito' ? (
                   <CreditCard className="h-3.5 w-3.5 text-purple-500 shrink-0" />
                 ) : (
-                  <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                  <Building2 className={cn("h-3.5 w-3.5 shrink-0", isTable ? "text-muted-foreground/70" : "text-primary")} />
                 )}
                 <span className="truncate">{selectedAccount.name}</span>
               </>
@@ -83,7 +97,7 @@ export function AccountSearchSelector({
               <span className="opacity-40 truncate">{placeholder}</span>
             )}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 opacity-40 shrink-0 ml-1.5" />
+          <ChevronDown className="h-3 w-3 opacity-40 shrink-0 ml-1.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent 

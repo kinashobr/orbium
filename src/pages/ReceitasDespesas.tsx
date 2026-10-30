@@ -318,13 +318,36 @@ const ReceitasDespesas = () => {
         open={showCategoryListModal} 
         onOpenChange={setShowCategoryListModal} 
         categories={categories} 
-        onAddCategory={() => { setEditingCategory(undefined); setShowCategoryModal(true); }} 
-        onEditCategory={c => { setEditingCategory(c); setShowCategoryModal(true); }} 
+        onSaveCategory={(c) => {
+          setCategoriasV2(p => {
+            const exists = p.some(x => x.id === c.id);
+            if (exists) return p.map(x => x.id === c.id ? c : x);
+            return [...p, c];
+          });
+        }}
         onDeleteCategory={id => setCategoriasV2(p => p.filter(x => x.id !== id))} 
         transactionCountByCategory={transactionCountByCategory} 
         onSelectCategory={c => { setViewingCategoryId(c.id); setShowCategoryStatementDialog(true); }}
       />
-      {viewingAccount && viewingSummary && <AccountStatementDialog open={showStatementDialog} onOpenChange={setShowStatementDialog} account={viewingAccount} accountSummary={viewingSummary} transactions={transactions.filter(t => t.accountId === viewingAccountId)} categories={categories} onEditTransaction={handleEditTransaction} onDeleteTransaction={handleDeleteTransaction} onToggleConciliated={handleToggleConciliated} onReconcileAll={() => setTransacoesV2(p => p.map(t => t.accountId === viewingAccountId ? { ...t, conciliated: true } : t))} />}
+      {viewingAccount && viewingSummary && (
+        <AccountStatementDialog 
+          open={showStatementDialog} 
+          onOpenChange={setShowStatementDialog} 
+          account={viewingAccount} 
+          accountSummary={viewingSummary} 
+          transactions={transactions.filter(t => t.accountId === viewingAccountId)} 
+          categories={categories} 
+          onEditTransaction={handleEditTransaction} 
+          onDeleteTransaction={handleDeleteTransaction} 
+          onToggleConciliated={handleToggleConciliated} 
+          onReconcileAll={() => setTransacoesV2(p => p.map(t => t.accountId === viewingAccountId ? { ...t, conciliated: true } : t))}
+          onNewTransaction={() => {
+            setSelectedAccountForModal(viewingAccountId || undefined);
+            setEditingTransaction(undefined);
+            setShowMovimentarModal(true);
+          }}
+        />
+      )}
       {viewingCategory && (
         <CategoryStatementDialog
           open={showCategoryStatementDialog}

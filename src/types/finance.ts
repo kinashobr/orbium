@@ -189,6 +189,16 @@ export interface InvestmentInfo {
   name: string;
 }
 
+export interface VehicleDocument {
+  id: string;
+  nome: string;
+  tipo: string;
+  data: string;
+  url?: string;
+  fileData?: string;
+  tamanho?: string;
+}
+
 // Veículo V2
 export interface Veiculo {
   id: number;
@@ -206,6 +216,12 @@ export interface Veiculo {
   placa?: string;
   renavam?: string;
   crlvDados?: string;
+  fotoUrl?: string;
+  proximaTrocaOleoData?: string;
+  proximaTrocaOleoKm?: number;
+  garantiaMeses?: number;
+  garantiaStatus?: string;
+  documentos?: VehicleDocument[];
   ipvaVencimento?: string; // YYYY-MM-DD
   ipvaValor?: number;
   ipvaPago?: boolean;

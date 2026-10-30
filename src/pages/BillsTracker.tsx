@@ -131,11 +131,46 @@ export default function BillsTracker() {
 
     const trackerPaidTxIds = new Set(syncedTrackerBills.filter(b => b.isPaid && b.transactionId).map(b => b.transactionId!));
     const filtered = externalPaidBills.filter(eb => !trackerPaidTxIds.has(eb.id));
-    return [...syncedTrackerBills, ...newInvoiceBills, ...filtered];
+    
+    const rawList = [...syncedTrackerBills, ...newInvoiceBills, ...filtered];
+    const seenIds = new Set<string>();
+    const uniqueBills: BillDisplayItem[] = [];
+
+    for (const b of rawList) {
+      if (!seenIds.has(b.id)) {
+        seenIds.add(b.id);
+        uniqueBills.push(b);
+      }
+    }
+
+    return uniqueBills;
   }, [trackerManagedBills, newInvoiceBills, externalPaidBills, invoiceBills]);
 
   // M5: Full onTogglePaid implementation (same logic as modal)
   const handleTogglePaid = useCallback((bill: BillDisplayItem, isChecked: boolean) => {
+    if (bill.type === 'external_paid') {
+      if (!isChecked) {
+        // Desfaz o lançamento: remove de transacoesV2 e transfere para billsTracker como pendente
+        const newTrackerBill: BillTracker = {
+          id: bill.id,
+          type: 'tracker',
+          description: bill.description,
+          dueDate: bill.dueDate,
+          expectedAmount: bill.expectedAmount,
+          suggestedAccountId: bill.suggestedAccountId,
+          suggestedCategoryId: bill.suggestedCategoryId,
+          sourceType: 'ad_hoc',
+          isPaid: false,
+          isExcluded: false,
+        };
+        setTransacoesV2(prev => prev.filter(t => t.id !== bill.id));
+        setBillsTracker(prev => [...prev.filter(b => b.id !== bill.id), newTrackerBill]);
+        toast.info("Lançamento desfeito! A conta agora está pendente para edição.");
+        return;
+      }
+      return;
+    }
+
     if (!isBillTracker(bill)) return;
     const trackerBill = bill as BillTracker;
     
@@ -254,11 +289,16 @@ export default function BillsTracker() {
       updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
       toast.info("Pagamento desfeito.");
     }
-  }, [contasMovimento, categoriasV2, emprestimos, creditCardConfigs, addTransacaoV2, updateBill, setTransacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
+  }, [contasMovimento, categoriasV2, emprestimos, creditCardConfigs, addTransacaoV2, updateBill, setTransacoesV2, setBillsTracker, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
 
   const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     const isTracker = trackerBillIds.has(id);
     if (isTracker) {
+      const existing = trackerManagedBills.find(b => b.id === id);
+      if (existing?.isPaid && (updates.suggestedAccountId !== undefined || updates.suggestedCategoryId !== undefined || updates.expectedAmount !== undefined || updates.dueDate !== undefined)) {
+        toast.error("Desfaça o lançamento da despesa ('Pg') antes de alterar seus dados.");
+        return;
+      }
       updateBill(id, updates);
     } else {
       // Atualizar transação correspondente vinda do extrato (external_paid)
@@ -283,17 +323,13 @@ export default function BillsTracker() {
       }));
       toast.success("Lançamento do extrato atualizado!");
     }
-  }, [trackerBillIds, updateBill, setTransacoesV2]);
+  }, [trackerBillIds, trackerManagedBills, updateBill, setTransacoesV2]);
 
   const handleDeleteBill = useCallback((id: string) => {
-    const isTracker = trackerBillIds.has(id);
-    if (isTracker) {
-      deleteBill(id);
-    } else {
-      setTransacoesV2(prev => prev.filter(t => t.id !== id));
-      toast.success("Lançamento do extrato excluído com sucesso!");
-    }
-  }, [trackerBillIds, deleteBill, setTransacoesV2]);
+    deleteBill(id);
+    setTransacoesV2(prev => prev.filter(t => t.id !== id && t.id !== `bill_tx_${id}` && t.links?.transferGroupId !== `bill_tx_${id}`));
+    toast.success("Despesa excluída com sucesso!");
+  }, [deleteBill, setTransacoesV2]);
 
   const handleAddBill = useCallback((bill: Omit<BillTracker, "id" | "isPaid" | "type">) => {
     setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);

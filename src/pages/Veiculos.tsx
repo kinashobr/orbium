@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -207,9 +208,10 @@ const BensImobilizados = () => {
     toast.success(`FIPE atualizada: ${formatCurrency(valorFipe)}`);
   }, [veiculos, updateVeiculo]);
   
+  const navigate = useNavigate();
+
   const handleViewDetails = (veiculo: Veiculo) => {
-    setSelectedVehicle(veiculo);
-    setShowVehicleDetail(true);
+    navigate(`/veiculos/${veiculo.id}`);
   };
   
   const handleOpenImovelModal = (type: 'imovel' | 'terreno', asset?: Imovel | Terreno) => {

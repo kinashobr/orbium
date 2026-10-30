@@ -271,7 +271,11 @@ export function TransactionReviewTable({
                   <Label className="text-[9px] font-black uppercase text-muted-foreground">Operação</Label>
                   <OperationSearchSelector
                     value={tx.operationType}
-                    onSelect={(val) => onUpdateTransaction(tx.id, { operationType: val, categoryId: null })}
+                    onSelect={(val) => onUpdateTransaction(tx.id, { 
+                      operationType: val, 
+                      categoryId: null,
+                      isTransfer: val === 'transferencia'
+                    })}
                   />
                 </div>
                 <div className="space-y-1">
@@ -457,7 +461,11 @@ export function TransactionReviewTable({
                 <TableCell className="py-2" style={{ width: columnWidths.operation }}>
                   <OperationSearchSelector
                     value={tx.operationType}
-                    onSelect={(val) => onUpdateTransaction(tx.id, { operationType: val, categoryId: null })}
+                    onSelect={(val) => onUpdateTransaction(tx.id, { 
+                      operationType: val, 
+                      categoryId: null,
+                      isTransfer: val === 'transferencia'
+                    })}
                   />
                 </TableCell>
 

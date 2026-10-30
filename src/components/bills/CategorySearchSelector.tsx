@@ -28,6 +28,7 @@ export interface CategorySearchSelectorProps {
   clearLabel?: string;
   disabled?: boolean;
   size?: 'sm' | 'default' | 'lg';
+  variant?: 'default' | 'table';
 }
 
 export function CategorySearchSelector({
@@ -40,6 +41,7 @@ export function CategorySearchSelector({
   clearLabel = "-- Sem Categoria --",
   disabled = false,
   size = 'default',
+  variant = 'default',
 }: CategorySearchSelectorProps) {
   const [open, setOpen] = React.useState(false);
   const selectedCategory = categories.find((c) => c.id === value);
@@ -54,6 +56,24 @@ export function CategorySearchSelector({
     lg: "h-11 text-xs px-4 rounded-2xl border-2 bg-card hover:border-primary/30",
   };
 
+  const isTable = variant === 'table';
+
+  const getCategoryColor = (category?: Categoria) => {
+    if (!category) {
+      return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20";
+    }
+    switch (category.nature) {
+      case 'receita':
+        return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20";
+      case 'despesa_fixa':
+        return "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20 hover:bg-purple-500/20";
+      case 'despesa_variavel':
+        return "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 hover:bg-indigo-500/20";
+      default:
+        return "bg-primary/10 text-primary border-primary/20 hover:bg-primary/20";
+    }
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -61,11 +81,10 @@ export function CategorySearchSelector({
           type="button"
           disabled={disabled}
           className={cn(
-            "flex w-full items-center justify-between font-black uppercase transition-all duration-200 border border-transparent focus:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-            selectedCategory
-              ? "bg-primary/10 text-primary border-primary/20"
-              : "bg-background/60 text-foreground/80 hover:bg-background border-border/40",
+            "flex w-full items-center justify-between transition-all duration-200 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 font-black uppercase border",
+            getCategoryColor(selectedCategory),
             sizeClasses[size],
+            isTable && "h-8 px-3 rounded-xl border-none shadow-none font-bold text-xs",
             className
           )}
         >
@@ -76,10 +95,10 @@ export function CategorySearchSelector({
                 <span className="truncate">{selectedCategory.label}</span>
               </>
             ) : (
-              <span className="opacity-40 truncate">{placeholder}</span>
+              <span className="truncate opacity-90">{placeholder}</span>
             )}
           </span>
-          <ChevronDown className="h-3 w-3 opacity-40 shrink-0 ml-1" />
+          <ChevronDown className="h-3 w-3 opacity-60 shrink-0 ml-1" />
         </button>
       </PopoverTrigger>
       <PopoverContent 

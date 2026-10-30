@@ -1419,11 +1419,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const targetAccount = contasMovimento.find(acc => acc.id === accountId);
     const isCreditCardAccount = targetAccount?.accountType === 'cartao_credito';
 
-    if (!range.from || !range.to) return allRawTransactions;
-    const rangeFrom = startOfDay(range.from);
-    const rangeTo = endOfDay(range.to);
-    
-    let filteredTxs = allRawTransactions.filter(t => isWithinInterval(parseDateLocal(t.date), { start: rangeFrom, end: rangeTo }));
+    const hasRange = Boolean(range && range.from && range.to);
+    let filteredTxs = hasRange
+      ? allRawTransactions.filter(t => isWithinInterval(parseDateLocal(t.date), { start: startOfDay(range.from!), end: endOfDay(range.to!) }))
+      : allRawTransactions;
+
     filteredTxs = applyRules(filteredTxs, standardizationRules);
     
     return filteredTxs.map(importedTx => {

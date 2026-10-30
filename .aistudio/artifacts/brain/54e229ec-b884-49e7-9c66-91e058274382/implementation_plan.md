@@ -1,147 +1,100 @@
-# Revisão de Extrato — Modernização, Usabilidade e Tratamento em Lote
+# Plano de Implementação: Nova Aba Ficha & Seguro (Tela Bens / Veículos)
 
-Plano de modernização integral da tela de Revisão de Extrato bancário (`/revisao-extrato`), trazendo unificação visual inteligente de descrições, alternância fluida entre lançamentos pendentes e contabilizados, seletores avançados com busca idênticos ao Contas a Pagar, seleção por checkbox para contabilização e reversão em lote, preservação definitiva de digitações manuais e refinamento de todas as operações contábeis.
-
----
-
-### User Review & Critical Decisions
-
-> [!IMPORTANT]
-> **Decisões Confirmadas com o Usuário:**
-> - **Visualização de Contabilizados**: Alternância de abas na própria página entre **"A Tratar" (Pendentes)** e **"Contabilizadas"**, permitindo conferência e reversão sem necessidade de modais extras.
-> - **Seleção por Checkbox**: A coluna 1 terá caixas de seleção (com opção "Selecionar Todos" no cabeçalho), e o botão **Contabilizar** processará exclusivamente as transações marcadas que estiverem válidas.
-> - **Desfazer do Período**: O botão no topo executa o **Desfazer Contabilização do Período**, revertendo as transações criadas nas contas correntes e devolvendo os itens para a fila "A Tratar" com segurança.
-> - **Zero Perda de Dados em Regras**: As alterações manuais feitas nas linhas em tela passam a ser salvas no estado do extrato importado (`importedStatements`), garantindo que criar ou alterar uma regra não sobrescreva o trabalho já preenchido pelo usuário.
+Reformulação completa da aba **Ficha & Seguro** no detalhe do veículo (`/veiculos/:id`), implementando a nova arquitetura visual baseada na maquete com design moderno, foco em legibilidade, widgets analíticos ricos e integração direta com o contexto financeiro (`FinanceContext`).
 
 ---
 
-### 1. Overview & Core Concept
+## Decisões Confirmadas pelo Usuário
 
-- **O que faz**:
-  - **Coluna de Descrição Unificada**: Elimina a redundância de duas colunas separadas. Mostra a descrição original se não houver padronização, e a descrição final cadastrada quando padronizada ou editada pelo usuário, com dica/subtexto elegante do histórico original.
-  - **Filtro Estrito de Duplicadas e Inbox Zero**: Transações detectadas como duplicatas potenciais já lançadas no sistema são removidas da lista de pendências a tratar. Ao concluir todo o lote, a tela exibe um estado vazio limpo e minimalista no centro.
-  - **Aba de Contabilizadas & Desfazer Seletivo**: Permite inspecionar o histórico contabilizado do período, selecionar transações específicas e clicar em "Desfazer Contabilização" para que retornem imediatamente à tela de revisão para novo tratamento.
-  - **Componentes com Busca (Categoria e Operação)**: Integração do `CategorySearchSelector` (mesmo padrão do Contas a Pagar com Command/Popover) e estilização unificada para o seletor de Operação com ícones temáticos e busca.
-  - **Exclusão de Transações**: Coluna com botão para descartar permanentemente transações irrelevantes do extrato que não devem ser contabilizadas.
-  - **Botão Alterar Regra vs Criar Regra**: Design contextual que identifica se a transação já foi associada a uma regra pré-existente (exibindo "Editar Regra") ou se é um novo padrão ("Criar Regra").
-
----
-
-### 2. User Experience & Visual Design
-
-#### A. Estrutura e Abas Principais
-- **Top Bar**:
-  - Título e subtítulo com identificação da conta.
-  - Contadores tipográficos limpos (sem pílulas estáticas): `X pendentes · Y prontos · Z contabilizados`.
-  - **Segmented Control / Abas**: `[ A Tratar (N) ]` e `[ Contabilizadas (M) ]`.
-  - Botão **Desfazer Contabilização do Período** (com diálogo de confirmação explicativo).
-  - Seletor de Período (`PeriodSelector`) e Botão de Regras (`Settings2`).
-
-#### B. Tabela "A Tratar" (Pendentes)
-- **Coluna 1 (Seleção & Status)**: Checkbox de seleção por linha + indicador de prontidão (ícone verde sutil quando pronta para contabilizar ou ícone de pendência).
-- **Coluna 2 (Data & Valor)**: Data formatada e valor com cor semântica (+ verde receita / - vermelho despesa).
-- **Coluna 3 (Descrição / Histórico - Unificada)**:
-  - Exibe campo editável com a descrição final / padronizada.
-  - Se houver histórico original divergente, exibe tipografia discreta logo abaixo com o texto original do banco.
-- **Coluna 4 (Operação)**: Seletor estilizado consistente com busca rápida e badges de cores por tipo de operação.
-- **Coluna 5 (Categoria)**: `CategorySearchSelector` com busca por texto, ícones de categoria e navegação fluida.
-- **Coluna 6 (Vínculo)**: Exibido dinamicamente quando a operação exige (Transferência -> Conta Destino; Aplicação/Resgate -> Investimento; Empréstimo -> Contrato & Parcela).
-- **Coluna 7 (Ações)**:
-  - Botão contextual de Regra: se já existe regra vinculada ao padrão, exibe botão estilizado de edição de regra; se não existe, exibe botão de criar regra.
-  - Botão de Excluir Transação (lixeira discreta com confirmação) para descartar o item do extrato.
-
-#### C. Tabela "Contabilizadas"
-- Exibe as transações que foram contabilizadas no período para aquela conta.
-- Colunas: Checkbox de seleção, Data, Valor, Descrição, Categoria / Operação, e Ação "Desfazer".
-- Botão no rodapé: **"Desfazer Selecionadas (K)"** e botão individual por linha.
-- Ao clicar em desfazer, remove os lançamentos em `transacoesV2` e reativa as transações no extrato importado, que reaparecem imediatamente na aba "A Tratar".
-
-#### D. Estado Vazio (Inbox Zero)
-- Quando todas as transações forem tratadas, exibe um card central amplo e acolhedor:
-  - Ícone de sucesso / arquivo conciliado.
-  - Texto: *"Extrato 100% conciliado para este período!"*
-  - Subtexto: *"Nenhuma transação pendente a tratar. Você pode alternar para a aba 'Contabilizadas' para revisar ou desfazer lançamentos."*
+- **Hero Showcase**: Substituição dos cards antigos por uma Hero Stage com foto do veículo, badges de estado patrimonial, dock de métricas mecânicas/garantia e pílulas com suporte a cópia de Placa e RENAVAM ao clique (`navigator.clipboard.writeText`).
+- **Foto do Veículo**: Suporte a envio de foto personalizada pelo usuário. Caso não enviada, utilizar foto buscada/gerada ou o ícone/imagem padrão do tipo de veículo.
+- **Cronograma de Seguro de 12 Meses**: Fita estática e intuitiva exibindo o status de quitação das 12 parcelas da apólice (P01 a P12) calculadas com base nas parcelas do seguro salvas no contexto.
+- **Widgets Analíticos**: Cálculo dinâmico dos 3 widgets (Medidor Radial do Seguro, Sparkline Bezier da FIPE e Medidor de Eficiência de Consumo) utilizando dados reais do veículo do contexto. Se houver dados faltantes, disponibilizar opção direta para informar/alocar.
+- **Cofre de Documentos e Obrigações Tributárias**: Doca interativa com status de IPVA e Licenciamento (com suporte a marcar quitação/editar valores) e cofre de documentos com botões para download e adição de novos laudos/certificados.
+- **Respeito ao Tema e Cores**: Preservação estrita das variáveis de tema claro/escuro do aplicativo (Tailwind CSS), sem aplicar cores estáticas desalinhadas.
 
 ---
 
-### 3. Technical Architecture & Data Strategy
+## 1. Visão Geral & Conceito
+
+Transformar a aba **Ficha e Seguro** da tela de detalhe de bens (`/veiculos/:id`) em um **Cockpit Patrimonial de Veículos**, unificando:
+1. **Identificação & Ativos**: Placa, RENAVAM, garantia, troca de óleo e fotos do bem.
+2. **Saúde Financeira da Apólice**: Indicador radial da apólice, prêmio total e cronograma de 12 parcelas.
+3. **Depreciação & Consumo**: Curva FIPE com retenção de capital e medidor de consumo de combustível (km/l).
+4. **Regularidade Fiscal & Documental**: Status SEFAZ/DETRAN (IPVA e Licenciamento) e cofre de documentos (CRLV-e, apólices).
+
+---
+
+## 2. Experiência do Usuário & Design Visual
+
+### A. Componentes do Layout
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          RevisaoExtrato.tsx                            │
-│  - State: activeTab ('pending' | 'contabilized')                       │
-│  - State: selectedTxIds (Set<string>)                                  │
-│  - Memo: pendingTransactions (filtered duplicates excluded)            │
-│  - Memo: contabilizedTransactions (from importedStatements in period)  │
-└───────────────────┬────────────────────────────────┬───────────────────┘
-                    │                                │
-         activeTab === 'pending'           activeTab === 'contabilized'
-                    │                                │
-                    ▼                                ▼
-┌──────────────────────────────────────┐ ┌───────────────────────────────┐
-│        TransactionReviewTable        │ │   ContabilizedReviewTable     │
-│  - Select all / Checkboxes           │ │  - Select all / Checkboxes    │
-│  - Unified Description cell          │ │  - Batch / Single Undo        │
-│  - CategorySearchSelector (Search)   │ │  - Direct call to             │
-│  - OperationSelector (Searchable)    │ │    uncontabilizeImportedTx    │
-│  - Smart Rule button (Create/Edit)   │ └───────────────────────────────┘
-│  - Delete transaction button         │
-└──────────────────────────────────────┘
-                    ▲
-                    │
-┌───────────────────┴────────────────────────────────────────────────────┐
-│                    FinanceContext & Data Persistence                   │
-│  - updateImportedTransactionInStatement (persists user in-memory edits)│
-│  - uncontabilizeImportedTransaction (batch & single safe rollback)     │
-│  - deleteTransactionFromImportedStatement (permanent item exclusion)  │
-│  - applyRules (preserves user-edited dirty fields)                     │
-└────────────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────────────┐
+│ 1. HERO SHOWCASE (Estágio Integrado do Veículo)                                        │
+│ ┌──────────────────────────────────────────────┬────────────────────────────────────┐ │
+│ │ Título, Categoria e Badges "Ativo Imob."     │ Foto do Veículo (ou upload/ícone)  │ │
+│ │ Pílulas Copiáveis: Placa Mercosul & RENAVAM  │ com Brilho Radial de Fundo         │ │
+│ │ Dock: IPVA Status · Próx. Óleo · Garantia      │                                    │ │
+│ └──────────────────────────────────────────────┴────────────────────────────────────┘ │
+├───────────────────────────────────────────────────────────────────────────────────────┤
+│ 2. WIDGETS ANALÍTICOS (Grid 3 Colunas)                                               │
+│ ┌──────────────────────────┬──────────────────────────┬─────────────────────────────┐ │
+│ │ WIDGET A: APÓLICE SEGURO │ WIDGET B: AVALIAÇÃO FIPE │ WIDGET C: CONSUMO & RODAGEM │ │
+│ │ • Anel Radial SVG (% pago)│ • Sparkline Bezier SVG   │ • Barra Gradiente (Km/L)    │ │
+│ │ • Prêmio & Parcelas     │ • Delta % & Retenção Cap.│ • Gasto em Combustível (R$) │ │
+│ └──────────────────────────┴──────────────────────────┴─────────────────────────────┘ │
+├───────────────────────────────────────────────────────────────────────────────────────┤
+│ 3. TIMELINE SEGMENTED RIBBON (Cronograma de 12 Parcelas da Apólice)                   │
+│ ┌───────────────────────────────────────────────────────────────────────────────────┐ │
+│ │ Resumo: Total R$ · Liquidado R$ · Restante R$                                    │ │
+│ │ Grid P01 .. P12: Badges com valor, mês e ícone de status (Quitado / Pendente)     │ │
+│ └───────────────────────────────────────────────────────────────────────────────────┘ │
+├───────────────────────────────────────────────────────────────────────────────────────┤
+│ 4. DOCA FAZENDÁRIA & COFRE DE DOCUMENTOS (Grid 7 cols / 5 cols)                       │
+│ ┌──────────────────────────────────────────────┬────────────────────────────────────┐ │
+│ │ Obrigações Tributárias SEFAZ / DETRAN        │ Cofre de Documentos Digitais        │ │
+│ │ • IPVA Exercício (R$ / Quitado)              │ • CRLV-e 2026 Digital (PDF)        │ │
+│ │ • Licenciamento Anual (R$ / Quitado)         │ • Apólice de Seguro (PDF)          │ │
+│ │ • Ação rápida para marcar/editar             │ • Botão "Adicionar Documento"      │ │
+│ └──────────────────────────────────────────────┴────────────────────────────────────┘ │
+└───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-#### Regras de Validação das Operações (Item 9 do Pedido)
-1. **Receita**: `categoryId` obrigatório com natureza `receita`; gera `flow: 'in'`, `domain: 'operational'`.
-2. **Despesa**: `categoryId` obrigatório com naturezas de despesa; gera `flow: 'out'`, `domain: 'operational'`.
-3. **Transferência**: `destinationAccountId` obrigatório (diferente da conta de origem); gera partida dobrada (`transfer_out` e `transfer_in`) com `transferGroupId`.
-4. **Aplicação**: `tempInvestmentId` obrigatório; debita a conta corrente e credita a conta de investimento com `domain: 'investment'`.
-5. **Resgate**: `tempInvestmentId` obrigatório; credita a conta corrente e debita o investimento.
-6. **Pagamento de Empréstimo**: `tempLoanId` e `tempParcelaId` obrigatórios; debita a conta e baixa a parcela no contrato (`markLoanParcelPaid`).
-7. **Liberação de Empréstimo**: `flow: 'in'`, registra o crédito do financiamento.
-8. **Rendimento**: `flow: 'in'`, categoria de receita/rendimento.
-9. **Veículo**: `tempAssetOperation` obrigatório se for aquisição ou manutenção específica de ativo.
+### B. Especificações de Interação & UI
+
+- **Upload de Foto**: Clique no container da imagem do veículo abre dialog para upload de imagem local ou inserção de URL de foto.
+- **Pílulas Copiáveis**: Clique na Placa ou RENAVAM copia o texto para a área de transferência com notificação *Sonner Toast* ("Placa copiada!").
+- **Radial Gauge Ring SVG**: Gráfico circular SVG responsivo calculando o percentual de parcelas pagas do seguro com transição suave.
+- **Sparkline Bezier SVG**: Gráfico de linha vetorial vetorial exibindo o histórico de valor FIPE do veículo com gradiente subjacente.
+- **Cronograma de Parcelas**: Exibição dos 12 meses sincronizados com as parcelas salvas do seguro no `FinanceContext`.
+- **Gerenciador de Documentos**: Upload de arquivos locais que ficam salvos no estado do veículo (com suporte a simulação de download de PDFs de CRLV-e e Apólice).
 
 ---
 
-### 4. Implementation Steps
+## 3. Decisões do Produto & Arquitetura de Dados
 
-1. **Atualização no `FinanceContext.tsx`**:
-   - Adicionar funções auxiliares:
-     - `deleteTransactionFromImportedStatement(statementId: string, transactionId: string)`: remove transação indesejada da importação.
-     - `uncontabilizeTransactionsBatch(transactionIds: string[])`: reverte lote de transações contabilizadas de uma só vez.
-     - `updateRawTransactionDraft(statementId: string, transactionId: string, updates: Partial<ImportedTransaction>)`: persiste descrições ou categorias editadas pelo usuário no extrato em tempo real.
-     - Ajustar `getTransactionsForReview` para não sobrescrever dados salvos no rascunho da transação.
+### Atualizações nas Interfaces (`src/types/finance.ts`)
 
-2. **Criação do Seletor de Operação com Busca e Ícones**:
-   - Criar `src/components/transactions/OperationSearchSelector.tsx` utilizando Popover e Command, exatamente como o `CategorySearchSelector`.
+1. **Campos Adicionais no Veículo (`Veiculo`)**:
+   - `fotoUrl?: string;`
+   - `proximaTrocaOleoData?: string;`
+   - `garantiaStatus?: string;`
+   - `documentos?: { id: string; nome: string; tipo: string; data: string; url?: string; fileData?: string }[];`
 
-3. **Refatoração da Tabela `TransactionReviewTable.tsx`**:
-   - Checkbox na coluna 1 (com "Selecionar Todos").
-   - Unificação de "Descrição Original" e "Descrição Final" em uma coluna única responsiva.
-   - Substituição dos selects nativos por `CategorySearchSelector` e `OperationSearchSelector`.
-   - Adição do botão de exclusão de transação (com tooltip e diálogo de confirmação).
-   - Estilização aprimorada do botão de regra: detecta se a transação corresponde a uma regra cadastrada para exibir "Editar Regra" com ícone de lápis/ajuste, ou "Criar Regra" se for nova.
-   - Ocultação automática de `isPotentialDuplicate` do fluxo "A Tratar".
+2. **Cálculos Dinâmicos**:
+   - **Eficiência de Consumo**: Derivada do histórico de transações marcadas com `gastoTipo: 'combustivel'` no histórico do veículo. Se inexistente, sugere atalho para registrar reabastecimento.
+   - **Percentual FIPE**: Variação entre `valorVeiculo` (compra) e `valorFipe` (atual).
 
-4. **Criação da Tabela / Visão de Contabilizadas**:
-   - Componente ou aba dedicada para exibir os lançamentos já contabilizados do período pertencentes àquela conta.
-   - Checkboxes e botão "Desfazer Contabilização Selecionadas".
+---
 
-5. **Ajustes na Página `RevisaoExtrato.tsx`**:
-   - Abas superiores de alternância entre "A Tratar" e "Contabilizadas".
-   - Botão no cabeçalho: "Desfazer Contabilização do Período".
-   - Mensagem central elegante para o estado de "Nenhum lançamento a tratar / Tudo conciliado".
-   - Atualização do botão no rodapé para contabilizar apenas as transações marcadas pelo checkbox.
-   - Corrigir `handleSaveRule` para não zerar as descrições ou seleções já informadas em outras linhas.
+## 4. Etapas de Execução
 
-6. **Validação & Testes**:
-   - Executar `compile_applet` e `lint_applet` para garantir 0 erros de compilação e TypeScript estrito.
-   - Verificar fluxos ponta a ponta (edição sem perda, filtros de operação, reversão de contabilização e persistência).
+1. **Atualização do Modelo de Dados (`src/types/finance.ts`)**: Adicionar novos campos para suporte a foto, documentos e métricas mecânicas ao tipo `Veiculo`.
+2. **Criação dos Novos Subcomponentes da Ficha & Seguro**:
+   - `src/components/vehicles/VehicleHeroShowcase.tsx`: Estágio principal do veículo com foto, upload, atalhos de cópia e métricas.
+   - `src/components/vehicles/VehicleAnalyticWidgets.tsx`: Trio de widgets (Radial Gauge Seguro, Sparkline Bezier FIPE, Barra de Consumo).
+   - `src/components/vehicles/VehicleInsuranceTimeline.tsx`: Fita de 12 parcelas do seguro com indicação de liquidação.
+   - `src/components/vehicles/VehicleFiscalAndDocsDock.tsx`: Doca de obrigações IPVA/Licenciamento e cofre de documentos digitais com upload/download.
+3. **Integração na Tela do Veículo (`src/pages/VehicleDetailPage.tsx`)**: Substituir os componentes legados na aba `visao_geral` pela nova estrutura unificada.
+4. **Testes & Compilação**: Executar `compile_applet` para validar integridade do código e ausência de erros TypeScript.

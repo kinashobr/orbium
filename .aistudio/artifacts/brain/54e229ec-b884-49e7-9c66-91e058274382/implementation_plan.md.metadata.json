@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano detalhado de implementação para modernização e refinamento completo da tela de Revisão de Extrato (unificação de descrição, abas Pendentes/Contabilizadas, seletores com busca, seleção em lote, preservação de edições ao salvar regras, exclusão e desfazer contabilização).",
-  "updatedAt":  "2026-10-22T13:08:02.319052699Z",
+  "summary":  "Plano de implementação para o novo layout da aba Ficha e Seguro na tela de Veículos/Bens, incluindo Hero Showcase com foto customizada e atalhos de cópia, Widgets Analíticos (Seguro, FIPE, Consumo), Cronograma de 12 Meses do Seguro e Doca de Documentos e Obrigações Tributárias.",
+  "updatedAt":  "2026-10-28T14:48:44.408120524Z",
   "requestFeedback":  true,
   "userFacing":  true
 }
