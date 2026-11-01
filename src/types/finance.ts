@@ -138,6 +138,7 @@ export interface TransactionMeta {
   assetOperation?: 'compra' | 'venda';
   discountAmount?: number;
   discountTransactionId?: string;
+  fitId?: string; // ID único da transação OFX emitida pela instituição financeira
 }
 
 // Transação Completa (atualizada)
@@ -501,6 +502,9 @@ export interface ImportedTransaction {
   date: string; // YYYY-MM-DD
   amount: number;
   originalDescription: string;
+  originalAmount?: number; // Valor original com sinal vindo do extrato bancário
+  originalFlow?: 'in' | 'out'; // Natureza original da movimentação: 'in' = entrada/recebimento (+), 'out' = saída/pagamento (-)
+  initialOperationType?: OperationType; // Operação inicial inferida na importação ('receita' vs 'despesa')
   
   // Campos para revisão (pré-preenchidos por regras)
   accountId: string;
@@ -522,6 +526,7 @@ export interface ImportedTransaction {
   
   // Meta
   sourceType: 'csv' | 'ofx';
+  fitId?: string; // ID único da transação OFX emitida pelo banco (<FITID>)
   
   // NEW: Rastreamento de contabilização
   isContabilized?: boolean;

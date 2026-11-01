@@ -39,6 +39,8 @@ interface LinkSearchSelectorProps {
   tempInvestmentId?: string | null;
   tempLoanId?: string | null;
   tempParcelaId?: string | null;
+  flow?: 'in' | 'out';
+  isIncome?: boolean;
   onChange: (updates: {
     destinationAccountId?: string | null;
     tempInvestmentId?: string | null;
@@ -59,6 +61,8 @@ export function LinkSearchSelector({
   tempInvestmentId,
   tempLoanId,
   tempParcelaId,
+  flow,
+  isIncome,
   onChange,
   className,
   isCompact = false,
@@ -66,10 +70,15 @@ export function LinkSearchSelector({
   const [open, setOpen] = React.useState(false);
   const [openParcela, setOpenParcela] = React.useState(false);
 
+  const isIncoming = flow === 'in' || isIncome === true;
+
   // Transferência
   if (operationType === 'transferencia') {
     const availableAccounts = accounts.filter(a => a.id !== currentAccountId);
     const selectedAccount = availableAccounts.find(a => a.id === destinationAccountId);
+    const transferPlaceholder = isIncoming ? "CONTRAPARTIDA (ORIGEM)..." : "CONTRAPARTIDA (DESTINO)...";
+    const searchPlaceholder = isIncoming ? "BUSCAR CONTRAPARTIDA (ORIGEM)..." : "BUSCAR CONTRAPARTIDA (DESTINO)...";
+    const selectedLabel = selectedAccount ? `${selectedAccount.name} (${isIncoming ? 'Origem' : 'Destino'})` : transferPlaceholder;
 
     return (
       <Popover open={open} onOpenChange={setOpen}>
@@ -87,7 +96,7 @@ export function LinkSearchSelector({
           >
             <span className="truncate flex items-center gap-1.5 min-w-0">
               <Landmark className="w-3.5 h-3.5 shrink-0 opacity-70" />
-              <span className="truncate">{selectedAccount ? selectedAccount.name : "CONTA DESTINO..."}</span>
+              <span className="truncate">{selectedLabel}</span>
             </span>
             <ChevronDown className="h-3 w-3 opacity-40 shrink-0 ml-1" />
           </button>
@@ -99,7 +108,7 @@ export function LinkSearchSelector({
         >
           <Command className="bg-card">
             <CommandInput
-              placeholder="BUSCAR CONTA..."
+              placeholder={searchPlaceholder}
               className="h-10 text-[10px] font-black uppercase border-none focus:ring-0"
             />
             <CommandList className="max-h-[240px] overflow-y-auto">

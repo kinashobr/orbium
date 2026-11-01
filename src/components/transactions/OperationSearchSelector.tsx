@@ -12,6 +12,7 @@ import {
   DollarSign,
   Car,
   Coins,
+  Building2,
   ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -48,6 +49,7 @@ export const OPERATION_OPTIONS: OperationOption[] = [
   { value: 'pagamento_emprestimo', label: 'Empréstimo', color: 'text-orange-500', bgColor: 'bg-orange-500/10 text-orange-500 border-orange-500/20', icon: CreditCard, description: 'Pagamento' },
   { value: 'liberacao_emprestimo', label: 'Liberação', color: 'text-emerald-500', bgColor: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: DollarSign, description: 'Financiamento' },
   { value: 'veiculo', label: 'Veículo', color: 'text-blue-500', bgColor: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: Car, description: 'Ativo' },
+  { value: 'imobilizado', label: 'Imobilizado', color: 'text-indigo-500', bgColor: 'bg-indigo-500/10 text-indigo-500 border-indigo-500/20', icon: Building2, description: 'Bens Imóveis' },
   { value: 'rendimento', label: 'Rendimento', color: 'text-teal-500', bgColor: 'bg-teal-500/10 text-teal-500 border-teal-500/20', icon: Coins, description: 'Juros' },
 ];
 
@@ -56,16 +58,31 @@ interface OperationSearchSelectorProps {
   onSelect: (value: OperationType) => void;
   disabled?: boolean;
   className?: string;
+  filterFlow?: 'in' | 'out';
 }
 
 export function OperationSearchSelector({
   value,
   onSelect,
   disabled = false,
-  className
+  className,
+  filterFlow,
 }: OperationSearchSelectorProps) {
   const [open, setOpen] = React.useState(false);
-  const selectedOp = OPERATION_OPTIONS.find((o) => o.value === value);
+
+  const availableOptions = React.useMemo(() => {
+    let opts = OPERATION_OPTIONS;
+    if (filterFlow === 'in') {
+      const allowedIn: OperationType[] = ['receita', 'transferencia', 'resgate', 'rendimento', 'liberacao_emprestimo', 'veiculo', 'imobilizado'];
+      opts = opts.filter(o => allowedIn.includes(o.value));
+    } else if (filterFlow === 'out') {
+      const allowedOut: OperationType[] = ['despesa', 'transferencia', 'pagamento_emprestimo', 'veiculo', 'imobilizado'];
+      opts = opts.filter(o => allowedOut.includes(o.value));
+    }
+    return opts;
+  }, [filterFlow]);
+
+  const selectedOp = availableOptions.find((o) => o.value === value) || OPERATION_OPTIONS.find((o) => o.value === value);
 
   const handleWheel = (e: React.WheelEvent) => {
     e.stopPropagation();
@@ -116,7 +133,7 @@ export function OperationSearchSelector({
               Nenhuma operação
             </CommandEmpty>
             <CommandGroup className="p-1.5 space-y-0.5">
-              {OPERATION_OPTIONS.map((option) => {
+              {availableOptions.map((option) => {
                 const Icon = option.icon;
                 const isSelected = value === option.value;
                 return (

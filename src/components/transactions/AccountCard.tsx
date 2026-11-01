@@ -46,7 +46,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
   return (
     <Card
       className={cn(
-        "glass-card w-full sm:w-[280px] shrink-0 p-3.5 md:p-6 transition-all hover:shadow-md rounded-[1.75rem] border border-border/40 bg-card",
+        "glass-card w-full sm:w-[280px] shrink-0 p-3.5 md:p-6 transition-all hover:shadow-md rounded-[1.75rem] border border-border/40 bg-card select-none",
         statusClasses[reconciliationStatus],
       )}
     >
@@ -74,31 +74,33 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
           </div>
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
-              <MoreVertical className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onViewHistory(accountId)}>
-              Ver Extrato
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onMovimentar(accountId)}>
-              Movimentar
-            </DropdownMenuItem>
-            {onEdit && (
-              <DropdownMenuItem onClick={() => onEdit(accountId)}>
-                Editar Conta
+        <div onMouseDown={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0">
+                <MoreVertical className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onViewHistory(accountId)}>
+                Ver Extrato
               </DropdownMenuItem>
-            )}
-            {onImport && (
-              <DropdownMenuItem onClick={() => onImport(accountId)}>
-                Importar Extrato
+              <DropdownMenuItem onClick={() => onMovimentar(accountId)}>
+                Movimentar
               </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {onEdit && (
+                <DropdownMenuItem onClick={() => onEdit(accountId)}>
+                  Editar Conta
+                </DropdownMenuItem>
+              )}
+              {onImport && (
+                <DropdownMenuItem onClick={() => onImport(accountId)}>
+                  Importar Extrato
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className="space-y-2 mb-3">
@@ -132,7 +134,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end" onMouseDown={(e) => e.stopPropagation()}>
         <Button
           size="sm"
           variant="secondary"

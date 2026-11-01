@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação para o novo layout da aba Ficha e Seguro na tela de Veículos/Bens, incluindo Hero Showcase com foto customizada e atalhos de cópia, Widgets Analíticos (Seguro, FIPE, Consumo), Cronograma de 12 Meses do Seguro e Doca de Documentos e Obrigações Tributárias.",
-  "updatedAt":  "2026-10-28T14:48:44.408120524Z",
+  "summary":  "Plano de implementação para os 3 tipos de DRE (Caixa, Competência e Orçado) no card isolado da DRE na tela de Análise, vinculando os indicadores financeiros ao modo selecionado (com padrão inicial em Competência).",
+  "updatedAt":  "2026-10-30T20:40:09.633506286Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

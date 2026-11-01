@@ -30,12 +30,9 @@ export function SortableAccountCard({
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 100 : 1,
-    opacity: isDragging ? 0.8 : 1,
-    cursor: isDragging ? 'grabbing' : 'grab',
-    // touch-action: none é necessário apenas durante o drag, 
-    // mas o dnd-kit gerencia isso através dos sensores configurados.
+    transition: isDragging ? undefined : transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.85 : 1,
   };
 
   return (
@@ -43,9 +40,8 @@ export function SortableAccountCard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        "shrink-0 transition-all duration-300 ease-out",
-        "animate-fade-in",
-        isDragging && "scale-[1.05] shadow-2xl"
+        "shrink-0 select-none",
+        isDragging && "scale-[1.03] shadow-2xl z-50 cursor-grabbing"
       )}
       {...attributes}
       {...listeners}

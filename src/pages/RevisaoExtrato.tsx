@@ -165,7 +165,19 @@ export default function RevisaoExtrato() {
 
   // Atualização em tempo real de uma transação pendente com persistência
   const handleUpdateTransaction = useCallback((id: string, updates: Partial<ImportedTransaction>) => {
-    setTransactionsToReview(prev => prev.map(tx => tx.id === id ? { ...tx, ...updates } : tx));
+    setTransactionsToReview(prev => prev.map(tx => {
+      if (tx.id === id) {
+        const originalFlow = updates.originalFlow ?? tx.originalFlow ?? (['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(tx.operationType || '') ? 'in' : 'out');
+        const initialOperationType = updates.initialOperationType ?? tx.initialOperationType ?? (originalFlow === 'in' ? 'receita' : 'despesa');
+        return {
+          ...tx,
+          ...updates,
+          originalFlow,
+          initialOperationType,
+        };
+      }
+      return tx;
+    }));
     updateImportedTransactionDraft(id, updates);
   }, [updateImportedTransactionDraft]);
 
@@ -287,25 +299,36 @@ export default function RevisaoExtrato() {
       const isCreditCard = currentAcc?.accountType === 'cartao_credito';
       const isInvestment = ['renda_fixa', 'poupanca', 'cripto', 'reserva', 'objetivo'].includes(currentAcc?.accountType || '');
       const isTransfer = tx.isTransfer || tx.operationType === 'transferencia';
+      const isIncoming = tx.originalFlow === 'in' || tx.initialOperationType === 'receita' || (tx.originalAmount !== undefined ? tx.originalAmount >= 0 : ['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(tx.operationType || ''));
 
-      let flow: FlowType = getFlowTypeFromOperation(
-        tx.operationType!,
-        tx.tempVehicleOperation || tx.tempAssetOperation || undefined
-      );
+      let flow: FlowType;
 
       if (isCreditCard) {
-        flow = tx.operationType === 'despesa' ? 'out' : 'in';
+        // No cartão de crédito, compras são 'out'. Pagamento de fatura e créditos/estornos são 'in'.
+        flow = isIncoming ? 'in' : 'out';
       } else if (isInvestment) {
         // Em conta de investimento: Aplicação entra dinheiro (+) e Resgate sai (-)
         if (tx.operationType === 'aplicacao') flow = 'transfer_in';
-        if (tx.operationType === 'resgate') flow = 'transfer_out';
+        else if (tx.operationType === 'resgate') flow = 'transfer_out';
+        else flow = isIncoming ? 'in' : 'out';
       } else {
-        // Em conta corrente: Resgate entra dinheiro (+) e Aplicação sai (-)
-        if (tx.operationType === 'aplicacao') flow = 'transfer_out';
-        if (tx.operationType === 'resgate') flow = 'transfer_in';
+        // Em conta corrente e demais:
+        // Uma entrada no extrato bancário é SEMPRE entrada (in / transfer_in)
+        // Uma saída no extrato bancário é SEMPRE saída (out / transfer_out)
         if (isTransfer) {
-          const isIncoming = (tx as any).initialOperationType === 'receita' || (tx.amount > 0 && tx.operationType === 'receita');
           flow = isIncoming ? 'transfer_in' : 'transfer_out';
+        } else if (tx.operationType === 'aplicacao') {
+          flow = 'transfer_out';
+        } else if (tx.operationType === 'resgate') {
+          flow = 'transfer_in';
+        } else if (tx.operationType === 'liberacao_emprestimo') {
+          flow = 'in';
+        } else if (tx.operationType === 'pagamento_emprestimo') {
+          flow = 'out';
+        } else if (tx.operationType === 'veiculo' || tx.operationType === 'imobilizado') {
+          flow = (tx.tempVehicleOperation === 'venda' || tx.tempAssetOperation === 'venda' || isIncoming) ? 'in' : 'out';
+        } else {
+          flow = isIncoming ? 'in' : 'out';
         }
       }
 
@@ -337,6 +360,7 @@ export default function RevisaoExtrato() {
           source: "import",
           createdAt: new Date().toISOString(),
           originalDescription: tx.originalDescription,
+          fitId: tx.fitId,
           vehicleOperation: tx.operationType === "veiculo" ? tx.tempVehicleOperation || undefined : undefined,
           assetType: tx.tempAssetType,
           assetId: tx.tempAssetId,
@@ -358,7 +382,7 @@ export default function RevisaoExtrato() {
             accountId: targetId,
             flow: counterFlow,
             domain: counterDomain as TransactionDomain,
-            description: tx.description || (isTransfer ? "Transferência" : (tx.operationType === 'aplicacao' ? 'Aplicação' : 'Resgate')),
+            description: tx.description || (isTransfer ? (flow === 'transfer_in' ? "Transferência Recebida" : "Transferência Enviada") : (tx.operationType === 'aplicacao' ? 'Aplicação' : 'Resgate')),
             links: {
               ...baseTx.links,
               investmentId: (tx.operationType === 'aplicacao' || tx.operationType === 'resgate') ? baseTx.accountId : baseTx.links.investmentId
@@ -453,7 +477,7 @@ export default function RevisaoExtrato() {
       return next;
     });
     loadTransactions();
-    toast.success("Lançamento estornado! Ele retornou para a aba 'A Tratar'.");
+    toast.success("Lançamento estornado! Ele retornou para a aba 'Pendente'.");
   };
 
   // Desfazer contabilizações selecionadas em lote
@@ -463,7 +487,7 @@ export default function RevisaoExtrato() {
     uncontabilizeTransactionsBatch(ids);
     setSelectedContabilizedIds(new Set());
     loadTransactions();
-    toast.success(`${ids.length} lançamentos estornados com sucesso para 'A Tratar'.`);
+    toast.success(`${ids.length} lançamentos estornados com sucesso para 'Pendente'.`);
   };
 
   return (
@@ -496,7 +520,7 @@ export default function RevisaoExtrato() {
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <span>A Tratar</span>
+                <span>Pendente</span>
                 <span className="text-[10px] font-black tabular-nums px-1.5 py-0.5 rounded-md bg-warning/10 text-warning">
                   {pendingTransactions.length}
                 </span>
@@ -601,7 +625,7 @@ export default function RevisaoExtrato() {
             <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
               {activeTab === 'pending' ? (
                 <>
-                  <span className="text-foreground">{pendingTransactions.length} lançamentos a tratar</span>
+                  <span className="text-foreground">{pendingTransactions.length} lançamentos pendentes</span>
                   <span>·</span>
                   <span className="text-success font-black">{readyCountTotal} prontos</span>
                   {selectedPendingIds.size > 0 && (

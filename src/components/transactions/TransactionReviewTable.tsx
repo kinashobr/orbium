@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { CategorySearchSelector } from "@/components/bills/CategorySearchSelector";
 import { OperationSearchSelector } from "./OperationSearchSelector";
 import { LinkSearchSelector } from "./LinkSearchSelector";
-import { isImportedTransactionReady as isRowReady, isTransactionIncome } from "@/lib/transactionValidator";
+import { isImportedTransactionReady as isRowReady, isTransactionIncome, isImportedTransactionIncome } from "@/lib/transactionValidator";
 
 interface LoanInfo {
   id: string;
@@ -73,21 +73,21 @@ type ColumnKey = typeof COLUMN_KEYS[number];
 
 const INITIAL_WIDTHS: Record<ColumnKey, number> = {
   selection: 44,
-  date_value: 115,
+  date_value: 130,
   description: 250,
-  operation: 135,
+  operation: 140,
   category: 155,
-  link: 165,
+  link: 175,
   actions: 80,
 };
 
 const COLUMN_LIMITS: Record<ColumnKey, { min: number; max: number }> = {
   selection: { min: 40, max: 55 },
-  date_value: { min: 100, max: 160 },
+  date_value: { min: 110, max: 190 },
   description: { min: 180, max: 450 },
   operation: { min: 120, max: 200 },
   category: { min: 130, max: 220 },
-  link: { min: 140, max: 260 },
+  link: { min: 140, max: 280 },
   actions: { min: 75, max: 100 },
 };
 
@@ -97,7 +97,7 @@ const columnHeaders: { key: ColumnKey; label: string; align?: 'center' | 'right'
   { key: 'description', label: 'Descrição / Histórico' },
   { key: 'operation', label: 'Operação' },
   { key: 'category', label: 'Categoria' },
-  { key: 'link', label: 'Vínculo' },
+  { key: 'link', label: 'Contrapartida / Vínculo' },
   { key: 'actions', label: 'Ações', align: 'center' },
 ];
 
@@ -180,10 +180,11 @@ export function TransactionReviewTable({
   const allSelected = transactions.length > 0 && transactions.every((t) => selectedIds.has(t.id));
   const someSelected = transactions.some((t) => selectedIds.has(t.id)) && !allSelected;
 
-  const getFilteredCategories = (operationType: OperationType | null) => {
-    if (!operationType) return categories;
-    const isIncome = ['receita', 'rendimento', 'liberacao_emprestimo'].includes(operationType);
-    return categories.filter(c => (isIncome && c.nature === 'receita') || (!isIncome && c.nature !== 'receita'));
+  const getFilteredCategories = (operationType: OperationType | null, isIncome: boolean) => {
+    if (isIncome) {
+      return categories.filter(c => c.nature === 'receita');
+    }
+    return categories.filter(c => c.nature !== 'receita');
   };
 
   // Estado Vazio (Inbox Zero)
@@ -194,7 +195,7 @@ export function TransactionReviewTable({
           <CheckCircle2 className="w-7 h-7" />
         </div>
         <h3 className="text-sm font-bold text-foreground">
-          Nenhum lançamento pendente a tratar
+          Nenhum lançamento pendente
         </h3>
         <p className="text-xs text-muted-foreground max-w-sm mt-1">
           Todas as transações deste período foram revisadas e contabilizadas. Você pode alternar para a aba <strong>Contabilizadas</strong> para consultar ou desfazer lançamentos se necessário.
@@ -208,7 +209,7 @@ export function TransactionReviewTable({
     return (
       <div className="space-y-4 pb-24">
         {transactions.map((tx) => {
-          const isIncome = isTransactionIncome(tx.operationType, accountType);
+          const isIncome = isImportedTransactionIncome(tx, accountType);
           const isSelected = selectedIds.has(tx.id);
 
           const matchedRule = standardizationRules.find(r =>
@@ -271,10 +272,13 @@ export function TransactionReviewTable({
                   <Label className="text-[9px] font-black uppercase text-muted-foreground">Operação</Label>
                   <OperationSearchSelector
                     value={tx.operationType}
+                    filterFlow={tx.originalFlow || (isIncome ? 'in' : 'out')}
                     onSelect={(val) => onUpdateTransaction(tx.id, { 
                       operationType: val, 
                       categoryId: null,
-                      isTransfer: val === 'transferencia'
+                      isTransfer: val === 'transferencia',
+                      originalFlow: tx.originalFlow || (isIncome ? 'in' : 'out'),
+                      initialOperationType: tx.initialOperationType || (isIncome ? 'receita' : 'despesa'),
                     })}
                   />
                 </div>
@@ -287,7 +291,7 @@ export function TransactionReviewTable({
                   ) : (
                     <CategorySearchSelector
                       value={tx.categoryId || null}
-                      categories={getFilteredCategories(tx.operationType)}
+                      categories={getFilteredCategories(tx.operationType, isIncome)}
                       onSelect={(val) => onUpdateTransaction(tx.id, { categoryId: val })}
                     />
                   )}
@@ -308,6 +312,8 @@ export function TransactionReviewTable({
                     tempInvestmentId={tx.tempInvestmentId}
                     tempLoanId={tx.tempLoanId}
                     tempParcelaId={tx.tempParcelaId}
+                    flow={tx.originalFlow || (isIncome ? 'in' : 'out')}
+                    isIncome={isIncome}
                     onChange={(updates) => onUpdateTransaction(tx.id, updates)}
                     isCompact
                   />
@@ -398,7 +404,7 @@ export function TransactionReviewTable({
         </TableHeader>
         <TableBody>
           {transactions.map((tx) => {
-            const isIncome = isTransactionIncome(tx.operationType, accountType);
+            const isIncome = isImportedTransactionIncome(tx, accountType);
             const isSelected = selectedIds.has(tx.id);
 
             const matchedRule = standardizationRules.find(r =>
@@ -429,9 +435,11 @@ export function TransactionReviewTable({
                 {/* Data & Valor */}
                 <TableCell className="py-2 pl-2" style={{ width: columnWidths.date_value }}>
                   <div className="space-y-0.5">
-                    <span className="text-[9px] font-black text-muted-foreground uppercase opacity-70 tracking-wider">
-                      {parseDateLocal(tx.date).toLocaleDateString("pt-BR")}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase opacity-70 tracking-wider">
+                        {parseDateLocal(tx.date).toLocaleDateString("pt-BR")}
+                      </span>
+                    </div>
                     <p className={cn("text-sm font-black tabular-nums tracking-tight", isIncome ? "text-success" : "text-destructive")}>
                       {isIncome ? '+' : '-'} {formatCurrency(tx.amount)}
                     </p>
@@ -461,10 +469,13 @@ export function TransactionReviewTable({
                 <TableCell className="py-2" style={{ width: columnWidths.operation }}>
                   <OperationSearchSelector
                     value={tx.operationType}
+                    filterFlow={tx.originalFlow || (isIncome ? 'in' : 'out')}
                     onSelect={(val) => onUpdateTransaction(tx.id, { 
                       operationType: val, 
                       categoryId: null,
-                      isTransfer: val === 'transferencia'
+                      isTransfer: val === 'transferencia',
+                      originalFlow: tx.originalFlow || (isIncome ? 'in' : 'out'),
+                      initialOperationType: tx.initialOperationType || (isIncome ? 'receita' : 'despesa'),
                     })}
                   />
                 </TableCell>
@@ -478,7 +489,7 @@ export function TransactionReviewTable({
                   ) : (
                     <CategorySearchSelector
                       value={tx.categoryId || null}
-                      categories={getFilteredCategories(tx.operationType)}
+                      categories={getFilteredCategories(tx.operationType, isIncome)}
                       onSelect={(val) => onUpdateTransaction(tx.id, { categoryId: val })}
                     />
                   )}
@@ -496,6 +507,8 @@ export function TransactionReviewTable({
                     tempInvestmentId={tx.tempInvestmentId}
                     tempLoanId={tx.tempLoanId}
                     tempParcelaId={tx.tempParcelaId}
+                    flow={tx.originalFlow || (isIncome ? 'in' : 'out')}
+                    isIncome={isIncome}
                     onChange={(updates) => onUpdateTransaction(tx.id, updates)}
                   />
                 </TableCell>

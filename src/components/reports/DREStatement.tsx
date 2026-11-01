@@ -16,10 +16,14 @@ interface DREItem {
   color?: string;
 }
 
+export type DREMode = 'caixa' | 'competencia' | 'orcado';
+
 interface DREStatementProps {
   data: DREItem[];
   title: string;
   className?: string;
+  activeMode?: DREMode;
+  onModeChange?: (mode: DREMode) => void;
 }
 
 const renderItem = (item: DREItem, level: number = 0) => {
@@ -211,7 +215,13 @@ const renderItem = (item: DREItem, level: number = 0) => {
   );
 };
 
-export function DREStatement({ data, title, className }: DREStatementProps) {
+export function DREStatement({ data, title, className, activeMode = 'competencia', onModeChange }: DREStatementProps) {
+  const modeDescriptions: Record<DREMode, string> = {
+    caixa: "Regime de Caixa · Valores do real desembolso de caixa",
+    competencia: "Regime de Competência · Valores na data de origem da obrigação (Padrão)",
+    orcado: "DRE Orçado · Valores do orçamento e receita prevista (histórico e recebimentos)",
+  };
+
   return (
     <div
       className={cn(
@@ -219,15 +229,64 @@ export function DREStatement({ data, title, className }: DREStatementProps) {
         className
       )}
     >
-      <div className="px-6 py-5 sm:px-8 sm:py-6">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-primary/10 text-primary">
-            <Receipt className="w-5 h-5" />
+      <div className="px-6 py-5 sm:px-8 sm:py-6 border-b border-border/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shrink-0 shadow-xs">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-foreground">{title}</h3>
+              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
+                {modeDescriptions[activeMode]}
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-foreground">{title}</h3>
-            <p className="text-[11px] text-muted-foreground mt-1">(Regime de Caixa)</p>
-          </div>
+
+          {/* Opção para alternar entre os 3 tipos de DRE */}
+          {onModeChange && (
+            <div className="flex items-center gap-1 p-1 bg-muted/40 dark:bg-muted/20 rounded-2xl border border-border/40 shrink-0 self-start md:self-center shadow-xs">
+              <button
+                type="button"
+                onClick={() => onModeChange('caixa')}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 whitespace-nowrap",
+                  activeMode === 'caixa'
+                    ? "bg-card text-primary shadow-xs font-black ring-1 ring-border/40"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="DRE Regime Caixa: valores do real desembolso de caixa"
+              >
+                Caixa
+              </button>
+              <button
+                type="button"
+                onClick={() => onModeChange('competencia')}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 whitespace-nowrap",
+                  activeMode === 'competencia'
+                    ? "bg-card text-primary shadow-xs font-black ring-1 ring-border/40"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="DRE Regime Competência: valores na data de origem da obrigação (Padrão)"
+              >
+                Competência
+              </button>
+              <button
+                type="button"
+                onClick={() => onModeChange('orcado')}
+                className={cn(
+                  "px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 whitespace-nowrap",
+                  activeMode === 'orcado'
+                    ? "bg-card text-primary shadow-xs font-black ring-1 ring-border/40"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title="DRE Orçado: valores do orçamento e receita prevista com base no histórico e tela recebimentos"
+              >
+                Orçado
+              </button>
+            </div>
+          )}
         </div>
       </div>
       <div className="px-3.5 sm:px-5 py-4 sm:py-6 space-y-5 sm:space-y-6">

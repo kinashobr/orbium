@@ -80,4 +80,29 @@ export function isTransactionIncome(
   return ['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(operationType);
 }
 
+export function isImportedTransactionIncome(
+  tx: {
+    originalFlow?: 'in' | 'out';
+    initialOperationType?: OperationType;
+    originalAmount?: number;
+    operationType?: OperationType | null;
+  },
+  accountType?: string
+): boolean {
+  // Prioridade absoluta: direção bancária original da importação (OFX/CSV)
+  // Uma entrada no extrato bancário é SEMPRE uma entrada (+), independente da operação selecionada!
+  if (tx.originalFlow === 'in') return true;
+  if (tx.originalFlow === 'out') return false;
+
+  if (typeof tx.originalAmount === 'number') {
+    return tx.originalAmount >= 0;
+  }
+
+  if (tx.initialOperationType === 'receita') return true;
+  if (tx.initialOperationType === 'despesa') return false;
+
+  return isTransactionIncome(tx.operationType, accountType);
+}
+
+
 

@@ -208,14 +208,21 @@ const parseCSV = (content: string, accountId: string): ImportedTransaction[] => 
                 continue;
             }
 
+            const isIncoming = amount >= 0;
+            const originalFlow: 'in' | 'out' = isIncoming ? 'in' : 'out';
+            const operationType: OperationType = isIncoming ? 'receita' : 'despesa';
+
             transactions.push({
                 id: generateTransactionId(),
                 date: normalizedDate,
                 amount: Math.abs(amount),
+                originalAmount: amount,
+                originalFlow,
+                initialOperationType: operationType,
                 originalDescription,
                 accountId,
                 categoryId: null,
-                operationType: amount < 0 ? 'despesa' : 'receita',
+                operationType,
                 description: originalDescription,
                 isTransfer: false,
                 destinationAccountId: null,
@@ -242,25 +249,37 @@ const parseOFX = (content: string, accountId: string): ImportedTransaction[] => 
     while ((match = stmtTrnRegex.exec(content)) !== null) {
         const stmtTrnBlock = match[1];
         
-        const dtPostedMatch = stmtTrnBlock.match(/<DTPOSTED>(\d+)/);
-        const trnAmtMatch = stmtTrnBlock.match(/<TRNAMT>([\d.-]+)/);
-        const memoMatch = stmtTrnBlock.match(/<MEMO>([\s\S]*?)</);
+        const dtPostedMatch = stmtTrnBlock.match(/<DTPOSTED>(\d+)/i);
+        const trnAmtMatch = stmtTrnBlock.match(/<TRNAMT>([\d.-]+)/i);
+        const memoMatch = stmtTrnBlock.match(/<MEMO>([\s\S]*?)(?:<|$)/i);
+        const nameMatch = stmtTrnBlock.match(/<NAME>([\s\S]*?)(?:<|$)/i);
+        const fitIdMatch = stmtTrnBlock.match(/<FITID>([^\r\n<]+)/i);
+        const checkNumMatch = stmtTrnBlock.match(/<CHECKNUM>([^\r\n<]+)/i);
 
-        if (dtPostedMatch && trnAmtMatch && memoMatch) {
+        if (dtPostedMatch && trnAmtMatch) {
             const dateStr = dtPostedMatch[1];
             const amount = parseFloat(trnAmtMatch[1]);
-            const originalDescription = memoMatch[1].trim();
+            const fitId = fitIdMatch ? fitIdMatch[1].trim() : (checkNumMatch ? checkNumMatch[1].trim() : undefined);
+            const memoText = memoMatch ? memoMatch[1].trim() : '';
+            const nameText = nameMatch ? nameMatch[1].trim() : '';
+            const originalDescription = (memoText || nameText || 'Sem descrição').replace(/[\r\n]+/g, ' ').trim();
             
             if (isNaN(amount)) continue;
 
             const normalizedDate = normalizeOfxDate(dateStr);
-            
-            const operationType: OperationType = amount < 0 ? 'despesa' : 'receita';
+            const isIncoming = amount >= 0;
+            const originalFlow: 'in' | 'out' = isIncoming ? 'in' : 'out';
+            const operationType: OperationType = isIncoming ? 'receita' : 'despesa';
+            const txId = fitId ? `ofx_${accountId}_${fitId.replace(/[^a-zA-Z0-9_-]/g, '_')}` : generateTransactionId();
 
             transactions.push({
-                id: generateTransactionId(),
+                id: txId,
+                fitId,
                 date: normalizedDate,
                 amount: Math.abs(amount),
+                originalAmount: amount,
+                originalFlow,
+                initialOperationType: operationType,
                 originalDescription,
                 accountId,
                 categoryId: null,
@@ -663,6 +682,42 @@ function normalizeAccountTerm(account: ContaCorrente): ContaCorrente {
   return { ...account, accountTerm: inferredTerm };
 }
 
+function normalizeImportedStatements(statements: ImportedStatement[]): ImportedStatement[] {
+  if (!Array.isArray(statements)) return [];
+  return statements.map(s => ({
+    ...s,
+    rawTransactions: Array.isArray(s.rawTransactions)
+      ? s.rawTransactions.map(t => {
+          const recoveredFitId = t.fitId || (t.id && t.id.startsWith('ofx_') ? t.id.replace(/^ofx_[^_]+_/, '') : undefined);
+          if (t.originalFlow) {
+            return recoveredFitId && !t.fitId ? { ...t, fitId: recoveredFitId } : t;
+          }
+          let flow: 'in' | 'out' = 'out';
+          if (typeof t.originalAmount === 'number') {
+            flow = t.originalAmount >= 0 ? 'in' : 'out';
+          } else if (t.initialOperationType === 'receita') {
+            flow = 'in';
+          } else if (t.initialOperationType === 'despesa') {
+            flow = 'out';
+          } else if (['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(t.operationType || '')) {
+            flow = 'in';
+          } else {
+            const desc = (t.originalDescription || t.description || '').toLowerCase();
+            const isLikelyCredit = desc.includes('receb') || desc.includes('cred') || desc.includes('pix r') || desc.includes('ted r') || desc.includes('deposito') || desc.includes('salario') || desc.includes('rendimento');
+            flow = isLikelyCredit ? 'in' : 'out';
+          }
+          return {
+            ...t,
+            fitId: recoveredFitId,
+            originalFlow: flow,
+            initialOperationType: t.initialOperationType || (flow === 'in' ? 'receita' : 'despesa'),
+            originalAmount: t.originalAmount ?? (flow === 'in' ? t.amount : -t.amount),
+          };
+        })
+      : []
+  }));
+}
+
 export function FinanceProvider({ children }: { children: ReactNode }) {
   const [emprestimos, setEmprestimos] = useState<Emprestimo[]>(() => loadFromStorage(STORAGE_KEYS.EMPRESTIMOS, initialEmprestimos));
   const [veiculos, setVeiculos] = useState<Veiculo[]>(() => loadFromStorage(STORAGE_KEYS.VEICULOS, initialVeiculos));
@@ -712,7 +767,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [categoriasV2, setCategoriasV2] = useState<Categoria[]>(() => loadFromStorage(STORAGE_KEYS.CATEGORIAS_V2, DEFAULT_CATEGORIES));
   const [transacoesV2, setTransacoesV2] = useState<TransacaoCompleta[]>(() => loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, []));
   const [standardizationRules, setStandardizationRules] = useState<StandardizationRule[]>(() => loadFromStorage(STORAGE_KEYS.STANDARDIZATION_RULES, initialStandardizationRules));
-  const [importedStatements, setImportedStatements] = useState<ImportedStatement[]>(() => loadFromStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, initialImportedStatements));
+  const [importedStatements, setImportedStatements] = useState<ImportedStatement[]>(() => normalizeImportedStatements(loadFromStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, initialImportedStatements)));
   const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(() => loadFromStorage(STORAGE_KEYS.DATE_RANGES, DEFAULT_RANGES));
   const [alertStartDate, setAlertStartDate] = useState<string>(() => loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate));
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
@@ -1116,19 +1171,33 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const processedTransactions = applyRules(rawTransactions, standardizationRules);
       
       // Deduplicar: não reimportar transações que já existem nos extratos desta conta
-      const existingTxKeys = new Set<string>();
+      // Deduplicar: não reimportar transações que já existem nos extratos desta conta
+      const existingFitIds = new Set<string>();
+      const existingCounts = new Map<string, number>();
+
       importedStatements
         .filter(s => s.accountId === accountId)
         .forEach(s => {
           s.rawTransactions.forEach(t => {
+            if (t.fitId) {
+              existingFitIds.add(t.fitId);
+            }
             const key = `${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
-            existingTxKeys.add(key);
+            existingCounts.set(key, (existingCounts.get(key) || 0) + 1);
           });
         });
 
       const newTransactionsOnly = processedTransactions.filter(t => {
+        if (t.fitId) {
+          return !existingFitIds.has(t.fitId);
+        }
         const key = `${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
-        return !existingTxKeys.has(key);
+        const count = existingCounts.get(key) || 0;
+        if (count > 0) {
+          existingCounts.set(key, count - 1);
+          return false;
+        }
+        return true;
       });
 
       if (newTransactionsOnly.length === 0) {
@@ -1179,7 +1248,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const idx = s.rawTransactions.findIndex(t => t.id === transactionId);
       if (idx !== -1) {
         const updatedRaw = [...s.rawTransactions];
-        updatedRaw[idx] = { ...updatedRaw[idx], ...updates };
+        const existing = updatedRaw[idx];
+        const originalFlow = updates.originalFlow ?? existing.originalFlow ?? (['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(existing.operationType || '') ? 'in' : 'out');
+        const initialOperationType = updates.initialOperationType ?? existing.initialOperationType ?? (originalFlow === 'in' ? 'receita' : 'despesa');
+        updatedRaw[idx] = { 
+          ...existing, 
+          ...updates,
+          originalFlow,
+          initialOperationType
+        };
         return { ...s, rawTransactions: updatedRaw };
       }
       return s;
@@ -1203,7 +1280,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
       switch (operationType) {
         case 'transferencia':
-          // Já vem com targetAccountId correto do modal/importação
+          counterFlow = (flow === 'out' || flow === 'transfer_out') ? 'transfer_in' : 'transfer_out';
           break;
 
         case 'aplicacao':
@@ -1404,15 +1481,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   
   const getTransactionsForReview = useCallback((accountId: string, range: DateRange): ImportedTransaction[] => {
     const allRawTransactions: ImportedTransaction[] = [];
-    const seenRawKeys = new Set<string>();
+    const seenTxIds = new Set<string>();
+    
+    // Coleta todas as transações brutas não contabilizadas da conta selecionada
     importedStatements.filter(s => s.accountId === accountId).forEach(s => {
-        s.rawTransactions.filter(t => !t.isContabilized).forEach(t => {
-          const key = `${t.accountId}_${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
-          if (!seenRawKeys.has(key)) {
-            seenRawKeys.add(key);
-            allRawTransactions.push(t);
-          }
-        });
+      s.rawTransactions.filter(t => !t.isContabilized).forEach(t => {
+        if (!seenTxIds.has(t.id)) {
+          seenTxIds.add(t.id);
+          allRawTransactions.push(t);
+        }
+      });
     });
     
     // Identificar se a conta é de cartão de crédito
@@ -1426,25 +1504,96 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     filteredTxs = applyRules(filteredTxs, standardizationRules);
     
-    return filteredTxs.map(importedTx => {
-        // Melhora na detecção de duplicidade
-        const isDuplicate = transacoesV2.find(manualTx => 
-            manualTx.accountId === importedTx.accountId && Math.abs(manualTx.amount - importedTx.amount) < 0.01 &&
-            Math.abs(differenceInDays(parseDateLocal(importedTx.date), parseDateLocal(manualTx.date))) <= 2 &&
-            manualTx.operationType !== 'initial_balance'
-        );
+    // Pool de candidatos em transacoesV2 da mesma conta (excluindo saldo inicial)
+    const candidateTxs = transacoesV2.filter(t => t.accountId === accountId && t.operationType !== 'initial_balance');
+    const usedV2TxIds = new Set<string>();
 
-        let finalTx = { ...importedTx };
-        
-        if (isDuplicate) {
-            finalTx = { 
-                ...finalTx, 
-                isPotentialDuplicate: true, 
-                duplicateOfTxId: isDuplicate.id, 
-                operationType: isDuplicate.operationType, 
-                categoryId: isDuplicate.categoryId, 
-                description: isDuplicate.description 
-            };
+    // Pré-reservar candidatos já vinculados por contabilização em extratos desta conta
+    importedStatements
+      .filter(s => s.accountId === accountId)
+      .forEach(s => {
+        s.rawTransactions.forEach(t => {
+          if (t.isContabilized && t.contabilizedTransactionId) {
+            usedV2TxIds.add(t.contabilizedTransactionId);
+          }
+        });
+      });
+
+    return filteredTxs.map(importedTx => {
+        const isIncoming = importedTx.originalFlow === 'in' ||
+          (importedTx.originalFlow === undefined && (
+            (importedTx.originalAmount !== undefined && importedTx.originalAmount >= 0) ||
+            importedTx.initialOperationType === 'receita' ||
+            ['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(importedTx.operationType || '')
+          ));
+
+        let finalTx: ImportedTransaction = {
+          ...importedTx,
+          originalFlow: isIncoming ? 'in' : 'out',
+          initialOperationType: importedTx.initialOperationType || (isIncoming ? 'receita' : 'despesa'),
+        };
+
+        let matchedCandidate: TransacaoCompleta | undefined = undefined;
+
+        // 1. Prioridade Máxima: Match por ID único do OFX (fitId)
+        if (importedTx.fitId) {
+          matchedCandidate = candidateTxs.find(c =>
+            !usedV2TxIds.has(c.id) &&
+            (c.meta?.fitId === importedTx.fitId || (c.meta as any)?.ofxId === importedTx.fitId || c.id === importedTx.id)
+          );
+        }
+
+        // 2. Prioridade 2: Match por MESMO DIA + MESMO VALOR + MESMO SENTIDO (FLUXO) + HISTÓRICO ORIGINAL
+        if (!matchedCandidate) {
+          const impOrigDesc = (importedTx.originalDescription || importedTx.description || '').trim().toLowerCase();
+
+          matchedCandidate = candidateTxs.find(c => {
+            if (usedV2TxIds.has(c.id)) return false;
+            if (c.date !== importedTx.date) return false; // MESMA DATA EXATA
+            if (Math.abs(c.amount - importedTx.amount) >= 0.01) return false; // MESMO VALOR EXATO
+            const cIsIncoming = c.flow === 'in' || c.flow === 'transfer_in';
+            if (cIsIncoming !== isIncoming) return false; // MESMO SENTIDO (ENTRADA / SAÍDA)
+
+            const cOrigDesc = (c.meta?.originalDescription || '').trim().toLowerCase();
+            const cDesc = (c.description || '').trim().toLowerCase();
+
+            const matchOrig = Boolean(cOrigDesc && impOrigDesc && (cOrigDesc === impOrigDesc || cOrigDesc.includes(impOrigDesc) || impOrigDesc.includes(cOrigDesc)));
+            const matchDesc = Boolean(cDesc && impOrigDesc && (cDesc === impOrigDesc || cDesc.includes(impOrigDesc) || impOrigDesc.includes(cDesc)));
+
+            return matchOrig || matchDesc;
+          });
+        }
+
+        // 3. Prioridade 3: Match por MESMO DIA + MESMO VALOR + MESMO SENTIDO consumindo 1 a 1
+        // Garante que se houver 10 transações no mesmo dia com mesmo valor, cada uma consome exatamente 1
+        // sem duplicar ou confundir uma com a outra
+        if (!matchedCandidate) {
+          matchedCandidate = candidateTxs.find(c => {
+            if (usedV2TxIds.has(c.id)) return false;
+            if (c.date !== importedTx.date) return false; // MESMA DATA EXATA
+            if (Math.abs(c.amount - importedTx.amount) >= 0.01) return false; // MESMO VALOR EXATO
+            const cIsIncoming = c.flow === 'in' || c.flow === 'transfer_in';
+            if (cIsIncoming !== isIncoming) return false;
+            return true;
+          });
+        }
+
+        if (matchedCandidate) {
+          usedV2TxIds.add(matchedCandidate.id);
+          finalTx = { 
+            ...finalTx, 
+            isPotentialDuplicate: true, 
+            duplicateOfTxId: matchedCandidate.id, 
+            operationType: matchedCandidate.operationType || finalTx.operationType, 
+            categoryId: matchedCandidate.categoryId || finalTx.categoryId, 
+            description: finalTx.description || matchedCandidate.description 
+          };
+        } else {
+          finalTx = { 
+            ...finalTx, 
+            isPotentialDuplicate: false, 
+            duplicateOfTxId: undefined 
+          };
         }
 
         // Sugestão inteligente para entradas em conta de cartão
@@ -1494,7 +1643,24 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const finalTx: ImportedTransaction = { ...importedTx, ...data };
     const domain = finalTx.operationType ? getDomainFromOperation(finalTx.operationType) : 'operational';
-    const flow = finalTx.operationType ? getFlowTypeFromOperation(finalTx.operationType, finalTx.tempAssetOperation) : 'out';
+    const isIncoming = finalTx.originalFlow === 'in' || finalTx.initialOperationType === 'receita' || (finalTx.originalAmount !== undefined ? finalTx.originalAmount >= 0 : ['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(finalTx.operationType || ''));
+
+    let flow: FlowType;
+    if (finalTx.isTransfer || finalTx.operationType === 'transferencia') {
+      flow = isIncoming ? 'transfer_in' : 'transfer_out';
+    } else if (finalTx.operationType === 'resgate') {
+      flow = 'transfer_in';
+    } else if (finalTx.operationType === 'aplicacao') {
+      flow = 'transfer_out';
+    } else if (finalTx.operationType === 'liberacao_emprestimo') {
+      flow = 'in';
+    } else if (finalTx.operationType === 'pagamento_emprestimo') {
+      flow = 'out';
+    } else if (finalTx.operationType === 'veiculo' || finalTx.operationType === 'imobilizado') {
+      flow = (finalTx.tempVehicleOperation === 'venda' || finalTx.tempAssetOperation === 'venda' || isIncoming) ? 'in' : 'out';
+    } else {
+      flow = isIncoming ? 'in' : 'out';
+    }
 
     const transactionIdV2 = generateTransactionId();
     const transferGroupId = (finalTx.isTransfer || finalTx.operationType === 'aplicacao' || finalTx.operationType === 'resgate' || finalTx.operationType === 'liberacao_emprestimo' || finalTx.operationType === 'veiculo' || finalTx.operationType === 'imobilizado') ? generateTransferGroupId() : null;
@@ -1523,6 +1689,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         source: 'import',
         createdAt: new Date().toISOString(),
         originalDescription: finalTx.originalDescription,
+        fitId: finalTx.fitId,
         assetType: finalTx.tempAssetType,
         assetId: finalTx.tempAssetId,
         assetOperation: finalTx.tempAssetOperation,
@@ -1531,8 +1698,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
     const transferGroup = transferGroupId ? {
       id: transferGroupId,
-      fromAccountId: finalTx.accountId,
-      toAccountId: finalTx.isTransfer ? (finalTx.destinationAccountId || '') : (finalTx.tempInvestmentId || ''),
+      fromAccountId: flow === 'transfer_out' ? finalTx.accountId : (finalTx.destinationAccountId || finalTx.tempInvestmentId || ''),
+      toAccountId: flow === 'transfer_in' ? finalTx.accountId : (finalTx.destinationAccountId || finalTx.tempInvestmentId || ''),
       amount: finalTx.amount,
       date: finalTx.date,
       description: finalTx.description

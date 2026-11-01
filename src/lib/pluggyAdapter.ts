@@ -155,6 +155,9 @@ export function convertPluggyTransactionToOrbium(
     id: `pluggy_${tx.id || `temp_${Date.now()}_${index}`}`,
     date: dateFormatted,
     amount: cleanAmount,
+    originalAmount: rawAmount,
+    originalFlow: isDebit ? 'out' : 'in',
+    initialOperationType: isDebit ? 'despesa' : 'receita',
     originalDescription: desc,
     accountId: targetAccountId,
     categoryId: null, // Pagamento de fatura e transferências não possuem categoria de despesa/receita

@@ -77,15 +77,17 @@ const ReceitasDespesas = () => {
   const [showStatementManagerDialog, setShowStatementManagerDialog] = useState(false);
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
 
+  const visibleAccounts = useMemo(() => contasMovimento.filter(a => !a.hidden), [contasMovimento]);
+  const visibleAccountIds = useMemo(() => new Set(visibleAccounts.map(a => a.id)), [visibleAccounts]);
+
   const transactions = transacoesV2;
   const transacoesPeriodo1 = useMemo(() => {
-    if (!dateRanges.range1.from || !dateRanges.range1.to) return transacoesV2;
+    const list = transacoesV2.filter(t => visibleAccountIds.has(t.accountId));
+    if (!dateRanges.range1.from || !dateRanges.range1.to) return list;
     const from = startOfDay(dateRanges.range1.from);
     const to = endOfDay(dateRanges.range1.to);
-    return transacoesV2.filter(t => isWithinInterval(parseDateLocal(t.date), { start: from, end: to }));
-  }, [transacoesV2, dateRanges.range1]);
-
-  const visibleAccounts = useMemo(() => contasMovimento.filter(a => !a.hidden), [contasMovimento]);
+    return list.filter(t => isWithinInterval(parseDateLocal(t.date), { start: from, end: to }));
+  }, [transacoesV2, dateRanges.range1, visibleAccountIds]);
   
   const accountSummaries: AccountSummary[] = useMemo(() => {
     const periodStart = dateRanges.range1.from;
@@ -95,8 +97,17 @@ const ReceitasDespesas = () => {
       const accountTx = transactions.filter(t => t.accountId === account.id && (!periodStart || isWithinInterval(parseDateLocal(t.date), { start: startOfDay(periodStart), end: endOfDay(periodEnd || new Date()) })));
       let totalIn = 0, totalOut = 0;
       accountTx.forEach(t => {
-        if (account.accountType === 'cartao_credito') { if (t.operationType === 'despesa') totalOut += t.amount; else if (t.operationType === 'transferencia') totalIn += t.amount; }
-        else { if (t.flow === 'in' || t.flow === 'transfer_in') totalIn += t.amount; else totalOut += t.amount; }
+        if (account.accountType === 'cartao_credito') { 
+          if (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') {
+            if (t.flow === 'in') totalIn += t.amount;
+            else totalOut += t.amount;
+          } else if (t.operationType === 'transferencia' || t.flow === 'in' || t.flow === 'transfer_in') {
+            totalIn += t.amount; 
+          }
+        } else { 
+          if (t.flow === 'in' || t.flow === 'transfer_in') totalIn += t.amount; 
+          else totalOut += t.amount; 
+        }
       });
       const finalBal = periodInitialBalance + totalIn - totalOut;
       return { accountId: account.id, accountName: account.name, accountType: account.accountType, institution: account.institution, initialBalance: periodInitialBalance, currentBalance: finalBal, projectedBalance: finalBal, totalIn, totalOut, reconciliationStatus: accountTx.length === 0 || accountTx.every(t => t.conciliated) ? 'ok' : 'warning', transactionCount: accountTx.length };
