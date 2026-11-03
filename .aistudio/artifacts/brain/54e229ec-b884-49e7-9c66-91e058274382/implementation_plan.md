@@ -1,142 +1,81 @@
-# Três Regimes de DRE e Vinculação de Indicadores
+# Reconciliação Automática e Eliminação de Duplicatas na Revisão de Extrato
 
-Implementação da alternância entre **DRE Regime de Caixa**, **DRE Regime de Competência** e **DRE Orçado** diretamente na linha de cabeçalho do card isolado da Demonstração do Resultado (DRE) na tela de Análise (`/relatorios`). Por padrão, a visualização e os indicadores iniciarão vinculados ao **Regime de Competência**.
+Ajuste do motor de conciliação bancária da tela **Revisão de Extrato** para reconhecer e conciliar automaticamente transações que já foram lançadas no sistema (`transacoesV2`), garantindo que não reapareçam indevidamente como "Pendentes" na revisão de extratos bancários importados (OFX, CSV ou Open Finance).
 
----
-
-### Decisões Confirmadas e Parâmetros
+### Decisões Confirmadas com o Usuário
 
 > [!IMPORTANT]
-> **Decisão do Usuário**: Os indicadores financeiros do topo e da aba DRE serão **vinculados ao tipo de DRE selecionado**, iniciando **por padrão no Regime de Competência**.
-> **Isolamento de UI**: A alternância de modos fica contida de forma elegante e limpa diretamente na linha superior de descrição do card da DRE (`DREStatement`), sem poluir o restante da interface.
-
-- **Modo Padrão Inicial**: `competencia` (Regime de Competência).
-- **Três Regimes Suportados**:
-  1. **Regime de Caixa**: Desembolso financeiro real (data da liquidação/pagamento das transações).
-  2. **Regime de Competência**: Fato gerador/data de origem da obrigação (data da compra do cartão, data de emissão/origem da obrigação, apropriação proporcional e receitas contratadas).
-  3. **Orçado (Planejado)**: Orçamento planejado de despesas mensais (`expenseSnapshots` e `billsTracker`) confrontado com a receita prevista (`revenueForecasts`, salários/holerites da tela Recebimentos e parcelas de contratos de recebíveis).
+> - **Tratamento de transações já lançadas**: Ocultar da aba "Pendente" e conciliar automaticamente com os lançamentos existentes no sistema (`transacoesV2`).
+> - **Tolerância de data**: Apenas mesma data exata (sem margem de dias divergentes), garantindo máxima fidelidade contábil.
+> - **Compatibilização de formatos OFX vs CSV**: Normalização inteligente de separadores e caracteres especiais (ex.: `Transferência enviada pelo Pix|Nome` do CSV vs `Transferência enviada pelo Pix - Nome...` do OFX) para reconhecimento assertivo do destinatário/origem.
 
 ---
 
-## 1. Visão Geral e Conceito
+### 1. Visão Geral & Diagnóstico do Problema
 
-O módulo de DRE na tela de Análise passará a oferecer uma visão contábil e gerencial completa em 3 perspectivas fundamentais para tomada de decisão patrimonial:
-1. **Caixa (Liquidez Real)**: Avalia a saúde do saldo e a capacidade de honrar desembolsos no período.
-2. **Competência (Resultado Econômico)**: Avalia se o patrimônio gerou lucro ou prejuízo econômico real de acordo com as obrigações contraídas no período, independente do momento em que foram ou serão pagas.
-3. **Orçado (Planejamento vs. Meta)**: Confronta as projeções de receitas originadas na tela de Recebimentos e contratos com o orçamento teto e compromissos fixados.
+#### Causa Raiz Identificada
+1. **Pré-reserva bloqueante no motor de conciliação (`usedV2TxIds`)**: No arquivo `src/contexts/FinanceContext.tsx` (`getTransactionsForReview`), o sistema adicionava previamente todos os IDs de transações já contabilizadas a um conjunto de exclusão (`usedV2TxIds`). Quando um novo extrato (ou segundo arquivo como CSV) continha essas mesmas transações, o motor rejeitava a correspondência por considerá-las "já usadas", fazendo com que todas fossem tratadas como novos lançamentos "Pendentes".
+2. **Divergência de formatação de descrições (OFX vs CSV)**: No Nubank CSV, o separador usado pelo banco é a barra vertical `|` sem dados de conta/CPF (ex.: `Transferência enviada pelo Pix|Manoel Batista Guimarães Neto`), enquanto no OFX é utilizado o hífen `-` com dados bancários completos. A comparação textual estrita (`includes`) falhava devido à divergência de pontuação.
+3. **Persistência de status nos extratos importados (`importedStatements`)**: Transações brutas em extratos secundários permaneciam com `isContabilized: false`, fazendo com que a listagem de pendências as recarregasse a cada abertura de tela.
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│ CARD DRE (Isolado)                                                     │
-│                                                                        │
-│ [Ícone] DEMONSTRAÇÃO DO RESULTADO DO PERÍODO                           │
-│         Regime Ativo: [ Caixa | • Competência (Padrão) | Orçado ]      │
-├────────────────────────────────────────────────────────────────────────┤
-│ 1. RECEITA OPERACIONAL ................................. R$ 14.500,00  │
-│    └ Salários e Contratos Recebíveis                                   │
-│ 2. DESPESAS OPERACIONAIS ............................... R$  8.200,00  │
-│    └ Fixas e Variáveis (Origem da Obrigação / Faturas)                 │
-│ 3. RESULTADO OPERACIONAL ............................... R$  6.300,00  │
-│ 4. RESULTADO FINANCEIRO ................................ R$    450,00  │
-│    └ Rendimentos - Juros de Empréstimos                                │
-│ 5. RESULTADO LÍQUIDO DO PERÍODO ........................ R$  6.750,00  │
-└────────────────────────────────────────────────────────────────────────┘
-```
+#### Benefício da Solução
+- Eliminação imediata dos itens fantasmas na aba "Pendente" que já estão contabilizados.
+- Conciliação automática transparente: o usuário visualiza apenas o que realmente precisa ser classificado ou conferido.
+- Sincronização dos estados dos extratos importados para status `complete` quando todos os lançamentos estiverem conciliados.
 
 ---
 
-## 2. Experiência do Usuário e Design Visual
+### 2. Experiência do Usuário & Fluxo Visual
 
-1. **Cabeçalho do Card da DRE (`DREStatement`)**:
-   - Substituição do subtítulo estático `(Regime de Caixa)` por um controle segmentado de alta fidelidade integrado à linha de descrição:
-     - Três opções: **Caixa**, **Competência** (selecionado por padrão), **Orçado**.
-     - Design minimalista, seguindo o padrão de tokens do sistema (fundo `bg-muted/40`, item ativo com destaque sutil em `bg-card text-primary shadow-xs`, fonte `text-[10px] font-black uppercase tracking-wider`).
-   - Um pequeno tooltip informativo ao passar o mouse em cada modo explicando sucintamente o critério contábil:
-     - *Caixa*: Real desembolso de caixa e pagamentos efetuados.
-     - *Competência*: Valores na data de origem e geração da obrigação.
-     - *Orçado*: Orçamento planejado e receita prevista (histórico + recebimentos).
-
-2. **Sincronização dos Indicadores e Cards Superiores**:
-   - O card principal de **Resultado Líquido do Período** (Superávit/Déficit), o badge de status e os 5 cards de indicadores (Margem Líquida, Eficiência Operacional, Custos Fixos %, Impacto Financeiro de Juros % e Ponto de Equilíbrio) recalculam instantaneamente com base nos dados do modo de DRE selecionado.
-   - O indicador de referência no card exibe a etiqueta correspondente: *(Base: Competência)*, *(Base: Caixa)* ou *(Base: Orçado)*.
+- **Aba Pendente Limpa**: Exibe estritamente transações inéditas que necessitam de categorização ou definição de operação (ex.: novas transferências ou despesas sem lançamento prévio).
+- **Aba Contabilizadas Completa**: Continua exibindo todos os lançamentos conciliados no período selecionado, com detalhes originais preservados e opção de estorno caso o usuário necessite.
+- **Feedback & Métricas no Rodapé**: Contadores em tempo real refletindo o total de pendências reais e de lançamentos contabilizados.
 
 ---
 
-## 3. Arquitetura Técnica e Lógica de Cálculo
+### 3. Decisões Técnicas & Trade-Offs
 
-```
-                      ┌────────────────────────────┐
-                      │    FinanceContext State    │
-                      │  transacoesV2, billsTracker│
-                      │  cltCompetencias, snapshots│
-                      └─────────────┬──────────────┘
-                                    │
-                                    ▼
-                      ┌────────────────────────────┐
-                      │     DRETab Controller      │
-                      │  dreMode: 'competencia'    │
-                      └─────────────┬──────────────┘
-                                    │
-        ┌───────────────────────────┼───────────────────────────┐
-        ▼                           ▼                           ▼
-┌───────────────┐           ┌───────────────┐           ┌───────────────┐
-│ DRE Caixa     │           │DRE Competência│           │ DRE Orçado    │
-│ Desembolso na │           │ Data origem   │           │ Orçamento +   │
-│ data do pgto  │           │ da obrigação  │           │ Recebimentos  │
-└───────┬───────┘           └───────┬───────┘           └───────┬───────┘
-        └───────────────────────────┼───────────────────────────┘
-                                    │
-                                    ▼
-                     ┌─────────────────────────────┐
-                     │  Card DREStatement & KPIs   │
-                     │  Indicadores recalculados   │
-                     └─────────────────────────────┘
-```
-
-### Regras de Cálculo dos 3 Modos:
-
-1. **DRE Caixa**:
-   - Transações com `date` dentro do período selecionado (`range1`).
-   - Receitas e despesas registradas pelo desembolso efetivo de caixa.
-   - Juros extraídos das parcelas de empréstimo liquidadas no período.
-
-2. **DRE Competência** (Padrão):
-   - **Despesas com Cartão de Crédito / Compras Parceladas**:
-     - Transações e despesas alocadas com base na data do fato gerador (data de realização da compra / vencimento da competência), computando custos operacionais contraídos no período.
-   - **Receitas por Competência**:
-     - Salários e vínculos (`cltCompetencias` correspondentes ao mês da competência, independente de recebimento no 5º dia útil do mês seguinte).
-     - Recebíveis de clientes (`parcelasRecebiveis` contratadas ou com competência do mês).
-     - Rendimentos de aplicações apropriados no mês.
-   - **Juros e Encargos**: Apropriação do custo financeiro contratual das parcelas devidas no período.
-
-3. **DRE Orçado**:
-   - **Receitas Previstas**:
-     - Salários brutos/líquidos previstos para os contratos ativos em `cltContracts`.
-     - Parcelas de recebíveis programadas em `parcelasRecebiveis` para o mês.
-     - Histórico e previsão manual em `revenueForecasts` para o mês em referência.
-   - **Despesas Orçadas**:
-     - Itens do snapshot de despesas (`expenseSnapshots` ou meta orçamentária do mês).
-     - Compromissos recorrentes e despesas fixas cadastradas em `billsTracker`.
-   - **Resultado Orçado**: Margem projetada entre receita prevista e orçamento teto.
+- **Remoção da pré-reserva cega em `usedV2TxIds`**:
+  - *Abordagem*: `usedV2TxIds` é inicializado vazio a cada ciclo de avaliação de transações pendentes, servindo exclusivamente para garantir que duas transações pendentes do mesmo valor/data não consumam o mesmo candidato em `transacoesV2` (1 para 1).
+  - *Benefício*: Permite que transações importadas correspondentes a lançamentos já existentes em `transacoesV2` sejam identificadas como duplicatas/já conciliadas e devidamente ocultadas da aba de pendências.
+- **Normalizador de Texto Robusto**:
+  - *Abordagem*: Função de normalização que remove acentos, pontuação (`|`, `-`, `/`, `.`), comprime espaços múltiplos e compara os tokens mais significativos (ex.: nome do beneficiário/pagador).
+- **Auto-Sync de `importedStatements`**:
+  - *Abordagem*: Ao detectar correspondência exata (mesma data, mesmo valor, mesmo fluxo e descrição compatível) com uma transação em `transacoesV2`, o registro bruto do extrato é marcado como `isContabilized: true` com vínculo ao `contabilizedTransactionId`.
 
 ---
 
-## 4. Plano de Execução
+### 4. Arquitetura Técnica & Diagrama de Dados
 
-1. **Atualizar `DREStatement.tsx`**:
-   - Adicionar propriedade `activeMode` e callback `onModeChange` na interface `DREStatementProps`.
-   - Inserir o seletor segmentado com as opções: `Regime de Caixa`, `Competência` (padrão) e `Orçado` na linha de título/descrição do card.
-   - Estilização moderna e responsiva alinhada com o design system do Orbium.
+```
+┌───────────────────────────────────────────────────────────────┐
+│                      Extratos Importados                      │
+│             (importedStatements: OFX / CSV / Pluggy)          │
+└──────────────────────────────┬────────────────────────────────┘
+                               │ rawTransactions (não contabilizadas)
+                               ▼
+┌───────────────────────────────────────────────────────────────┐
+│              Motor: getTransactionsForReview                  │
+│  1. Filtra candidatos de transacoesV2 da mesma conta          │
+│  2. Match Prioritário: fitId (OFX)                            │
+│  3. Match Exato: Mesma Data + Mesmo Valor + Mesmo Fluxo +     │
+│     Descrição Normalizada (ignora variações | vs -)           │
+│  4. Deduplicação 1 a 1: consome candidato sem pré-bloqueio    │
+└──────────────────────────────┬────────────────────────────────┘
+                               │
+               ┌───────────────┴───────────────┐
+               ▼                               ▼
+    [Match Encontrado]                [Sem Correspondência]
+    - isPotentialDuplicate: true      - isPotentialDuplicate: false
+    - Vincula ao ID de transacoesV2   - Permanece em Pendentes
+    - Ocultado da aba "Pendente"      - Exige categorização do usuário
+    - Atualiza statement para OK
+```
 
-2. **Atualizar a Lógica de Cálculo em `DRETab.tsx`**:
-   - Criar estado `dreMode: 'caixa' | 'competencia' | 'orcado'`, inicializado em `'competencia'`.
-   - Implementar cálculo parametrizado para cada um dos 3 regimes:
-     - `calculateDRECaixa(range)`
-     - `calculateDRECompetencia(range)`
-     - `calculateDREOrcado(range)`
-   - Computar o `dre1` e `dre2` ativos de acordo com o `dreMode`.
-   - Alimentar os `indicadores` e o card de `Resultado Líquido` com os dados do regime ativo.
-
-3. **Validação & Compilação**:
-   - Executar `compile_applet` para assegurar que não haja quebras de tipos TypeScript ou regressões de interface.
-   - Testar a alternância entre os 3 regimes em tempo real.
+#### Mapeamento de Arquivos
+1. `src/contexts/FinanceContext.tsx`:
+   - Refatoração do `getTransactionsForReview` para remover a pré-reserva indevida de `usedV2TxIds`.
+   - Adição da função auxiliar de normalização de descrição (`normalizeDescriptionForMatch`) para compatibilidade total entre formatos de extrato bancário.
+   - Sincronização automática de `rawTransactions` em `importedStatements` para marcar registros identificados como conciliados.
+2. `src/pages/RevisaoExtrato.tsx`:
+   - Garantir que a filtragem de `pendingTransactions` exclua confiavelmente duplicatas potenciais e transações já contabilizadas.

@@ -1,6 +1,6 @@
 {
-  "summary":  "Plano de implementação para os 3 tipos de DRE (Caixa, Competência e Orçado) no card isolado da DRE na tela de Análise, vinculando os indicadores financeiros ao modo selecionado (com padrão inicial em Competência).",
-  "updatedAt":  "2026-10-30T20:40:09.633506286Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "Plano de implementação para reconciliação automática de lançamentos já contabilizados na tela de Revisão de Extrato, eliminando itens duplicados da aba Pendentes com tolerância estrita de data exata e normalização inteligente de descrições entre arquivos OFX e CSV.",
+  "updatedAt": "2026-11-03T13:21:06.907387796Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

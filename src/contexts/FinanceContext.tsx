@@ -70,6 +70,7 @@ import {
 } from "@/lib/pluggyAdapter";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
+import { areDescriptionsCompatible, normalizeDescriptionForMatch } from "@/lib/transactionValidator";
 import { toast } from "sonner";
 
 // ============================================
@@ -429,6 +430,7 @@ interface FinanceContextType {
   contabilizeImportedTransaction: (statementId: string, transactionId: string, data: Partial<ImportedTransaction>) => void;
   uncontabilizeImportedTransaction: (transactionId: string) => void;
   uncontabilizeTransactionsBatch: (transactionIds: string[]) => void;
+  autoReconcileImportedStatements: (accountId?: string) => number;
   
   // Execução de Transação Unificada
   executeTransaction: (
@@ -1171,7 +1173,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       const processedTransactions = applyRules(rawTransactions, standardizationRules);
       
       // Deduplicar: não reimportar transações que já existem nos extratos desta conta
-      // Deduplicar: não reimportar transações que já existem nos extratos desta conta
       const existingFitIds = new Set<string>();
       const existingCounts = new Map<string, number>();
 
@@ -1182,16 +1183,18 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             if (t.fitId) {
               existingFitIds.add(t.fitId);
             }
-            const key = `${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
+            const norm = normalizeDescriptionForMatch(t.originalDescription || t.description);
+            const key = `${t.date}_${t.amount.toFixed(2)}_${norm}`;
             existingCounts.set(key, (existingCounts.get(key) || 0) + 1);
           });
         });
 
       const newTransactionsOnly = processedTransactions.filter(t => {
-        if (t.fitId) {
-          return !existingFitIds.has(t.fitId);
+        if (t.fitId && existingFitIds.has(t.fitId)) {
+          return false;
         }
-        const key = `${t.date}_${t.amount.toFixed(2)}_${t.originalDescription.trim().toLowerCase()}`;
+        const norm = normalizeDescriptionForMatch(t.originalDescription || t.description);
+        const key = `${t.date}_${t.amount.toFixed(2)}_${norm}`;
         const count = existingCounts.get(key) || 0;
         if (count > 0) {
           existingCounts.set(key, count - 1);
@@ -1479,6 +1482,122 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, [transacoesV2, setTransacoesV2]);
   
+  const autoReconcileImportedStatements = useCallback((targetAccountId?: string): number => {
+    let reconciledCount = 0;
+    const accountFilter = targetAccountId ? (s: ImportedStatement) => s.accountId === targetAccountId : () => true;
+
+    setImportedStatements(prevStatements => {
+      let hasAnyChange = false;
+
+      const newStatements = prevStatements.map(stmt => {
+        if (!accountFilter(stmt)) return stmt;
+
+        const candidateTxs = transacoesV2.filter(t => t.accountId === stmt.accountId && t.operationType !== 'initial_balance');
+        const usedCandidateIds = new Set<string>();
+
+        // Registra transações já vinculadas nesta conta em todos os extratos
+        prevStatements
+          .filter(s => s.accountId === stmt.accountId)
+          .forEach(s => {
+            s.rawTransactions.forEach(t => {
+              if (t.isContabilized && t.contabilizedTransactionId) {
+                usedCandidateIds.add(t.contabilizedTransactionId);
+              }
+            });
+          });
+
+        let stmtChanged = false;
+        const updatedRaw = stmt.rawTransactions.map(raw => {
+          if (raw.isContabilized && raw.contabilizedTransactionId) {
+            return raw;
+          }
+
+          const isIncoming = raw.originalFlow === 'in' ||
+            (raw.originalFlow === undefined && (
+              (raw.originalAmount !== undefined && raw.originalAmount >= 0) ||
+              raw.initialOperationType === 'receita' ||
+              ['receita', 'rendimento', 'liberacao_emprestimo', 'resgate'].includes(raw.operationType || '')
+            ));
+
+          let match: TransacaoCompleta | undefined = undefined;
+
+          // 1. fitId
+          if (raw.fitId) {
+            match = candidateTxs.find(c => 
+              !usedCandidateIds.has(c.id) && 
+              (c.meta?.fitId === raw.fitId || (c.meta as any)?.ofxId === raw.fitId)
+            );
+          }
+
+          // 2. Mesma Data Exata + Mesmo Valor Exato + Mesmo Sentido + Descrição Compatível (OFX vs CSV)
+          if (!match) {
+            const rawDesc = raw.originalDescription || raw.description || '';
+            match = candidateTxs.find(c => {
+              if (usedCandidateIds.has(c.id)) return false;
+              if (c.date !== raw.date) return false;
+              if (Math.abs(c.amount - raw.amount) >= 0.01) return false;
+              const cIsIncoming = c.flow === 'in' || c.flow === 'transfer_in';
+              if (cIsIncoming !== isIncoming) return false;
+
+              const cOrigDesc = c.meta?.originalDescription || '';
+              const cDesc = c.description || '';
+              return areDescriptionsCompatible(rawDesc, cOrigDesc) || areDescriptionsCompatible(rawDesc, cDesc);
+            });
+          }
+
+          // 3. Mesma Data Exata + Mesmo Valor Exato + Mesmo Sentido (1 para 1)
+          if (!match) {
+            match = candidateTxs.find(c => {
+              if (usedCandidateIds.has(c.id)) return false;
+              if (c.date !== raw.date) return false;
+              if (Math.abs(c.amount - raw.amount) >= 0.01) return false;
+              const cIsIncoming = c.flow === 'in' || c.flow === 'transfer_in';
+              return cIsIncoming === isIncoming;
+            });
+          }
+
+          if (match) {
+            usedCandidateIds.add(match.id);
+            stmtChanged = true;
+            reconciledCount++;
+            return {
+              ...raw,
+              isContabilized: true,
+              contabilizedTransactionId: match.id,
+              isPotentialDuplicate: true,
+              duplicateOfTxId: match.id,
+              operationType: match.operationType || raw.operationType,
+              categoryId: match.categoryId || raw.categoryId,
+              description: raw.description || match.description,
+            };
+          }
+
+          return raw;
+        });
+
+        if (stmtChanged) {
+          hasAnyChange = true;
+          const pendingCount = updatedRaw.filter(t => !t.isContabilized).length;
+          return {
+            ...stmt,
+            rawTransactions: updatedRaw,
+            status: pendingCount === 0 ? 'complete' : 'partial'
+          };
+        }
+
+        return stmt;
+      });
+
+      if (hasAnyChange) {
+        saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, newStatements);
+        return newStatements;
+      }
+      return prevStatements;
+    });
+
+    return reconciledCount;
+  }, [transacoesV2]);
+
   const getTransactionsForReview = useCallback((accountId: string, range: DateRange): ImportedTransaction[] => {
     const allRawTransactions: ImportedTransaction[] = [];
     const seenTxIds = new Set<string>();
@@ -1508,17 +1627,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const candidateTxs = transacoesV2.filter(t => t.accountId === accountId && t.operationType !== 'initial_balance');
     const usedV2TxIds = new Set<string>();
 
-    // Pré-reservar candidatos já vinculados por contabilização em extratos desta conta
-    importedStatements
-      .filter(s => s.accountId === accountId)
-      .forEach(s => {
-        s.rawTransactions.forEach(t => {
-          if (t.isContabilized && t.contabilizedTransactionId) {
-            usedV2TxIds.add(t.contabilizedTransactionId);
-          }
-        });
-      });
-
     return filteredTxs.map(importedTx => {
         const isIncoming = importedTx.originalFlow === 'in' ||
           (importedTx.originalFlow === undefined && (
@@ -1543,9 +1651,9 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
           );
         }
 
-        // 2. Prioridade 2: Match por MESMO DIA + MESMO VALOR + MESMO SENTIDO (FLUXO) + HISTÓRICO ORIGINAL
+        // 2. Prioridade 2: Match por MESMO DIA + MESMO VALOR + MESMO SENTIDO (FLUXO) + DESCRIÇÃO COMPATÍVEL
         if (!matchedCandidate) {
-          const impOrigDesc = (importedTx.originalDescription || importedTx.description || '').trim().toLowerCase();
+          const impOrigDesc = importedTx.originalDescription || importedTx.description || '';
 
           matchedCandidate = candidateTxs.find(c => {
             if (usedV2TxIds.has(c.id)) return false;
@@ -1554,19 +1662,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             const cIsIncoming = c.flow === 'in' || c.flow === 'transfer_in';
             if (cIsIncoming !== isIncoming) return false; // MESMO SENTIDO (ENTRADA / SAÍDA)
 
-            const cOrigDesc = (c.meta?.originalDescription || '').trim().toLowerCase();
-            const cDesc = (c.description || '').trim().toLowerCase();
+            const cOrigDesc = c.meta?.originalDescription || '';
+            const cDesc = c.description || '';
 
-            const matchOrig = Boolean(cOrigDesc && impOrigDesc && (cOrigDesc === impOrigDesc || cOrigDesc.includes(impOrigDesc) || impOrigDesc.includes(cOrigDesc)));
-            const matchDesc = Boolean(cDesc && impOrigDesc && (cDesc === impOrigDesc || cDesc.includes(impOrigDesc) || impOrigDesc.includes(cDesc)));
-
-            return matchOrig || matchDesc;
+            return areDescriptionsCompatible(impOrigDesc, cOrigDesc) || 
+                   areDescriptionsCompatible(impOrigDesc, cDesc);
           });
         }
 
         // 3. Prioridade 3: Match por MESMO DIA + MESMO VALOR + MESMO SENTIDO consumindo 1 a 1
-        // Garante que se houver 10 transações no mesmo dia com mesmo valor, cada uma consome exatamente 1
-        // sem duplicar ou confundir uma com a outra
+        // Garante que se houver múltiplas transações no mesmo dia com mesmo valor, cada uma consome exatamente 1
         if (!matchedCandidate) {
           matchedCandidate = candidateTxs.find(c => {
             if (usedV2TxIds.has(c.id)) return false;
@@ -3244,7 +3349,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
     categoriasV2, setCategoriasV2, transacoesV2, setTransacoesV2, addTransacaoV2,
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,
-    importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch,
+    importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements,
     executeTransaction,
     dateRanges, setDateRanges, alertStartDate, setAlertStartDate, revenueForecasts, setMonthlyRevenueForecast: (k: string, v: number) => setRevenueForecasts(p => ({ ...p, [k]: v })), getRevenueForPreviousMonth,
     getTotalReceitas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
@@ -3364,7 +3469,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,
-    uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
+    uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
     updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno
   ]);
 

@@ -104,5 +104,65 @@ export function isImportedTransactionIncome(
   return isTransactionIncome(tx.operationType, accountType);
 }
 
+/**
+ * Normaliza descrições de lançamentos bancários removendo acentos, pontuações,
+ * caracteres separadores (| do CSV, - do OFX) e múltiplos espaços.
+ * Totalmente tolerante a null, undefined, números e objetos.
+ */
+export function normalizeDescriptionForMatch(desc?: any): string {
+  if (desc === null || desc === undefined) return '';
+  const str = typeof desc === 'string' ? desc : String(desc);
+  if (!str.trim()) return '';
+  try {
+    return str
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[|/\\_.,:;•\-()]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  } catch {
+    return str.toLowerCase().trim();
+  }
+}
+
+/**
+ * Verifica se duas descrições de transação referem-se ao mesmo evento financeiro,
+ * lidando com variações de OFX vs CSV (ex: "Pix|Nome" vs "Pix - Nome - CPF..."),
+ * radicais de estabelecimentos e palavras-chave.
+ */
+export function areDescriptionsCompatible(desc1?: any, desc2?: any): boolean {
+  const n1 = normalizeDescriptionForMatch(desc1);
+  const n2 = normalizeDescriptionForMatch(desc2);
+  if (!n1 || !n2) return false;
+  if (n1 === n2 || n1.includes(n2) || n2.includes(n1)) return true;
+
+  // Extrai palavras com 3 ou mais caracteres ignorando stopwords comuns de transação bancária
+  const stopWords = new Set([
+    'transferencia', 'transf', 'enviada', 'recebida', 'pelo', 'para', 'pix',
+    'ted', 'doc', 'compra', 'debito', 'deb', 'credito', 'cred', 'pagamento',
+    'pgto', 'pagto', 'orig', 'com', 'ltda', 'epp', 's/a', 'sa', 'me',
+    'banco', 'agencia', 'conta', 'pagamentos', 'chave', 'rdb'
+  ]);
+  const tokens1 = n1.split(' ').filter(w => w.length >= 3 && !stopWords.has(w));
+  const tokens2 = n2.split(' ').filter(w => w.length >= 3 && !stopWords.has(w));
+
+  if (tokens1.length === 0 || tokens2.length === 0) {
+    const simpleTokens1 = n1.split(' ').filter(w => w.length >= 3);
+    const simpleTokens2 = n2.split(' ').filter(w => w.length >= 3);
+    if (simpleTokens1.length === 0 || simpleTokens2.length === 0) return false;
+    return simpleTokens1.every(t => simpleTokens2.includes(t)) || simpleTokens2.every(t => simpleTokens1.includes(t));
+  }
+
+  // Se compartilha palavras distintivas (nome de beneficiário, estabelecimento, etc.)
+  const shared = tokens1.filter(t => tokens2.includes(t));
+  if (shared.length >= 2) return true;
+  if (shared.some(w => w.length >= 5)) return true;
+
+  return false;
+}
+
+
+
 
 

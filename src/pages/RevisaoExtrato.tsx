@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ export default function RevisaoExtrato() {
     standardizationRules,
     uncontabilizeImportedTransaction,
     uncontabilizeTransactionsBatch,
+    autoReconcileImportedStatements,
     deleteImportedTransaction,
     updateImportedTransactionDraft,
     transacoesV2
@@ -106,30 +107,46 @@ export default function RevisaoExtrato() {
   const [ruleToEdit, setRuleToEdit] = useState<StandardizationRule | null>(null);
   const [showRuleManagerModal, setShowRuleManagerModal] = useState(false);
 
+  // Guard para auto-conciliar apenas uma vez por conta na montagem
+  const reconciledAccountRef = useRef<string | null>(null);
+
   // Carregar transações pendentes da conta
-  const loadTransactions = useCallback(() => {
+  const loadTransactions = useCallback((forceReconcile = false) => {
     if (!accountId) {
       setTransactionsToReview([]);
       return;
     }
     setLoading(true);
+    if (forceReconcile) {
+      autoReconcileImportedStatements(accountId);
+    }
     const consolidatedTxs = getTransactionsForReview(accountId, reviewRange);
     setTransactionsToReview(consolidatedTxs.map(tx => ({ ...tx })));
     setLoading(false);
-  }, [accountId, reviewRange, getTransactionsForReview]);
+  }, [accountId, reviewRange, getTransactionsForReview, autoReconcileImportedStatements]);
 
   useEffect(() => {
-    if (accountId) {
-      loadTransactions();
-    } else {
+    if (!accountId) {
       toast.error("Conta não especificada para revisão.");
       navigate("/receitas-despesas");
+      return;
     }
-  }, [accountId, loadTransactions, navigate]);
 
-  // Transações a tratar: exclui duplicatas potenciais
+    // Auto-concilia uma única vez na carga inicial desta conta
+    if (reconciledAccountRef.current !== accountId) {
+      reconciledAccountRef.current = accountId;
+      autoReconcileImportedStatements(accountId);
+    }
+
+    const consolidatedTxs = getTransactionsForReview(accountId, reviewRange);
+    setTransactionsToReview(consolidatedTxs.map(tx => ({ ...tx })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId, reviewRange.from, reviewRange.to, navigate]);
+
+
+  // Transações a tratar: exclui duplicatas potenciais e transações já contabilizadas
   const pendingTransactions = useMemo(() => {
-    return transactionsToReview.filter(tx => !tx.isPotentialDuplicate);
+    return transactionsToReview.filter(tx => !tx.isPotentialDuplicate && !tx.isContabilized);
   }, [transactionsToReview]);
 
   // Transações contabilizadas do período para esta conta
@@ -554,10 +571,10 @@ export default function RevisaoExtrato() {
             <Button
               variant="outline"
               size="icon"
-              onClick={loadTransactions}
+              onClick={() => loadTransactions(true)}
               disabled={loading}
               className="h-10 w-10 rounded-xl border border-border/40 text-muted-foreground hover:text-foreground shrink-0 bg-card/50"
-              title="Recarregar Extrato"
+              title="Recarregar e Conciliar Extrato"
             >
               <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
             </Button>

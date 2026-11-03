@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 
 async function startServer() {
@@ -7,7 +8,7 @@ async function startServer() {
   // Parse CLI args (--port, --host) or environment variables
   const portArgIdx = process.argv.indexOf("--port");
   const portFromArg = portArgIdx !== -1 ? parseInt(process.argv[portArgIdx + 1], 10) : NaN;
-  const PORT = !isNaN(portFromArg) ? portFromArg : (Number(process.env.DEFAULT_APP_PORT) || 3000);
+  const PORT = !isNaN(portFromArg) ? portFromArg : (Number(process.env.PORT) || Number(process.env.DEFAULT_APP_PORT) || 3000);
 
   const hostArgIdx = process.argv.indexOf("--host");
   const HOST = hostArgIdx !== -1 ? process.argv[hostArgIdx + 1] : "0.0.0.0";
@@ -118,8 +119,13 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  // Vite middleware for development vs static dist in production / Cloud Run
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    !!process.env.K_SERVICE ||
+    (process.env.NODE_ENV !== "development" && fs.existsSync(path.join(process.cwd(), "dist", "index.html")));
+
+  if (!isProduction) {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
@@ -131,7 +137,7 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('{*splat}', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }

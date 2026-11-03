@@ -5,6 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Orbium - Dashboard Financeiro</title>
     
+    <!-- Script de Inicialização e Limpeza de Cache / SW / URL -->
+    <script>
+      (function() {
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            for (var r of regs) { r.unregister(); }
+          }).catch(function() {});
+        }
+        if ('caches' in window) {
+          caches.keys().then(function(keys) {
+            for (var k of keys) { caches.delete(k); }
+          }).catch(function() {});
+        }
+        try {
+          if (window.location.search && window.location.search.indexOf('__aistudio_auth_token') !== -1) {
+            var params = new URLSearchParams(window.location.search);
+            params.delete('__aistudio_auth_token');
+            var qs = params.toString();
+            var newUrl = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+            window.history.replaceState(null, '', newUrl);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    
     <!-- Favicon & App Icons -->
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="apple-touch-icon" href="/logo.png" />
