@@ -119,11 +119,11 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development vs static dist in production / Cloud Run
-  const isProduction =
-    process.env.NODE_ENV === "production" ||
-    !!process.env.K_SERVICE ||
-    (process.env.NODE_ENV !== "development" && fs.existsSync(path.join(process.cwd(), "dist", "index.html")));
+  // Vite middleware for development vs static dist in production
+  const distPath = path.join(process.cwd(), "dist");
+  const distIndexPath = path.join(distPath, "index.html");
+  const hasDist = fs.existsSync(distIndexPath);
+  const isProduction = process.env.NODE_ENV === "production" && hasDist;
 
   if (!isProduction) {
     const vite = await createViteServer({
@@ -135,10 +135,13 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('{*splat}', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+      if (fs.existsSync(distIndexPath)) {
+        res.sendFile(distIndexPath);
+      } else {
+        res.status(404).send("File not found");
+      }
     });
   }
 

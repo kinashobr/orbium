@@ -7,13 +7,15 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, Minus, Plus, DollarSign, Zap, Receipt } from "lucide-react";
 
-interface DREItem {
+export interface DREItem {
   label: string;
   value: number;
   type: 'header' | 'subtotal' | 'detail' | 'final';
   details?: DREItem[];
   icon?: React.ElementType;
   color?: string;
+  competencia?: string;
+  sublabel?: string;
 }
 
 export type DREMode = 'caixa' | 'competencia' | 'orcado';
@@ -26,7 +28,13 @@ interface DREStatementProps {
   onModeChange?: (mode: DREMode) => void;
 }
 
-const renderItem = (item: DREItem, level: number = 0) => {
+function formatCompetenciaText(comp?: string): string {
+  if (!comp) return '';
+  const clean = comp.replace(/^COMPETÊNCIA\s*/i, '').replace(/^comp\.?\s*/i, '').trim();
+  return clean ? `Comp. ${clean}` : comp;
+}
+
+const renderItem = (item: DREItem, level: number = 0, activeMode: DREMode = 'competencia') => {
   const isHeader = item.type === 'header';
   const isSubtotal = item.type === 'subtotal';
   const isFinal = item.type === 'final';
@@ -53,7 +61,7 @@ const renderItem = (item: DREItem, level: number = 0) => {
     if (isFinal) {
       return (
         <div
-          key={item.label}
+          key={`${activeMode}-${item.label}`}
           className={cn(
             "rounded-2xl border border-primary/50 bg-primary/5 px-4 sm:px-5 py-4 sm:py-5",
             "flex items-center justify-between gap-4",
@@ -88,7 +96,7 @@ const renderItem = (item: DREItem, level: number = 0) => {
 
     // Demais blocos (Receitas, Despesas, Resultado Financeiro, etc.)
     return (
-      <div key={item.label} className="space-y-3">
+      <div key={`${activeMode}-${item.label}`} className="space-y-3">
         {/* Faixa da seção, inspirada no cabeçalho de seção do Balanço */}
         <div
           className={cn(
@@ -118,41 +126,75 @@ const renderItem = (item: DREItem, level: number = 0) => {
 
         {/* Card com itens internos da seção, visualmente igual ao corpo do Balanço */}
         {!!item.details?.length && (
-          <div className="rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30">
+          <div className="rounded-2xl bg-card/40 backdrop-blur-sm border border-border/30 overflow-hidden divide-y divide-dashed divide-border/40">
              {item.details.map((detail, detailIdx) => {
                const detailValueColor = detail.color || (detail.value >= 0 ? "text-success" : "text-destructive");
+               const detailKey = `${activeMode}-${item.label}-${detail.label}-${detail.competencia || ''}-${detailIdx}`;
 
               return (
                 <div
-                  key={detail.label}
-                  className={cn(
-                    "flex items-center justify-between gap-3 px-3.5 sm:px-4 py-3",
-                    detailIdx !== item.details!.length - 1 && "border-b border-dashed border-border/40",
-                  )}
+                  key={detailKey}
+                  className="px-3.5 sm:px-4 py-3 hover:bg-muted/15 transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {detail.icon && (
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-xl flex items-center justify-center bg-card/60 text-muted-foreground",
-                          detail.color,
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {detail.icon && (
+                        <div
+                          className={cn(
+                            "w-8 h-8 rounded-xl flex items-center justify-center bg-card/60 text-muted-foreground shrink-0",
+                            detail.color,
+                          )}
+                        >
+                          <detail.icon className="w-4 h-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
+                        <span className="text-sm font-bold text-foreground truncate">
+                          {detail.label}
+                        </span>
+                        {detail.competencia && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg border border-border/60 bg-muted/40 dark:bg-muted/20 text-[10px] font-mono font-bold uppercase tracking-wider text-muted-foreground shadow-xs ring-1 ring-border/30">
+                            {formatCompetenciaText(detail.competencia)}
+                          </span>
                         )}
-                      >
-                        <detail.icon className="w-4 h-4" />
                       </div>
-                    )}
-                    <span className="text-sm font-bold text-foreground truncate">
-                      {detail.label}
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 text-sm sm:text-base font-black tabular-nums tracking-tighter", 
+                        detailValueColor,
+                      )}
+                    >
+                      {formatCurrency(detail.value)}
                     </span>
                   </div>
-                  <span
-                    className={cn(
-                      "shrink-0 text-sm sm:text-base font-black tabular-nums tracking-tighter", 
-                       detailValueColor,
-                    )}
-                  >
-                    {formatCurrency(detail.value)}
-                  </span>
+
+                  {/* Detalhes aninhados de fatura ou subcontas se existirem */}
+                  {detail.details && detail.details.length > 0 && (
+                    <div className="mt-2.5 ml-4 sm:ml-6 pl-3 sm:pl-4 border-l-2 border-border/40 space-y-2 py-1">
+                      {detail.details.map((sub, sIdx) => {
+                        const subColor = sub.color || (sub.value >= 0 ? "text-success" : "text-destructive");
+                        return (
+                          <div 
+                            key={`${detailKey}-sub-${sub.label}-${sIdx}`}
+                            className="flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="min-w-0 flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-foreground/90 truncate">{sub.label}</span>
+                              {sub.competencia && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md border border-border/60 bg-muted/40 dark:bg-muted/20 text-[9px] font-mono font-bold uppercase tracking-wider text-muted-foreground shadow-xs ring-1 ring-border/30">
+                                  {formatCompetenciaText(sub.competencia)}
+                                </span>
+                              )}
+                            </div>
+                            <span className={cn("font-bold tabular-nums shrink-0", subColor)}>
+                              {formatCurrency(sub.value)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -216,12 +258,6 @@ const renderItem = (item: DREItem, level: number = 0) => {
 };
 
 export function DREStatement({ data, title, className, activeMode = 'competencia', onModeChange }: DREStatementProps) {
-  const modeDescriptions: Record<DREMode, string> = {
-    caixa: "Regime de Caixa · Valores do real desembolso de caixa",
-    competencia: "Regime de Competência · Valores na data de origem da obrigação (Padrão)",
-    orcado: "DRE Orçado · Valores do orçamento e receita prevista (histórico e recebimentos)",
-  };
-
   return (
     <div
       className={cn(
@@ -237,9 +273,6 @@ export function DREStatement({ data, title, className, activeMode = 'competencia
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black uppercase tracking-tight text-foreground">{title}</h3>
-              <p className="text-[11px] font-medium text-muted-foreground mt-0.5">
-                {modeDescriptions[activeMode]}
-              </p>
             </div>
           </div>
 
@@ -289,8 +322,8 @@ export function DREStatement({ data, title, className, activeMode = 'competencia
           )}
         </div>
       </div>
-      <div className="px-3.5 sm:px-5 py-4 sm:py-6 space-y-5 sm:space-y-6">
-        {data.map((item) => renderItem(item))}
+      <div key={activeMode} className="px-3.5 sm:px-5 py-4 sm:py-6 space-y-5 sm:space-y-6">
+        {data.map((item) => renderItem(item, 0, activeMode))}
       </div>
     </div>
   );

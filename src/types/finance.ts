@@ -591,6 +591,7 @@ export interface CltContract {
   dataInicioControle?: string; // YYYY-MM-DD (Período de Começo de Controle)
   status: 'ativo' | 'encerrado';
   legislacaoConfigId?: string;
+  categoryIds?: string[]; // Categorias de receita associadas para capturar proventos (padrão: categoria Salário)
   createdAt: string;
   auditLog: CltAuditLogEntry[];
 }

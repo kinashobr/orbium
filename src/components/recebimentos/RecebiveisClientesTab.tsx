@@ -35,6 +35,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { CltVacationTab } from "@/components/clt/CltVacationTab";
 import { CltResignationTab } from "@/components/clt/CltResignationTab";
 import { CltHoleriteEditor } from "@/components/clt/CltHoleriteEditor";
+import { 
+  buildCltAnnualSchedule, 
+  organizeSalaryTransactionsHistory, 
+  identifyTransactionCompetencia,
+  getPrevisaoPagamentoCompetencia,
+  getQuintoDiaUtil
+} from "@/lib/cltPaymentEngine";
 
 const CATEGORIA_LABELS: Record<RecebivelNatureza, string> = {
   CONSULTORIA: "Consultoria de Projetos",
@@ -184,6 +191,11 @@ export function RecebiveisClientesTab() {
   const [cltEmpresa, setCltEmpresa] = useState("");
   const [cltAdmissao, setCltAdmissao] = useState(new Date().toISOString().split("T")[0]);
   const [cltDataInicioControle, setCltDataInicioControle] = useState("");
+  const [cltCategoryIds, setCltCategoryIds] = useState<string[]>([]);
+
+  const incomeCategories = useMemo(() => {
+    return categoriasV2.filter(c => c && (c.nature === 'receita' || c.type === 'income'));
+  }, [categoriasV2]);
 
   // Inline confirmations
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -244,6 +256,8 @@ export function RecebiveisClientesTab() {
     setCltEmpresa(clt.empresa);
     setCltAdmissao(clt.dataAdmissao);
     setCltDataInicioControle(clt.dataInicioControle || clt.dataAdmissao);
+    const defaultCat = categoriasV2.find(c => c?.label?.toLowerCase() === 'salário' || c?.label?.toLowerCase() === 'salario');
+    setCltCategoryIds(clt.categoryIds && clt.categoryIds.length > 0 ? clt.categoryIds : (defaultCat ? [defaultCat.id] : []));
     setIsAdding(true);
     setConfirmDeleteId(null);
   };
@@ -262,23 +276,30 @@ export function RecebiveisClientesTab() {
     setCltEmpresa("");
     setCltAdmissao(new Date().toISOString().split("T")[0]);
     setCltDataInicioControle("");
+    setCltCategoryIds([]);
     setIsAdding(false);
   };
 
   // Get candidate transactions
   const candidateTransactions = useMemo(() => {
     const catSalario = categoriasV2.find(c => c?.label?.toLowerCase() === 'salário' || c?.label?.toLowerCase() === 'salario');
+    const cltCategoryIdsSet = new Set<string>();
+    if (catSalario) cltCategoryIdsSet.add(catSalario.id);
+    cltContracts.forEach(c => {
+      (c.categoryIds || []).forEach(cid => cltCategoryIdsSet.add(cid));
+    });
+
     return transacoesV2.filter(t => {
       if (t.flow !== "in" || t.operationType !== "receita") return false;
       if (t.accountId.startsWith("acc_system_")) return false;
-      if (catSalario && t.categoryId === catSalario.id) return false;
+      if (t.categoryId && cltCategoryIdsSet.has(t.categoryId)) return false;
 
       const acc = contasMovimento.find(a => a.id === t.accountId);
       if (!acc || acc.accountType !== "corrente") return false;
 
       return true;
     }).sort((a, b) => b.date.localeCompare(a.date));
-  }, [transacoesV2, contasMovimento, categoriasV2]);
+  }, [transacoesV2, contasMovimento, categoriasV2, cltContracts]);
 
   const getLinkedAmountForTx = useCallback((txId: string) => {
     return parcelasRecebiveis
@@ -389,24 +410,37 @@ export function RecebiveisClientesTab() {
     const countedCltTxIds = new Set<string>();
 
     cltContracts.forEach(clt => {
-      const emp = clt.empresa.toLowerCase();
-      // Filtrar estritamente transações do ano calendário atual (currentYear)
-      const txSalariais = transacoesV2.filter(t => {
+      // Categorias autorizadas para este contrato (default: categoria 'Salário')
+      const allowedCategoryIds = new Set<string>(
+        (clt.categoryIds && clt.categoryIds.length > 0)
+          ? clt.categoryIds
+          : (catSalario ? [catSalario.id] : [])
+      );
+
+      // Filtrar estritamente transações vinculadas às categorias autorizadas do contrato
+      const txSalariaisTodas = transacoesV2.filter(t => {
         if (t.flow !== 'in' || t.operationType !== 'receita') return false;
-        // Evitar duplicidade: transações de parcelas de recebíveis de clientes NÃO são salários CLT
         if (t.links?.parcelaId || t.meta?.createdBy === 'recebiveis_module' || t.id.startsWith('tx_parcela_')) return false;
         if (countedCltTxIds.has(t.id)) return false;
-        
-        // Travar estritamente para o ano-calendário atual
-        const txDate = new Date(t.date + "T12:00:00");
-        if (txDate.getFullYear() !== currentYear) return false;
 
-        if (catSalario && t.categoryId === catSalario.id) return true;
+        // Se há categorias autorizadas configuradas, a transação DEVE pertencer a uma delas
+        if (allowedCategoryIds.size > 0) {
+          return t.categoryId ? allowedCategoryIds.has(t.categoryId) : false;
+        }
+
+        // Fallback apenas se não houver categoria de salário cadastrada no sistema
         const desc = t.description?.toLowerCase() || "";
+        const emp = clt.empresa.toLowerCase();
         return desc.includes("salario") || desc.includes("salário") || desc.includes("folha") || desc.includes("holerite") || (emp && desc.includes(emp));
       });
 
-      const cltRecContrato = txSalariais.reduce((acc, t) => {
+      // Transações creditadas estritamente no ano-calendário atual (fluxo de caixa)
+      const txSalariaisAno = txSalariaisTodas.filter(t => {
+        const txDate = new Date(t.date + "T12:00:00");
+        return txDate.getFullYear() === currentYear;
+      });
+
+      const cltRecContrato = txSalariaisAno.reduce((acc, t) => {
         countedCltTxIds.add(t.id);
         return acc + t.amount;
       }, 0);
@@ -424,8 +458,8 @@ export function RecebiveisClientesTab() {
         const discounts = (latestHolerite.inssValor || 0) + (latestHolerite.descontosExtras || []).reduce((acc, item) => acc + (item.valor || 0), 0);
         netSalary = Math.max(0, gross - discounts);
       }
-      if (netSalary === 0 && txSalariais.length > 0) {
-        const sorted = [...txSalariais].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      if (netSalary === 0 && txSalariaisAno.length > 0) {
+        const sorted = [...txSalariaisAno].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         netSalary = sorted[0].amount;
       }
       if (netSalary === 0 && clt.salarioBrutoAtual > 0) {
@@ -434,33 +468,20 @@ export function RecebiveisClientesTab() {
         netSalary = Math.max(0, clt.salarioBrutoAtual - inss - irrf);
       }
 
-      // Projeção anual do ano-calendário: 12 meses + 13º salário = 13 remunerações no ano
-      let remuneracoesNoAno = 13;
-      if (clt.dataAdmissao) {
-        const dtAdm = new Date(clt.dataAdmissao + "T12:00:00");
-        if (dtAdm.getFullYear() === currentYear) {
-          const mesesAtivos = Math.max(1, 12 - dtAdm.getMonth());
-          remuneracoesNoAno = mesesAtivos + (mesesAtivos / 12);
-        }
-      }
-      const annualCltVal = Math.round(netSalary * remuneracoesNoAno);
-      totalCltContratado += annualCltVal;
+      // Projeção anual calculada pelo motor CLT (12 meses + 13º com verificação exata do 5º dia útil)
+      const scheduleResult = buildCltAnnualSchedule({
+        year: currentYear,
+        contract: clt,
+        transacoesSalariais: txSalariaisTodas,
+        cltHolerites,
+        projectedNetSalary: netSalary,
+        referenceDate: today
+      });
 
-      // Saldo restante no ano calendário (Jan a Dez incluindo 13º)
-      const restanteContratoAno = Math.max(0, annualCltVal - cltRecContrato);
-      totalCltSaldoFuturo += restanteContratoAno;
-
-      // Verifica se o salário do mês corrente do ano atual está atrasado (após 5º dia útil)
-      if (today.getDate() > 5) {
-        const currentMonthTx = txSalariais.find(t => {
-          const d = new Date(t.date + "T12:00:00");
-          return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-        });
-        if (!currentMonthTx && netSalary > 0) {
-          totalCltVencido += netSalary;
-          cltAtrasadasCount += 1;
-        }
-      }
+      totalCltContratado += scheduleResult.totalContractProjected;
+      totalCltVencido += scheduleResult.totalOverdue;
+      totalCltSaldoFuturo += scheduleResult.totalFuture;
+      cltAtrasadasCount += scheduleResult.overdueCount;
     });
 
     // Se não há contratos CLT formalizados, mas existem transações de salário no ano calendário atual:
@@ -483,7 +504,7 @@ export function RecebiveisClientesTab() {
       }
     }
 
-    const cltSaldoFuturoAjustado = Math.max(0, totalCltSaldoFuturo - totalCltVencido);
+    const cltSaldoFuturoAjustado = Math.max(0, totalCltSaldoFuturo);
 
     const pjPercentRecebido = totalPjContratado > 0 ? Math.min(100, Math.round((totalPjRecebido / totalPjContratado) * 100)) : 0;
     const cltPercentRecebido = totalCltContratado > 0 ? Math.min(100, Math.round((totalCltRecebido / totalCltContratado) * 100)) : 0;
@@ -525,6 +546,10 @@ export function RecebiveisClientesTab() {
       }
       
       const cltId = editingContractId || generateCltContractId();
+      const defaultSalarioCat = categoriasV2.find(c => c?.label?.toLowerCase() === 'salário' || c?.label?.toLowerCase() === 'salario');
+      const finalCategoryIds = cltCategoryIds.length > 0 
+        ? cltCategoryIds 
+        : (defaultSalarioCat ? [defaultSalarioCat.id] : []);
       
       const contract: CltContract = {
         id: cltId,
@@ -535,6 +560,7 @@ export function RecebiveisClientesTab() {
         pensaoAlimenticia: 0,
         dataInicioGestao: new Date().toISOString().split('T')[0],
         dataInicioControle: cltDataInicioControle || cltAdmissao,
+        categoryIds: finalCategoryIds,
         status: 'ativo',
         createdAt: new Date().toISOString(),
         auditLog: []
@@ -1383,30 +1409,42 @@ export function RecebiveisClientesTab() {
                       const clt = contractObj.data;
                       const isConfirmingDelete = confirmDeleteId === clt.id;
                       
-                      const monthNames = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-
-                      // Encontrar transações de salário para calcular projeção baseada no último recebimento (travado no ano calendário atual)
+                      // Categorias autorizadas para este contrato (default: categoria 'Salário')
                       const categoriaSalario = categoriasV2.find(c => {
                         const lbl = c?.label?.toLowerCase() || "";
                         return lbl.includes("salário") || lbl.includes("salario") || lbl.includes("holerite");
                       });
+                      const allowedCategoryIds = new Set<string>(
+                        (clt.categoryIds && clt.categoryIds.length > 0)
+                          ? clt.categoryIds
+                          : (categoriaSalario ? [categoriaSalario.id] : [])
+                      );
 
-                      const transacoesSalariais = transacoesV2
+                      // Todas as transações salariais deste contrato
+                      const allSalaryTxsForContract = transacoesV2
                         .filter(t => {
                           if (t.flow !== 'in' || t.operationType !== 'receita') return false;
                           if (t.links?.parcelaId || t.meta?.createdBy === 'recebiveis_module' || t.id.startsWith('tx_parcela_')) return false;
-                          const tDate = new Date(t.date + "T12:00:00");
-                          if (tDate.getFullYear() !== pageKpis.currentYear) return false;
 
-                          if (categoriaSalario && t.categoryId === categoriaSalario.id) return true;
+                          // Deve pertencer estritamente a uma das categorias autorizadas
+                          if (allowedCategoryIds.size > 0) {
+                            return t.categoryId ? allowedCategoryIds.has(t.categoryId) : false;
+                          }
+
                           const desc = t.description?.toLowerCase() || "";
                           const emp = clt.empresa.toLowerCase();
                           return desc.includes("salario") || desc.includes("salário") || desc.includes("folha") || desc.includes("holerite") || (emp && desc.includes(emp));
                         })
                         .sort((a, b) => new Date(b.date + "T12:00:00").getTime() - new Date(a.date + "T12:00:00").getTime());
 
-                      const cltYearReceived = transacoesSalariais.reduce((acc, t) => acc + t.amount, 0);
-                      const lastTx = transacoesSalariais[0]; // Último recebimento real no ano atual
+                      // Transações recebidas no ano calendário atual (fluxo de caixa)
+                      const transacoesSalariaisAno = allSalaryTxsForContract.filter(t => {
+                        const tDate = new Date(t.date + "T12:00:00");
+                        return tDate.getFullYear() === pageKpis.currentYear;
+                      });
+
+                      const cltYearReceived = transacoesSalariaisAno.reduce((acc, t) => acc + t.amount, 0);
+                      const lastTx = allSalaryTxsForContract[0]; // Último recebimento real
 
                       // Verificar se há holerite cadastrado para refinar a projeção
                       const latestTxHolerite = lastTx ? cltHolerites[lastTx.id] : null;
@@ -1449,39 +1487,17 @@ export function RecebiveisClientesTab() {
                         }
                       }
 
-                      const nextMonthDate = addMonths(new Date(), 1);
-                      const nextMonthName = monthNames[nextMonthDate.getMonth()];
-                      const nextPaydayStr = `05 de ${nextMonthName.charAt(0).toUpperCase() + nextMonthName.slice(1)}`;
-
-                      // Cronograma completo do ano calendário atual: 12 meses + 13º Salário (13 remunerações)
-                      const annualCalendarPayments = monthNames.map((mName, mIdx) => {
-                        const compLabel = `${mName.charAt(0).toUpperCase() + mName.slice(1)} / ${pageKpis.currentYear}`;
-                        const matchingTx = transacoesSalariais.find(t => {
-                          const d = new Date(t.date + "T12:00:00");
-                          return d.getFullYear() === pageKpis.currentYear && (d.getMonth() === mIdx || (d.getMonth() === (mIdx + 1) % 12 && d.getDate() <= 10));
-                        });
-                        const isPastMonth = mIdx < new Date().getMonth();
-                        const isCurrentMonth = mIdx === new Date().getMonth();
-                        const isOverdue = (isPastMonth && !matchingTx) || (isCurrentMonth && new Date().getDate() > 5 && !matchingTx);
-
-                        return {
-                          title: `Competência ${compLabel}`,
-                          dateLabel: matchingTx ? `Crédito em ${new Date(matchingTx.date + "T12:00:00").toLocaleDateString("pt-BR")}` : `05 de ${mName.charAt(0).toUpperCase() + mName.slice(1)}`,
-                          amount: matchingTx ? matchingTx.amount : projectedNetSalary,
-                          status: matchingTx ? ("PAGO" as const) : isOverdue ? ("ATRASADO" as const) : ("PREVISTO" as const),
-                          is13o: false
-                        };
+                      // Construir cronograma anual completo e inteligente via motor CLT
+                      const cltScheduleResult = buildCltAnnualSchedule({
+                        year: pageKpis.currentYear,
+                        contract: clt,
+                        transacoesSalariais: allSalaryTxsForContract,
+                        cltHolerites,
+                        projectedNetSalary
                       });
 
-                      const decimoTerceiroPayment = {
-                        title: `13º Salário / ${pageKpis.currentYear} (Gratificação Natalina)`,
-                        dateLabel: `Previsão: 30 de Novembro e 20 de Dezembro de ${pageKpis.currentYear}`,
-                        amount: projectedNetSalary,
-                        status: "PREVISTO" as const,
-                        is13o: true
-                      };
-
-                      const upcomingPayments = [...annualCalendarPayments, decimoTerceiroPayment];
+                      const upcomingPayments = cltScheduleResult.schedule;
+                      const nextPaydayStr = cltScheduleResult.nextPaymentStr;
 
                       return (
                         <div 
@@ -1659,8 +1675,11 @@ export function RecebiveisClientesTab() {
                                                       </Badge>
                                                     )}
                                                   </div>
-                                                  <span className="text-[10px] text-muted-foreground font-semibold mt-1 block">
-                                                    Previsão de Crédito: {p.dateLabel}
+                                                  <span className={cn(
+                                                    "text-[10px] font-semibold mt-1 block",
+                                                    p.status === 'PAGO' ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
+                                                  )}>
+                                                    {p.status === 'PAGO' ? p.dateLabel : `Previsão de Crédito: ${p.dateLabel}`}
                                                   </span>
                                                 </div>
                                               </div>
@@ -1695,109 +1714,126 @@ export function RecebiveisClientesTab() {
                                     </TabsContent>
 
                                     <TabsContent value="historico" className="space-y-4 animate-in fade-in duration-300">
-                                      <div className="bg-muted/10 border border-border/40 p-4 rounded-2xl space-y-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/30">
-                                          <div className="flex items-center gap-2">
-                                            <ReceiptText className="w-4 h-4 text-emerald-500" />
-                                            <h5 className="font-black text-xs uppercase tracking-wider text-foreground">
-                                              Competências Pagas e Holerites de {pageKpis.currentYear} ({transacoesSalariais.length})
-                                            </h5>
-                                          </div>
-                                          <Badge className="bg-emerald-500/15 text-emerald-600 border-none font-bold text-[9px] uppercase px-2.5 py-0.5">
-                                            Ano {pageKpis.currentYear}
-                                          </Badge>
-                                        </div>
+                                      {(() => {
+                                        const organizedHistory = organizeSalaryTransactionsHistory(
+                                          allSalaryTxsForContract.filter(t => {
+                                            const d = new Date(t.date + "T12:00:00");
+                                            const comp = identifyTransactionCompetencia(t, cltHolerites);
+                                            return d.getFullYear() === pageKpis.currentYear || comp.compYear === pageKpis.currentYear;
+                                          }),
+                                          pageKpis.currentYear,
+                                          cltHolerites
+                                        );
 
-                                        <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin-custom">
-                                          {transacoesSalariais.length === 0 ? (
-                                            <div className="text-center py-8 text-xs font-semibold text-muted-foreground italic">
-                                              Nenhum lançamento de salário registrado para este contrato no ano {pageKpis.currentYear}.
+                                        return (
+                                          <div className="bg-muted/10 border border-border/40 p-4 rounded-2xl space-y-3">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/30">
+                                              <div className="flex items-center gap-2">
+                                                <ReceiptText className="w-4 h-4 text-emerald-500" />
+                                                <h5 className="font-black text-xs uppercase tracking-wider text-foreground">
+                                                  Competências Pagas e Holerites de {pageKpis.currentYear} ({organizedHistory.length})
+                                                </h5>
+                                              </div>
+                                              <Badge className="bg-emerald-500/15 text-emerald-600 border-none font-bold text-[9px] uppercase px-2.5 py-0.5">
+                                                Ano {pageKpis.currentYear}
+                                              </Badge>
                                             </div>
-                                          ) : (
-                                            transacoesSalariais.map(t => {
-                                              const monthNamesArr = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-                                              const tDate = new Date(t.date + 'T12:00:00');
-                                              const compDate = addMonths(tDate, -1);
-                                              const compMonthName = monthNamesArr[compDate.getMonth()] || 'competência';
-                                              const compYear = compDate.getFullYear();
-                                              const compLabel = `Competência ${compMonthName.charAt(0).toUpperCase() + compMonthName.slice(1)} / ${compYear}`;
-                                              const holeriteSalvo = cltHolerites[t.id];
-                                              const isOpen = expandedHoleriteTxId === t.id;
 
-                                              return (
-                                                <div key={t.id} className="space-y-2">
-                                                  <div className={cn(
-                                                    "bg-background border rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold transition-all shadow-sm",
-                                                    isOpen ? "ring-2 ring-primary border-primary" : "border-border/30 hover:border-border/60"
-                                                  )}>
-                                                    <div className="flex items-center gap-3">
-                                                      <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
-                                                        <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
-                                                      </div>
-                                                      <div>
-                                                        <div className="flex items-center gap-2">
-                                                          <p className="font-bold text-sm text-foreground leading-none">{compLabel}</p>
-                                                          {holeriteSalvo ? (
-                                                            <Badge className="bg-primary/10 text-primary border-none text-[8px] font-black uppercase py-0.5">
-                                                              Holerite Salvo
-                                                            </Badge>
-                                                          ) : (
-                                                            <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[8px] font-black uppercase py-0.5">
-                                                              Extrato
-                                                            </Badge>
-                                                          )}
-                                                        </div>
-                                                        <span className="text-[10px] text-muted-foreground font-bold mt-1 block">
-                                                          Crédito em {tDate.toLocaleDateString('pt-BR')}
-                                                        </span>
-                                                      </div>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 border-border/10 pt-2 sm:pt-0">
-                                                      <div className="text-right">
-                                                        <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground block">
-                                                          Valor Recebido
-                                                        </span>
-                                                        <span className="font-mono text-sm sm:text-base font-black text-emerald-600 tabular-nums">
-                                                          {formatCurrency(t.amount)}
-                                                        </span>
-                                                      </div>
-
-                                                      <Badge className="bg-emerald-500/15 text-emerald-600 border-none text-[8px] font-black uppercase leading-none py-1.5 px-2">
-                                                        Quitado
-                                                      </Badge>
-
-                                                      <Button
-                                                        type="button"
-                                                        variant={isOpen ? "secondary" : "outline"}
-                                                        size="sm"
-                                                        onClick={() => setExpandedHoleriteTxId(isOpen ? null : t.id)}
-                                                        className="h-8 text-[10px] font-black uppercase rounded-lg gap-1.5 px-3 shrink-0"
-                                                      >
-                                                        <Receipt className="w-3.5 h-3.5 text-primary" />
-                                                        {isOpen ? "Fechar" : holeriteSalvo ? "Ver Holerite" : "Holerite"}
-                                                      </Button>
-                                                    </div>
-                                                  </div>
-
-                                                  {/* Seção não-modal expansível do Holerite */}
-                                                  {isOpen && (
-                                                    <div className="pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                                                      <CltHoleriteEditor
-                                                        contractId={clt.id}
-                                                        competenciaId={t.id}
-                                                        competenciaLabel={compLabel}
-                                                        defaultSalario={t.amount}
-                                                        onClose={() => setExpandedHoleriteTxId(null)}
-                                                      />
-                                                    </div>
-                                                  )}
+                                            <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1 scrollbar-thin-custom">
+                                              {organizedHistory.length === 0 ? (
+                                                <div className="text-center py-8 text-xs font-semibold text-muted-foreground italic">
+                                                  Nenhum lançamento de salário registrado para este contrato no ano {pageKpis.currentYear}.
                                                 </div>
-                                              );
-                                            })
-                                          )}
-                                        </div>
-                                      </div>
+                                              ) : (
+                                                organizedHistory.map(({ t, tDate, comp, compLabel, isExercícioAnterior, holeriteSalvo, formattedDate }) => {
+                                                  const isOpen = expandedHoleriteTxId === t.id;
+
+                                                  return (
+                                                    <div key={t.id} className="space-y-2">
+                                                      <div className={cn(
+                                                        "bg-background border rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold transition-all shadow-sm",
+                                                        isOpen ? "ring-2 ring-primary border-primary" : "border-border/30 hover:border-border/60"
+                                                      )}>
+                                                        <div className="flex items-center gap-3">
+                                                          <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
+                                                            <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
+                                                          </div>
+                                                          <div>
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                              <p className="font-bold text-sm text-foreground leading-none">{compLabel}</p>
+                                                              {isExercícioAnterior && (
+                                                                <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20 text-[8px] font-black uppercase py-0.5">
+                                                                  Exercício {comp.compYear}
+                                                                </Badge>
+                                                              )}
+                                                              {comp.isComplemento && (
+                                                                <Badge className="bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20 text-[8px] font-black uppercase py-0.5">
+                                                                  Complemento / Ajuste
+                                                                </Badge>
+                                                              )}
+                                                              {holeriteSalvo ? (
+                                                                <Badge className="bg-primary/10 text-primary border-none text-[8px] font-black uppercase py-0.5">
+                                                                  Holerite Salvo
+                                                                </Badge>
+                                                              ) : (
+                                                                <Badge className="bg-emerald-500/10 text-emerald-600 border-none text-[8px] font-black uppercase py-0.5">
+                                                                  Extrato
+                                                                </Badge>
+                                                              )}
+                                                            </div>
+                                                            <span className="text-[10px] text-muted-foreground font-bold mt-1 block">
+                                                              Crédito em {formattedDate} {isExercícioAnterior ? `(pago no ano de ${pageKpis.currentYear})` : ''}
+                                                            </span>
+                                                          </div>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 border-border/10 pt-2 sm:pt-0">
+                                                          <div className="text-right">
+                                                            <span className="text-[9px] font-black uppercase tracking-wider text-muted-foreground block">
+                                                              Valor Recebido
+                                                            </span>
+                                                            <span className="font-mono text-sm sm:text-base font-black text-emerald-600 tabular-nums">
+                                                              {formatCurrency(t.amount)}
+                                                            </span>
+                                                          </div>
+
+                                                          <Badge className="bg-emerald-500/15 text-emerald-600 border-none text-[8px] font-black uppercase leading-none py-1.5 px-2">
+                                                            Quitado
+                                                          </Badge>
+
+                                                          <Button
+                                                            type="button"
+                                                            variant={isOpen ? "secondary" : "outline"}
+                                                            size="sm"
+                                                            onClick={() => setExpandedHoleriteTxId(isOpen ? null : t.id)}
+                                                            className="h-8 text-[10px] font-black uppercase rounded-lg gap-1.5 px-3 shrink-0"
+                                                          >
+                                                            <Receipt className="w-3.5 h-3.5 text-primary" />
+                                                            {isOpen ? "Fechar" : holeriteSalvo ? "Ver Holerite" : "Holerite"}
+                                                          </Button>
+                                                        </div>
+                                                      </div>
+
+                                                      {/* Seção não-modal expansível do Holerite */}
+                                                      {isOpen && (
+                                                        <div className="pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                          <CltHoleriteEditor
+                                                            contractId={clt.id}
+                                                            competenciaId={t.id}
+                                                            competenciaLabel={compLabel}
+                                                            defaultSalario={t.amount}
+                                                            onClose={() => setExpandedHoleriteTxId(null)}
+                                                          />
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  );
+                                                })
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })()}
                                     </TabsContent>
 
                                     <TabsContent value="ferias" className="animate-in fade-in duration-300">
@@ -2376,6 +2412,47 @@ export function RecebiveisClientesTab() {
                             onChange={e => setCltDataInicioControle(e.target.value)} 
                             className="h-10 rounded-xl border-border/60 bg-muted/20 text-xs font-bold" 
                           />
+                        </div>
+
+                        <div className="space-y-2 pt-2 border-t border-border/30">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-[9px] font-black uppercase tracking-wider text-muted-foreground">
+                              Categorias de Receita Monitoradas
+                            </Label>
+                            <span className="text-[9px] text-muted-foreground font-bold">
+                              {cltCategoryIds.length === 0 ? "Padrão: Salário" : `${cltCategoryIds.length} selecionada(s)`}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-normal">
+                            Selecione quais categorias de receita/proventos este contrato deve capturar. Lançamentos em categorias restritas ou outras despesas/receitas não serão contabilizados.
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 p-2 rounded-xl bg-muted/20 border border-border/40 max-h-36 overflow-y-auto">
+                            {incomeCategories.map(cat => {
+                              const isSelected = cltCategoryIds.includes(cat.id);
+                              return (
+                                <button
+                                  key={cat.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setCltCategoryIds(prev => 
+                                      prev.includes(cat.id) 
+                                        ? prev.filter(id => id !== cat.id) 
+                                        : [...prev, cat.id]
+                                    );
+                                  }}
+                                  className={cn(
+                                    "px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1.5 cursor-pointer",
+                                    isSelected 
+                                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-extrabold shadow-2xs" 
+                                      : "bg-background border-border/50 text-muted-foreground hover:border-border"
+                                  )}
+                                >
+                                  {isSelected ? <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" /> : <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 shrink-0" />}
+                                  <span>{cat.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
 

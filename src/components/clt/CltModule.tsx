@@ -60,11 +60,16 @@ export function CltModule({ open, onOpenChange }: Props) {
   }, [categoriasV2]);
 
   const transacoesSalariais = useMemo(() => {
-    if (!categoriaSalario) return [];
+    const allowedCategoryIds = new Set<string>(
+      (selectedContract?.categoryIds && selectedContract.categoryIds.length > 0)
+        ? selectedContract.categoryIds
+        : (categoriaSalario ? [categoriaSalario.id] : [])
+    );
+    if (allowedCategoryIds.size === 0) return [];
     return transacoesV2
-      .filter(t => t.categoryId === categoriaSalario.id && t.flow === 'in')
+      .filter(t => t.categoryId && allowedCategoryIds.has(t.categoryId) && t.flow === 'in')
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transacoesV2, categoriaSalario]);
+  }, [transacoesV2, categoriaSalario, selectedContract]);
 
   const kpis = useMemo(() => {
     const now = new Date();

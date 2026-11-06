@@ -1,18 +1,72 @@
 import React, { useMemo, useCallback, useState } from "react";
 import { 
   TrendingUp, TrendingDown, DollarSign, Calculator, Minus, Plus, 
-  Sparkles, Receipt, Zap, PieChart, BarChart3, LineChart, Activity, Gauge, ArrowUpRight, ArrowDownRight, Target, PiggyBank, Award
+  Sparkles, Receipt, Zap, PieChart, BarChart3, LineChart, Activity, Gauge, ArrowUpRight, ArrowDownRight, Target, PiggyBank, Award, CreditCard
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
-import { cn, parseDateLocal } from "@/lib/utils";
-import { ACCOUNT_TYPE_LABELS, ComparisonDateRanges, DateRange, formatCurrency } from "@/types/finance";
-import { startOfDay, endOfDay, isWithinInterval, subMonths, endOfMonth, format, startOfMonth } from "date-fns";
+import { cn, parseDateLocal, getDueDate } from "@/lib/utils";
+import { ACCOUNT_TYPE_LABELS, ComparisonDateRanges, DateRange, formatCurrency, TransacaoV2, Categoria } from "@/types/finance";
+import { startOfDay, endOfDay, isWithinInterval, subMonths, endOfMonth, format, startOfMonth, addMonths } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Legend } from "recharts";
 import { useChartColors } from "@/hooks/useChartColors";
 import { ptBR } from "date-fns/locale";
 import { IndicatorCard } from "./IndicatorCard";
-import { DREStatement, DREMode } from "./DREStatement";
+import { DREStatement, DREMode, DREItem } from "./DREStatement";
+
+export interface DREDetailEntry {
+  label: string;
+  value: number;
+  id: string;
+  competencia?: string;
+  sublabel?: string;
+  details?: { label: string; value: number; competencia?: string }[];
+}
+
+// Helpers especializados para apuração da DRE e Resultado Financeiro
+function isRendimentoTx(t: { operationType?: string; categoryId?: string | null; description?: string }, cat?: { label?: string; nature?: string }): boolean {
+  if (t.operationType === 'rendimento') return true;
+  if (t.categoryId === 'cat_rendimentos') return true;
+  const catLabel = (cat?.label || '').toLowerCase();
+  if (catLabel.includes('rendimento') || catLabel.includes('investimento') || catLabel.includes('dividend') || catLabel.includes('jcp') || catLabel.includes('cdi')) {
+    return true;
+  }
+  const desc = (t.description || '').toLowerCase();
+  if (desc.includes('rendimento') || desc.includes('dividend') || desc.includes('juros s/ capital') || desc.includes('remuneração conta') || desc.includes('remuneracao de saldo')) {
+    return true;
+  }
+  return false;
+}
+
+function isDescontoTx(t: { categoryId?: string | null; description?: string; operationType?: string; links?: any }, cat?: { label?: string }): boolean {
+  if (t.operationType === 'pagamento_emprestimo' || t.links?.loanId) return false;
+  if (t.categoryId === 'cat_descontos_obtidos') return true;
+  const catLabel = (cat?.label || '').toLowerCase().trim();
+  if (catLabel === 'descontos obtidos' || catLabel === 'desconto obtido') return true;
+  return false;
+}
+
+function isJurosTx(t: { categoryId?: string | null; description?: string; operationType?: string }, cat?: { label?: string }): boolean {
+  const catLabel = (cat?.label || '').toLowerCase();
+  if (catLabel.includes('juros') || catLabel.includes('encargos')) return true;
+  const desc = (t.description || '').toLowerCase();
+  if (desc.includes('juros cheque especial') || desc.includes('juros rotativo') || desc.includes('encargos') || desc.includes('juros de mora') || desc.includes('multa/juros')) {
+    return true;
+  }
+  return false;
+}
+
+function isFinanciamentoOuEmprestimoTx(t: { operationType?: string; links?: any; description?: string; categoryId?: string | null }, cat?: { label?: string }): boolean {
+  if (t.operationType === 'pagamento_emprestimo') return true;
+  if (t.links?.loanId) return true;
+  const catLabel = (cat?.label || '').toLowerCase();
+  if (catLabel.includes('empréstimo') || catLabel.includes('emprestimo') || catLabel.includes('financiamento')) return true;
+  const desc = (t.description || '').toLowerCase();
+  if (desc.includes('pagamento empréstimo') || desc.includes('pagamento emprestimo') || desc.includes('parcela empréstimo') || desc.includes('parcela emprestimo') || desc.includes('financiamento')) {
+    return true;
+  }
+  return false;
+}
 
 interface DREData {
   // Receita Total (operacional + rendimentos financeiros + descontos obtidos)
@@ -31,19 +85,10 @@ interface DREData {
   // Resultado Financeiro: Rendimentos + Descontos Obtidos - Juros
   resultadoFinanceiro: number;
   details: {
-    receitas: { label: string; value: number; id: string }[];
-    despesasFixas: { label: string; value: number; id: string }[];
-    despesasVariaveis: { label: string; value: number; id: string }[];
+    receitas: DREDetailEntry[];
+    despesasFixas: DREDetailEntry[];
+    despesasVariaveis: DREDetailEntry[];
   };
-}
-
-interface DREItem {
-  label: string;
-  value: number;
-  type: "header" | "subtotal" | "detail" | "final";
-  details?: DREItem[];
-  icon?: React.ElementType;
-  color?: string;
 }
 
 export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
@@ -59,6 +104,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     parcelasRecebiveis,
     revenueForecasts,
     expenseSnapshots,
+    creditCardConfigs,
   } = useFinance();
 
   // Padrão solicitado pelo usuário: iniciar no Regime de Competência
@@ -73,6 +119,10 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
   , [contasMovimento]);
 
   const getCategoryIcon = useCallback((label: string, defaultIcon: React.ElementType) => {
+    // Se for agrupamento de fatura, usa ícone de cartão
+    if (label.toLowerCase().startsWith('fatura')) {
+      return CreditCard;
+    }
     const cat = categoriasV2.find(c => c.label === label);
     if (cat?.icon) {
       return () => <span className="text-lg leading-none flex items-center justify-center">{cat.icon}</span>;
@@ -83,78 +133,275 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
   const finalDate = range1.to || new Date();
   const prevDate = range2.to || subMonths(finalDate, 1);
 
-  // 1. DRE REGIME DE CAIXA: Real desembolso de caixa (data de liquidação)
+  // 1. DRE REGIME DE CAIXA: Real desembolso de caixa (data de liquidação / pagamento efetivo)
   const calculateDRECaixa = useCallback((range: DateRange): DREData => {
     const rangeFrom = range.from ? startOfDay(range.from) : undefined;
     const rangeTo = range.to ? endOfDay(range.to) : undefined;
-    
-    const txs = transacoesV2.filter(t => {
+    const refDate = rangeTo || new Date();
+
+    // 1) Receitas e Rendimentos no Caixa (efetivo recebimento na conta bancária)
+    const txsInInterval = transacoesV2.filter(t => {
       try {
         const d = parseDateLocal(t.date);
         return (!rangeFrom || isWithinInterval(d, { start: rangeFrom, end: rangeTo || new Date() }));
       } catch { return false; }
     });
 
-    const descontosObtidos = txs
-      .filter((t) => t.categoryId === 'cat_descontos_obtidos' || categoriesMap.get(t.categoryId || '')?.label === 'Descontos Obtidos')
+    // Rendimentos no caixa
+    const rendimentos = txsInInterval
+      .filter(t => isRendimentoTx(t, categoriesMap.get(t.categoryId || '')))
       .reduce((a, t) => a + t.amount, 0);
 
-    const receitaOperacional = txs
-      .filter((t) => t.operationType === 'receita' && t.categoryId !== 'cat_descontos_obtidos' && categoriesMap.get(t.categoryId || '')?.label !== 'Descontos Obtidos')
+    // Descontos obtidos no caixa: apenas valores concretos de transações da categoria Descontos Obtidos
+    const descontosObtidos = txsInInterval
+      .filter(t => isDescontoTx(t, categoriesMap.get(t.categoryId || '')))
       .reduce((a, t) => a + t.amount, 0);
 
-    const rendimentos = txs
-      .filter((t) => t.operationType === 'rendimento')
-      .reduce((a, t) => a + t.amount, 0);
+    // Receita Operacional no Caixa (apenas receitas operacionais legítimas)
+    const receitaOperacionalTxs = txsInInterval.filter(t => {
+      const cat = categoriesMap.get(t.categoryId || '');
+      return t.operationType === 'receita' && !isRendimentoTx(t, cat) && !isDescontoTx(t, cat);
+    });
 
+    const receitaOperacional = receitaOperacionalTxs.reduce((a, t) => a + t.amount, 0);
     const receitaTotal = receitaOperacional + rendimentos + descontosObtidos;
-    
-    const fix = txs
-      .filter((t) => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_fixa')
-      .reduce((a, t) => a + t.amount, 0);
-    const var_ = txs
-      .filter((t) => categoriesMap.get(t.categoryId || '')?.nature === 'despesa_variavel')
-      .reduce((a, t) => a + t.amount, 0);
-    
-    let juros = 0;
-    txs.filter(t => t.operationType === 'pagamento_emprestimo').forEach(t => {
-      const lid = t.links?.loanId?.replace('loan_', '');
-      const pid = t.links?.parcelaId;
-      if (lid && pid) {
-        const s = calculateLoanSchedule(parseInt(lid));
-        const item = s.find(i => i.parcela === parseInt(pid));
-        if (item) juros += item.juros;
+
+    const receitasMap: Record<string, { value: number; competencia: string }> = {};
+    receitaOperacionalTxs.forEach(t => {
+      const label = categoriesMap.get(t.categoryId || '')?.label || t.description || 'Outras Receitas';
+      const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+      const cur = receitasMap[label] || { value: 0, competencia: comp };
+      receitasMap[label] = { value: cur.value + t.amount, competencia: comp };
+    });
+
+    // 2) Despesas Diretas (Conta Corrente, PIX, Débito, Dinheiro)
+    // Exclui pagamentos de fatura (para usar os itens das faturas pagas), pagamentos de empréstimo e juros
+    const directDespesas = txsInInterval.filter(t => {
+      if (t.operationType !== 'despesa') return false;
+      if (creditCardAccountIds.has(t.accountId)) return false;
+      const cat = categoriesMap.get(t.categoryId || '');
+      if (isFinanciamentoOuEmprestimoTx(t, cat)) return false;
+      if (isJurosTx(t, cat)) return false;
+      const descLower = (t.description || '').toLowerCase();
+      if (
+        descLower.includes('fatura') ||
+        descLower.includes('pagamento cartão') ||
+        descLower.includes('pgto cartao') ||
+        descLower.includes('pagamento de fatura') ||
+        descLower.includes('pag fatura') ||
+        descLower.includes('liquidacao cartao') ||
+        t.meta?.isCardPayment
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    // Mapas para acumular Despesas Fixas e Variáveis diretamente pelas Categorias (sem exibir a fatura)
+    const allFixMap = new Map<string, { label: string; value: number; competencia: string }>();
+    const allVarMap = new Map<string, { label: string; value: number; competencia: string }>();
+
+    // Insere despesas diretas
+    directDespesas.forEach(t => {
+      const cat = categoriesMap.get(t.categoryId || '');
+      let label = cat?.label || t.description || 'Outros';
+      if (label.toLowerCase().includes('fatura')) return;
+      const isFixa = cat?.nature === 'despesa_fixa';
+      const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+      const key = `${label}__${comp}`;
+      const targetMap = isFixa ? allFixMap : allVarMap;
+      const cur = targetMap.get(key) || { label, value: 0, competencia: comp };
+      targetMap.set(key, { label, value: cur.value + t.amount, competencia: comp });
+    });
+
+    // 3) Despesas de Cartão de Crédito de faturas liquidadas no período:
+    // Não exibe agrupamento de fatura: joga os lançamentos diretamente em suas respectivas categorias
+    const startRef = rangeFrom || startOfMonth(refDate);
+    const endRef = rangeTo || endOfMonth(refDate);
+    const cardAccounts = contasMovimento.filter(c => c.accountType === 'cartao_credito');
+
+    cardAccounts.forEach(cardAcc => {
+      const config = creditCardConfigs.find(c => c.accountId === cardAcc.id || c.id === cardAcc.id);
+      const closingDay = config?.closingDay || 1;
+      const dueDay = config?.dueDay || 10;
+
+      let cursor = startOfMonth(startRef);
+      const endCursor = endOfMonth(endRef);
+
+      while (cursor <= endCursor) {
+        const cycleDate = cursor;
+        const cycleMonthKey = format(cycleDate, 'yyyy-MM');
+        const daysInMonth = new Date(cycleDate.getFullYear(), cycleDate.getMonth() + 1, 0).getDate();
+        const actualDueDay = Math.min(dueDay, daysInMonth);
+        const invoiceDueDate = new Date(cycleDate.getFullYear(), cycleDate.getMonth(), actualDueDay);
+
+        const invoiceBill = billsTracker.find(b => 
+          (b.id === `invoice_${config?.id}_${cycleMonthKey}` || 
+           (b.cardId === (config?.id || cardAcc.id) && b.dueDate.startsWith(cycleMonthKey))) &&
+          !b.isExcluded
+        );
+
+        let effectivePaymentDate = invoiceDueDate;
+        if (invoiceBill?.isPaid && invoiceBill.paymentDate) {
+          try {
+            effectivePaymentDate = parseDateLocal(invoiceBill.paymentDate);
+          } catch {
+            effectivePaymentDate = invoiceDueDate;
+          }
+        } else {
+          const paymentTx = transacoesV2.find(t => 
+            t.accountId === cardAcc.id && 
+            (t.flow === 'in' || t.flow === 'transfer_in' || t.meta?.isCardPayment) &&
+            t.date.startsWith(cycleMonthKey)
+          );
+          if (paymentTx) {
+            try {
+              effectivePaymentDate = parseDateLocal(paymentTx.date);
+            } catch {
+              effectivePaymentDate = invoiceDueDate;
+            }
+          }
+        }
+
+        // Se a liquidação da fatura ocorreu no período selecionado:
+        if (!rangeFrom || isWithinInterval(effectivePaymentDate, { start: rangeFrom, end: rangeTo || new Date() })) {
+          const cycleYear = cycleDate.getFullYear();
+          const cycleMonth = cycleDate.getMonth();
+          const currentClosing = new Date(cycleYear, cycleMonth, Math.min(closingDay, new Date(cycleYear, cycleMonth + 1, 0).getDate()));
+          const prevMonth = cycleMonth === 0 ? 11 : cycleMonth - 1;
+          const prevYear = cycleMonth === 0 ? cycleYear - 1 : cycleYear;
+          const prevClosing = new Date(prevYear, prevMonth, Math.min(closingDay, new Date(prevYear, prevMonth + 1, 0).getDate()));
+
+          const cycleTxs = transacoesV2.filter(t => 
+            t.accountId === cardAcc.id && 
+            t.flow === 'out' && 
+            (t.operationType === 'despesa' || !t.operationType) &&
+            parseDateLocal(t.date) > prevClosing && 
+            parseDateLocal(t.date) <= currentClosing
+          );
+
+          const pendingCycleBills = billsTracker.filter(b => 
+            !b.isPaid && 
+            !b.isExcluded && 
+            b.sourceType !== 'card_invoice' &&
+            b.sourceType !== 'credit_card_invoice' &&
+            (b.suggestedAccountId === cardAcc.id || b.cardId === (config?.id || cardAcc.id)) &&
+            parseDateLocal(b.dueDate) > prevClosing && 
+            parseDateLocal(b.dueDate) <= currentClosing
+          );
+
+          cycleTxs.forEach(t => {
+            const cat = categoriesMap.get(t.categoryId || '');
+            let label = cat?.label || t.description || 'Outros';
+            if (label.toLowerCase().includes('fatura')) label = 'Cartão de Crédito';
+            const isFixa = cat?.nature === 'despesa_fixa';
+            const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+            const key = `${label}__${comp}`;
+            const targetMap = isFixa ? allFixMap : allVarMap;
+            const cur = targetMap.get(key) || { label, value: 0, competencia: comp };
+            targetMap.set(key, { label, value: cur.value + t.amount, competencia: comp });
+          });
+
+          pendingCycleBills.forEach(b => {
+            const cat = categoriesMap.get(b.suggestedCategoryId || '');
+            let label = cat?.label || b.description || 'Compra Parcelada';
+            if (label.toLowerCase().includes('fatura')) label = 'Cartão de Crédito';
+            const isFixa = cat?.nature === 'despesa_fixa' || b.sourceType === 'fixed_expense';
+            const comp = format(parseDateLocal(b.dueDate), 'MM/yyyy');
+            const key = `${label}__${comp}`;
+            const targetMap = isFixa ? allFixMap : allVarMap;
+            const cur = targetMap.get(key) || { label, value: 0, competencia: comp };
+            targetMap.set(key, { label, value: cur.value + b.expectedAmount, competencia: comp });
+          });
+        }
+
+        cursor = addMonths(cursor, 1);
       }
     });
 
-    const despesasOperacionais = fix + var_;
+    let fixTotal = 0;
+    let varTotal = 0;
+    const despesasFixasDetails: DREDetailEntry[] = [];
+    const despesasVariaveisDetails: DREDetailEntry[] = [];
+
+    allFixMap.forEach((v) => {
+      fixTotal += v.value;
+      despesasFixasDetails.push({
+        label: v.label,
+        value: v.value,
+        id: `caixa-fix-${v.label}-${v.competencia}`,
+        competencia: v.competencia,
+      });
+    });
+
+    allVarMap.forEach((v) => {
+      varTotal += v.value;
+      despesasVariaveisDetails.push({
+        label: v.label,
+        value: v.value,
+        id: `caixa-var-${v.label}-${v.competencia}`,
+        competencia: v.competencia,
+      });
+    });
+
+    // 4) Juros e Resultado Financeiro no Método Caixa
+    let juros = 0;
+    // Juros de parcelas de empréstimo pagas no período
+    txsInInterval
+      .filter(t => t.operationType === 'pagamento_emprestimo' || t.links?.loanId)
+      .forEach(t => {
+        const lidStr = t.links?.loanId?.replace('loan_', '');
+        const pidStr = t.links?.parcelaId;
+        if (lidStr) {
+          const loanId = parseInt(lidStr);
+          const s = calculateLoanSchedule(loanId);
+          if (pidStr) {
+            const item = s.find(i => i.parcela === parseInt(pidStr));
+            if (item) juros += item.juros;
+          } else {
+            const item = s.find(i => Math.abs((i.juros + i.amortizacao) - t.amount) < 1) || s[0];
+            if (item) juros += item.juros;
+          }
+        }
+      });
+
+    // Também verifica parcelas de empréstimo marcadas como pagas no billsTracker com data de pagamento no período
+    billsTracker
+      .filter(b => b.sourceType === 'loan_installment' && b.isPaid && b.paymentDate && !b.isExcluded)
+      .forEach(b => {
+        try {
+          const pDate = parseDateLocal(b.paymentDate!);
+          if (!rangeFrom || isWithinInterval(pDate, { start: rangeFrom, end: rangeTo || new Date() })) {
+            const alreadyInTx = txsInInterval.some(t => 
+              t.id === b.transactionId || 
+              (t.links?.loanId === `loan_${b.sourceRef}` && t.links?.parcelaId === String(b.parcelaNumber))
+            );
+            if (!alreadyInTx && b.sourceRef) {
+              const s = calculateLoanSchedule(parseInt(b.sourceRef));
+              const item = s.find(i => i.parcela === b.parcelaNumber);
+              if (item) juros += item.juros;
+            }
+          }
+        } catch { }
+      });
+
+    // Juros diretos nas transações do período (cheque especial, encargos rotativo, juros/multas bancárias)
+    txsInInterval.forEach(t => {
+      const cat = categoriesMap.get(t.categoryId || '');
+      if (isJurosTx(t, cat) && t.operationType !== 'pagamento_emprestimo') {
+        juros += t.amount;
+      }
+    });
+
+    const despesasOperacionais = fixTotal + varTotal;
     const resultadoOperacional = receitaOperacional - despesasOperacionais;
     const resultadoFinanceiro = rendimentos + descontosObtidos - juros;
     const resultadoLiquido = resultadoOperacional + resultadoFinanceiro;
-    
-    const groupDetails = (
-      nature: 'receita' | 'despesa_fixa' | 'despesa_variavel',
-      operationType?: 'receita' | 'despesa'
-    ) => {
-      const filteredTxs = txs.filter((t) => {
-        const catNature = categoriesMap.get(t.categoryId || '')?.nature;
-        if (catNature !== nature) return false;
-        if (operationType && t.operationType !== operationType) return false;
-        if (t.categoryId === 'cat_descontos_obtidos') return false;
-        return true;
-      });
-      const grouped = filteredTxs.reduce((acc, t) => {
-        const label = categoriesMap.get(t.categoryId || '')?.label || 'Outros';
-        acc[label] = (acc[label] || 0) + t.amount;
-        return acc;
-      }, {} as Record<string, number>);
-      return Object.entries(grouped).map(([label, value]) => ({ label, value, id: label }));
-    };
 
     return {
       rec: receitaTotal,
-      fix,
-      var: var_,
+      fix: fixTotal,
+      var: varTotal,
       juros,
       rendimentos,
       descontosObtidos,
@@ -163,12 +410,17 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       resultadoOperacional,
       resultadoFinanceiro,
       details: {
-        receitas: groupDetails('receita', 'receita'),
-        despesasFixas: groupDetails('despesa_fixa'),
-        despesasVariaveis: groupDetails('despesa_variavel'),
+        receitas: Object.entries(receitasMap).map(([label, entry]) => ({ 
+          label, 
+          value: entry.value, 
+          competencia: entry.competencia,
+          id: `rec-caixa-${label}` 
+        })),
+        despesasFixas: despesasFixasDetails,
+        despesasVariaveis: despesasVariaveisDetails,
       },
     };
-  }, [transacoesV2, calculateLoanSchedule, categoriesMap]);
+  }, [transacoesV2, calculateLoanSchedule, categoriesMap, creditCardAccountIds, contasMovimento, creditCardConfigs, billsTracker]);
 
   // 2. DRE REGIME DE COMPETÊNCIA: Valores na data de origem da obrigação / fato gerador
   const calculateDRECompetencia = useCallback((range: DateRange): DREData => {
@@ -185,115 +437,181 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     });
 
     // Despesas de competência:
-    // 1) Compras no cartão de crédito na data da compra (fato gerador da despesa)
-    // 2) Despesas em contas correntes exceto quitação de cartão para evitar duplicidade
+    // 1) Compras no cartão de crédito na data da compra (fato gerador)
+    // 2) Despesas em contas correntes exceto quitação de cartão, pagamentos de empréstimo e juros
     const operacoesDespesa = txsInInterval.filter(t => {
       if (t.operationType !== 'despesa') return false;
+      const cat = categoriesMap.get(t.categoryId || '');
+      if (isFinanciamentoOuEmprestimoTx(t, cat)) return false;
+      if (isJurosTx(t, cat)) return false;
       const descLower = (t.description || '').toLowerCase();
-      // Se for pagamento de fatura do cartão feito na conta corrente, excluímos no regime de competência
-      // pois as compras originais já constam na conta do cartão na data do fato gerador.
       if (!creditCardAccountIds.has(t.accountId)) {
-        if (descLower.includes('fatura') || descLower.includes('pagamento cartão') || descLower.includes('pgto cartao')) {
+        if (
+          descLower.includes('fatura') ||
+          descLower.includes('pagamento cartão') ||
+          descLower.includes('pgto cartao') ||
+          descLower.includes('pagamento de fatura') ||
+          t.meta?.isCardPayment
+        ) {
           return false;
         }
       }
       return true;
     });
 
-    // Agrupamento de despesas operacionais
-    const despesasFixasMap: Record<string, number> = {};
-    const despesasVariaveisMap: Record<string, number> = {};
+    const despesasFixasMap: Record<string, { value: number; competencia: string }> = {};
+    const despesasVariaveisMap: Record<string, { value: number; competencia: string }> = {};
 
     operacoesDespesa.forEach(t => {
       const cat = categoriesMap.get(t.categoryId || '');
-      const label = cat?.label || 'Outros';
-      if (cat?.nature === 'despesa_fixa') {
-        despesasFixasMap[label] = (despesasFixasMap[label] || 0) + t.amount;
-      } else {
-        despesasVariaveisMap[label] = (despesasVariaveisMap[label] || 0) + t.amount;
-      }
+      const label = cat?.label || t.description || 'Outros';
+      const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+      const isFixa = cat?.nature === 'despesa_fixa';
+      const targetMap = isFixa ? despesasFixasMap : despesasVariaveisMap;
+      const cur = targetMap[label] || { value: 0, competencia: comp };
+      targetMap[label] = { value: cur.value + t.amount, competencia: comp };
     });
 
-    // Adiciona parcelas de compras parceladas do billsTracker que vencerem no período, caso não registradas em txs
+    // Adiciona parcelas de compras parceladas do billsTracker com vencimento no período
     billsTracker
       .filter(b => b.sourceType === 'purchase_installment' && !b.isExcluded && b.expectedAmount > 0)
       .forEach(b => {
         try {
           const d = parseDateLocal(b.dueDate);
           if (!rangeFrom || isWithinInterval(d, { start: rangeFrom, end: rangeTo || new Date() })) {
-            // Se já tem transactionId correspondente nas txs do período, não duplica
-            if (b.transactionId && txsInInterval.some(t => t.id === b.transactionId)) return;
+            const alreadyExists = txsInInterval.some(t => 
+              (b.transactionId && t.id === b.transactionId) ||
+              (Math.abs(t.amount - b.expectedAmount) < 0.01 && t.description === b.description)
+            );
+            if (alreadyExists) return;
+
             const cat = categoriesMap.get(b.suggestedCategoryId || '');
             const label = cat?.label || b.description || 'Compra Parcelada';
-            despesasVariaveisMap[label] = (despesasVariaveisMap[label] || 0) + b.expectedAmount;
+            const comp = format(d, 'MM/yyyy');
+            const cur = despesasVariaveisMap[label] || { value: 0, competencia: comp };
+            despesasVariaveisMap[label] = { value: cur.value + b.expectedAmount, competencia: comp };
           }
         } catch { }
       });
 
-    const fix = Object.values(despesasFixasMap).reduce((a, b) => a + b, 0);
-    const var_ = Object.values(despesasVariaveisMap).reduce((a, b) => a + b, 0);
+    const fix = Object.values(despesasFixasMap).reduce((a, b) => a + b.value, 0);
+    const var_ = Object.values(despesasVariaveisMap).reduce((a, b) => a + b.value, 0);
 
-    // Receitas Operacionais por Competência:
-    // Salários CLT: trabalho prestado na competência do mês
-    const receitasMap: Record<string, number> = {};
+    // Receitas Operacionais por Competência
+    const receitasCompMap: Record<string, { value: number; competencia: string }> = {};
     const competenciasMes = cltCompetencias.filter(c => c.mesAno === monthKey);
 
+    // Salários CLT: trabalho prestado na competência do mês com badge de competência
     if (competenciasMes.length > 0) {
       competenciasMes.forEach(c => {
         const contrato = cltContracts.find(con => con.id === c.contractId);
         const label = contrato ? `Salário (${contrato.empresa})` : 'Salário CLT';
-        receitasMap[label] = (receitasMap[label] || 0) + (c.salarioLiquido || c.salarioBruto);
+        const valor = c.salarioLiquido || c.salarioBruto;
+        if (valor > 0) {
+          let compFormatted = monthKey;
+          try {
+            compFormatted = format(parseDateLocal(c.mesAno + '-01'), 'MM/yyyy');
+          } catch {
+            compFormatted = c.mesAno;
+          }
+          receitasCompMap[label] = {
+            value: (receitasCompMap[label]?.value || 0) + valor,
+            competencia: compFormatted
+          };
+        }
       });
     }
 
     // Recebíveis de clientes devidos na competência do período
+    // NOMENCLATURA: Serviços / Contratos (não misturar com Repasses Restritos)
+    let totalServicosContratos = 0;
     parcelasRecebiveis.forEach(p => {
       try {
         const d = parseDateLocal(p.dataVencimento);
         if (!rangeFrom || isWithinInterval(d, { start: rangeFrom, end: rangeTo || new Date() })) {
           const valor = p.valorPago || p.valorPrevisto;
           if (valor > 0) {
-            receitasMap['Serviços / Clientes'] = (receitasMap['Serviços / Clientes'] || 0) + valor;
+            totalServicosContratos += valor;
           }
         }
       } catch { }
     });
 
-    // Transações normais de receita no período (excluindo salários manuais se a competência CLT já computou)
+    if (totalServicosContratos > 0) {
+      receitasCompMap['Serviços / Contratos'] = {
+        value: totalServicosContratos,
+        competencia: format(rangeTo || new Date(), 'MM/yyyy')
+      };
+    }
+
+    // Transações normais de receita no período
     txsInInterval
-      .filter(t => t.operationType === 'receita' && t.categoryId !== 'cat_descontos_obtidos')
+      .filter(t => {
+        const cat = categoriesMap.get(t.categoryId || '');
+        return t.operationType === 'receita' && !isRendimentoTx(t, cat) && !isDescontoTx(t, cat);
+      })
       .forEach(t => {
         const cat = categoriesMap.get(t.categoryId || '');
-        const label = cat?.label || 'Outras Receitas';
-        const isSalario = label.toLowerCase().includes('salário') || label.toLowerCase().includes('salario');
-        if (competenciasMes.length > 0 && isSalario) {
-          // Já computado pela competência CLT do holerite
+        const rawLabel = cat?.label || t.description || 'Outras Receitas';
+        const labelLower = rawLabel.toLowerCase();
+
+        // Categoria Repasses Restritos: NÃO misturar com Serviços / Contratos e manter separada para não duplicar!
+        if (labelLower.includes('repasses restritos') || labelLower.includes('repasse restrito')) {
+          const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+          const cur = receitasCompMap['Repasses Restritos'] || { value: 0, competencia: comp };
+          receitasCompMap['Repasses Restritos'] = {
+            value: cur.value + t.amount,
+            competencia: comp
+          };
           return;
         }
-        receitasMap[label] = (receitasMap[label] || 0) + t.amount;
+
+        // Salário: se já computado por competência CLT de holerite, não duplica
+        const isSalario = labelLower.includes('salário') || labelLower.includes('salario');
+        if (competenciasMes.length > 0 && isSalario) {
+          return;
+        }
+        if (isSalario) {
+          const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+          const cur = receitasCompMap[rawLabel] || { value: 0, competencia: comp };
+          receitasCompMap[rawLabel] = { value: cur.value + t.amount, competencia: comp };
+          return;
+        }
+
+        // Se transação já estiver vinculada a parcela de recebível, não duplica
+        const isLinkedToRecebivel = parcelasRecebiveis.some(p => p.recebimentoGeradoId === t.id);
+        if (isLinkedToRecebivel) return;
+
+        // Se já computado em Serviços / Contratos via contratos/parcelas, evita duplicar
+        if (totalServicosContratos > 0 && (labelLower.includes('serviço') || labelLower.includes('servico') || labelLower.includes('contrato') || labelLower.includes('cliente'))) {
+          return;
+        }
+
+        const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+        const cur = receitasCompMap[rawLabel] || { value: 0, competencia: comp };
+        receitasCompMap[rawLabel] = { value: cur.value + t.amount, competencia: comp };
       });
 
-    const receitaOperacional = Object.values(receitasMap).reduce((a, b) => a + b, 0);
+    const receitaOperacional = Object.values(receitasCompMap).reduce((a, b) => a + b.value, 0);
 
-    // Rendimentos auferidos no período
+    // Rendimentos auferidos no período (Resultado Financeiro)
     const rendimentos = txsInInterval
-      .filter(t => t.operationType === 'rendimento')
+      .filter(t => isRendimentoTx(t, categoriesMap.get(t.categoryId || '')))
       .reduce((a, t) => a + t.amount, 0);
 
-    // Descontos obtidos
+    // Descontos obtidos por competência: apenas valores concretos de transações da categoria Descontos Obtidos
     const descontosObtidos = txsInInterval
-      .filter(t => t.categoryId === 'cat_descontos_obtidos' || categoriesMap.get(t.categoryId || '')?.label === 'Descontos Obtidos')
+      .filter(t => isDescontoTx(t, categoriesMap.get(t.categoryId || '')))
       .reduce((a, t) => a + t.amount, 0);
 
-    // Juros por competência (apropriação da parcela devida no período para cada empréstimo)
+    // Juros por competência (apropriação da parcela contratual devida no período para cada empréstimo)
     let juros = 0;
     emprestimos.forEach(emp => {
       if (emp.status === 'ativo' && emp.dataInicio) {
         try {
           const schedule = calculateLoanSchedule(emp.id);
           const parcelaItem = schedule.find(item => {
-            if (!item.dataVencimento) return false;
-            const dv = parseDateLocal(item.dataVencimento);
+            const dv = getDueDate(emp.dataInicio!, item.parcela);
             return (!rangeFrom || isWithinInterval(dv, { start: rangeFrom, end: rangeTo || new Date() }));
           });
           if (parcelaItem) {
@@ -303,7 +621,6 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       }
     });
 
-    // Se não encontrou juros contratuais por cronograma, usa os pagos nas transações
     if (juros === 0) {
       txsInInterval.filter(t => t.operationType === 'pagamento_emprestimo').forEach(t => {
         const lid = t.links?.loanId?.replace('loan_', '');
@@ -315,6 +632,14 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         }
       });
     }
+
+    // Juros bancários diretos (cheque especial, rotativo, etc.)
+    txsInInterval.forEach(t => {
+      const cat = categoriesMap.get(t.categoryId || '');
+      if (isJurosTx(t, cat) && t.operationType !== 'pagamento_emprestimo') {
+        juros += t.amount;
+      }
+    });
 
     const receitaTotal = receitaOperacional + rendimentos + descontosObtidos;
     const despesasOperacionais = fix + var_;
@@ -334,54 +659,97 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       resultadoOperacional,
       resultadoFinanceiro,
       details: {
-        receitas: Object.entries(receitasMap).map(([label, value]) => ({ label, value, id: label })),
-        despesasFixas: Object.entries(despesasFixasMap).map(([label, value]) => ({ label, value, id: label })),
-        despesasVariaveis: Object.entries(despesasVariaveisMap).map(([label, value]) => ({ label, value, id: label })),
+        receitas: Object.entries(receitasCompMap).map(([label, entry]) => ({ 
+          label, 
+          value: entry.value, 
+          competencia: entry.competencia,
+          id: `comp-rec-${label}` 
+        })),
+        despesasFixas: Object.entries(despesasFixasMap).map(([label, entry]) => ({ 
+          label, 
+          value: entry.value, 
+          competencia: entry.competencia,
+          id: `comp-fix-${label}` 
+        })),
+        despesasVariaveis: Object.entries(despesasVariaveisMap).map(([label, entry]) => ({ 
+          label, 
+          value: entry.value, 
+          competencia: entry.competencia,
+          id: `comp-var-${label}` 
+        })),
       },
     };
   }, [transacoesV2, billsTracker, cltCompetencias, cltContracts, parcelasRecebiveis, emprestimos, calculateLoanSchedule, categoriesMap, creditCardAccountIds]);
 
-  // 3. DRE ORÇADO: Valores do orçamento e receita prevista com base no histórico e tela recebimentos
+  // 3. DRE ORÇADO: Valores do orçamento e receita prevista com base no último holerite e tela recebimentos
   const calculateDREOrcado = useCallback((range: DateRange): DREData => {
     const rangeTo = range.to || new Date();
     const monthKey = format(rangeTo, 'yyyy-MM');
 
-    // 1) Receita Prevista
-    const receitasOrcadasMap: Record<string, number> = {};
+    // 1) Receita Prevista Orçada
+    const receitasOrcadasList: DREDetailEntry[] = [];
 
-    // Base A: Tela de Recebimentos - Contratos CLT
+    // Base A: Contratos CLT Ativos - Utiliza o valor líquido da última competência recebida
     const cltAtivos = cltContracts.filter(c => c.status === 'ativo');
     if (cltAtivos.length > 0) {
       cltAtivos.forEach(c => {
-        const comp = cltCompetencias.find(compItem => compItem.contractId === c.id && compItem.mesAno === monthKey);
-        const valorLiquido = comp ? comp.salarioLiquido : Math.round(c.salarioBrutoAtual * 0.82);
-        receitasOrcadasMap[`Salário Previsto (${c.empresa})`] = (receitasOrcadasMap[`Salário Previsto (${c.empresa})`] || 0) + valorLiquido;
+        // Encontra as competências do contrato ordenadas da mais recente para a mais antiga
+        const comps = cltCompetencias
+          .filter(compItem => compItem.contractId === c.id)
+          .sort((a, b) => b.mesAno.localeCompare(a.mesAno));
+
+        // Prioriza a última competência recebida/fechada ou com salário líquido apurado
+        const lastReceivedComp = comps.find(compItem => 
+          (compItem.statusRecebimento === 'recebido' || compItem.status === 'fechado' || !!compItem.dataRecebimento || !!compItem.transactionId) && 
+          compItem.salarioLiquido > 0
+        ) || comps.find(compItem => compItem.salarioLiquido > 0);
+
+        let valorLiquido = 0;
+        let compLabel = format(rangeTo, 'MM/yyyy');
+
+        if (lastReceivedComp && lastReceivedComp.salarioLiquido > 0) {
+          valorLiquido = lastReceivedComp.salarioLiquido;
+          try {
+            compLabel = format(parseDateLocal(lastReceivedComp.mesAno + '-01'), 'MM/yyyy');
+          } catch {
+            compLabel = lastReceivedComp.mesAno;
+          }
+        } else {
+          valorLiquido = c.salarioBrutoAtual ? Math.round(c.salarioBrutoAtual * 0.82) : 0;
+        }
+
+        if (valorLiquido > 0) {
+          receitasOrcadasList.push({
+            label: `Salário Previsto (${c.empresa})`,
+            value: valorLiquido,
+            competencia: compLabel,
+            id: `orc-salario-${c.id}`
+          });
+        }
       });
     }
 
-    // Base B: Tela de Recebimentos - Parcelas de Clientes com vencimento no mês
+    // Base B: Tela de Recebimentos - Parcelas de Clientes com vencimento no mês (Serviços / Contratos)
+    let totalContratosPrevistos = 0;
     parcelasRecebiveis
       .filter(p => p.dataVencimento.startsWith(monthKey))
       .forEach(p => {
-        const valor = p.valorPrevisto;
-        if (valor > 0) {
-          receitasOrcadasMap['Contratos de Clientes (Previsto)'] = (receitasOrcadasMap['Contratos de Clientes (Previsto)'] || 0) + valor;
+        if (p.valorPrevisto > 0) {
+          totalContratosPrevistos += p.valorPrevisto;
         }
       });
 
-    // Base C: Previsão manual de receita em revenueForecasts
-    const manualForecast = revenueForecasts[monthKey] || 0;
-    const somaAtualReceitas = Object.values(receitasOrcadasMap).reduce((a, b) => a + b, 0);
-
-    if (manualForecast > somaAtualReceitas) {
-      const diferenca = manualForecast - somaAtualReceitas;
-      receitasOrcadasMap['Receita Prevista Adicional'] = diferenca;
-    } else if (somaAtualReceitas === 0 && manualForecast > 0) {
-      receitasOrcadasMap['Receita Prevista (Orçamento)'] = manualForecast;
+    if (totalContratosPrevistos > 0) {
+      receitasOrcadasList.push({
+        label: 'Serviços / Contratos (Previsto)',
+        value: totalContratosPrevistos,
+        competencia: format(rangeTo, 'MM/yyyy'),
+        id: 'orc-contratos-clientes'
+      });
     }
 
-    // Base D: Histórico recente (média dos últimos 3 meses) se nenhuma receita foi projetada
-    if (Object.keys(receitasOrcadasMap).length === 0) {
+    // Se nenhuma receita orçada foi projetada pelas bases acima, usa média histórica
+    if (receitasOrcadasList.length === 0) {
       const recentMonths = [1, 2, 3].map(m => subMonths(rangeTo, m));
       let totalHist = 0;
       let countHist = 0;
@@ -399,22 +767,32 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       });
       const mediaHist = countHist > 0 ? totalHist / countHist : 0;
       if (mediaHist > 0) {
-        receitasOrcadasMap['Média Histórica (3 meses)'] = mediaHist;
+        receitasOrcadasList.push({
+          label: 'Média Histórica (3 meses)',
+          value: mediaHist,
+          competencia: format(rangeTo, 'MM/yyyy'),
+          id: 'orc-hist'
+        });
       }
     }
 
-    const receitaOperacional = Object.values(receitasOrcadasMap).reduce((a, b) => a + b, 0);
+    const receitaOperacional = receitasOrcadasList.reduce((a, b) => a + b.value, 0);
 
     // 2) Despesas Orçadas (Valores do Orçamento)
+    // CRÍTICO: Exclui parcelas de financiamento/empréstimo de despesas operacionais (valor total vai para passivo e juros para resultado financeiro)
     const despesasFixasOrcadasMap: Record<string, number> = {};
     const despesasVariaveisOrcadasMap: Record<string, number> = {};
 
     const snapshot = expenseSnapshots[monthKey];
     if (snapshot && snapshot.categories && snapshot.categories.length > 0) {
-      // Usa os dados fechados do Snapshot Orçado
       snapshot.categories.forEach(catItem => {
-        const cat = categoriasV2.find(c => c.label.toLowerCase() === catItem.name.toLowerCase());
-        const isFixa = cat?.nature === 'despesa_fixa' || catItem.name.toLowerCase().includes('fix') || catItem.name.toLowerCase().includes('aluguel') || catItem.name.toLowerCase().includes('seguro');
+        const nameLower = catItem.name.toLowerCase();
+        // Exclui financiamento / empréstimo da despesa operacional
+        if (nameLower.includes('empréstimo') || nameLower.includes('emprestimo') || nameLower.includes('financiamento')) {
+          return;
+        }
+        const cat = categoriasV2.find(c => c.label.toLowerCase() === nameLower);
+        const isFixa = cat?.nature === 'despesa_fixa' || nameLower.includes('fix') || nameLower.includes('aluguel') || nameLower.includes('seguro');
         if (isFixa) {
           despesasFixasOrcadasMap[catItem.name] = (despesasFixasOrcadasMap[catItem.name] || 0) + catItem.value;
         } else {
@@ -423,11 +801,25 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       });
     } else {
       // Compila orçamento a partir dos compromissos planejados em billsTracker
+      // Exclui faturas de cartão e parcelas de empréstimo/financiamento
       billsTracker
-        .filter(b => b.dueDate.startsWith(monthKey) && !b.isExcluded && b.expectedAmount > 0)
+        .filter(b => 
+          b.dueDate.startsWith(monthKey) && 
+          !b.isExcluded && 
+          b.expectedAmount > 0 &&
+          b.sourceType !== 'credit_card_invoice' &&
+          b.sourceType !== 'card_invoice' &&
+          b.sourceType !== 'loan_installment' &&
+          !b.id.startsWith('invoice_') &&
+          !b.id.startsWith('loan_')
+        )
         .forEach(b => {
           const cat = categoriesMap.get(b.suggestedCategoryId || '');
           const label = cat?.label || b.description || 'Despesa Planejada';
+          const labelLower = label.toLowerCase();
+          if (labelLower.includes('empréstimo') || labelLower.includes('emprestimo') || labelLower.includes('financiamento')) {
+            return;
+          }
           const isFixa = cat?.nature === 'despesa_fixa' || b.sourceType === 'fixed_expense' || b.sourceType === 'insurance_installment';
           if (isFixa) {
             despesasFixasOrcadasMap[label] = (despesasFixasOrcadasMap[label] || 0) + b.expectedAmount;
@@ -440,13 +832,16 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     const fix = Object.values(despesasFixasOrcadasMap).reduce((a, b) => a + b, 0);
     const var_ = Object.values(despesasVariaveisOrcadasMap).reduce((a, b) => a + b, 0);
 
-    // Juros orçados conforme cronograma dos empréstimos ativos para a competência
+    // 3) Juros orçados conforme cronograma dos empréstimos ativos para a competência (Resultado Financeiro)
     let juros = 0;
     emprestimos.forEach(emp => {
       if (emp.status === 'ativo' && emp.dataInicio) {
         try {
           const schedule = calculateLoanSchedule(emp.id);
-          const parcelaItem = schedule.find(item => item.dataVencimento && item.dataVencimento.startsWith(monthKey));
+          const parcelaItem = schedule.find(item => {
+            const dueDate = getDueDate(emp.dataInicio!, item.parcela);
+            return format(dueDate, 'yyyy-MM') === monthKey;
+          });
           if (parcelaItem) {
             juros += parcelaItem.juros;
           }
@@ -454,13 +849,25 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       }
     });
 
+    if (juros === 0) {
+      billsTracker
+        .filter(b => b.sourceType === 'loan_installment' && b.dueDate.startsWith(monthKey) && !b.isExcluded)
+        .forEach(b => {
+          if (b.sourceRef) {
+            const schedule = calculateLoanSchedule(parseInt(b.sourceRef));
+            const item = schedule.find(i => i.parcela === b.parcelaNumber);
+            if (item) juros += item.juros;
+          }
+        });
+    }
+
     // Rendimentos previstos (média recente)
     const recentMonths = [1, 2].map(m => subMonths(rangeTo, m));
     let rendimentosTotal = 0;
     recentMonths.forEach(d => {
       const hist = transacoesV2.filter(t => {
         try {
-          return isWithinInterval(parseDateLocal(t.date), { start: startOfMonth(d), end: endOfMonth(d) }) && t.operationType === 'rendimento';
+          return isWithinInterval(parseDateLocal(t.date), { start: startOfMonth(d), end: endOfMonth(d) }) && isRendimentoTx(t, categoriesMap.get(t.categoryId || ''));
         } catch { return false; }
       });
       rendimentosTotal += hist.reduce((a, t) => a + t.amount, 0);
@@ -486,12 +893,22 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       resultadoOperacional,
       resultadoFinanceiro,
       details: {
-        receitas: Object.entries(receitasOrcadasMap).map(([label, value]) => ({ label, value, id: label })),
-        despesasFixas: Object.entries(despesasFixasOrcadasMap).map(([label, value]) => ({ label, value, id: label })),
-        despesasVariaveis: Object.entries(despesasVariaveisOrcadasMap).map(([label, value]) => ({ label, value, id: label })),
+        receitas: receitasOrcadasList,
+        despesasFixas: Object.entries(despesasFixasOrcadasMap).map(([label, value]) => ({ 
+          label, 
+          value, 
+          competencia: format(rangeTo, 'MM/yyyy'),
+          id: `orc-fix-${label}` 
+        })),
+        despesasVariaveis: Object.entries(despesasVariaveisOrcadasMap).map(([label, value]) => ({ 
+          label, 
+          value, 
+          competencia: format(rangeTo, 'MM/yyyy'),
+          id: `orc-var-${label}` 
+        })),
       },
     };
-  }, [cltContracts, cltCompetencias, parcelasRecebiveis, revenueForecasts, expenseSnapshots, billsTracker, emprestimos, calculateLoanSchedule, transacoesV2, categoriasV2, categoriesMap]);
+  }, [cltContracts, cltCompetencias, parcelasRecebiveis, expenseSnapshots, billsTracker, emprestimos, calculateLoanSchedule, transacoesV2, categoriasV2, categoriesMap]);
 
   // Função despachante que calcula conforme o regime ativo selecionado
   const calculateDRE = useCallback((range: DateRange, mode: DREMode): DREData => {
@@ -536,6 +953,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         type: "detail",
         icon: getCategoryIcon(r.label, TrendingUp),
         color: "text-success",
+        competencia: r.competencia,
+        sublabel: r.sublabel,
       })),
     },
     {
@@ -551,6 +970,15 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
           type: "detail" as const,
           icon: getCategoryIcon(d.label, TrendingDown),
           color: "text-destructive",
+          competencia: d.competencia,
+          sublabel: d.sublabel,
+          details: d.details?.map(sub => ({
+            label: sub.label,
+            value: sub.value,
+            type: "detail" as const,
+            color: "text-destructive",
+            competencia: sub.competencia,
+          })),
         })),
         ...dre1.details.despesasVariaveis.map((d) => ({
           label: d.label,
@@ -558,6 +986,15 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
           type: "detail" as const,
           icon: getCategoryIcon(d.label, Activity),
           color: "text-destructive",
+          competencia: d.competencia,
+          sublabel: d.sublabel,
+          details: d.details?.map(sub => ({
+            label: sub.label,
+            value: sub.value,
+            type: "detail" as const,
+            color: "text-destructive",
+            competencia: sub.competencia,
+          })),
         })),
       ],
     },
@@ -620,24 +1057,37 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
 
   const compositionData = useMemo(() => {
     const palette = [
-        colors.primary, 'hsl(var(--neon-purple))', 'hsl(var(--neon-blue))',
-        colors.destructive, 'hsl(var(--neon-pink))', colors.warning,
-        colors.success, 'hsl(var(--neon-cyan))', 'hsl(var(--indigo-500))'
+      colors.primary, 'hsl(var(--neon-purple))', 'hsl(var(--neon-blue))',
+      colors.destructive, 'hsl(var(--neon-pink))', colors.warning,
+      colors.success, 'hsl(var(--neon-cyan))', 'hsl(var(--indigo-500))'
     ];
 
-    const allExpenses = [
-        ...dre1.details.despesasFixas.map(d => ({ name: d.label, value: d.value })),
-        ...dre1.details.despesasVariaveis.map(d => ({ name: d.label, value: d.value }))
-    ];
+    const categoryTotals = new Map<string, number>();
+
+    const processItem = (d: DREDetailEntry) => {
+      if (d.details && d.details.length > 0) {
+        d.details.forEach(sub => {
+          categoryTotals.set(sub.label, (categoryTotals.get(sub.label) || 0) + sub.value);
+        });
+      } else {
+        // Remove sufixo como (Nubank) ou sufixos de faturas se houver
+        const cleanName = d.label.replace(/\s*\([^)]*\)$/, '').trim() || d.label;
+        categoryTotals.set(cleanName, (categoryTotals.get(cleanName) || 0) + d.value);
+      }
+    };
+
+    dre1.details.despesasFixas.forEach(processItem);
+    dre1.details.despesasVariaveis.forEach(processItem);
     
     if (dre1.juros > 0) {
-        allExpenses.push({ name: 'Juros e Encargos', value: dre1.juros });
+      categoryTotals.set('Juros e Encargos', (categoryTotals.get('Juros e Encargos') || 0) + dre1.juros);
     }
 
-    const filtered = allExpenses
-        .filter(d => d.value > 0)
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 8);
+    const filtered = Array.from(categoryTotals.entries())
+      .filter(([_, val]) => val > 0)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
 
     if (filtered.length === 0) return [];
 
@@ -775,7 +1225,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
         <div className="lg:col-span-7 space-y-10">
           <DREStatement
-            title="Demonstração do Resultado do Período"
+            title={`DRE ${format(finalDate, "MM/yyyy")}`}
             data={dreStatementData}
             activeMode={dreMode}
             onModeChange={setDreMode}
