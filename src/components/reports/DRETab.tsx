@@ -13,6 +13,12 @@ import { useChartColors } from "@/hooks/useChartColors";
 import { ptBR } from "date-fns/locale";
 import { IndicatorCard } from "./IndicatorCard";
 import { DREStatement, DREMode, DREItem } from "./DREStatement";
+import { 
+  getContractSalaryTransactions, 
+  getContractCurrentNetSalary, 
+  getContractSalaryForCompetencia, 
+  identifyTransactionCompetencia 
+} from "@/lib/cltPaymentEngine";
 
 export interface DREDetailEntry {
   label: string;
@@ -101,6 +107,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     emprestimos,
     cltContracts,
     cltCompetencias,
+    cltHolerites,
     parcelasRecebiveis,
     revenueForecasts,
     expenseSnapshots,
@@ -499,98 +506,88 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
 
     // Receitas Operacionais por Competência
     const receitasCompMap: Record<string, { value: number; competencia: string }> = {};
-    const competenciasMes = cltCompetencias.filter(c => c.mesAno === monthKey);
 
-    // Salários CLT: trabalho prestado na competência do mês com badge de competência
-    if (competenciasMes.length > 0) {
-      competenciasMes.forEach(c => {
-        const contrato = cltContracts.find(con => con.id === c.contractId);
-        const label = contrato ? `Salário (${contrato.empresa})` : 'Salário CLT';
-        const valor = c.salarioLiquido || c.salarioBruto;
-        if (valor > 0) {
+    // 1) Salários CLT Ativos: apurados com dados concretos do extrato bancário e holerites
+    const cltAtivos = cltContracts.filter(c => c.status === 'ativo');
+    const [yearStr, monthStr] = monthKey.split('-');
+    const compYear = parseInt(yearStr, 10);
+    const compMonth = parseInt(monthStr, 10) - 1; // 0..11
+
+    if (cltAtivos.length > 0 && !isNaN(compYear) && !isNaN(compMonth)) {
+      cltAtivos.forEach(c => {
+        const txSalariais = getContractSalaryTransactions(c, transacoesV2, categoriasV2);
+        const compSalary = getContractSalaryForCompetencia(c, compYear, compMonth, txSalariais, cltHolerites);
+        if (compSalary.amount > 0) {
+          const label = `Salário (${c.empresa})`;
           let compFormatted = monthKey;
           try {
-            compFormatted = format(parseDateLocal(c.mesAno + '-01'), 'MM/yyyy');
+            compFormatted = format(parseDateLocal(`${monthKey}-01`), 'MM/yyyy');
           } catch {
-            compFormatted = c.mesAno;
+            compFormatted = monthKey;
           }
           receitasCompMap[label] = {
-            value: (receitasCompMap[label]?.value || 0) + valor,
+            value: (receitasCompMap[label]?.value || 0) + compSalary.amount,
             competencia: compFormatted
           };
         }
       });
     }
 
-    // Recebíveis de clientes devidos na competência do período
-    // NOMENCLATURA: Serviços / Contratos (não misturar com Repasses Restritos)
-    let totalServicosContratos = 0;
-    parcelasRecebiveis.forEach(p => {
-      try {
-        const d = parseDateLocal(p.dataVencimento);
-        if (!rangeFrom || isWithinInterval(d, { start: rangeFrom, end: rangeTo || new Date() })) {
-          const valor = p.valorPago || p.valorPrevisto;
-          if (valor > 0) {
-            totalServicosContratos += valor;
-          }
-        }
-      } catch { }
+    // Transações normais de receita no período agrupadas diretamente pelas categorias reais (evitando duplicações)
+    const receitaOperacionalTxs = txsInInterval.filter(t => {
+      const cat = categoriesMap.get(t.categoryId || '');
+      return t.operationType === 'receita' && !isRendimentoTx(t, cat) && !isDescontoTx(t, cat);
     });
 
-    if (totalServicosContratos > 0) {
-      receitasCompMap['Serviços / Contratos'] = {
-        value: totalServicosContratos,
-        competencia: format(rangeTo || new Date(), 'MM/yyyy')
-      };
-    }
+    receitaOperacionalTxs.forEach(t => {
+      const cat = categoriesMap.get(t.categoryId || '');
+      const rawLabel = cat?.label || t.description || 'Outras Receitas';
+      const labelLower = rawLabel.toLowerCase();
 
-    // Transações normais de receita no período
-    txsInInterval
-      .filter(t => {
-        const cat = categoriesMap.get(t.categoryId || '');
-        return t.operationType === 'receita' && !isRendimentoTx(t, cat) && !isDescontoTx(t, cat);
-      })
-      .forEach(t => {
-        const cat = categoriesMap.get(t.categoryId || '');
-        const rawLabel = cat?.label || t.description || 'Outras Receitas';
-        const labelLower = rawLabel.toLowerCase();
-
-        // Categoria Repasses Restritos: NÃO misturar com Serviços / Contratos e manter separada para não duplicar!
-        if (labelLower.includes('repasses restritos') || labelLower.includes('repasse restrito')) {
-          const comp = format(parseDateLocal(t.date), 'MM/yyyy');
-          const cur = receitasCompMap['Repasses Restritos'] || { value: 0, competencia: comp };
-          receitasCompMap['Repasses Restritos'] = {
-            value: cur.value + t.amount,
-            competencia: comp
-          };
-          return;
-        }
-
-        // Salário: se já computado por competência CLT de holerite, não duplica
-        const isSalario = labelLower.includes('salário') || labelLower.includes('salario');
-        if (competenciasMes.length > 0 && isSalario) {
-          return;
-        }
-        if (isSalario) {
+      // Salário: se já computado por contrato CLT formalizado, não duplica
+      const isSalario = labelLower.includes('salário') || labelLower.includes('salario');
+      if (cltAtivos.length > 0 && isSalario) {
+        return;
+      }
+      if (isSalario) {
+        // Se não há contrato formalizado, apura competência diretamente pela transação
+        const identifiedComp = identifyTransactionCompetencia(t, cltHolerites);
+        if (!isNaN(compYear) && !isNaN(compMonth) && identifiedComp.compYear === compYear && identifiedComp.compMonth === compMonth && !identifiedComp.is13) {
           const comp = format(parseDateLocal(t.date), 'MM/yyyy');
           const cur = receitasCompMap[rawLabel] || { value: 0, competencia: comp };
           receitasCompMap[rawLabel] = { value: cur.value + t.amount, competencia: comp };
-          return;
         }
+        return;
+      }
 
-        // Se transação já estiver vinculada a parcela de recebível, não duplica
-        const isLinkedToRecebivel = parcelasRecebiveis.some(p => p.recebimentoGeradoId === t.id);
-        if (isLinkedToRecebivel) return;
+      // Demais receitas (ex: Repasses Restritos, Serviços, etc.) são agrupadas diretamente por sua categoria
+      const comp = format(parseDateLocal(t.date), 'MM/yyyy');
+      const cur = receitasCompMap[rawLabel] || { value: 0, competencia: comp };
+      receitasCompMap[rawLabel] = { value: cur.value + t.amount, competencia: comp };
+    });
 
-        // Se já computado em Serviços / Contratos via contratos/parcelas, evita duplicar
-        if (totalServicosContratos > 0 && (labelLower.includes('serviço') || labelLower.includes('servico') || labelLower.includes('contrato') || labelLower.includes('cliente'))) {
-          return;
-        }
-
-        const comp = format(parseDateLocal(t.date), 'MM/yyyy');
-        const cur = receitasCompMap[rawLabel] || { value: 0, competencia: comp };
-        receitasCompMap[rawLabel] = { value: cur.value + t.amount, competencia: comp };
+    // Se não houver nenhuma transação de receita registrada no período e existirem parcelas de contratos a receber em aberto:
+    if (receitaOperacionalTxs.length === 0) {
+      let totalContratosEmAberto = 0;
+      parcelasRecebiveis.forEach(p => {
+        if (p.status === 'PAGO' || p.recebimentoGeradoId) return;
+        try {
+          const d = parseDateLocal(p.dataVencimento);
+          if (!rangeFrom || isWithinInterval(d, { start: rangeFrom, end: rangeTo || new Date() })) {
+            if (p.valorPrevisto > 0) {
+              totalContratosEmAberto += p.valorPrevisto;
+            }
+          }
+        } catch { }
       });
+
+      if (totalContratosEmAberto > 0) {
+        receitasCompMap['Serviços / Contratos'] = {
+          value: totalContratosEmAberto,
+          competencia: format(rangeTo || new Date(), 'MM/yyyy')
+        };
+      }
+    }
 
     const receitaOperacional = Object.values(receitasCompMap).reduce((a, b) => a + b.value, 0);
 
@@ -679,7 +676,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         })),
       },
     };
-  }, [transacoesV2, billsTracker, cltCompetencias, cltContracts, parcelasRecebiveis, emprestimos, calculateLoanSchedule, categoriesMap, creditCardAccountIds]);
+  }, [transacoesV2, billsTracker, cltContracts, cltHolerites, parcelasRecebiveis, emprestimos, calculateLoanSchedule, categoriesMap, categoriasV2, creditCardAccountIds]);
 
   // 3. DRE ORÇADO: Valores do orçamento e receita prevista com base no último holerite e tela recebimentos
   const calculateDREOrcado = useCallback((range: DateRange): DREData => {
@@ -689,40 +686,18 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     // 1) Receita Prevista Orçada
     const receitasOrcadasList: DREDetailEntry[] = [];
 
-    // Base A: Contratos CLT Ativos - Utiliza o valor líquido da última competência recebida
+    // Base A: Contratos CLT Ativos - Utiliza o salário líquido concreto apurado do extrato bancário e holerites
     const cltAtivos = cltContracts.filter(c => c.status === 'ativo');
     if (cltAtivos.length > 0) {
       cltAtivos.forEach(c => {
-        // Encontra as competências do contrato ordenadas da mais recente para a mais antiga
-        const comps = cltCompetencias
-          .filter(compItem => compItem.contractId === c.id)
-          .sort((a, b) => b.mesAno.localeCompare(a.mesAno));
-
-        // Prioriza a última competência recebida/fechada ou com salário líquido apurado
-        const lastReceivedComp = comps.find(compItem => 
-          (compItem.statusRecebimento === 'recebido' || compItem.status === 'fechado' || !!compItem.dataRecebimento || !!compItem.transactionId) && 
-          compItem.salarioLiquido > 0
-        ) || comps.find(compItem => compItem.salarioLiquido > 0);
-
-        let valorLiquido = 0;
-        let compLabel = format(rangeTo, 'MM/yyyy');
-
-        if (lastReceivedComp && lastReceivedComp.salarioLiquido > 0) {
-          valorLiquido = lastReceivedComp.salarioLiquido;
-          try {
-            compLabel = format(parseDateLocal(lastReceivedComp.mesAno + '-01'), 'MM/yyyy');
-          } catch {
-            compLabel = lastReceivedComp.mesAno;
-          }
-        } else {
-          valorLiquido = c.salarioBrutoAtual ? Math.round(c.salarioBrutoAtual * 0.82) : 0;
-        }
+        const txSalariais = getContractSalaryTransactions(c, transacoesV2, categoriasV2);
+        const valorLiquido = getContractCurrentNetSalary(c, txSalariais, cltHolerites);
 
         if (valorLiquido > 0) {
           receitasOrcadasList.push({
             label: `Salário Previsto (${c.empresa})`,
             value: valorLiquido,
-            competencia: compLabel,
+            competencia: format(rangeTo, 'MM/yyyy'),
             id: `orc-salario-${c.id}`
           });
         }
@@ -908,7 +883,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         })),
       },
     };
-  }, [cltContracts, cltCompetencias, parcelasRecebiveis, expenseSnapshots, billsTracker, emprestimos, calculateLoanSchedule, transacoesV2, categoriasV2, categoriesMap]);
+  }, [cltContracts, cltHolerites, parcelasRecebiveis, expenseSnapshots, billsTracker, emprestimos, calculateLoanSchedule, transacoesV2, categoriasV2, categoriesMap]);
 
   // Função despachante que calcula conforme o regime ativo selecionado
   const calculateDRE = useCallback((range: DateRange, mode: DREMode): DREData => {

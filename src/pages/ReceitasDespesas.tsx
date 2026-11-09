@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Tags, Plus, CalendarCheck, Receipt, Sparkles, Filter, LayoutDashboard, FileText, ArrowRight, Briefcase } from "lucide-react";
+import { RefreshCw, Tags, Plus, CalendarCheck, Receipt, Filter, LayoutDashboard, FileText, ArrowRight, Briefcase } from "lucide-react";
 import { toast } from "sonner";
 import { isWithinInterval, startOfMonth, endOfMonth, subDays, startOfDay, endOfDay, addMonths, format } from "date-fns";
 import { ContaCorrente, Categoria, TransacaoCompleta, TransferGroup, AccountSummary, OperationType, DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES, generateTransactionId, formatCurrency, generateTransferGroupId, DateRange, ComparisonDateRanges, TransactionLinks, Veiculo, Imovel, Terreno } from "@/types/finance";
@@ -259,18 +259,17 @@ const ReceitasDespesas = () => {
           <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
-                <div><h3 className="font-display font-bold text-lg text-foreground">Contas Correntes</h3><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Saldos e Disponibilidade</p></div>
+                <div><h3 className="font-display font-bold text-lg text-foreground">Contas Movimentação</h3><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground opacity-70">Saldos e Disponibilidade</p></div>
                 <Button variant="ghost" size="sm" onClick={() => { setEditingAccount(undefined); setShowAccountModal(true); }} className="w-10 h-10 rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-5 w-5" /></Button>
               </div>
               <AccountsCarousel accounts={accountSummaries} onMovimentar={id => { setSelectedAccountForModal(id); setEditingTransaction(undefined); setShowMovimentarModal(true); }} onViewHistory={id => { setViewingAccountId(id); setShowStatementDialog(true); }} onAddAccount={() => setShowAccountModal(true)} onEditAccount={id => { const a = contasMovimento.find(x => x.id === id); if (a) { const tx = transactions.find(t => t.accountId === id && t.operationType === 'initial_balance'); setEditingAccount({ ...a, initialBalanceValue: tx ? (tx.flow === 'in' ? tx.amount : -tx.amount) : 0 } as any); setShowAccountModal(true); } }} onImportAccount={id => { setViewingAccountId(id); setShowStatementManagerDialog(true); }} showHeader={false} />
             </div>
 
             <div className="bg-gradient-to-r from-neutral-800 to-neutral-900 text-white rounded-[24px] sm:rounded-[32px] p-5 sm:p-8 shadow-lg relative overflow-hidden flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group">
-              <div className="absolute right-0 bottom-0 opacity-10 scale-150 translate-x-10 translate-y-10 group-hover:rotate-12 transition-transform duration-700"><Sparkles className="w-[120px] h-[120px] sm:w-[180px] sm:h-[180px]" /></div>
+              <div className="absolute right-0 bottom-0 opacity-10 scale-150 translate-x-10 translate-y-10 group-hover:rotate-12 transition-transform duration-700"><FileText className="w-[120px] h-[120px] sm:w-[180px] sm:h-[180px]" /></div>
               <div className="z-10">
-                <div className="flex items-center gap-2 mb-2"><Badge variant="outline" className="border-primary/50 text-primary-foreground text-[8px] sm:text-[9px] font-black tracking-widest px-2">POWERED BY AI</Badge></div>
-                <h3 className="font-display font-bold text-xl sm:text-2xl mb-2">Conciliação Inteligente</h3>
-                <p className="text-neutral-400 text-xs sm:text-sm max-w-sm">Diga adeus ao trabalho manual. Importe múltiplos arquivos e deixe o Orbium reconhecer padrões e sugerir categorias automaticamente.</p>
+                <h3 className="font-display font-bold text-xl sm:text-2xl mb-2">Conciliação Bancária</h3>
+                <p className="text-neutral-400 text-xs sm:text-sm max-w-md">Importe extratos bancários (OFX, CSV ou Excel) para conciliar transações e aplicar regras automáticas de padronização e categorização.</p>
                 <div className="flex flex-wrap gap-2 sm:gap-3 mt-4 sm:mt-6">
                   <Button className="bg-primary text-primary-foreground rounded-full px-4 sm:px-8 font-black h-10 sm:h-11 hover:scale-105 transition-transform shadow-xl shadow-primary/20 text-sm" onClick={() => setShowStatementManagerDialog(true)}>
                     <FileText className="w-4 h-4 mr-2" /> <span className="hidden sm:inline">IMPORTAR EXTRATOS</span><span className="sm:hidden">IMPORTAR</span>

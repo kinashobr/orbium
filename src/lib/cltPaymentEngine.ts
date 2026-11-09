@@ -487,3 +487,111 @@ export function organizeSalaryTransactionsHistory(
     };
   });
 }
+
+/**
+ * Retorna as transações salariais vinculadas a um contrato CLT específico.
+ * Se o contrato possuir categoryIds customizados, filtra por eles;
+ * caso contrário, busca pela categoria 'Salário' ou descrição salarial.
+ */
+export function getContractSalaryTransactions(
+  contract: CltContract,
+  transacoesV2: TransacaoCompleta[],
+  categoriasV2?: Array<{ id: string; label: string }>
+): TransacaoCompleta[] {
+  const catSalario = categoriasV2?.find(c => {
+    const l = c.label.toLowerCase();
+    return l === 'salário' || l === 'salario';
+  });
+
+  return transacoesV2.filter(t => {
+    if (t.flow !== 'in' || t.operationType !== 'receita') return false;
+    // Excluir parcelas de recebíveis de clientes
+    if (t.links?.parcelaId || t.meta?.createdBy === 'recebiveis_module' || t.id.startsWith('tx_parcela_')) return false;
+
+    if (contract.categoryIds && contract.categoryIds.length > 0) {
+      return contract.categoryIds.includes(t.categoryId);
+    }
+    if (catSalario && t.categoryId === catSalario.id) {
+      return true;
+    }
+    const desc = (t.description || '').toLowerCase();
+    return desc.includes('salario') || desc.includes('salário') || desc.includes('folha') || desc.includes('holerite');
+  });
+}
+
+/**
+ * Obtém o salário líquido atual e concreto do contrato com base no extrato real e holerites.
+ */
+export function getContractCurrentNetSalary(
+  contract: CltContract,
+  transacoesSalariais: TransacaoCompleta[],
+  cltHolerites: Record<string, HoleriteCompetenciaData>
+): number {
+  // 1. Holerite mais recente salvo
+  const contractHolerites = Object.values(cltHolerites || {}).filter(h => h.contractId === contract.id);
+  if (contractHolerites.length > 0) {
+    const sortedHolerites = [...contractHolerites].sort(
+      (a, b) => new Date(b.updatedAt || b.competencia || '2000-01-01').getTime() - new Date(a.updatedAt || a.competencia || '2000-01-01').getTime()
+    );
+    const latest = sortedHolerites[0];
+    const gross = (latest.salarioMensal || 0) + (latest.rendimentosExtras || []).reduce((acc, item) => acc + (item.valor || 0), 0);
+    const discounts = (latest.inssValor || 0) + (latest.descontosExtras || []).reduce((acc, item) => acc + (item.valor || 0), 0);
+    const net = Math.max(0, gross - discounts);
+    if (net > 0) return net;
+  }
+
+  // 2. Transação salarial mais recente do extrato bancário
+  if (transacoesSalariais && transacoesSalariais.length > 0) {
+    const sortedTxs = [...transacoesSalariais].sort((a, b) => new Date(b.date + 'T12:00:00').getTime() - new Date(a.date + 'T12:00:00').getTime());
+    if (sortedTxs[0].amount > 0) {
+      return sortedTxs[0].amount;
+    }
+  }
+
+  // 3. Estimativa a partir do salário bruto contratual
+  if (contract.salarioBrutoAtual > 0) {
+    const inss = Math.min(contract.salarioBrutoAtual * 0.11, 908);
+    const irrf = Math.max(0, (contract.salarioBrutoAtual - inss) * 0.15 - 350);
+    return Math.max(0, contract.salarioBrutoAtual - inss - irrf);
+  }
+
+  return 0;
+}
+
+/**
+ * Obtém o salário da competência para a DRE em determinado mês/ano a partir de dados concretos do extrato.
+ */
+export function getContractSalaryForCompetencia(
+  contract: CltContract,
+  year: number,
+  month: number, // 0..11
+  transacoesSalariais: TransacaoCompleta[],
+  cltHolerites: Record<string, HoleriteCompetenciaData>
+): {
+  amount: number;
+  isRealized: boolean;
+  transaction?: TransacaoCompleta;
+} {
+  // Mapear transações que batem com esta competência específica
+  const matching = (transacoesSalariais || []).filter(t => {
+    const comp = identifyTransactionCompetencia(t, cltHolerites);
+    return comp.compYear === year && comp.compMonth === month && !comp.is13;
+  });
+
+  if (matching.length > 0) {
+    const totalAmount = matching.reduce((acc, t) => acc + t.amount, 0);
+    return {
+      amount: totalAmount,
+      isRealized: true,
+      transaction: matching[0]
+    };
+  }
+
+  // Se não foi creditada ainda no extrato, projeta com base no salário líquido vigente do contrato
+  const currentNet = getContractCurrentNetSalary(contract, transacoesSalariais, cltHolerites);
+  return {
+    amount: currentNet,
+    isRealized: false
+  };
+}
+

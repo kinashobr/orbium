@@ -185,8 +185,8 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
 
         <div className="grid grid-cols-1 lg:grid-cols-12 items-center gap-6 relative z-10">
           
-          {/* LADO ESQUERDO: IDENTIFICAÇÃO & MÉTRICAS */}
-          <div className="lg:col-span-6 flex flex-col justify-between gap-6">
+          {/* LADO ESQUERDO: IDENTIFICAÇÃO & MÉTRICAS (LARGURA AMPLIADA E ESPAÇAMENTO TRAVADO) */}
+          <div className="lg:col-span-7 flex flex-col justify-start gap-4">
             <div>
               <h1 className="font-display font-black text-3xl lg:text-4xl text-foreground tracking-tight leading-none mb-1.5">
                 {veiculo.modelo}
@@ -196,82 +196,82 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
               </p>
             </div>
 
-            {/* PÍLULAS DE PLACA & RENAVAM (ÍCONE DE PLACA E FOLHA DE IMPOSTO) */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* PÍLULAS DE PLACA, RENAVAM E CHASSI (CABEM PERFEITAMENTE EM UMA SÓ LINHA SEM QUEBRAR) */}
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap lg:flex-nowrap">
               {/* Placa com Ícone de Placa/Cartão */}
               <div 
                 onClick={() => handleCopy(veiculo.placa || "", "placa")}
-                className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none"
+                className="group flex items-center gap-2 px-3 py-2 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none shrink-0"
               >
-                <div className="p-1.5 rounded-xl bg-primary/10 text-primary">
-                  <CreditCard className="w-4 h-4" />
+                <div className="p-1.5 rounded-xl bg-primary/10 text-primary shrink-0">
+                  <CreditCard className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-none">Placa Mercosul</span>
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Placa Mercosul</span>
                   <span className="font-mono text-xs font-black tracking-wider text-foreground">
                     {veiculo.placa || "NÃO INF."}
                   </span>
                 </div>
                 {copiedPlaca ? (
-                  <Check className="w-3.5 h-3.5 text-primary ml-1" />
+                  <Check className="w-3.5 h-3.5 text-primary ml-1 shrink-0" />
                 ) : (
-                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors ml-1" />
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors ml-1 shrink-0" />
                 )}
               </div>
 
               {/* RENAVAM com Ícone de Folha de Imposto */}
               <div 
                 onClick={() => handleCopy(veiculo.renavam || "", "renavam")}
-                className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none"
+                className="group flex items-center gap-2 px-3 py-2 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none shrink-0"
               >
-                <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                  <FileText className="w-4 h-4" />
+                <div className="p-1.5 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                  <FileText className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-none">RENAVAM</span>
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase leading-none">RENAVAM</span>
                   <span className="font-mono text-xs font-black tracking-wider text-foreground">
                     {veiculo.renavam || "NÃO INF."}
                   </span>
                 </div>
                 {copiedRenavam ? (
-                  <Check className="w-3.5 h-3.5 text-primary ml-1" />
+                  <Check className="w-3.5 h-3.5 text-primary ml-1 shrink-0" />
                 ) : (
-                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-amber-500 transition-colors ml-1" />
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-amber-500 transition-colors ml-1 shrink-0" />
                 )}
               </div>
 
               {/* CHASSI com Ícone de Documento/Segurança */}
               <div 
                 onClick={() => handleCopy(veiculo.chassi || "", "chassi")}
-                className="group flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none"
+                className="group flex items-center gap-2 px-3 py-2 rounded-2xl bg-muted/40 hover:bg-muted border border-border/60 transition-all cursor-pointer select-none shrink-0"
               >
-                <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                  <FileText className="w-4 h-4" />
+                <div className="p-1.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0">
+                  <FileText className="w-3.5 h-3.5" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase leading-none">Chassi</span>
-                  <span className="font-mono text-xs font-black tracking-wider text-foreground truncate max-w-[120px]">
+                  <span className="text-[9px] font-bold text-muted-foreground uppercase leading-none">Chassi</span>
+                  <span className="font-mono text-xs font-black tracking-wider text-foreground">
                     {veiculo.chassi || "NÃO INF."}
                   </span>
                 </div>
                 {copiedChassi ? (
-                  <Check className="w-3.5 h-3.5 text-primary ml-1" />
+                  <Check className="w-3.5 h-3.5 text-primary ml-1 shrink-0" />
                 ) : (
-                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-blue-500 transition-colors ml-1" />
+                  <Copy className="w-3.5 h-3.5 text-muted-foreground group-hover:text-blue-500 transition-colors ml-1 shrink-0" />
                 )}
               </div>
             </div>
 
-            {/* MECHANICAL & STATUS METRICS DOCK (IPVA E LICENCIAMENTO COM BADGES QUITADO/PENDENTE DENTRO DO CARD) */}
-            <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-muted/30 border border-border/60">
+            {/* MECHANICAL & STATUS METRICS DOCK (IPVA, LICENCIAMENTO E SEGURO COM LARGURA REDUZIDA EM 30% / LARGURA DE 70%) */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-2.5 p-2.5 sm:p-3 rounded-2xl bg-muted/30 border border-border/60 w-full lg:w-[70%]">
               {/* IPVA */}
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                  <Gauge className="w-4 h-4 text-primary" />
+                  <Gauge className="w-3.5 h-3.5 text-primary shrink-0" />
                   <span className="text-[10px] font-black uppercase tracking-wider">IPVA</span>
                 </div>
                 <span className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono tracking-tight w-max",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase font-mono tracking-tight w-max",
                   veiculo.ipvaPago !== false ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                 )}>
                   {veiculo.ipvaPago !== false ? <CheckCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
@@ -280,13 +280,13 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
               </div>
 
               {/* LICENCIAMENTO */}
-              <div className="flex flex-col border-x border-border/40 px-3">
+              <div className="flex flex-col border-x border-border/40 px-2 sm:px-2.5">
                 <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                  <FileCheck className="w-4 h-4 text-primary" />
+                  <FileCheck className="w-3.5 h-3.5 text-primary shrink-0" />
                   <span className="text-[10px] font-black uppercase tracking-wider truncate">Licenciamento</span>
                 </div>
                 <span className={cn(
-                  "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase font-mono tracking-tight w-max",
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black uppercase font-mono tracking-tight w-max",
                   veiculo.licenciamentoPago !== false ? "bg-primary/15 text-primary" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                 )}>
                   {veiculo.licenciamentoPago !== false ? <CheckCheck className="w-3 h-3" /> : <ShieldAlert className="w-3 h-3" />}
@@ -295,9 +295,9 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
               </div>
 
               {/* SEGURO RESTANTE */}
-              <div className="flex flex-col pl-1">
+              <div className="flex flex-col pl-1 sm:pl-2">
                 <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-                  <ShieldCheck className="w-4 h-4 text-amber-500" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                   <span className="text-[10px] font-black uppercase tracking-wider truncate">Seguro Restante</span>
                 </div>
                 <span className="text-xs font-black text-foreground tracking-tight truncate">
@@ -308,26 +308,26 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
 
           </div>
 
-          {/* LADO DIREITO: FOTO DO VEÍCULO COM DUPLO CLIQUE PARA ATIVAR SEÇÃO DE FOTO */}
-          <div className="lg:col-span-6 relative flex items-center justify-center min-h-[260px] lg:min-h-[300px]">
+          {/* LADO DIREITO: FOTO DO VEÍCULO (REDUZIDO EM ~20% NA HORIZONTAL: lg:col-span-5) */}
+          <div className="lg:col-span-5 relative flex items-center justify-center">
             <div 
               onDoubleClick={() => setShowPhotoSection(!showPhotoSection)}
-              className="relative group cursor-pointer w-full flex items-center justify-center rounded-3xl p-4 hover:bg-accent/20 transition-colors select-none"
+              className="relative group cursor-pointer w-full flex items-center justify-center rounded-3xl p-3 hover:bg-accent/20 transition-colors select-none"
               title="Duplo clique para alterar foto"
             >
               {veiculo.fotoUrl ? (
                 <img 
                   src={veiculo.fotoUrl} 
                   alt={veiculo.modelo}
-                  className="max-h-[280px] w-auto object-contain drop-shadow-md transition-transform duration-300 group-hover:scale-105"
+                  className="max-h-[220px] lg:max-h-[240px] w-auto max-w-full object-contain drop-shadow-md transition-transform duration-300 group-hover:scale-105"
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="flex flex-col items-center justify-center gap-3 p-8 rounded-3xl bg-muted/40 border-2 border-dashed border-border/80 hover:border-primary/50 transition-all text-center w-full max-w-md h-[220px]">
-                  <div className="w-16 h-16 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-                    {veiculo.tipo === 'moto' ? <MotorcycleIcon className="w-8 h-8" /> :
-                     veiculo.tipo === 'caminhao' ? <Truck className="w-8 h-8" /> :
-                     <Car className="w-8 h-8" />}
+                <div className="flex flex-col items-center justify-center gap-2.5 p-6 rounded-3xl bg-muted/40 border-2 border-dashed border-border/80 hover:border-primary/50 transition-all text-center w-full max-w-sm h-[190px]">
+                  <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                    {veiculo.tipo === 'moto' ? <MotorcycleIcon className="w-7 h-7" /> :
+                     veiculo.tipo === 'caminhao' ? <Truck className="w-7 h-7" /> :
+                     <Car className="w-7 h-7" />}
                   </div>
                   <div>
                     <span className="text-xs font-bold text-foreground block">Nenhuma foto cadastrada</span>

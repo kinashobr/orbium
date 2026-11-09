@@ -22,8 +22,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
     currentBalance,
     totalIn,
     totalOut,
-    reconciliationStatus,
-    transactionCount
+    reconciliationStatus
   } = summary;
 
   const statusClasses = {
@@ -117,7 +116,7 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-[10px] sm:text-[11px]">
+      <div className="flex items-center justify-between gap-2 mb-3 text-[10px] sm:text-[11px]">
         <div className="flex items-center gap-1 text-success">
           <ArrowUpRight className="w-3 h-3" />
           <span className="font-semibold">{formatCurrency(totalIn)}</span>
@@ -126,11 +125,6 @@ export function AccountCard({ summary, onMovimentar, onViewHistory, onEdit, onIm
         <div className="flex items-center gap-1 text-destructive">
           <ArrowDownRight className="w-3 h-3" />
           <span className="font-semibold">{formatCurrency(totalOut)}</span>
-        </div>
-
-        <div className="flex items-center gap-1 text-muted-foreground font-medium">
-          <span>{transactionCount}</span>
-          <span className="text-[9px] sm:text-[10px]">transações</span>
         </div>
       </div>
 

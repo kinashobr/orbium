@@ -26,7 +26,7 @@ import {
   Plus, Trash2, CheckCircle2, ChevronRight, Landmark, Calendar,
   DollarSign, FileText, Scale, Receipt, Sparkles, X, RotateCcw,
   Link2, AlertTriangle, Edit, Layers, TrendingUp, ArrowLeftRight,
-  Eye, EyeOff, Briefcase, ReceiptText, Umbrella, FileX, CalendarDays, Clock, Check
+  Eye, EyeOff, Briefcase, ReceiptText, Umbrella, FileX, CalendarDays, Clock, Check, RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import { addMonths, format, parseISO, differenceInMonths } from "date-fns";
@@ -160,7 +160,7 @@ export function RecebiveisClientesTab() {
     contasMovimento = [], transacoesV2 = [], setTransacoesV2,
     ignoredTxIds = [], setIgnoredTxIds,
     cltContracts = [], addCltContract, updateCltContract, deleteCltContract, categoriasV2 = [], setCategoriasV2,
-    cltHolerites = {},
+    cltHolerites = {}, syncCltCompetenciasFromBankStatements,
   } = useFinance();
 
   // Accordion expanded contract ID
@@ -1869,6 +1869,19 @@ export function RecebiveisClientesTab() {
                                         onClick={() => handleStartEditClt(clt)}
                                       >
                                         <Edit className="w-3.5 h-3.5" /> Editar
+                                      </Button>
+                                      <Button 
+                                        type="button"
+                                        variant="ghost" 
+                                        size="sm"
+                                        className="rounded-xl text-xs font-bold gap-1 text-emerald-600 hover:bg-emerald-500/10"
+                                        onClick={() => {
+                                          syncCltCompetenciasFromBankStatements?.();
+                                          toast.success("Competências reconciliadas com o extrato bancário!");
+                                        }}
+                                        title="Reconcilia o histórico de competências com os lançamentos concretos do extrato bancário"
+                                      >
+                                        <RefreshCw className="w-3.5 h-3.5" /> Sincronizar Extrato
                                       </Button>
                                       <Button 
                                         type="button"

@@ -72,6 +72,11 @@ import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differen
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
 import { areDescriptionsCompatible, normalizeDescriptionForMatch } from "@/lib/transactionValidator";
 import { toast } from "sonner";
+import { 
+  getContractSalaryTransactions, 
+  getContractCurrentNetSalary, 
+  getContractSalaryForCompetencia 
+} from "@/lib/cltPaymentEngine";
 
 // ============================================
 // FUNÇÕES AUXILIARES PARA DATAS
@@ -502,6 +507,7 @@ interface FinanceContextType {
   cltHolerites: Record<string, HoleriteCompetenciaData>;
   saveCltHolerite: (holerite: HoleriteCompetenciaData) => void;
   deleteCltHolerite: (id: string) => void;
+  syncCltCompetenciasFromBankStatements: () => void;
 
   // Vínculos Ocupacionais (Novas Entidades)
   vinculosOcupacionais: VinculoOcupacional[];
@@ -972,6 +978,46 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage("ignored_recebiveis_tx_ids", ignoredTxIds); updateLastModified(); }, [ignoredTxIds, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.EXPENSE_SNAPSHOTS, expenseSnapshots); updateLastModified(); }, [expenseSnapshots, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.PLUGGY_CONFIG, pluggyConfig); updateLastModified(); }, [pluggyConfig, updateLastModified]);
+
+  // Reconciliação e limpeza automática de competências CLT com base no extrato concreto
+  const syncCltCompetenciasFromBankStatements = useCallback(() => {
+    if (cltContracts.length === 0) return;
+
+    let hasChanged = false;
+    const updatedCompetencias = cltCompetencias.map(comp => {
+      const contract = cltContracts.find(c => c.id === comp.contractId);
+      if (!contract) return comp;
+
+      const [yStr, mStr] = comp.mesAno.split('-');
+      const y = parseInt(yStr, 10);
+      const m = parseInt(mStr, 10) - 1;
+      if (isNaN(y) || isNaN(m)) return comp;
+
+      const txSalariais = getContractSalaryTransactions(contract, transacoesV2, categoriasV2);
+      const compSalary = getContractSalaryForCompetencia(contract, y, m, txSalariais, cltHolerites);
+
+      if (compSalary.amount > 0 && Math.abs((comp.salarioLiquido || 0) - compSalary.amount) > 0.01) {
+        hasChanged = true;
+        return {
+          ...comp,
+          salarioLiquido: compSalary.amount,
+          salarioBruto: comp.salarioBruto > 0 ? comp.salarioBruto : contract.salarioBrutoAtual,
+          statusRecebimento: compSalary.isRealized ? ('recebido' as const) : comp.statusRecebimento,
+          transactionId: compSalary.transaction?.id || comp.transactionId
+        };
+      }
+      return comp;
+    });
+
+    if (hasChanged) {
+      setCltCompetencias(updatedCompetencias);
+    }
+  }, [cltContracts, cltCompetencias, transacoesV2, categoriasV2, cltHolerites]);
+
+  // Executa reconciliação automática sempre que houver divergência entre o extrato e snapshots obsoletos
+  useEffect(() => {
+    syncCltCompetenciasFromBankStatements();
+  }, [syncCltCompetenciasFromBankStatements]);
 
 
   const balanceCache = useMemo(() => {
@@ -3385,6 +3431,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     cltHolerites,
     saveCltHolerite,
     deleteCltHolerite,
+    syncCltCompetenciasFromBankStatements,
 
     // Vínculos Ocupacionais adicionais
     vinculosOcupacionais,
@@ -3449,7 +3496,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
     pluggyConfig, updatePluggyConfig, pluggyLastPayload, setPluggyLastPayload, syncPluggyData, isSyncingPluggy, undoPluggyCardTransactions,
     generateCheckingStatementsFromPluggy, commitPluggyTransactions,
-    cltHolerites, saveCltHolerite, deleteCltHolerite, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
+    cltHolerites, saveCltHolerite, deleteCltHolerite, syncCltCompetenciasFromBankStatements, addTransacaoV2, calculateTotalInvestmentBalanceAtDate,
     addVinculoOcupacional, updateVinculoOcupacional, deleteVinculoOcupacional,
     addRecebivelParcelado, updateRecebivelParcelado, deleteRecebivelParcelado,
     updateParcelaRecebivel, confirmarPagamentoParcela, estornarPagamentoParcela,
