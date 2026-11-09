@@ -481,6 +481,7 @@ export interface MonthlyExpenseSnapshot {
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
   totalAmount: number;
+  totalRevenue?: number;
   categories: ExpenseSnapshotCategory[];
   items?: ExpenseSnapshotItem[];
 }

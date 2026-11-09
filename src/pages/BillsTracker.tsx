@@ -12,14 +12,14 @@ import { cn } from "@/lib/utils";
 
 import { CashFlowTimeline } from "@/components/bills/CashFlowTimeline";
 import { Button } from "@/components/ui/button";
-import { Settings, ChevronLeft, ChevronRight, CalendarCheck, Activity, ArrowLeft, BookmarkCheck } from "lucide-react";
+import { Settings, ChevronLeft, ChevronRight, CalendarCheck, Activity, ArrowLeft } from "lucide-react";
 import { format, startOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { 
   BillTracker, BillDisplayItem, generateBillId, TransactionLinks, OperationType, generateTransactionId, generateTransferGroupId, TransactionDomain 
 } from "@/types/finance";
-import { buildSnapshotFromBills } from "@/lib/expenseSnapshotHelper";
+import { BudgetPopover } from "@/components/bills/BudgetPopover";
 import { toast } from "sonner";
 
 const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === 'tracker';
@@ -45,7 +45,6 @@ export default function BillsTracker() {
     creditCardConfigs,
     autoPopulateFixedBills,
     getExpenseSnapshot,
-    saveExpenseSnapshot,
   } = useFinance();
 
   const isLargeScreen = useMediaQuery("(min-width: 900px)");
@@ -335,23 +334,6 @@ export default function BillsTracker() {
     setBillsTracker(prev => [...prev, { ...bill, id: generateBillId(), type: 'tracker', isPaid: false, isExcluded: false }]);
   }, [setBillsTracker]);
 
-
-  const handleFixBudget = useCallback(() => {
-    const snapshot = buildSnapshotFromBills(
-      currentDate,
-      combinedBills,
-      categoriasV2,
-      monthSnapshot?.createdAt
-    );
-    saveExpenseSnapshot(snapshot);
-    const monthName = format(currentDate, "MMMM 'de' yyyy", { locale: ptBR });
-    if (hasSnapshot) {
-      toast.success(`Orçamento de ${monthName} atualizado com sucesso!`);
-    } else {
-      toast.success(`Orçamento de ${monthName} fixado com sucesso!`);
-    }
-  }, [currentDate, combinedBills, categoriasV2, monthSnapshot, hasSnapshot, saveExpenseSnapshot]);
-
   return (
     <MainLayout>
       <div className="space-y-5 pb-2 w-full max-w-full overflow-hidden">
@@ -401,16 +383,13 @@ export default function BillsTracker() {
               <span>Gerenciar Compromissos</span>
             </Button>
 
-            {/* Fixar Orçamento Button */}
-            <Button 
-              onClick={handleFixBudget} 
-              variant="outline"
-              className="h-10 rounded-full gap-2 px-4 border-border/40 bg-card/50 backdrop-blur-sm text-xs font-bold hover:bg-muted/40 transition-colors"
-              title={hasSnapshot ? `Orçamento fixado em ${format(new Date(monthSnapshot!.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}. Clique para atualizar.` : "Fixar orçamento com as despesas cadastradas no mês"}
-            >
-              <BookmarkCheck className="w-4 h-4 text-primary" />
-              <span>{hasSnapshot ? "Atualizar Orçamento" : "Fixar Orçamento"}</span>
-            </Button>
+            {/* Orçamento Tooltip Popover */}
+            <BudgetPopover
+              currentDate={currentDate}
+              combinedBills={combinedBills}
+              hasSnapshot={hasSnapshot}
+              monthSnapshot={monthSnapshot}
+            />
           </div>
         </header>
 

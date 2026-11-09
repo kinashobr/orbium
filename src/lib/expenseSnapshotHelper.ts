@@ -105,3 +105,49 @@ export const buildSnapshotFromBills = (
     items,
   };
 };
+
+export const buildSnapshotFromItems = (
+  monthDate: Date,
+  items: ExpenseSnapshotItem[],
+  categoriasV2: Categoria[],
+  totalRevenue?: number,
+  existingCreatedAt?: string
+): MonthlyExpenseSnapshot => {
+  const monthKey = format(monthDate, "yyyy-MM");
+  const nowIso = new Date().toISOString();
+
+  const categoryTotals: Record<string, number> = {};
+
+  items.forEach(item => {
+    const cat = item.categoryId ? categoriasV2.find(c => c.id === item.categoryId) : undefined;
+    if (cat?.nature === 'receita') return;
+
+    const catLabel = cat?.label || item.categoryName || "Outros";
+    const amount = Number(item.expectedAmount) || 0;
+    if (amount > 0) {
+      categoryTotals[catLabel] = (categoryTotals[catLabel] || 0) + amount;
+    }
+  });
+
+  const categories: ExpenseSnapshotCategory[] = Object.entries(categoryTotals)
+    .map(([name, value]) => ({ name, value }))
+    .filter(c => c.value > 0)
+    .sort((a, b) => b.value - a.value);
+
+  const totalAmount = items
+    .filter(item => {
+      const cat = item.categoryId ? categoriasV2.find(c => c.id === item.categoryId) : undefined;
+      return cat?.nature !== 'receita';
+    })
+    .reduce((sum, item) => sum + (Number(item.expectedAmount) || 0), 0);
+
+  return {
+    monthKey,
+    createdAt: existingCreatedAt || nowIso,
+    updatedAt: nowIso,
+    totalAmount,
+    totalRevenue,
+    categories,
+    items,
+  };
+};
