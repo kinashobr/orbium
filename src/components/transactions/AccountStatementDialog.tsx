@@ -25,6 +25,7 @@ import { cn, parseDateLocal, getAccountIcon } from "@/lib/utils";
 import { isWithinInterval, startOfDay, endOfDay, startOfMonth, endOfMonth, subDays, format } from "date-fns";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useFinance } from "@/contexts/FinanceContext";
+import { toast } from "sonner";
 
 // --- Export helpers ---
 
@@ -646,6 +647,7 @@ export function AccountStatementDialog({
   const { 
     contasMovimento, 
     transacoesV2, 
+    setTransacoesV2,
     calculateBalanceUpToDate,
     dateRanges 
   } = useFinance();
@@ -794,8 +796,22 @@ export function AccountStatementDialog({
     });
   }, [periodTransactions, searchQuery]);
 
-  const statusColor = periodSummary.pendingCount === 0 ? 'text-success' : 'text-warning';
   const IconComponent = getAccountIcon(account.accountType, account.name);
+
+  const handleDeleteTransaction = useCallback((id: string) => {
+    if (onDeleteTransaction) {
+      onDeleteTransaction(id);
+    }
+    setTransacoesV2(prev => {
+      const target = prev.find(x => x.id === id);
+      return prev.filter(t => {
+        if (target?.links?.transferGroupId && t.links?.transferGroupId === target.links.transferGroupId) {
+          return false;
+        }
+        return t.id !== id;
+      });
+    });
+  }, [onDeleteTransaction, setTransacoesV2]);
 
   const handlePrint = useCallback(() => {
     const listToPrint = searchQuery.trim() ? displayedTransactions : periodTransactions;
@@ -864,23 +880,6 @@ export function AccountStatementDialog({
                     </Badge>
                   )}
                 </div>
-
-                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                  <div className={cn("flex items-center gap-1.5 font-bold", statusColor)}>
-                    {periodSummary.pendingCount === 0 ? (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-success" />
-                    ) : (
-                      <AlertTriangle className="w-3.5 h-3.5 text-warning" />
-                    )}
-                    <span>
-                      {periodSummary.pendingCount === 0 
-                        ? "Conciliação em Dia" 
-                        : `${periodSummary.pendingCount} pendente${periodSummary.pendingCount > 1 ? 's' : ''}`}
-                    </span>
-                  </div>
-                  <span className="text-border">•</span>
-                  <span>{periodSummary.conciliatedCount} de {periodSummary.totalCount} itens conciliados</span>
-                </div>
               </div>
             </div>
 
@@ -940,19 +939,10 @@ export function AccountStatementDialog({
         <ScrollArea className="flex-1 scrollbar-material">
           <div className="p-4 sm:p-8 space-y-6">
 
-            {/* Linha com Período + Totalizadores (Saldo Inicial, Entradas, Saídas, Saldo Final) ao lado do Pesquisar */}
-            <div className="flex flex-col 2xl:flex-row items-stretch 2xl:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-card border border-border/40 shadow-sm">
-              {/* Seletor de Período do Modal */}
-              <div className="flex items-center gap-2 shrink-0">
-                <PeriodSelector
-                  initialRanges={localDateRanges}
-                  onDateRangeChange={handlePeriodChange}
-                  className="h-10 text-xs rounded-xl font-bold bg-muted/40 border-border/40 shadow-none hover:bg-muted/60"
-                />
-              </div>
-
-              {/* Totalizadores e Campo de Busca na mesma linha */}
-              <div className="flex items-center gap-2 flex-wrap flex-1 justify-start 2xl:justify-end">
+            {/* Linha ÚNICA com Totalizadores, Campo Pesquisar e PeriodSelector na MESMA linha */}
+            <div className="flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-card border border-border/40 shadow-sm overflow-x-auto scrollbar-none flex-nowrap">
+              {/* Lado Esquerdo: Todos os 4 cards de informações alinhados em uma linha só */}
+              <div className="flex items-center gap-2 flex-nowrap shrink-0">
                 {/* 1. Saldo Inicial */}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-muted/40 border border-border/40 shrink-0">
                   <Landmark className="w-3.5 h-3.5 text-muted-foreground" />
@@ -996,9 +986,12 @@ export function AccountStatementDialog({
                     </span>
                   </div>
                 </div>
+              </div>
 
-                {/* Botão/Campo Pesquisar (continua no mesmo lugar na ponta) */}
-                <div className="relative min-w-[180px] max-w-[240px] flex-1 sm:flex-initial shrink-0">
+              {/* Lado Direito: Campo Pesquisar + PeriodSelector na mesma linha */}
+              <div className="flex items-center gap-2 flex-nowrap shrink-0">
+                {/* Botão/Campo Pesquisar */}
+                <div className="relative w-[150px] sm:w-[190px] shrink-0">
                   <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                   <Input
                     value={searchQuery}
@@ -1014,6 +1007,15 @@ export function AccountStatementDialog({
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
+                </div>
+
+                {/* Seletor de Período do Modal */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <PeriodSelector
+                    initialRanges={localDateRanges}
+                    onDateRangeChange={handlePeriodChange}
+                    className="h-10 text-xs rounded-xl font-bold bg-muted/40 text-foreground border-border/40 shadow-none hover:bg-muted/80 hover:text-foreground"
+                  />
                 </div>
               </div>
             </div>
@@ -1044,8 +1046,9 @@ export function AccountStatementDialog({
                   accounts={contasMovimento.length > 0 ? contasMovimento : [account]}
                   categories={categories}
                   onEdit={onEditTransaction}
-                  onDelete={onDeleteTransaction}
+                  onDelete={handleDeleteTransaction}
                   onToggleConciliated={onToggleConciliated}
+                  showAccountColumn={false}
                 />
               </div>
             </div>

@@ -235,6 +235,12 @@ export interface Veiculo {
   licenciamentoContaId?: string;
   licenciamentoCategoriaId?: string;
   /**
+   * Status explícito do seguro do veículo:
+   * 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar'
+   */
+  statusSeguro?: 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar';
+  seguroAtivoId?: number; // ID do seguro ativo atual vinculado
+  /**
    * Categorias (v2) usadas para importar automaticamente despesas do veículo.
    * Opcional para manter compatibilidade.
    */
@@ -298,7 +304,11 @@ export interface SeguroVeiculo {
   vigenciaFim: string;
   valorTotal: number;
   numeroParcelas: number;
-  meiaParcela: boolean;
+  meiaParcela?: boolean;
+  status?: 'ativo' | 'expirado' | 'historico' | 'cancelado' | 'sem_seguro' | 'pendente_config';
+  apoliceAnteriorId?: number; // ID de apólice anterior substituída/renovada
+  origemLancamentoId?: string; // ID da transação que gerou o registro inicial
+  observacoes?: string;
   parcelas: {
     numero: number;
     vencimento: string;

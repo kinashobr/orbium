@@ -68,7 +68,7 @@ import {
   isInvoicePaymentAlreadyInChecking,
   predictTransactionCategory
 } from "@/lib/pluggyAdapter";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, addYears, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
 import { areDescriptionsCompatible, normalizeDescriptionForMatch } from "@/lib/transactionValidator";
 import { toast } from "sonner";
@@ -356,8 +356,11 @@ interface FinanceContextType {
   addSeguroVeiculo: (seguro: Omit<SeguroVeiculo, "id">) => void;
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
   deleteSeguroVeiculo: (id: number) => void;
-  markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId: string) => void;
+  markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId?: string) => void;
   unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void;
+  setVehicleInsuranceStatus: (veiculoId: number, status: 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar') => void;
+  registerInsuranceLaunchFromTransaction: (veiculoId: number, amount: number, date: string, transactionId?: string, forceNewSeguro?: boolean) => SeguroVeiculo | undefined;
+  configurePendingSeguro: (seguroId: number, config: { seguradora: string; numeroApolice: string; vigenciaInicio: string; vigenciaFim: string; valorTotal: number; numeroParcelas: number; }) => void;
   
   // Objetivos Financeiros
   objetivos: ObjetivoFinanceiro[];
@@ -1158,6 +1161,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const date = targetDate || new Date();
     return segurosVeiculo.reduce((acc, seguro) => {
         try {
+            // Se o seguro foi cancelado, expirado, histórico ou sem_seguro, não há ativo a apropriar
+            if (seguro.status === 'cancelado' || seguro.status === 'inativo' || seguro.status === 'sem_seguro' || seguro.status === 'expirado' || seguro.status === 'historico') {
+              return acc;
+            }
+
+            // Verificar se o veículo existe e se está ativo (não vendido e não sem seguro)
+            const v = veiculos.find(veh => veh.id === seguro.veiculoId);
+            if (!v || v.status === 'vendido' || v.statusSeguro === 'sem_seguro') {
+              return acc;
+            }
+
+            // Se o veículo possui um seguro ativo específico definido e não é este, ignorar (apólice passada)
+            if (v.seguroAtivoId && v.seguroAtivoId !== seguro.id) {
+              return acc;
+            }
+
+            // Se for pendente_config, o valor a apropriar é a parcela inicial já paga
+            if (seguro.status === 'pendente_config') {
+              const paidAmount = (seguro.parcelas || []).filter(p => p.paga).reduce((sum, p) => sum + (p.valor || 0), 0);
+              return acc + paidAmount;
+            }
+
             const vigenciaInicio = parseDateLocal(seguro.vigenciaInicio);
             const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
             if (isAfter(vigenciaInicio, date) || isBefore(vigenciaFim, date)) return acc;
@@ -1169,21 +1194,80 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             return acc + Math.max(0, seguro.valorTotal - accruedExpense);
         } catch { return acc; }
     }, 0);
-  }, [segurosVeiculo]);
+  }, [segurosVeiculo, veiculos]);
 
   const getSegurosAPagar = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date();
     return segurosVeiculo.reduce((acc, seguro) => {
-        let totalPaid = 0;
-        seguro.parcelas.forEach(parcela => {
-            if (parcela.paga && parcela.transactionId) {
-                const paymentTx = transacoesV2.find(t => t.id === parcela.transactionId);
-                if (paymentTx && parseDateLocal(paymentTx.date) <= date) totalPaid += paymentTx.amount; 
+        try {
+            // Se o contrato foi cancelado ou inativado, não há saldo a pagar
+            if (seguro.status === 'cancelado' || seguro.status === 'inativo') {
+              return acc;
             }
-        });
-        return acc + Math.max(0, seguro.valorTotal - totalPaid);
+
+            // Se o veículo foi vendido
+            const v = veiculos.find(veh => veh.id === seguro.veiculoId);
+            if (!v || v.status === 'vendido') {
+              return acc;
+            }
+
+            // Se todas as parcelas já estão pagas, o seguro está quitado -> 0 a pagar
+            if (seguro.parcelas && seguro.parcelas.length > 0 && seguro.parcelas.every(p => p.paga)) {
+              return acc;
+            }
+
+            // Se a vigência já terminou antes da data alvo E não há parcelas pendentes
+            const vigenciaFim = parseDateLocal(seguro.vigenciaFim);
+            if (isBefore(vigenciaFim, date) && (!seguro.parcelas || seguro.parcelas.every(p => p.paga))) {
+              return acc;
+            }
+
+            let unpaidTotal = 0;
+            seguro.parcelas.forEach(parcela => {
+                let isPaidAtDate = false;
+
+                if (parcela.paga) {
+                    if (parcela.transactionId) {
+                        const paymentTx = transacoesV2.find(t => t.id === parcela.transactionId);
+                        if (paymentTx) {
+                            isPaidAtDate = parseDateLocal(paymentTx.date) <= date;
+                        } else {
+                            // Se foi marcada como paga mas o id não está nas transações atuais (ex: mock ou extrato reconciliado)
+                            isPaidAtDate = !parcela.vencimento || parseDateLocal(parcela.vencimento) <= date || date >= new Date();
+                        }
+                    } else {
+                        // Parcela marcada como paga diretamente
+                        isPaidAtDate = !parcela.vencimento || parseDateLocal(parcela.vencimento) <= date || date >= new Date();
+                    }
+                } else {
+                    // Verificar se foi quitada através de lançamento no extrato ou billsTracker
+                    const paidBill = billsTracker.find(b => 
+                        b.sourceType === 'insurance_installment' && 
+                        (b.sourceRef === String(seguro.id) || b.sourceRef === String(seguro.veiculoId)) && 
+                        b.parcelaNumber === parcela.numero && 
+                        b.isPaid
+                    );
+                    if (paidBill) {
+                        isPaidAtDate = paidBill.paymentDate ? parseDateLocal(paidBill.paymentDate) <= date : true;
+                    } else {
+                        // Checar por transação correspondente no extrato
+                        const matchingTx = transacoesV2.find(t => 
+                            t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}` && 
+                            parseDateLocal(t.date) <= date
+                        );
+                        if (matchingTx) isPaidAtDate = true;
+                    }
+                }
+
+                if (!isPaidAtDate) {
+                    unpaidTotal += (parcela.valor || (seguro.valorTotal / (seguro.numeroParcelas || 1)));
+                }
+            });
+
+            return acc + Math.max(0, unpaidTotal);
+        } catch { return acc; }
     }, 0); 
-  }, [segurosVeiculo, transacoesV2]);
+  }, [segurosVeiculo, veiculos, transacoesV2, billsTracker]);
 
   const applyRules = useCallback((transactions: ImportedTransaction[], rules: StandardizationRule[]): ImportedTransaction[] => {
     return transactions.map(tx => {
@@ -1311,6 +1395,232 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       return s;
     }));
   }, []);
+
+  const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId?: string) => {
+    const finalTxId = transactionId || `tx_seg_${seguroId}_${parcelaNumero}_${Date.now()}`;
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      return {
+        ...seguro,
+        parcelas: seguro.parcelas.map(parcela => 
+          parcela.numero === parcelaNumero 
+            ? { ...parcela, paga: true, transactionId: finalTxId } 
+            : parcela
+        ),
+      };
+    }));
+  }, []);
+
+  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
+    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
+      if (seguro.id !== seguroId) return seguro;
+      return {
+        ...seguro,
+        parcelas: seguro.parcelas.map(parcela => 
+          parcela.numero === parcelaNumero 
+            ? { ...parcela, paga: false, transactionId: undefined } 
+            : parcela
+        ),
+      };
+    }));
+  }, []);
+
+  const setVehicleInsuranceStatus = useCallback((veiculoId: number, status: 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar') => {
+    setVeiculos(prev => prev.map(v => {
+      if (v.id === veiculoId) {
+        return {
+          ...v,
+          statusSeguro: status,
+          ...(status === 'sem_seguro' ? { seguroAtivoId: undefined } : {})
+        };
+      }
+      return v;
+    }));
+
+    if (status === 'sem_seguro') {
+      setSegurosVeiculo(prev => prev.map(s => {
+        if (s.veiculoId === veiculoId && (s.status === 'ativo' || !s.status)) {
+          return { ...s, status: 'historico' as const };
+        }
+        return s;
+      }));
+    }
+  }, []);
+
+  const registerInsuranceLaunchFromTransaction = useCallback((
+    veiculoId: number,
+    amount: number,
+    date: string,
+    transactionId?: string,
+    forceNewSeguro?: boolean
+  ): SeguroVeiculo | undefined => {
+    const targetVeiculo = veiculos.find(v => v.id === veiculoId);
+    if (!targetVeiculo) return undefined;
+
+    // Verificar se existe um seguro ativo com parcelas em aberto
+    const activeSeguro = !forceNewSeguro && targetVeiculo.statusSeguro !== 'sem_seguro'
+      ? segurosVeiculo.find(s => s.veiculoId === veiculoId && (s.status === 'ativo' || s.status === 'pendente_config'))
+      : undefined;
+
+    const hasUnpaidParcel = activeSeguro?.parcelas?.some(p => !p.paga);
+
+    if (activeSeguro && hasUnpaidParcel && !forceNewSeguro) {
+      // Quitar a primeira parcela pendente do seguro ativo
+      const nextParcel = activeSeguro.parcelas.find(p => !p.paga);
+      if (nextParcel) {
+        markSeguroParcelPaid(activeSeguro.id, nextParcel.numero, transactionId);
+      }
+      return activeSeguro;
+    }
+
+    // Caso contrário (sem seguro, seguro anterior quitado/vencido ou forceNewSeguro):
+    // Cria um novo seguro com status 'pendente_config'
+    const newId = Math.max(0, ...segurosVeiculo.map(x => x.id)) + 1;
+    const finalTxId = transactionId || `tx_seg_${newId}_1_${Date.now()}`;
+    
+    // Início na data do lançamento e fim padrão em 1 ano
+    const inicioDate = date || format(new Date(), "yyyy-MM-dd");
+    let fimDateStr = inicioDate;
+    try {
+      fimDateStr = format(addYears(parseDateLocal(inicioDate), 1), "yyyy-MM-dd");
+    } catch {
+      fimDateStr = format(new Date(), "yyyy-MM-dd");
+    }
+
+    const newSeguro: SeguroVeiculo = {
+      id: newId,
+      veiculoId,
+      numeroApolice: "",
+      seguradora: "A definir",
+      vigenciaInicio: inicioDate,
+      vigenciaFim: fimDateStr,
+      valorTotal: amount,
+      numeroParcelas: 1,
+      status: 'pendente_config',
+      origemLancamentoId: transactionId,
+      parcelas: [
+        {
+          numero: 1,
+          vencimento: inicioDate,
+          valor: amount,
+          paga: true,
+          transactionId: finalTxId
+        }
+      ]
+    };
+
+    setSegurosVeiculo(prev => {
+      // Arquivar anteriores ativos como 'historico'
+      const updated = prev.map(existing => {
+        if (existing.veiculoId === veiculoId && (existing.status === 'ativo' || !existing.status)) {
+          return { ...existing, status: 'historico' as const, apoliceAnteriorId: existing.id };
+        }
+        return existing;
+      });
+      return [...updated, newSeguro];
+    });
+
+    // Atualizar o veículo com o novo seguro
+    setVeiculos(prev => prev.map(v => {
+      if (v.id === veiculoId) {
+        return {
+          ...v,
+          valorSeguro: amount,
+          vencimentoSeguro: fimDateStr,
+          parcelaSeguro: amount,
+          statusSeguro: 'ativo',
+          seguroAtivoId: newId,
+        };
+      }
+      return v;
+    }));
+
+    return newSeguro;
+  }, [veiculos, segurosVeiculo, markSeguroParcelPaid]);
+
+  const configurePendingSeguro = useCallback((
+    seguroId: number,
+    config: {
+      seguradora: string;
+      numeroApolice: string;
+      vigenciaInicio: string;
+      vigenciaFim: string;
+      valorTotal: number;
+      numeroParcelas: number;
+    }
+  ) => {
+    setSegurosVeiculo(prev => prev.map(s => {
+      if (s.id !== seguroId) return s;
+
+      const nParc = Math.max(1, config.numeroParcelas || 1);
+      const valTotal = config.valorTotal > 0 ? config.valorTotal : s.valorTotal;
+      const baseDate = parseDateLocal(config.vigenciaInicio || s.vigenciaInicio);
+      
+      // Manter a primeira parcela (já paga ou lançada)
+      const firstParcel = s.parcelas?.[0];
+      const firstPaidVal = firstParcel?.valor || Math.round(valTotal / nParc);
+      
+      const newParcelas = [];
+      // Parcela 1
+      newParcelas.push({
+        numero: 1,
+        vencimento: config.vigenciaInicio || s.vigenciaInicio,
+        valor: nParc === 1 ? valTotal : firstPaidVal,
+        paga: firstParcel ? firstParcel.paga : true,
+        transactionId: firstParcel?.transactionId
+      });
+
+      // Parcelas restantes 2..nParc (todas inicializadas como pendentes, paga: false)
+      if (nParc > 1) {
+        const remainingVal = Math.max(0, valTotal - firstPaidVal);
+        const parcelVal = parseFloat((remainingVal / (nParc - 1)).toFixed(2));
+
+        for (let i = 2; i <= nParc; i++) {
+          const venc = new Date(baseDate);
+          venc.setMonth(venc.getMonth() + (i - 1));
+          
+          newParcelas.push({
+            numero: i,
+            vencimento: format(venc, "yyyy-MM-dd"),
+            valor: parcelVal,
+            paga: false,
+            transactionId: undefined
+          });
+        }
+      }
+
+      return {
+        ...s,
+        seguradora: config.seguradora.trim() || s.seguradora,
+        numeroApolice: config.numeroApolice.trim() || s.numeroApolice,
+        vigenciaInicio: config.vigenciaInicio || s.vigenciaInicio,
+        vigenciaFim: config.vigenciaFim || s.vigenciaFim,
+        valorTotal: valTotal,
+        numeroParcelas: nParc,
+        status: 'ativo' as const,
+        parcelas: newParcelas
+      };
+    }));
+
+    // Sincronizar veículo
+    const currentSeguro = segurosVeiculo.find(s => s.id === seguroId);
+    if (currentSeguro?.veiculoId) {
+      const vId = currentSeguro.veiculoId;
+      setVeiculos(prev => prev.map(v => {
+        if (v.id === vId) {
+          return {
+            ...v,
+            valorSeguro: config.valorTotal,
+            vencimentoSeguro: config.vigenciaFim,
+            parcelaSeguro: Math.round(config.valorTotal / (config.numeroParcelas || 1)),
+            statusSeguro: 'ativo',
+            seguroAtivoId: seguroId
+          };
+        }
+        return v;
+      }));
+    }
+  }, [segurosVeiculo]);
 
   const executeTransaction = useCallback((
     transaction: TransacaoCompleta,
@@ -1454,10 +1764,29 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       toast.info(`Vínculo automático com conta pendente: "${matchingBill.description}"`);
     }
 
+    // 3.1. Integração Automática com Seguro de Veículo
+    const isSeguroCategory = transaction.categoryId
+      ? categoriasV2.some(c => c.id === transaction.categoryId && c.label.toLowerCase().includes('seguro'))
+      : false;
+    const isSeguroTx = meta?.obligationType === 'seguro' || isSeguroCategory;
+    const targetVehId = (meta?.assetType === 'veiculo' && meta?.assetId)
+      ? Number(meta.assetId)
+      : (links.vehicleTransactionId ? parseInt(links.vehicleTransactionId.split('_')[0]) : undefined);
+
+    if (isSeguroTx && targetVehId) {
+      registerInsuranceLaunchFromTransaction(
+        targetVehId,
+        transaction.amount,
+        transaction.date,
+        transaction.id,
+        meta?.isNewSeguro
+      );
+    }
+
     // 4. Persistir transações
     setTransacoesV2(prev => [...prev, transaction, ...counterpartTxs]);
     toast.success(counterpartTxs.length > 0 ? "Lançamento de partida dobrada realizado." : "Transação registrada com sucesso.");
-  }, [billsTracker, updateBill, veiculos]);
+  }, [billsTracker, updateBill, veiculos, categoriasV2, registerInsuranceLaunchFromTransaction]);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
     const targetTx = transacoesV2.find(t => t.id === transactionId);
@@ -1986,7 +2315,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
     });
 
-    billsTracker.filter(b => b.sourceType === 'purchase_installment' && !b.isExcluded).forEach(bill => {
+    billsTracker.filter(b => b.sourceType === 'purchase_installment' && !b.isExcluded && !b.description.toLowerCase().includes('seguro')).forEach(bill => {
         const dueDate = parseDateLocal(bill.dueDate);
         if (isAfter(dueDate, referenceMonthEnd)) {
             futureBills.push({
@@ -2942,34 +3271,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId: string) => {
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      return {
-        ...seguro,
-        parcelas: seguro.parcelas.map(parcela => 
-          parcela.numero === parcelaNumero 
-            ? { ...parcela, paga: true, transactionId } 
-            : parcela
-        ),
-      };
-    }));
-  }, []);
-
-  const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      return {
-        ...seguro,
-        parcelas: seguro.parcelas.map(parcela => 
-          parcela.numero === parcelaNumero 
-            ? { ...parcela, paga: false, transactionId: undefined } 
-            : parcela
-        ),
-      };
-    }));
-  }, []);
-
   const getValorFipeTotal = useCallback((targetDate?: Date) => {
     const date = targetDate || new Date(9999, 11, 31);
     return veiculos.filter(v => v.status === 'ativo' && parseDateLocal(v.dataCompra) <= date).reduce((acc, v) => acc + v.valorFipe, 0);
@@ -3388,7 +3689,42 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     veiculos, addVeiculo, updateVeiculo: (id: number, u: any) => setVeiculos(p => p.map(v => v.id === id ? { ...v, ...u } : v)), deleteVeiculo: (id: number) => setVeiculos(p => p.filter(v => v.id !== id)), getPendingVehicles: () => veiculos.filter(v => v.status === 'pendente_cadastro'),
     imoveis, addImovel, updateImovel, deleteImovel,
     terrenos, addTerreno, updateTerreno, deleteTerreno,
-    segurosVeiculo, addSeguroVeiculo: (s: any) => setSegurosVeiculo(p => [...p, { ...s, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), markSeguroParcelPaid, unmarkSeguroParcelPaid,
+    segurosVeiculo, 
+    addSeguroVeiculo: (s: any) => {
+      const newId = Math.max(0, ...segurosVeiculo.map(x => x.id)) + 1;
+      const newSeguro = { ...s, id: newId, status: s.status || 'ativo' };
+      setSegurosVeiculo(p => {
+        const updated = p.map(existing => {
+          if (existing.veiculoId === newSeguro.veiculoId && (existing.status === 'ativo' || !existing.status)) {
+            return { ...existing, status: 'historico' as const, apoliceAnteriorId: existing.id };
+          }
+          return existing;
+        });
+        return [...updated, newSeguro];
+      });
+      if (s.veiculoId) {
+        setVeiculos(prev => prev.map(v => {
+          if (v.id === s.veiculoId) {
+            return {
+              ...v,
+              valorSeguro: s.valorTotal || 0,
+              vencimentoSeguro: s.vigenciaFim || "",
+              parcelaSeguro: s.parcelas?.[0]?.valor || (s.numeroParcelas ? Math.round(s.valorTotal / s.numeroParcelas) : 0),
+              statusSeguro: 'ativo',
+              seguroAtivoId: newId,
+            };
+          }
+          return v;
+        }));
+      }
+    },
+    updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), 
+    deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), 
+    markSeguroParcelPaid, 
+    unmarkSeguroParcelPaid,
+    setVehicleInsuranceStatus,
+    registerInsuranceLaunchFromTransaction,
+    configurePendingSeguro,
     objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
     billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth, autoPopulateFixedBills,
     creditCardConfigs, addCreditCardConfig, updateCreditCardConfig, deleteCreditCardConfig, getInvoiceForCard, generateInvoiceBills, getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions,
@@ -3515,9 +3851,10 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     executeTransaction, updateBill, deleteBill, exportData, importData,
     addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
-    deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, metasPersonalizadas,
+    deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, setVehicleInsuranceStatus, metasPersonalizadas,
     uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
-    updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno
+    updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno,
+    registerInsuranceLaunchFromTransaction, configurePendingSeguro
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

@@ -148,7 +148,8 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
 
   // Seguro Restante calculado dinamicamente
   const seguroRestanteText = (() => {
-    const dateStr = seguro?.vigenciaFim || veiculo.vencimentoSeguro;
+    if (veiculo.statusSeguro === 'sem_seguro' || !seguro) return "Sem Seguro";
+    const dateStr = seguro.vigenciaFim;
     if (!dateStr) return "Sem Seguro";
     try {
       const endDate = parseDateLocal(dateStr);
@@ -156,7 +157,7 @@ export function VehicleHeroShowcase({ veiculo, seguro, onUpdateVeiculo }: Vehicl
       const diffMs = endDate.getTime() - now.getTime();
       const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
       
-      if (diffDays <= 0) return "Vencido";
+      if (diffDays <= 0) return "Expirado";
       if (diffDays <= 30) return `${diffDays} Dias`;
       const months = Math.floor(diffDays / 30);
       return `${months} ${months === 1 ? 'Mês' : 'Meses'}`;

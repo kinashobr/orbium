@@ -169,7 +169,12 @@ const BensImobilizados = () => {
     return segurosVeiculo.flatMap(s => 
       s.parcelas.map(p => ({
         ...p,
+        seguroId: s.id,
         seguradora: s.seguradora,
+        numeroApolice: s.numeroApolice,
+        vigenciaInicio: s.vigenciaInicio,
+        vigenciaFim: s.vigenciaFim,
+        seguroStatus: s.status || 'ativo',
         veiculo: veiculos.find(v => v.id === s.veiculoId)?.modelo || "N/A"
       }))
     ).sort((a, b) => parseDateLocal(a.vencimento).getTime() - parseDateLocal(b.vencimento).getTime());
@@ -398,7 +403,11 @@ const BensImobilizados = () => {
           <TabsContent value="veiculos" className="space-y-10 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
               {veiculos.filter(v => v.status === 'ativo').map((v, index) => {
-                const seguro = segurosVeiculo.find(s => s.veiculoId === v.id);
+                const seguro = v.statusSeguro === 'sem_seguro' ? undefined : (
+                  v.seguroAtivoId 
+                    ? segurosVeiculo.find(s => s.id === v.seguroAtivoId)
+                    : segurosVeiculo.filter(s => s.veiculoId === v.id && s.status !== 'historico' && s.status !== 'cancelado').pop()
+                );
                 const isSeguroVencido = seguro && parseDateLocal(seguro.vigenciaFim).getTime() < new Date().getTime();
 
                 // Calcular diferença entre FIPE e Valor de Aquisição
@@ -650,59 +659,129 @@ const BensImobilizados = () => {
           </TabsContent>
 
           <TabsContent value="seguros" className="space-y-8 animate-in fade-in duration-500">
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-8 border border-white/60 dark:border-white/5 shadow-soft">
-              <div className="space-y-4">
-                {insuranceTimeline.map((p, idx) => {
-                  const isOverdue = !p.paga && parseDateLocal(p.vencimento) < new Date();
-                  
-                  return (
-                    <div 
-                      key={idx} 
-                      className={cn(
-                        "flex flex-col sm:flex-row sm:items-center justify-between p-6 rounded-[2rem] border transition-all group animate-fade-in-up",
-                        p.paga ? "bg-success/[0.02] border-success/20 opacity-70" : 
-                        isOverdue ? "bg-destructive/[0.02] border-destructive/20" : 
-                        "bg-card border-border/40 hover:shadow-soft hover:-translate-y-1"
-                      )}
-                      style={{ animationDelay: `${idx * 100}ms` }}
-                    >
-                      <div className="flex items-center gap-5">
-                        <div className={cn(
-                          "w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110",
-                          p.paga ? "bg-success/10 text-success" : "bg-muted text-muted-foreground"
-                        )}>
-                          <Shield className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <p className="font-black text-sm text-foreground">{p.seguradora}</p>
-                          <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                            <Car className="w-3 h-3" /> {p.veiculo} • Parcela {p.numero}
+            {/* Header com resumo de coberturas e vigências */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-soft">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">
+                  Apólices Cadastradas
+                </span>
+                <span className="text-2xl font-black text-foreground">
+                  {segurosVeiculo.length} Contrato(s)
+                </span>
+              </div>
+
+              <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-soft">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">
+                  Status de Cobertura Ativa
+                </span>
+                <span className="text-2xl font-black text-primary">
+                  {veiculos.filter(v => v.status === 'ativo' && v.statusSeguro !== 'sem_seguro' && segurosVeiculo.some(s => s.veiculoId === v.id && s.status !== 'historico' && parseDateLocal(s.vigenciaFim) >= new Date())).length} / {veiculos.filter(v => v.status === 'ativo').length} Veículos
+                </span>
+              </div>
+
+              <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-soft">
+                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">
+                  Parcelas a Vencer
+                </span>
+                <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                  {insuranceTimeline.filter(p => !p.paga).length} Parcela(s)
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-6 sm:p-8 border border-white/60 dark:border-white/5 shadow-soft space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
+                <div>
+                  <h3 className="font-display font-black text-base text-foreground uppercase tracking-tight">
+                    Cronograma de Obrigações de Seguro & Vigências
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Acompanhamento de parcelas, vigências das apólices e histórico de contratações dos veículos.
+                  </p>
+                </div>
+              </div>
+
+              {insuranceTimeline.length > 0 ? (
+                <div className="space-y-3">
+                  {insuranceTimeline.map((p, idx) => {
+                    const isOverdue = !p.paga && parseDateLocal(p.vencimento) < new Date();
+                    const isVigenciaExpirada = p.vigenciaFim && parseDateLocal(p.vigenciaFim) < new Date();
+                    
+                    return (
+                      <div 
+                        key={idx} 
+                        className={cn(
+                          "flex flex-col sm:flex-row sm:items-center justify-between p-5 sm:p-6 rounded-[2rem] border transition-all group animate-fade-in-up",
+                          p.paga ? "bg-success/[0.02] border-success/20 opacity-75" : 
+                          isOverdue ? "bg-destructive/[0.02] border-destructive/20" : 
+                          "bg-card border-border/40 hover:shadow-soft hover:-translate-y-0.5"
+                        )}
+                        style={{ animationDelay: `${idx * 50}ms` }}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div className={cn(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 shrink-0",
+                            p.paga ? "bg-success/10 text-success" : 
+                            isOverdue ? "bg-destructive/10 text-destructive" :
+                            "bg-primary/10 text-primary"
+                          )}>
+                            <Shield className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-black text-sm text-foreground">{p.seguradora}</p>
+                              {p.numeroApolice && (
+                                <Badge variant="outline" className="font-mono text-[9px] font-bold">
+                                  #{p.numeroApolice}
+                                </Badge>
+                              )}
+                              {p.seguroStatus === 'historico' && (
+                                <Badge variant="secondary" className="text-[8px] font-bold uppercase">
+                                  Histórico
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
+                              <Car className="w-3 h-3 text-primary" /> {p.veiculo} • Parcela {p.numero}
+                              {p.vigenciaFim && (
+                                <span className={cn(
+                                  "ml-1",
+                                  isVigenciaExpirada ? "text-destructive font-black" : "text-muted-foreground"
+                                )}>
+                                  • Cobertura até {format(parseDateLocal(p.vigenciaFim), "dd/MM/yy")}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex items-center justify-between sm:justify-end gap-8 mt-4 sm:mt-0">
-                        <div className="text-right">
-                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Vencimento</p>
-                          <p className="font-bold text-sm tabular-nums">{format(parseDateLocal(p.vencimento), "dd/MM/yyyy")}</p>
+                        <div className="flex items-center justify-between sm:justify-end gap-6 mt-4 sm:mt-0">
+                          <div className="text-right">
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Vencimento</p>
+                            <p className="font-bold text-sm tabular-nums">{format(parseDateLocal(p.vencimento), "dd/MM/yyyy")}</p>
+                          </div>
+                          <div className="text-right min-w-[90px]">
+                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Valor</p>
+                            <p className={cn("font-black text-base tabular-nums", p.paga ? "text-success" : "text-foreground")}>
+                              {formatCurrency(p.valor)}
+                            </p>
+                          </div>
+                          <Badge className={cn(
+                            "text-[9px] font-black border-none px-3 py-1 rounded-lg uppercase tracking-widest",
+                            p.paga ? "bg-success/10 text-success" : isOverdue ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"
+                          )}>
+                            {p.paga ? "Paga" : isOverdue ? "Vencida" : "Pendente"}
+                          </Badge>
                         </div>
-                        <div className="text-right min-w-[100px]">
-                          <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Valor</p>
-                          <p className={cn("font-black text-lg tabular-nums", p.paga ? "text-success" : "text-foreground")}>
-                            {formatCurrency(p.valor)}
-                          </p>
-                        </div>
-                        <Badge className={cn(
-                          "text-[9px] font-black border-none px-3 py-1 rounded-lg uppercase tracking-widest",
-                          p.paga ? "bg-success/10 text-success" : isOverdue ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"
-                        )}>
-                          {p.paga ? "Paga" : isOverdue ? "Vencida" : "Pendente"}
-                        </Badge>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-8 text-center text-xs text-muted-foreground font-medium border border-dashed rounded-2xl">
+                  Nenhuma obrigação de seguro encontrada no momento.
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>

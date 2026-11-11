@@ -88,11 +88,11 @@ export function BalancoTab({
     const investimentosPorTipo = contasMovimento.filter(c => c.accountType !== "cartao_credito" && isInvestmentAccountType(c.accountType)).reduce((acc, c) => acc + Math.max(0, saldos[c.id] || 0), 0);
     const imobilizadoFipe = getValorFipeTotal(finalDate);
     const imoveisTerrenos = getValorImoveisTerrenos(finalDate);
-    const segurosAApropriar = getSegurosAApropriar(finalDate);
+    const segurosAApropriar = Math.round(getSegurosAApropriar(finalDate) * 100) / 100;
     const totalAtivos = ativoCirculante + investimentosNaoCirculantes + imobilizadoFipe + imoveisTerrenos + segurosAApropriar;
     const dividaCartoes = getCreditCardDebt(finalDate);
     const principalLoans12m = calculateLoanPrincipalDueInNextMonths(finalDate, 12);
-    const segurosAPagar = getSegurosAPagar(finalDate);
+    const segurosAPagar = Math.round(getSegurosAPagar(finalDate) * 100) / 100;
     // Compras parceladas pendentes (excluindo despesas recorrentes)
     const comprasParceladas = billsTracker
       .filter(b => {
@@ -218,7 +218,7 @@ export function BalancoTab({
       percent: total > 0 ? c.saldo / total * 100 : 0,
       icon: getIconForType(c.accountType)
     }));
-    if (b1.segurosAApropriar > 0) circulanteDetails.push({
+    if (b1.segurosAApropriar > 0.01) circulanteDetails.push({
       id: 'seguros_apropriar',
       name: 'Seguros a Apropriar',
       typeLabel: 'Despesa Pré-Paga',
@@ -291,7 +291,7 @@ export function BalancoTab({
       percent: totalPassivoPL > 0 ? b1.principalLoans12m / totalPassivoPL * 100 : 0,
       icon: getIconForType('emprestimos_curto')
     });
-    if (b1.segurosAPagar > 0) circulanteDetails.push({
+    if (b1.segurosAPagar > 0.01) circulanteDetails.push({
       id: 'seguros_pagar',
       name: 'Seguros a Pagar',
       typeLabel: 'Obrigação CP',

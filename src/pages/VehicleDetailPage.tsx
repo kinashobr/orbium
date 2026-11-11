@@ -44,10 +44,18 @@ export default function VehicleDetailPage() {
     return veiculos.find(v => String(v.id) === id) || null;
   }, [veiculos, id]);
 
-  // Localizar seguro
+  // Localizar seguro ativo
   const seguro = useMemo(() => {
     if (!veiculo) return undefined;
-    return segurosVeiculo.find(s => s.veiculoId === veiculo.id);
+    if (veiculo.statusSeguro === 'sem_seguro') return undefined;
+    if (veiculo.seguroAtivoId) {
+      return segurosVeiculo.find(s => s.id === veiculo.seguroAtivoId);
+    }
+    const segurosAtivos = segurosVeiculo.filter(s => s.veiculoId === veiculo.id && s.status !== 'historico' && s.status !== 'cancelado');
+    if (segurosAtivos.length > 0) {
+      return segurosAtivos[segurosAtivos.length - 1];
+    }
+    return undefined;
   }, [segurosVeiculo, veiculo]);
 
   if (!veiculo) {

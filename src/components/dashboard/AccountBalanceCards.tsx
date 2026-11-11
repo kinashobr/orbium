@@ -10,6 +10,7 @@ import { motion } from "motion/react";
 import { MovimentarContaModal } from "@/components/transactions/MovimentarContaModal";
 import { AccountStatementDialog } from "@/components/transactions/AccountStatementDialog";
 import { CreditCardSummaryCard } from "./CreditCardSummaryCard";
+import { toast } from "sonner";
 
 const AccountIcon = ({ type, name, className }: { type: string; name?: string; className?: string }) => {
   const IconComponent = getAccountIcon(type, name);
@@ -231,9 +232,9 @@ export const AccountBalanceCards = ({ orbPhase = 1 }: AccountBalanceCardsProps) 
             setIsMovimentarOpen(true);
           }}
           onDeleteTransaction={(id) => {
-            if (window.confirm("Excluir transação?")) {
-              setTransacoesV2(prev => prev.filter(t => t.id !== id));
-            }
+            const t = transacoesV2.find(x => x.id === id);
+            setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id));
+            toast.success("Lançamento excluído com sucesso!");
           }}
           onToggleConciliated={(id, val) => {
             setTransacoesV2(prev => prev.map(t => t.id === id ? { ...t, conciliated: val } : t));

@@ -176,7 +176,7 @@ export function PeriodSelector({
         <Button
           variant="outline"
           className={cn(
-            "w-full sm:w-auto justify-center text-center h-12 sm:h-10 px-6 sm:px-4 rounded-full border-border/40 bg-card shadow-sm hover:shadow-md hover:bg-accent hover:text-accent-foreground transition-all duration-300 group mx-auto sm:mx-0",
+            "w-full sm:w-auto justify-center text-center h-12 sm:h-10 px-6 sm:px-4 rounded-full border-border/40 bg-card shadow-sm hover:shadow-md hover:bg-muted/80 hover:text-foreground transition-all duration-300 group mx-auto sm:mx-0 text-foreground",
             (!range.from && !range.to) && "text-muted-foreground",
             className
           )}

@@ -67,12 +67,29 @@ export function VehicleAnnualCalendar({ veiculo, seguro }: VehicleAnnualCalendar
               type: "seguro",
               amount: p.valor || 0,
               date: d,
-              icon: "🛡️",
               color: p.paga ? "bg-success text-white" : "bg-warning text-black"
             });
           }
         } catch (e) {}
       });
+
+      // 2.1 Término da Vigência da Apólice (Fim de Cobertura / Renovação)
+      if (seguro.vigenciaFim) {
+        try {
+          const dFim = parseDateLocal(seguro.vigenciaFim);
+          if (dFim.getFullYear() === selectedYear) {
+            addEvent(dFim, {
+              id: `seg_fim_vigencia`,
+              title: `Término da Vigência da Apólice (${seguro.seguradora})`,
+              type: "seguro_fim",
+              amount: 0,
+              date: dFim,
+              icon: "🏁",
+              color: "bg-primary text-white"
+            });
+          }
+        } catch (e) {}
+      }
     }
 
     // 3. Vencimento IPVA

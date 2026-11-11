@@ -19,6 +19,7 @@ interface TransactionTableProps {
   onDelete: (id: string) => void;
   onToggleConciliated: (id: string, value: boolean) => void;
   onViewAttachments?: (transaction: TransacaoCompleta) => void;
+  showAccountColumn?: boolean;
 }
 
 const OPERATION_ICONS: Record<OperationType, typeof TrendingUp> = {
@@ -71,6 +72,7 @@ export function TransactionTable({
   onDelete,
   onToggleConciliated,
   onViewAttachments,
+  showAccountColumn = false,
 }: TransactionTableProps) {
   const getAccount = (id: string) => accounts.find(a => a.id === id);
   const getAccountName = (id: string) => getAccount(id)?.name || id;
@@ -103,7 +105,7 @@ export function TransactionTable({
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm text-foreground truncate">
+                  <p className="font-bold text-sm text-foreground break-words">
                     {transaction.description}
                   </p>
                   <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
@@ -111,11 +113,15 @@ export function TransactionTable({
                       <Calendar className="w-3 h-3 text-muted-foreground/70" />
                       {formatDate(transaction.date)}
                     </span>
-                    <span>•</span>
-                    <span className="inline-flex items-center gap-1 text-primary">
-                      <AccIcon className="w-3 h-3" />
-                      {getAccountName(transaction.accountId)}
-                    </span>
+                    {showAccountColumn && (
+                      <>
+                        <span>•</span>
+                        <span className="inline-flex items-center gap-1 text-primary">
+                          <AccIcon className="w-3 h-3" />
+                          {getAccountName(transaction.accountId)}
+                        </span>
+                      </>
+                    )}
                     {transaction.categoryId && (
                       <>
                         <span>•</span>
@@ -150,7 +156,15 @@ export function TransactionTable({
                       {transaction.attachments && transaction.attachments.length > 0 && onViewAttachments && (
                         <DropdownMenuItem onClick={() => onViewAttachments(transaction)} className="font-bold text-xs"><Eye className="w-3.5 h-3.5 mr-2" /> Comprovante</DropdownMenuItem>
                       )}
-                      <DropdownMenuItem onClick={() => onDelete(transaction.id)} className="text-destructive font-bold text-xs"><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir</DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(transaction.id);
+                        }} 
+                        className="text-destructive font-bold text-xs cursor-pointer focus:text-destructive focus:bg-destructive/10"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -175,7 +189,7 @@ export function TransactionTable({
 
       {/* Desktop: Scrollable Table Layout */}
       <div className="hidden md:block overflow-x-auto scrollbar-material">
-        <div className="min-w-[920px]">
+        <div className="min-w-[850px]">
           <Table>
             <TableHeader>
               <TableRow className="border-border hover:bg-transparent h-10">
@@ -185,15 +199,17 @@ export function TransactionTable({
                     <span>Data</span>
                   </div>
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground min-w-[280px]">
                   Descrição
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[150px]">
-                  <div className="flex items-center gap-1.5">
-                    <Wallet className="w-3.5 h-3.5 text-muted-foreground/70" />
-                    <span>Conta</span>
-                  </div>
-                </TableHead>
+                {showAccountColumn && (
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[150px]">
+                    <div className="flex items-center gap-1.5">
+                      <Wallet className="w-3.5 h-3.5 text-muted-foreground/70" />
+                      <span>Conta</span>
+                    </div>
+                  </TableHead>
+                )}
                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground w-[160px]">
                   <div className="flex items-center gap-1.5">
                     <Tag className="w-3.5 h-3.5 text-muted-foreground/70" />
@@ -209,8 +225,8 @@ export function TransactionTable({
                     <span>Tipo</span>
                   </div>
                 </TableHead>
-                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[60px]">
-                  Pg
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center w-[110px]">
+                  Conciliado
                 </TableHead>
                 <TableHead className="w-12"></TableHead>
               </TableRow>
@@ -231,15 +247,19 @@ export function TransactionTable({
                         <span>{formatDate(transaction.date)}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="max-w-[220px] truncate font-bold text-xs text-foreground">
-                      {transaction.description}
+                    <TableCell className="min-w-[280px] max-w-[480px] font-bold text-xs text-foreground py-3">
+                      <span className="line-clamp-2" title={transaction.description}>
+                        {transaction.description}
+                      </span>
                     </TableCell>
-                    <TableCell className="text-[11px] font-bold text-muted-foreground truncate">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <AccIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                        <span className="truncate">{acc?.name || transaction.accountId}</span>
-                      </div>
-                    </TableCell>
+                    {showAccountColumn && (
+                      <TableCell className="text-[11px] font-bold text-muted-foreground truncate">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <AccIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                          <span className="truncate">{acc?.name || transaction.accountId}</span>
+                        </div>
+                      </TableCell>
+                    )}
                     <TableCell className="text-[11px] font-bold text-foreground">
                       {cat ? (
                         <div className="flex items-center gap-1.5 min-w-0">
@@ -294,7 +314,15 @@ export function TransactionTable({
                           {transaction.attachments && transaction.attachments.length > 0 && onViewAttachments && (
                             <DropdownMenuItem onClick={() => onViewAttachments(transaction)} className="font-bold text-xs cursor-pointer"><Eye className="w-3.5 h-3.5 mr-2" /> Comprovante</DropdownMenuItem>
                           )}
-                          <DropdownMenuItem onClick={() => onDelete(transaction.id)} className="text-destructive font-bold text-xs cursor-pointer"><Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir</DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDelete(transaction.id);
+                            }} 
+                            className="text-destructive font-bold text-xs cursor-pointer focus:text-destructive focus:bg-destructive/10"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" /> Excluir
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -303,7 +331,7 @@ export function TransactionTable({
               })}
               {transactions.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-20 text-muted-foreground opacity-50">
+                  <TableCell colSpan={showAccountColumn ? 8 : 7} className="text-center py-20 text-muted-foreground opacity-50">
                     <Receipt className="w-10 h-10 mx-auto mb-3" />
                     <p className="font-bold uppercase tracking-widest text-[10px]">Nenhum lançamento encontrado</p>
                   </TableCell>

@@ -97,10 +97,16 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
     billsTracker.filter(b => !b.isExcluded).forEach(bill => {
       if (bill.sourceType === 'fixed_expense' || bill.sourceType === 'ad_hoc' || bill.sourceType === 'variable_expense' || bill.sourceType === 'card_invoice') return;
       
-      const key = `${bill.sourceType}_${bill.sourceRef}`;
+      const isInsurance = bill.sourceType === 'insurance_installment' || 
+                          bill.description.toLowerCase().includes('seguro') ||
+                          (!!bill.suggestedCategoryId && categoriasV2.some(c => c.id === bill.suggestedCategoryId && c.label.toLowerCase().includes('seguro')));
+
+      // Se for seguro, nunca deve ser categorizado como compra parcelada para evitar duplicidade
+      const effectiveSourceType = isInsurance ? 'insurance_installment' : bill.sourceType;
+      const key = `${effectiveSourceType}_${bill.sourceRef}`;
       if (!groups[key]) {
         groups[key] = {
-          id: key, sourceType: bill.sourceType, sourceRef: bill.sourceRef!,
+          id: key, sourceType: effectiveSourceType, sourceRef: bill.sourceRef!,
           description: bill.description.split(' (')[0].split(' - ')[0],
           installments: [], totalRemaining: 0, totalPaid: 0, paidCount: 0, totalCount: 0, isCompleted: false
         };
@@ -109,10 +115,12 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
     });
 
     potentialBills.forEach(bill => {
-      const key = `${bill.sourceType}_${bill.sourceRef}`;
+      const isInsurance = bill.sourceType === 'insurance_installment' || bill.description.toLowerCase().includes('seguro');
+      const effectiveSourceType = isInsurance ? 'insurance_installment' : bill.sourceType;
+      const key = `${effectiveSourceType}_${bill.sourceRef}`;
       if (!groups[key]) {
         groups[key] = {
-          id: key, sourceType: bill.sourceType, sourceRef: bill.sourceRef,
+          id: key, sourceType: effectiveSourceType, sourceRef: bill.sourceRef,
           description: bill.description.split(' (')[0].split(' - ')[0],
           installments: [], totalRemaining: 0, totalPaid: 0, paidCount: 0, totalCount: 0, isCompleted: false
         };
@@ -122,10 +130,12 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
     });
 
     futureBills.forEach(bill => {
-      const key = `${bill.sourceType}_${bill.sourceRef}`;
+      const isInsurance = bill.sourceType === 'insurance_installment' || bill.description.toLowerCase().includes('seguro');
+      const effectiveSourceType = isInsurance ? 'insurance_installment' : bill.sourceType;
+      const key = `${effectiveSourceType}_${bill.sourceRef}`;
       if (!groups[key]) {
         groups[key] = {
-          id: key, sourceType: bill.sourceType, sourceRef: bill.sourceRef,
+          id: key, sourceType: effectiveSourceType, sourceRef: bill.sourceRef,
           description: bill.description.split(' (')[0].split(' - ')[0],
           installments: [], totalRemaining: 0, totalPaid: 0, paidCount: 0, totalCount: 0, isCompleted: false
         };
@@ -147,8 +157,23 @@ export function CommitmentsTabContent({ currentDate }: CommitmentsTabContentProp
       }
     });
 
-    return Object.values(groups);
-  }, [billsTracker, potentialBills, futureBills]);
+    // Deduplica grupos de seguro caso exista duplicidade entre billsTracker e segurosVeiculo
+    const finalGroups: CommitmentGroup[] = [];
+    const seenInsuranceTokens = new Set<string>();
+
+    Object.values(groups).forEach(group => {
+      if (group.sourceType === 'insurance_installment') {
+        const token = group.description.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (token && seenInsuranceTokens.has(token)) {
+          return; // ignora grupo duplicado do mesmo seguro
+        }
+        if (token) seenInsuranceTokens.add(token);
+      }
+      finalGroups.push(group);
+    });
+
+    return finalGroups;
+  }, [billsTracker, potentialBills, futureBills, categoriasV2]);
 
   const activeGroups = useMemo(() => commitmentGroups.filter(g => !g.isCompleted), [commitmentGroups]);
   const completedGroups = useMemo(() => commitmentGroups.filter(g => g.isCompleted), [commitmentGroups]);

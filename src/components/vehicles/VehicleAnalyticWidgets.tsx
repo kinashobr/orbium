@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, cn } from "@/lib/utils";
 
 interface VehicleAnalyticWidgetsProps {
   veiculo: Veiculo;
@@ -44,30 +44,45 @@ export function VehicleAnalyticWidgets({
 
   // WIDGET A: SEGURO (Métricas e Radial SVG Gauge)
   const insuranceMetrics = useMemo(() => {
-    if (!seguro || !seguro.parcelas || seguro.parcelas.length === 0) {
+    if (!seguro || veiculo.statusSeguro === 'sem_seguro') {
       return {
-        percentPaid: 91.6,
-        paidCount: 11,
-        totalCount: 12,
-        valorTotal: seguro?.valorTotal || 1109.63,
-        seguradora: seguro?.seguradora || "Mapfre Auto Exclusivo",
-        vigencia: "Vig. Nov/26"
+        hasSeguro: false,
+        isExpired: false,
+        percentPaid: 0,
+        paidCount: 0,
+        totalCount: 0,
+        valorTotal: 0,
+        seguradora: "Sem Seguro Ativo",
+        vigencia: "Sem Cobertura"
       };
     }
-    const totalCount = seguro.parcelas.length;
-    const paidCount = seguro.parcelas.filter(p => p.paga).length;
-    const percentPaid = Number(((paidCount / totalCount) * 100).toFixed(1));
-    const endYear = seguro.vigenciaFim ? seguro.vigenciaFim.slice(0, 7) : "Nov/26";
+    const totalCount = seguro.parcelas?.length || 0;
+    const paidCount = (seguro.parcelas || []).filter(p => p.paga).length;
+    const percentPaid = totalCount > 0 ? Number(((paidCount / totalCount) * 100).toFixed(1)) : 100;
+    
+    let isExpired = false;
+    let vigenciaLabel = "Ativo";
+    if (seguro.vigenciaFim) {
+      try {
+        const fimDate = parseDateLocal(seguro.vigenciaFim);
+        isExpired = fimDate.getTime() < new Date().getTime();
+        vigenciaLabel = isExpired ? `Expirado (${format(fimDate, "MM/yy")})` : `Vig. ${format(fimDate, "MM/yy")}`;
+      } catch {
+        vigenciaLabel = "Ativo";
+      }
+    }
 
     return {
+      hasSeguro: true,
+      isExpired,
       percentPaid,
       paidCount,
       totalCount,
-      valorTotal: seguro.valorTotal,
+      valorTotal: seguro.valorTotal || 0,
       seguradora: seguro.seguradora || "Seguradora",
-      vigencia: `Vig. ${endYear}`
+      vigencia: vigenciaLabel
     };
-  }, [seguro]);
+  }, [seguro, veiculo.statusSeguro]);
 
   // SVG Radial calculation
   const radius = 48;
@@ -279,7 +294,12 @@ export function VehicleAnalyticWidgets({
         <div className="flex flex-col justify-between p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+              <div className={cn(
+                "w-8 h-8 rounded-xl flex items-center justify-center",
+                !insuranceMetrics.hasSeguro ? "bg-muted text-muted-foreground" :
+                insuranceMetrics.isExpired ? "bg-destructive/10 text-destructive" :
+                "bg-primary/10 text-primary"
+              )}>
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <div>
@@ -291,7 +311,12 @@ export function VehicleAnalyticWidgets({
                 </span>
               </div>
             </div>
-            <span className="px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground font-mono text-[11px] font-bold">
+            <span className={cn(
+              "px-2.5 py-0.5 rounded-full font-mono text-[11px] font-bold border",
+              !insuranceMetrics.hasSeguro ? "bg-muted/60 text-muted-foreground border-border/50" :
+              insuranceMetrics.isExpired ? "bg-destructive/10 text-destructive border-destructive/20" :
+              "bg-primary/10 text-primary border-primary/20"
+            )}>
               {insuranceMetrics.vigencia}
             </span>
           </div>
@@ -309,24 +334,33 @@ export function VehicleAnalyticWidgets({
                 strokeWidth="10" 
               />
               <circle 
-                className="text-primary transition-all duration-1000 ease-out" 
+                className={cn(
+                  "transition-all duration-1000 ease-out",
+                  !insuranceMetrics.hasSeguro ? "text-muted/40" :
+                  insuranceMetrics.isExpired ? "text-amber-500" :
+                  "text-primary"
+                )} 
                 cx="60" 
                 cy="60" 
                 fill="transparent" 
                 r={radius} 
                 stroke="currentColor" 
                 strokeDasharray={circumference} 
-                strokeDashoffset={strokeDashoffset} 
+                strokeDashoffset={insuranceMetrics.hasSeguro ? strokeDashoffset : circumference} 
                 strokeLinecap="round" 
                 strokeWidth="10" 
               />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
               <span className="font-display font-black text-2xl text-foreground leading-none">
-                {insuranceMetrics.percentPaid}%
+                {insuranceMetrics.hasSeguro ? `${insuranceMetrics.percentPaid}%` : "—"}
               </span>
               <span className="font-mono text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-1">
-                {insuranceMetrics.paidCount} / {insuranceMetrics.totalCount} Pagas
+                {!insuranceMetrics.hasSeguro 
+                  ? "Sem Seguro" 
+                  : insuranceMetrics.isExpired 
+                    ? "Vigência Encerrada" 
+                    : `${insuranceMetrics.paidCount} / ${insuranceMetrics.totalCount} Pagas`}
               </span>
             </div>
           </div>
@@ -334,13 +368,27 @@ export function VehicleAnalyticWidgets({
           {/* Rodapé Micro Data */}
           <div className="flex items-center justify-between bg-muted/40 px-3.5 py-2.5 rounded-2xl border border-border/50">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase">Prêmio Anual</span>
-              <span className="text-xs font-black text-foreground">{formatCurrency(insuranceMetrics.valorTotal)}</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                {insuranceMetrics.hasSeguro ? "Prêmio Anual" : "Situação"}
+              </span>
+              <span className="text-xs font-black text-foreground">
+                {insuranceMetrics.hasSeguro ? formatCurrency(insuranceMetrics.valorTotal) : "Sem Custo"}
+              </span>
             </div>
-            <div className="flex items-center gap-1 text-primary">
+            <div className={cn(
+              "flex items-center gap-1 font-bold text-[11px]",
+              !insuranceMetrics.hasSeguro ? "text-muted-foreground" :
+              insuranceMetrics.isExpired ? "text-destructive" :
+              insuranceMetrics.totalCount === insuranceMetrics.paidCount ? "text-success" :
+              "text-primary"
+            )}>
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span className="text-[11px] font-bold">
-                {insuranceMetrics.totalCount - insuranceMetrics.paidCount} Parcela Restante
+              <span>
+                {!insuranceMetrics.hasSeguro 
+                  ? "Sem Apólice Ativa" 
+                  : insuranceMetrics.totalCount === insuranceMetrics.paidCount 
+                    ? "Quitado" 
+                    : `${insuranceMetrics.totalCount - insuranceMetrics.paidCount} Parcela(s) Restante(s)`}
               </span>
             </div>
           </div>

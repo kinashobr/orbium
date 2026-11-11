@@ -303,9 +303,11 @@ export function MovimentarContaModal({
       }
     }
     
-    if (isSeguroCategory && (!state.tempSeguroId || !state.tempSeguroParcelaId)) {
-        toast.error("Vincule este pagamento a uma parcela de seguro em aberto.");
+    if (isSeguroCategory) {
+      if (!state.tempVehicleId) {
+        toast.error("Selecione o veículo correspondente ao seguro.");
         return;
+      }
     }
 
     const requiresCategory = ['receita', 'despesa', 'rendimento'].includes(state.operationType);
@@ -315,8 +317,10 @@ export function MovimentarContaModal({
     }
 
     let vehicleTransactionId = null;
-    if (isSeguroCategory && state.tempSeguroId) {
+    if (isSeguroCategory) {
+      if (state.tempSeguroId && state.tempSeguroId !== 'new' && state.tempSeguroParcelaId) {
         vehicleTransactionId = `${state.tempSeguroId}_${state.tempSeguroParcelaId}`;
+      }
     }
 
     let finalAssetId: number | undefined = undefined;
@@ -360,8 +364,9 @@ export function MovimentarContaModal({
 
     const meta: Partial<TransactionMeta> = {
         vehicleOperation: state.operationType === 'veiculo' ? state.tempVehicleOperation || undefined : undefined,
-        assetType: finalAssetType,
-        assetId: finalAssetId,
+        assetType: isSeguroCategory ? 'veiculo' : finalAssetType,
+        assetId: isSeguroCategory ? Number(state.tempVehicleId) : finalAssetId,
+        obligationType: isSeguroCategory ? 'seguro' : undefined,
         assetOperation: finalAssetOperation,
         discountAmount: parsedDiscount > 0 ? parsedDiscount : undefined,
     };
@@ -427,6 +432,42 @@ export function MovimentarContaModal({
   const activeVehicles = useMemo(() => veiculos.filter(v => v.status !== 'vendido'), [veiculos]);
   const activeImoveis = useMemo(() => imoveis.filter(i => i.status !== 'vendido'), [imoveis]);
   const activeTerrenos = useMemo(() => terrenos.filter(t => t.status !== 'vendido'), [terrenos]);
+
+  const vehicleForSeguro = useMemo(() => {
+    if (!state.tempVehicleId) return null;
+    return veiculos.find(v => v.id === Number(state.tempVehicleId)) || null;
+  }, [veiculos, state.tempVehicleId]);
+
+  const existingSeguroForVehicle = useMemo(() => {
+    if (!vehicleForSeguro) return null;
+    return segurosVeiculo.find(s => s.veiculoId === vehicleForSeguro.id && (s.status === 'ativo' || s.status === 'pendente_config')) || null;
+  }, [vehicleForSeguro, segurosVeiculo]);
+
+  const hasUnpaidParcels = useMemo(() => {
+    return existingSeguroForVehicle?.parcelas?.some(p => !p.paga) || false;
+  }, [existingSeguroForVehicle]);
+
+  const handleVehicleForSeguroChange = (vId: string) => {
+    dispatch({ type: 'SET_FIELD', field: 'tempVehicleId', value: vId });
+    const targetV = veiculos.find(v => v.id === Number(vId));
+    if (!targetV) return;
+
+    const existingSeg = segurosVeiculo.find(s => s.veiculoId === Number(vId) && (s.status === 'ativo' || s.status === 'pendente_config'));
+    const firstUnpaid = existingSeg?.parcelas?.find(p => !p.paga);
+
+    if (existingSeg && firstUnpaid) {
+      dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: String(existingSeg.id) });
+      dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: String(firstUnpaid.numero) });
+      dispatch({ type: 'SET_FIELD', field: 'description', value: `Seguro - ${targetV.modelo} (P${firstUnpaid.numero})` });
+      if (firstUnpaid.valor > 0) {
+        dispatch({ type: 'SET_FIELD', field: 'amount', value: firstUnpaid.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
+      }
+    } else {
+      dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: 'new' });
+      dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: null });
+      dispatch({ type: 'SET_FIELD', field: 'description', value: `Novo Seguro - ${targetV.modelo}` });
+    }
+  };
 
   const handleOperationChange = (v: OperationType) => {
     dispatch({ type: 'SET_OPERATION', operationType: v });
@@ -595,30 +636,81 @@ export function MovimentarContaModal({
           )}
 
           {isSeguroCategory && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Seguro/Veículo</Label>
-                <Select value={state.tempSeguroId || ''} onValueChange={handleSeguroChange}>
-                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="Selecione o seguro..." /></SelectTrigger>
-                  <SelectContent>
-                    {segurosVeiculo.map(s => {
-                      const v = veiculos.find(x => x.id === s.veiculoId);
-                      return <SelectItem key={s.id} value={String(s.id)} className="font-bold">{v?.modelo || s.seguradora}</SelectItem>;
-                    })}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Veículo do Seguro</Label>
+                  <Select value={state.tempVehicleId || ''} onValueChange={handleVehicleForSeguroChange}>
+                    <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                      <SelectValue placeholder="Selecione o veículo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeVehicles.map(v => (
+                        <SelectItem key={v.id} value={String(v.id)} className="font-bold">
+                          {v.modelo} {v.placa ? `(${v.placa})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Destino do Lançamento</Label>
+                  {hasUnpaidParcels && existingSeguroForVehicle ? (
+                    <Select 
+                      value={state.tempSeguroId === 'new' ? 'new' : (state.tempSeguroParcelaId || '')} 
+                      onValueChange={(val) => {
+                        if (val === 'new') {
+                          dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: 'new' });
+                          dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: null });
+                          if (vehicleForSeguro) {
+                            dispatch({ type: 'SET_FIELD', field: 'description', value: `Novo Seguro - ${vehicleForSeguro.modelo}` });
+                          }
+                        } else {
+                          dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: String(existingSeguroForVehicle.id) });
+                          dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: val });
+                          const p = existingSeguroForVehicle.parcelas.find(x => String(x.numero) === val);
+                          if (p) {
+                            dispatch({ type: 'SET_FIELD', field: 'amount', value: p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) });
+                            if (vehicleForSeguro) {
+                              dispatch({ type: 'SET_FIELD', field: 'description', value: `Seguro - ${vehicleForSeguro.modelo} (P${p.numero})` });
+                            }
+                          }
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm">
+                        <SelectValue placeholder="Selecione a parcela ou novo..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {existingSeguroForVehicle.parcelas.filter(p => !p.paga).map(p => (
+                          <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">
+                            Pagar Parcela {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="new" className="font-bold text-primary">
+                          + Novo Seguro / Renovação
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="h-10 px-3.5 rounded-xl bg-card border border-primary/20 flex items-center justify-between shadow-sm">
+                      <span className="text-xs font-black text-primary">
+                        {state.tempVehicleId ? "Novo Seguro (Automático)" : "Aguardando Veículo"}
+                      </span>
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">
+                        {state.tempVehicleId ? "Configurar na tela" : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-[9px] font-black uppercase text-muted-foreground px-1">Parcela em Aberto</Label>
-                <Select value={state.tempSeguroParcelaId || ''} onValueChange={(v) => dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: v })} disabled={!currentSeguro}>
-                  <SelectTrigger className="h-10 rounded-xl border-none bg-card font-bold shadow-sm"><SelectValue placeholder="..." /></SelectTrigger>
-                  <SelectContent>
-                    {currentSeguro?.parcelas.filter(p => !p.paga).map(p => (
-                      <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">P. {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
+              {state.tempVehicleId && (!hasUnpaidParcels || state.tempSeguroId === 'new') && (
+                <p className="text-[11px] text-muted-foreground px-1">
+                  Este lançamento registrará a primeira parcela ou o valor total do novo seguro. Uma pendência de configuração será aberta no card do Cronograma na tela do veículo.
+                </p>
+              )}
             </div>
           )}
 

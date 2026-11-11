@@ -437,7 +437,11 @@ export default function Investimentos() {
           transactions={transacoesV2.filter(t => t.accountId === viewingAccountId)} 
           categories={categoriasV2} 
           onEditTransaction={() => {}} 
-          onDeleteTransaction={() => {}} 
+          onDeleteTransaction={(id) => {
+            const t = transacoesV2.find(x => x.id === id);
+            setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id));
+            toast.success("Lançamento excluído com sucesso!");
+          }} 
           onToggleConciliated={(id, val) => { setTransacoesV2(prev => prev.map(t => t.id === id ? { ...t, conciliated: val } : t)); }} 
           onReconcileAll={() => { setTransacoesV2(prev => prev.map(t => t.accountId === viewingAccountId ? { ...t, conciliated: true } : t)); }} 
         />

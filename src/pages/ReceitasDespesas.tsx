@@ -128,63 +128,61 @@ const ReceitasDespesas = () => {
   const handleEditTransaction = (t: TransacaoCompleta) => { setEditingTransaction(t); setSelectedAccountForModal(t.accountId); setShowMovimentarModal(true); };
   
   const handleDeleteTransaction = (id: string) => { 
-    if (window.confirm("Excluir transação?")) { 
-      const t = transactions.find(x => x.id === id); 
-      if (t?.links?.loanId) unmarkLoanParcelPaid(parseInt(t.links.loanId.replace('loan_', ''))); 
-      if (t?.links?.vehicleTransactionId && t.flow === 'out') { 
-        const [s, p] = t.links.vehicleTransactionId.split('_'); 
-        unmarkSeguroParcelPaid(parseInt(s), parseInt(p)); 
-      } 
-      
-      // Side effects para veículos (compra/venda)
-      if (t?.operationType === 'veiculo' && t.meta.assetType === 'veiculo' && t.meta.assetId) {
-        const vehicleId = t.meta.assetId;
-        const veiculo = veiculos.find(v => v.id === vehicleId);
-        if (veiculo) {
-          const updates: Partial<Veiculo> = {};
-          if (veiculo.compraTransactionId === t.id) {
-            updates.compraTransactionId = undefined;
-            updates.status = 'pendente_cadastro';
-          }
-          if (veiculo.vendaTransactionId === t.id) {
+    const t = transactions.find(x => x.id === id); 
+    if (t?.links?.loanId) unmarkLoanParcelPaid(parseInt(t.links.loanId.replace('loan_', ''))); 
+    if (t?.links?.vehicleTransactionId && t.flow === 'out') { 
+      const [s, p] = t.links.vehicleTransactionId.split('_'); 
+      unmarkSeguroParcelPaid(parseInt(s), parseInt(p)); 
+    } 
+    
+    // Side effects para veículos (compra/venda)
+    if (t?.operationType === 'veiculo' && t.meta.assetType === 'veiculo' && t.meta.assetId) {
+      const vehicleId = t.meta.assetId;
+      const veiculo = veiculos.find(v => v.id === vehicleId);
+      if (veiculo) {
+        const updates: Partial<Veiculo> = {};
+        if (veiculo.compraTransactionId === t.id) {
+          updates.compraTransactionId = undefined;
+          updates.status = 'pendente_cadastro';
+        }
+        if (veiculo.vendaTransactionId === t.id) {
+          updates.vendaTransactionId = undefined;
+          updates.status = 'ativo';
+        }
+        if (Object.keys(updates).length > 0) updateVeiculo(vehicleId, updates);
+      }
+    }
+    
+    // Side effects para imóveis/terrenos
+    if (t?.operationType === 'imobilizado' && t.meta.assetType && t.meta.assetId) {
+      const assetId = t.meta.assetId;
+      if (t.meta.assetType === 'imovel') {
+        const imovel = imoveis.find(i => i.id === assetId);
+        if (imovel) {
+          const updates: Partial<Imovel> = {};
+          if (imovel.compraTransactionId === t.id) updates.compraTransactionId = undefined;
+          if (imovel.vendaTransactionId === t.id) {
             updates.vendaTransactionId = undefined;
             updates.status = 'ativo';
           }
-          if (Object.keys(updates).length > 0) updateVeiculo(vehicleId, updates);
+          if (Object.keys(updates).length > 0) updateImovel(assetId, updates);
+        }
+      } else if (t.meta.assetType === 'terreno') {
+        const terreno = terrenos.find(tr => tr.id === assetId);
+        if (terreno) {
+          const updates: Partial<Terreno> = {};
+          if (terreno.compraTransactionId === t.id) updates.compraTransactionId = undefined;
+          if (terreno.vendaTransactionId === t.id) {
+            updates.vendaTransactionId = undefined;
+            updates.status = 'ativo';
+          }
+          if (Object.keys(updates).length > 0) updateTerreno(assetId, updates);
         }
       }
-      
-      // Side effects para imóveis/terrenos
-      if (t?.operationType === 'imobilizado' && t.meta.assetType && t.meta.assetId) {
-        const assetId = t.meta.assetId;
-        if (t.meta.assetType === 'imovel') {
-          const imovel = imoveis.find(i => i.id === assetId);
-          if (imovel) {
-            const updates: Partial<Imovel> = {};
-            if (imovel.compraTransactionId === t.id) updates.compraTransactionId = undefined;
-            if (imovel.vendaTransactionId === t.id) {
-              updates.vendaTransactionId = undefined;
-              updates.status = 'ativo';
-            }
-            if (Object.keys(updates).length > 0) updateImovel(assetId, updates);
-          }
-        } else if (t.meta.assetType === 'terreno') {
-          const terreno = terrenos.find(tr => tr.id === assetId);
-          if (terreno) {
-            const updates: Partial<Terreno> = {};
-            if (terreno.compraTransactionId === t.id) updates.compraTransactionId = undefined;
-            if (terreno.vendaTransactionId === t.id) {
-              updates.vendaTransactionId = undefined;
-              updates.status = 'ativo';
-            }
-            if (Object.keys(updates).length > 0) updateTerreno(assetId, updates);
-          }
-        }
-      }
-      if (t?.meta.source === 'import') uncontabilizeImportedTransaction(id); 
-      setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id)); 
-      toast.success("Excluído!"); 
-    } 
+    }
+    if (t?.meta.source === 'import') uncontabilizeImportedTransaction(id); 
+    setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id)); 
+    toast.success("Lançamento excluído com sucesso!"); 
   };
   
   const handleToggleConciliated = useCallback((id: string, value: boolean) => {
