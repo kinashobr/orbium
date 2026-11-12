@@ -61,7 +61,8 @@ export default function RevisaoExtrato() {
     autoReconcileImportedStatements,
     deleteImportedTransaction,
     updateImportedTransactionDraft,
-    transacoesV2
+    transacoesV2,
+    veiculos
   } = useFinance();
 
   const account = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
@@ -353,6 +354,12 @@ export default function RevisaoExtrato() {
         ? generateTransferGroupId()
         : null;
 
+      const isInsuranceCategory = tx.categoryId 
+        ? categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))
+        : false;
+      const isInsuranceTx = isInsuranceCategory || (tx.description && tx.description.toLowerCase().includes('seguro'));
+      const detectedVehicleId = tx.tempAssetId || (veiculos.length === 1 ? veiculos[0].id : undefined);
+
       const baseTx: TransacaoCompleta = {
         id: transactionId,
         date: tx.date,
@@ -368,7 +375,7 @@ export default function RevisaoExtrato() {
           loanId: tx.tempLoanId || null,
           transferGroupId,
           parcelaId: tx.tempParcelaId || null,
-          vehicleTransactionId: null,
+          vehicleTransactionId: isInsuranceTx && detectedVehicleId ? `${detectedVehicleId}_1` : null,
         },
         conciliated: true,
         attachments: [],
@@ -379,8 +386,9 @@ export default function RevisaoExtrato() {
           originalDescription: tx.originalDescription,
           fitId: tx.fitId,
           vehicleOperation: tx.operationType === "veiculo" ? tx.tempVehicleOperation || undefined : undefined,
-          assetType: tx.tempAssetType,
-          assetId: tx.tempAssetId,
+          assetType: isInsuranceTx ? 'veiculo' : (tx.tempAssetType || (tx.operationType === 'veiculo' ? 'veiculo' : undefined)),
+          assetId: isInsuranceTx ? detectedVehicleId : tx.tempAssetId,
+          obligationType: isInsuranceTx ? 'seguro' : undefined,
           assetOperation: tx.tempAssetOperation,
         },
       };
@@ -609,6 +617,7 @@ export default function RevisaoExtrato() {
                 categories={categories}
                 investments={investments}
                 loans={loans}
+                veiculos={veiculos}
                 standardizationRules={standardizationRules}
                 selectedIds={selectedPendingIds}
                 onToggleSelect={handleTogglePendingSelect}

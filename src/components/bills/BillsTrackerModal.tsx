@@ -66,6 +66,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
     generateInvoiceBills,
     creditCardConfigs,
     autoPopulateFixedBills,
+    veiculos
   } = useFinance();
 
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -331,9 +332,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         markLoanParcelPaid(loanId, trackerBill.expectedAmount, trackerBill.dueDate, trackerBill.parcelaNumber);
       }
 
+      const isInsuranceExpense = (categoryId && categoriasV2.some(c => c.id === categoryId && c.label.toLowerCase().includes('seguro'))) || trackerBill.description.toLowerCase().includes('seguro');
+      const targetVehicle = veiculos.find(v => trackerBill.description.toLowerCase().includes(v.modelo.toLowerCase()) || (v.placa && trackerBill.description.toLowerCase().includes(v.placa.toLowerCase()))) || (veiculos.length === 1 ? veiculos[0] : undefined);
+
       if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
         baseLinks.vehicleTransactionId = `${trackerBill.sourceRef}_${trackerBill.parcelaNumber}`;
         markSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber, transactionId);
+      } else if (isInsuranceExpense && targetVehicle) {
+        baseLinks.vehicleTransactionId = `${targetVehicle.id}_1`;
       }
 
       addTransacaoV2({
@@ -349,7 +355,14 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
         links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
         conciliated: true,
         attachments: [],
-        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() }
+        meta: { 
+          createdBy: 'system', 
+          source: 'bill_tracker', 
+          createdAt: new Date().toISOString(),
+          assetType: isInsuranceExpense ? 'veiculo' : undefined,
+          assetId: targetVehicle?.id,
+          obligationType: isInsuranceExpense ? 'seguro' : undefined
+        }
       });
 
       updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
@@ -363,7 +376,7 @@ export function BillsTrackerModal({ open, onOpenChange }: BillsTrackerModalProps
       updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
       toast.info("Pagamento desfeito.");
     }
-  }, [contasMovimento, categoriasV2, emprestimos, addTransacaoV2, updateBill, setTransacoesV2, setBillsTracker, transacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, creditCardConfigs]);
+  }, [contasMovimento, categoriasV2, emprestimos, veiculos, addTransacaoV2, updateBill, setTransacoesV2, setBillsTracker, transacoesV2, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, creditCardConfigs]);
 
   const handleAmountChange = (value: string) => {
     const digits = value.replace(/\D/g, "");

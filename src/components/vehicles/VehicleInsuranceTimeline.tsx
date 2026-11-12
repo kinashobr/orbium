@@ -11,7 +11,7 @@ import {
   Pencil,
   Shield, 
   ShieldAlert,
-  X
+  Trash2
 } from "lucide-react";
 import { parseDateLocal, cn } from "@/lib/utils";
 import { format, differenceInDays, isAfter } from "date-fns";
@@ -34,6 +34,7 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
     markSeguroParcelPaid, 
     unmarkSeguroParcelPaid, 
     configurePendingSeguro,
+    deleteSeguroVeiculo,
     transacoesV2, 
     billsTracker 
   } = useFinance();
@@ -43,6 +44,8 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
 
   // Controle da tela dinâmica inline de configuração da apólice (sem modal)
   const [showConfigSection, setShowConfigSection] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInitialTx, setDeleteInitialTx] = useState(false);
   const [formSeguradora, setFormSeguradora] = useState("");
   const [formNumeroApolice, setFormNumeroApolice] = useState("");
   const [formVigenciaInicio, setFormVigenciaInicio] = useState("");
@@ -458,14 +461,6 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
                 </p>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowConfigSection(false)}
-              className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground"
-            >
-              <X className="w-4 h-4" />
-            </Button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
@@ -552,6 +547,51 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
             </div>
           </div>
 
+          {/* Bloco de Confirmação de Exclusão / Cancelamento */}
+          {showDeleteConfirm && (
+            <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/25 text-xs space-y-3 animate-in fade-in-50 duration-200">
+              <div className="flex items-center gap-2 text-destructive font-black uppercase tracking-wider text-[11px]">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>Confirmar cancelamento e exclusão do seguro</span>
+              </div>
+              <p className="text-muted-foreground leading-relaxed">
+                Ao confirmar, a apólice será cancelada no veículo e as parcelas futuras pendentes serão excluídas do Contas a Pagar. O histórico de pagamentos passados é preservado.
+              </p>
+              <label className="flex items-center gap-2.5 cursor-pointer select-none text-foreground font-bold pt-1">
+                <input 
+                  type="checkbox" 
+                  checked={deleteInitialTx} 
+                  onChange={(e) => setDeleteInitialTx(e.target.checked)}
+                  className="rounded border-border text-destructive focus:ring-destructive w-4 h-4 accent-destructive"
+                />
+                <span>Excluir também a transação financeira de lançamento no extrato bancário</span>
+              </label>
+              <div className="flex items-center gap-2 pt-1">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="rounded-xl font-bold h-8 text-xs"
+                >
+                  Voltar
+                </Button>
+                <Button 
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    deleteSeguroVeiculo(activeOrLastSeguro.id, deleteInitialTx);
+                    setShowConfigSection(false);
+                    setShowDeleteConfirm(false);
+                  }}
+                  className="rounded-xl font-bold h-8 text-xs gap-1.5 shadow-sm"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Confirmar Exclusão
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Resumo dinâmico dos valores e ações */}
           <div className="p-3.5 rounded-xl bg-card border border-border/60 text-xs flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -574,10 +614,24 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
               </div>
             )}
             <div className="flex items-center gap-2 ml-auto">
+              {!showDeleteConfirm && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="rounded-xl font-bold h-9 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Excluir / Cancelar Seguro
+                </Button>
+              )}
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => setShowConfigSection(false)}
+                onClick={() => {
+                  setShowConfigSection(false);
+                  setShowDeleteConfirm(false);
+                }}
                 className="rounded-xl font-bold h-9 text-xs"
               >
                 Cancelar

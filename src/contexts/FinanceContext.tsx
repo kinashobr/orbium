@@ -355,7 +355,7 @@ interface FinanceContextType {
   segurosVeiculo: SeguroVeiculo[];
   addSeguroVeiculo: (seguro: Omit<SeguroVeiculo, "id">) => void;
   updateSeguroVeiculo: (id: number, seguro: Partial<SeguroVeiculo>) => void;
-  deleteSeguroVeiculo: (id: number) => void;
+  deleteSeguroVeiculo: (id: number, deleteInitialTransaction?: boolean) => void;
   markSeguroParcelPaid: (seguroId: number, parcelaNumero: number, transactionId?: string) => void;
   unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void;
   setVehicleInsuranceStatus: (veiculoId: number, status: 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar') => void;
@@ -1622,6 +1622,53 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
   }, [segurosVeiculo]);
 
+  const deleteSeguroVeiculo = useCallback((id: number, deleteInitialTransaction?: boolean) => {
+    const targetSeguro = segurosVeiculo.find(s => s.id === id);
+    if (!targetSeguro) return;
+
+    const veiculoId = targetSeguro.veiculoId;
+
+    // 1. Remover a apólice de segurosVeiculo
+    setSegurosVeiculo(prev => prev.filter(s => s.id !== id));
+
+    // 2. Atualizar o veículo para 'sem_seguro'
+    setVeiculos(prev => prev.map(v => {
+      if (v.id === veiculoId) {
+        return {
+          ...v,
+          statusSeguro: 'sem_seguro',
+          seguroAtivoId: undefined,
+          valorSeguro: 0,
+          parcelaSeguro: 0,
+          vencimentoSeguro: ""
+        };
+      }
+      return v;
+    }));
+
+    // 3. Remover do billsTracker todas as parcelas futuras PENDENTES deste seguro
+    setBillsTracker(prev => prev.filter(b => {
+      const isThisInsurance = b.sourceType === 'insurance_installment' && 
+        (b.sourceRef === String(id) || (b.sourceRef === String(veiculoId) && b.description.toLowerCase().includes('seguro')));
+      if (isThisInsurance && !b.isPaid) {
+        return false;
+      }
+      return true;
+    }));
+
+    // 4. Se o usuário solicitou apagar o lançamento financeiro da 1ª parcela (para refazer o processo):
+    if (deleteInitialTransaction) {
+      const txId = targetSeguro.origemLancamentoId || targetSeguro.parcelas?.[0]?.transactionId;
+      setTransacoesV2(prev => prev.filter(t => {
+        if (txId && t.id === txId) return false;
+        if (t.links?.vehicleTransactionId === `${id}_1`) return false;
+        return true;
+      }));
+    }
+
+    toast.success("Seguro cancelado/excluído com sucesso!");
+  }, [segurosVeiculo, setSegurosVeiculo, setVeiculos, setBillsTracker, setTransacoesV2]);
+
   const executeTransaction = useCallback((
     transaction: TransacaoCompleta,
     transferGroup?: { id: string; fromAccountId: string; toAccountId: string; amount: number; date: string; description?: string },
@@ -1768,10 +1815,32 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const isSeguroCategory = transaction.categoryId
       ? categoriasV2.some(c => c.id === transaction.categoryId && c.label.toLowerCase().includes('seguro'))
       : false;
-    const isSeguroTx = meta?.obligationType === 'seguro' || isSeguroCategory;
-    const targetVehId = (meta?.assetType === 'veiculo' && meta?.assetId)
+    const descLower = (transaction.description || '').toLowerCase();
+    const isSeguroDesc = descLower.includes('seguro');
+    const isSeguroTx = meta?.obligationType === 'seguro' || isSeguroCategory || isSeguroDesc;
+
+    let targetVehId = (meta?.assetType === 'veiculo' && meta?.assetId)
       ? Number(meta.assetId)
       : (links.vehicleTransactionId ? parseInt(links.vehicleTransactionId.split('_')[0]) : undefined);
+
+    // Se ainda não encontrou o veículo explicitamente mas a movimentação é de seguro:
+    if (!targetVehId && isSeguroTx) {
+      const activeVehs = veiculos.filter(v => v.status !== 'vendido');
+      const matchedVeh = activeVehs.find(v => 
+        (v.modelo && descLower.includes(v.modelo.toLowerCase())) ||
+        (v.placa && descLower.includes(v.placa.toLowerCase()))
+      );
+      if (matchedVeh) {
+        targetVehId = matchedVeh.id;
+      } else if (activeVehs.length === 1) {
+        targetVehId = activeVehs[0].id;
+      } else if (activeVehs.length > 1) {
+        const vehWithSeg = activeVehs.find(v => 
+          segurosVeiculo.some(s => s.veiculoId === v.id && (s.status === 'ativo' || s.status === 'pendente_config'))
+        );
+        targetVehId = vehWithSeg ? vehWithSeg.id : activeVehs[0].id;
+      }
+    }
 
     if (isSeguroTx && targetVehId) {
       registerInsuranceLaunchFromTransaction(
@@ -1786,7 +1855,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // 4. Persistir transações
     setTransacoesV2(prev => [...prev, transaction, ...counterpartTxs]);
     toast.success(counterpartTxs.length > 0 ? "Lançamento de partida dobrada realizado." : "Transação registrada com sucesso.");
-  }, [billsTracker, updateBill, veiculos, categoriasV2, registerInsuranceLaunchFromTransaction]);
+  }, [billsTracker, updateBill, veiculos, categoriasV2, segurosVeiculo, registerInsuranceLaunchFromTransaction]);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
     const targetTx = transacoesV2.find(t => t.id === transactionId);
@@ -3719,7 +3788,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     },
     updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), 
-    deleteSeguroVeiculo: (id: number) => setSegurosVeiculo(p => p.filter(x => x.id !== id)), 
+    deleteSeguroVeiculo, 
     markSeguroParcelPaid, 
     unmarkSeguroParcelPaid,
     setVehicleInsuranceStatus,
@@ -3854,7 +3923,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, setVehicleInsuranceStatus, metasPersonalizadas,
     uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
     updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno,
-    registerInsuranceLaunchFromTransaction, configurePendingSeguro
+    registerInsuranceLaunchFromTransaction, configurePendingSeguro, deleteSeguroVeiculo
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

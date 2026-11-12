@@ -47,6 +47,7 @@ interface TransactionReviewTableProps {
   categories: Categoria[];
   investments: InvestmentInfo[];
   loans: LoanInfo[];
+  veiculos?: { id: number; modelo: string; placa?: string }[];
   standardizationRules: StandardizationRule[];
   selectedIds: Set<string>;
   onToggleSelect: (id: string) => void;
@@ -109,6 +110,7 @@ export function TransactionReviewTable({
   categories,
   investments,
   loans,
+  veiculos,
   standardizationRules,
   selectedIds,
   onToggleSelect,
@@ -299,7 +301,7 @@ export function TransactionReviewTable({
               </div>
 
               {/* Vínculo Padronizado */}
-              {['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo'].includes(tx.operationType || '') && (
+              {(['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo'].includes(tx.operationType || '') || Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))) && (
                 <div className="space-y-1 p-2.5 rounded-xl bg-muted/15 border border-border/30">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground">Vincular Registro</Label>
                   <LinkSearchSelector
@@ -308,10 +310,13 @@ export function TransactionReviewTable({
                     currentAccountId={currentAccountId}
                     investments={investments}
                     loans={loans}
+                    veiculos={veiculos}
                     destinationAccountId={tx.destinationAccountId}
                     tempInvestmentId={tx.tempInvestmentId}
                     tempLoanId={tx.tempLoanId}
                     tempParcelaId={tx.tempParcelaId}
+                    tempAssetId={tx.tempAssetId}
+                    isInsurance={Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))}
                     flow={tx.originalFlow || (isIncome ? 'in' : 'out')}
                     isIncome={isIncome}
                     onChange={(updates) => onUpdateTransaction(tx.id, updates)}
@@ -503,10 +508,13 @@ export function TransactionReviewTable({
                     currentAccountId={currentAccountId}
                     investments={investments}
                     loans={loans}
+                    veiculos={veiculos}
                     destinationAccountId={tx.destinationAccountId}
                     tempInvestmentId={tx.tempInvestmentId}
                     tempLoanId={tx.tempLoanId}
                     tempParcelaId={tx.tempParcelaId}
+                    tempAssetId={tx.tempAssetId}
+                    isInsurance={Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))}
                     flow={tx.originalFlow || (isIncome ? 'in' : 'out')}
                     isIncome={isIncome}
                     onChange={(updates) => onUpdateTransaction(tx.id, updates)}

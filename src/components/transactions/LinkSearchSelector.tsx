@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronDown, Landmark, PiggyBank, CreditCard } from "lucide-react";
+import { Check, ChevronDown, Landmark, PiggyBank, CreditCard, Car } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   Command,
@@ -35,10 +35,13 @@ interface LinkSearchSelectorProps {
   currentAccountId: string;
   investments: InvestmentInfo[];
   loans: LoanInfo[];
+  veiculos?: { id: number; modelo: string; placa?: string }[];
   destinationAccountId?: string | null;
   tempInvestmentId?: string | null;
   tempLoanId?: string | null;
   tempParcelaId?: string | null;
+  tempAssetId?: number | null;
+  isInsurance?: boolean;
   flow?: 'in' | 'out';
   isIncome?: boolean;
   onChange: (updates: {
@@ -46,6 +49,8 @@ interface LinkSearchSelectorProps {
     tempInvestmentId?: string | null;
     tempLoanId?: string | null;
     tempParcelaId?: string | null;
+    tempAssetId?: number | null;
+    tempAssetType?: 'veiculo' | 'imovel' | 'terreno' | null;
   }) => void;
   className?: string;
   isCompact?: boolean;
@@ -57,10 +62,13 @@ export function LinkSearchSelector({
   currentAccountId,
   investments,
   loans,
+  veiculos,
   destinationAccountId,
   tempInvestmentId,
   tempLoanId,
   tempParcelaId,
+  tempAssetId,
+  isInsurance,
   flow,
   isIncome,
   onChange,
@@ -71,6 +79,76 @@ export function LinkSearchSelector({
   const [openParcela, setOpenParcela] = React.useState(false);
 
   const isIncoming = flow === 'in' || isIncome === true;
+
+  // Veículo / Seguro Veicular
+  if (operationType === 'veiculo' || isInsurance) {
+    const selectedVeh = (veiculos || []).find(v => v.id === tempAssetId);
+    const selectedLabel = selectedVeh 
+      ? `${selectedVeh.modelo}${selectedVeh.placa ? ` (${selectedVeh.placa})` : ''}` 
+      : "VINCULAR VEÍCULO...";
+
+    return (
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex h-8 w-full items-center justify-between rounded-xl px-2.5 text-[10px] font-black uppercase transition-all duration-200 border border-transparent focus:outline-none",
+              selectedVeh
+                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                : "bg-muted/30 text-muted-foreground hover:bg-muted/50",
+              isCompact && "h-9",
+              className
+            )}
+          >
+            <span className="truncate flex items-center gap-1.5 min-w-0">
+              <Car className="w-3.5 h-3.5 shrink-0 opacity-70 text-blue-500" />
+              <span className="truncate">{selectedLabel}</span>
+            </span>
+            <ChevronDown className="h-3 w-3 opacity-40 shrink-0 ml-1" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-[240px] p-0 z-[300] shadow-2xl border-border/40 rounded-2xl overflow-hidden bg-card"
+          align="start"
+          onWheel={(e) => e.stopPropagation()}
+        >
+          <Command className="bg-card">
+            <CommandInput
+              placeholder="BUSCAR VEÍCULO..."
+              className="h-9 text-[10px] uppercase font-bold tracking-wider"
+            />
+            <CommandList className="max-h-[240px] overflow-y-auto">
+              <CommandEmpty className="py-5 text-[9px] text-center font-black uppercase opacity-40">
+                Nenhum veículo encontrado
+              </CommandEmpty>
+              <CommandGroup className="p-1.5 space-y-0.5">
+                {(veiculos || []).map((v) => (
+                  <CommandItem
+                    key={v.id}
+                    value={`${v.modelo} ${v.placa || ''}`}
+                    onSelect={() => {
+                      onChange({ tempAssetId: v.id, tempAssetType: 'veiculo' });
+                      setOpen(false);
+                    }}
+                    className="text-[10px] font-black uppercase flex items-center justify-between py-2 px-2.5 cursor-pointer rounded-xl hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <Car className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                      <span className="truncate">{v.modelo} {v.placa ? `(${v.placa})` : ''}</span>
+                    </div>
+                    {tempAssetId === v.id && (
+                      <Check className="h-3.5 w-3.5 text-primary shrink-0 ml-1" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    );
+  }
 
   // Transferência
   if (operationType === 'transferencia') {
