@@ -9,7 +9,6 @@ import {
 	Emprestimo,
 	Veiculo,
 	SeguroVeiculo,
-	ObjetivoFinanceiro,
 	AccountType,
 	DateRange,
 	ComparisonDateRanges,
@@ -34,8 +33,6 @@ import {
 	Terreno,
 	generateImovelId,
 	generateTerrenoId,
-	MetaPersonalizada,
-	MetaProgresso,
 	AccountTerm,
 	CreditCardConfig,
 	generateCreditCardConfigId,
@@ -68,7 +65,7 @@ import {
   isInvoicePaymentAlreadyInChecking,
   predictTransactionCategory
 } from "@/lib/pluggyAdapter";
-import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, addYears, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
+import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, addYears, isBefore, isAfter, isSameDay, isSameMonth, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
 import { areDescriptionsCompatible, normalizeDescriptionForMatch, matchVehicleForInsurance } from "@/lib/transactionValidator";
 import { toast } from "sonner";
@@ -101,8 +98,6 @@ const DEFAULT_RANGES: ComparisonDateRanges = {
     range1: calculateDefaultRange(),
     range2: calculateComparisonRange(calculateDefaultRange()),
 };
-
-const defaultAlertStartDate = formatDateLocal(subDays(new Date(), 30))!;
 
 export const getDueDate = (startDateStr: string, installmentNumber: number): Date => {
   const startDate = parseDateLocal(startDateStr);
@@ -362,12 +357,6 @@ interface FinanceContextType {
   registerInsuranceLaunchFromTransaction: (veiculoId: number, amount: number, date: string, transactionId?: string, forceNewSeguro?: boolean) => SeguroVeiculo | undefined;
   revertInsuranceEffectsForTransactions: (transactionIds: string[]) => void;
   configurePendingSeguro: (seguroId: number, config: { seguradora: string; numeroApolice: string; vigenciaInicio: string; vigenciaFim: string; valorTotal: number; numeroParcelas: number; }) => void;
-  
-  // Objetivos Financeiros
-  objetivos: ObjetivoFinanceiro[];
-  addObjetivo: (obj: Omit<ObjetivoFinanceiro, "id">) => void;
-  updateObjetivo: (id: number, o: Partial<ObjetivoFinanceiro>) => void;
-  deleteObjetivo: (id: number) => void;
 
   // Bill Tracker
   billsTracker: BillTracker[];
@@ -452,10 +441,6 @@ interface FinanceContextType {
   dateRanges: ComparisonDateRanges;
   setDateRanges: Dispatch<SetStateAction<ComparisonDateRanges>>;
   
-  // Alert Filtering
-  alertStartDate: string;
-  setAlertStartDate: Dispatch<SetStateAction<string>>;
-  
   // Revenue Forecast
   revenueForecasts: Record<string, number>;
   setMonthlyRevenueForecast: (monthKey: string, value: number) => void;
@@ -487,13 +472,6 @@ interface FinanceContextType {
   calculateBalanceUpToDate: (accountId: string, date: Date | undefined, allTransactions: TransacaoCompleta[], accounts: ContaCorrente[]) => number;
   calculateTotalInvestmentBalanceAtDate: (date: Date | undefined) => number;
   calculatePaidInstallmentsUpToDate: (loanId: number, targetDate: Date) => number; 
-
-  // Metas Personalizadas
-  metasPersonalizadas: MetaPersonalizada[];
-  addMetaPersonalizada: (meta: MetaPersonalizada) => void;
-  updateMetaPersonalizada: (id: string, updates: Partial<MetaPersonalizada>) => void;
-  deleteMetaPersonalizada: (id: string) => void;
-  calcularProgressoMeta: (meta: MetaPersonalizada) => MetaProgresso;
 
   // CLT
   cltContracts: CltContract[];
@@ -603,7 +581,6 @@ const STORAGE_KEYS = {
   EMPRESTIMOS: "neon_finance_emprestimos",
   VEICULOS: "neon_finance_veiculos",
   SEGUROS_VEICULO: "neon_finance_seguros_veiculo",
-  OBJETIVOS: "neon_finance_objetivos",
   BILLS_TRACKER: "neon_finance_bills_tracker",
   CONTAS_MOVIMENTO: "fin_accounts_v1",
   CATEGORIAS_V2: "fin_categories_v1",
@@ -611,11 +588,9 @@ const STORAGE_KEYS = {
   STANDARDIZATION_RULES: "fin_standardization_rules_v1",
   IMPORTED_STATEMENTS: "fin_imported_statements_v1",
   DATE_RANGES: "fin_date_ranges_v1",
-  ALERT_START_DATE: "fin_alert_start_date_v1",
   REVENUE_FORECASTS: "fin_revenue_forecasts_v1",
   IMOVEIS: "neon_finance_imoveis",
   TERRENOS: "neon_finance_terrenos",
-  METAS_PERSONALIZADAS: "fin_metas_personalizadas_v1",
   CREDIT_CARD_CONFIGS: "fin_credit_card_configs_v1",
   CLT_CONTRACTS: "fin_clt_contracts_v1",
   CLT_COMPETENCIAS: "fin_clt_competencias_v1",
@@ -629,13 +604,11 @@ const STORAGE_KEYS = {
 const initialEmprestimos: Emprestimo[] = [];
 const initialVeiculos: Veiculo[] = [];
 const initialSegurosVeiculo: SeguroVeiculo[] = [];
-const initialObjetivos: ObjetivoFinanceiro[] = [];
 const initialBillsTracker: BillTracker[] = [];
 const initialStandardizationRules: StandardizationRule[] = [];
 const initialImportedStatements: ImportedStatement[] = [];
 const initialImoveis: Imovel[] = [];
 const initialTerrenos: Terreno[] = [];
-const initialMetasPersonalizadas: MetaPersonalizada[] = [];
 const initialCreditCardConfigs: CreditCardConfig[] = [];
 const initialPluggyConfig: PluggyConfig = {
   itemId: "",
@@ -736,7 +709,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [imoveis, setImoveis] = useState<Imovel[]>(() => loadFromStorage(STORAGE_KEYS.IMOVEIS, initialImoveis));
   const [terrenos, setTerrenos] = useState<Terreno[]>(() => loadFromStorage(STORAGE_KEYS.TERRENOS, initialTerrenos));
   const [segurosVeiculo, setSegurosVeiculo] = useState<SeguroVeiculo[]>(() => loadFromStorage(STORAGE_KEYS.SEGUROS_VEICULO, initialSegurosVeiculo));
-  const [objetivos, setObjetivos] = useState<ObjetivoFinanceiro[]>(() => loadFromStorage(STORAGE_KEYS.OBJETIVOS, initialObjetivos));
   const [billsTracker, setBillsTracker] = useState<BillTracker[]>(() => loadFromStorage(STORAGE_KEYS.BILLS_TRACKER, initialBillsTracker));
   const [contasMovimento, setContasMovimento] = useState<ContaCorrente[]>(() => {
     const loaded = loadFromStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, DEFAULT_ACCOUNTS).map(normalizeAccountTerm);
@@ -794,9 +766,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   const [standardizationRules, setStandardizationRules] = useState<StandardizationRule[]>(() => loadFromStorage(STORAGE_KEYS.STANDARDIZATION_RULES, initialStandardizationRules));
   const [importedStatements, setImportedStatements] = useState<ImportedStatement[]>(() => normalizeImportedStatements(loadFromStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, initialImportedStatements)));
   const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(() => loadFromStorage(STORAGE_KEYS.DATE_RANGES, DEFAULT_RANGES));
-  const [alertStartDate, setAlertStartDate] = useState<string>(() => loadFromStorage(STORAGE_KEYS.ALERT_START_DATE, defaultAlertStartDate));
   const [revenueForecasts, setRevenueForecasts] = useState<Record<string, number>>(() => loadFromStorage(STORAGE_KEYS.REVENUE_FORECASTS, {}));
-  const [metasPersonalizadas, setMetasPersonalizadas] = useState<MetaPersonalizada[]>(() => loadFromStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, initialMetasPersonalizadas));
   const [creditCardConfigs, setCreditCardConfigs] = useState<CreditCardConfig[]>(() => loadFromStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, initialCreditCardConfigs));
   const [cltContracts, setCltContracts] = useState<CltContract[]>(() => loadFromStorage(STORAGE_KEYS.CLT_CONTRACTS, []));
   const [cltCompetencias, setCltCompetencias] = useState<CltCompetencia[]>(() => loadFromStorage(STORAGE_KEYS.CLT_COMPETENCIAS, []));
@@ -969,17 +939,14 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   useEffect(() => { saveToStorage(STORAGE_KEYS.IMOVEIS, imoveis); updateLastModified(); }, [imoveis, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TERRENOS, terrenos); updateLastModified(); }, [terrenos, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.SEGUROS_VEICULO, segurosVeiculo); updateLastModified(); }, [segurosVeiculo, updateLastModified]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.OBJETIVOS, objetivos); updateLastModified(); }, [objetivos, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.BILLS_TRACKER, billsTracker); updateLastModified(); }, [billsTracker, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.STANDARDIZATION_RULES, standardizationRules); updateLastModified(); }, [standardizationRules, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, importedStatements); updateLastModified(); }, [importedStatements, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.DATE_RANGES, dateRanges); }, [dateRanges]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.ALERT_START_DATE, alertStartDate); }, [alertStartDate]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.REVENUE_FORECASTS, revenueForecasts); }, [revenueForecasts]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CONTAS_MOVIMENTO, contasMovimento); updateLastModified(); }, [contasMovimento, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CATEGORIAS_V2, categoriasV2); updateLastModified(); }, [categoriasV2, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.TRANSACOES_V2, transacoesV2); updateLastModified(); }, [transacoesV2, updateLastModified]);
-  useEffect(() => { saveToStorage(STORAGE_KEYS.METAS_PERSONALIZADAS, metasPersonalizadas); updateLastModified(); }, [metasPersonalizadas, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CREDIT_CARD_CONFIGS, creditCardConfigs); updateLastModified(); }, [creditCardConfigs, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_CONTRACTS, cltContracts); updateLastModified(); }, [cltContracts, updateLastModified]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.CLT_COMPETENCIAS, cltCompetencias); updateLastModified(); }, [cltCompetencias, updateLastModified]);
@@ -2845,15 +2812,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         emprestimos, 
         veiculos, 
         segurosVeiculo, 
-        objetivos, 
         billsTracker, 
         standardizationRules, 
         importedStatements, 
         revenueForecasts, 
-        alertStartDate, 
         imoveis, 
         terrenos,
-        metasPersonalizadas,
         creditCardConfigs,
         cltContracts,
         cltCompetencias,
@@ -2876,8 +2840,8 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `finance_backup_${new Date().toISOString().split('T')[0]}.json`; a.click();
   }, [
-    contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, objetivos, billsTracker, 
-    standardizationRules, importedStatements, revenueForecasts, alertStartDate, imoveis, terrenos, metasPersonalizadas, 
+    contasMovimento, categoriasV2, transacoesV2, emprestimos, veiculos, segurosVeiculo, billsTracker, 
+    standardizationRules, importedStatements, revenueForecasts, imoveis, terrenos, 
     creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs, cltHolerites, vinculosOcupacionais, recebiveisParcelados, 
     parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, expenseSnapshots, pluggyConfig, pluggyLastPayload, lastModified
   ]);
@@ -2893,15 +2857,12 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       if (data.data.emprestimos) setEmprestimos(data.data.emprestimos);
       if (data.data.veiculos) setVeiculos(data.data.veiculos);
       if (data.data.segurosVeiculo) setSegurosVeiculo(data.data.segurosVeiculo);
-      if (data.data.objetivos) setObjetivos(data.data.objetivos);
       if (data.data.billsTracker) setBillsTracker(data.data.billsTracker);
       if (data.data.standardizationRules) setStandardizationRules(data.data.standardizationRules);
       if (data.data.importedStatements) setImportedStatements(data.data.importedStatements);
       if (data.data.revenueForecasts) setRevenueForecasts(data.data.revenueForecasts);
-      if (data.data.alertStartDate) setAlertStartDate(data.data.alertStartDate);
       if (data.data.imoveis) setImoveis(data.data.imoveis);
       if (data.data.terrenos) setTerrenos(data.data.terrenos);
-      if (data.data.metasPersonalizadas) setMetasPersonalizadas(data.data.metasPersonalizadas);
       if (data.data.creditCardConfigs) setCreditCardConfigs(data.data.creditCardConfigs);
       if (data.data.cltContracts) setCltContracts(data.data.cltContracts);
       if (data.data.cltCompetencias) setCltCompetencias(data.data.cltCompetencias);
@@ -3603,66 +3564,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       .reduce((acc, t) => acc + t.amount, 0);
   }, [transacoesV2]);
 
-  const addMetaPersonalizada = useCallback((meta: MetaPersonalizada) => {
-    setMetasPersonalizadas(prev => [...prev, meta]);
-  }, []);
-
-  const updateMetaPersonalizada = useCallback((id: string, updates: Partial<MetaPersonalizada>) => {
-    setMetasPersonalizadas(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
-  }, []);
-
-  const deleteMetaPersonalizada = useCallback((id: string) => {
-    setMetasPersonalizadas(prev => prev.filter(m => m.id !== id));
-  }, []);
-
-  const calcularProgressoMeta = useCallback((meta: MetaPersonalizada): MetaProgresso => {
-    const now = new Date();
-    let valorAtual = 0;
-    let txsPeriodo = transacoesV2;
-    if (meta.periodoAvaliacao === 'mensal') txsPeriodo = transacoesV2.filter(t => isSameMonth(parseDateLocal(t.date), now));
-    else if (meta.periodoAvaliacao === 'trimestral') {
-      const threeMonthsAgo = subMonths(now, 3);
-      txsPeriodo = transacoesV2.filter(t => { const txDate = parseDateLocal(t.date); return txDate >= threeMonthsAgo && txDate <= now; });
-    } else if (meta.periodoAvaliacao === 'anual') txsPeriodo = transacoesV2.filter(t => isSameYear(parseDateLocal(t.date), now));
-
-    switch (meta.metrica) {
-      case 'receita': valorAtual = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0); break;
-      case 'despesa': valorAtual = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0); break;
-      case 'investimento': valorAtual = txsPeriodo.filter(t => t.operationType === 'aplicacao').reduce((a, t) => a + t.amount, 0); break;
-      case 'saldo': valorAtual = contasMovimento.filter(c => ['corrente', 'poupanca', 'reserva'].includes(c.accountType)).reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0); break;
-      case 'patrimonio': valorAtual = getAtivosTotal(now) - getPassivosTotal(now); break;
-      case 'categoria_especifica': if (meta.categoriaId) valorAtual = txsPeriodo.filter(t => t.categoryId === meta.categoriaId).reduce((a, t) => a + t.amount, 0); break;
-      case 'reserva_emergencia': {
-        const reserva = contasMovimento.filter(c => c.accountType === 'reserva').reduce((a, c) => a + Math.max(0, calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento)), 0);
-        const threeMonthsAgo = subMonths(now, 3);
-        const gastos3m = transacoesV2.filter(t => { try { const d = parseDateLocal(t.date); return d >= threeMonthsAgo && d <= now && t.flow === 'out'; } catch { return false; } }).reduce((acc, t) => acc + t.amount, 0);
-        const gastoMensalMedio = gastos3m / 3;
-        valorAtual = reserva / gastoMensalMedio;
-        break;
-      }
-    }
-
-    if (meta.tipo === 'economia') {
-      const receitas = txsPeriodo.filter(t => t.operationType === 'receita' || t.operationType === 'rendimento').reduce((a, t) => a + t.amount, 0);
-      const despesas = txsPeriodo.filter(t => t.flow === 'out').reduce((a, t) => a + t.amount, 0);
-      valorAtual = receitas > 0 ? ((receitas - despesas) / receitas) * 100 : 0;
-    }
-
-    let percentual = meta.valorAlvo > 0 ? (valorAtual / meta.valorAlvo) * 100 : 0;
-    percentual = Math.min(percentual, 200);
-    let status: 'sucesso' | 'alerta' | 'perigo' | 'neutro' = 'neutro';
-    if (meta.logica === 'maior_melhor') {
-      if (percentual >= 100) status = 'sucesso';
-      else if (percentual >= 70) status = 'alerta';
-      else status = 'perigo';
-    } else {
-      if (percentual <= 80) status = 'sucesso';
-      else if (percentual <= 100) status = 'alerta';
-      else status = 'perigo';
-    }
-    return { valorAtual, percentual, status };
-  }, [transacoesV2, contasMovimento, calculateBalanceUpToDate, getAtivosTotal, getPassivosTotal]);
-
   const addCreditCardConfig = useCallback((config: Omit<CreditCardConfig, 'id'>) => {
     setCreditCardConfigs(prev => [...prev, { ...config, id: generateCreditCardConfigId() }]);
   }, []);
@@ -4032,7 +3933,6 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     registerInsuranceLaunchFromTransaction,
     revertInsuranceEffectsForTransactions,
     configurePendingSeguro,
-    objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
     billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth, autoPopulateFixedBills,
     creditCardConfigs, addCreditCardConfig, updateCreditCardConfig, deleteCreditCardConfig, getInvoiceForCard, generateInvoiceBills, getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions,
     contasMovimento, setContasMovimento, getContasCorrentesTipo: () => contasMovimento.filter(c => c.accountType === 'corrente'),
@@ -4040,14 +3940,13 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     standardizationRules, addStandardizationRule, updateStandardizationRule, deleteStandardizationRule,
     importedStatements, processStatementFile, deleteImportedStatement, getTransactionsForReview, updateImportedStatement, contabilizeImportedTransaction, uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements,
     executeTransaction,
-    dateRanges, setDateRanges, alertStartDate, setAlertStartDate, revenueForecasts, setMonthlyRevenueForecast: (k: string, v: number) => setRevenueForecasts(p => ({ ...p, [k]: v })), getRevenueForPreviousMonth,
+    dateRanges, setDateRanges, revenueForecasts, setMonthlyRevenueForecast: (k: string, v: number) => setRevenueForecasts(p => ({ ...p, [k]: v })), getRevenueForPreviousMonth,
     getTotalReceitas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'receita' || t.operationType === 'rendimento') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
     getTotalDespesas: (m?: string) => transacoesV2.filter(t => (t.operationType === 'despesa' || t.operationType === 'pagamento_emprestimo') && (!m || t.date.startsWith(m))).reduce((a, t) => a + t.amount, 0),
     getTotalDividas: () => emprestimos.reduce((a, e) => a + e.valorTotal, 0), getCustoVeiculos: () => veiculos.filter(v => v.status !== 'vendido').reduce((a, v) => a + v.valorSeguro, 0), getSaldoAtual: () => contasMovimento.reduce((a, c) => a + calculateBalanceUpToDate(c.id, undefined, transacoesV2, contasMovimento), 0),
     getValorFipeTotal, getValorImoveisTerrenos, getSaldoDevedor: (d?: Date) => getLoanPrincipalRemaining(d) + getCreditCardDebt(d), getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais, getDespesasFixas,
     getPatrimonioLiquido: (d?: Date) => getAtivosTotal(d) - getPassivosTotal(d), getAtivosTotal, getPassivosTotal, getSegurosAApropriar, getSegurosAPagar,
     calculateBalanceUpToDate, calculateTotalInvestmentBalanceAtDate, calculatePaidInstallmentsUpToDate,
-    metasPersonalizadas, addMetaPersonalizada, updateMetaPersonalizada, deleteMetaPersonalizada, calcularProgressoMeta,
     
     cltContracts,
     addCltContract: (c: CltContract) => setCltContracts(p => [...p, c]),
@@ -4134,7 +4033,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     lastModified,
     exportData, importData,
   }), [
-    emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, objetivos, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
+    emprestimos, veiculos, imoveis, terrenos, segurosVeiculo, billsTracker, creditCardConfigs, cltContracts, cltCompetencias, cltLegislacaoConfigs,
     vinculosOcupacionais, recebiveisParcelados, parcelasRecebiveis, eventosFerias, eventosRescisao, historicosContribuicaoINSS, ignoredTxIds, setIgnoredTxIds,
     expenseSnapshots, saveExpenseSnapshot, deleteExpenseSnapshot, getExpenseSnapshot,
     pluggyConfig, updatePluggyConfig, pluggyLastPayload, setPluggyLastPayload, syncPluggyData, isSyncingPluggy, undoPluggyCardTransactions,
@@ -4148,19 +4047,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     addHistoricoContribuicao, updateHistoricoContribuicao, deleteHistoricoContribuicao,
     
     contasMovimento, categoriasV2, transacoesV2, standardizationRules, importedStatements, dateRanges, 
-    alertStartDate, revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,
+    revenueForecasts, lastModified, getAtivosTotal, getPassivosTotal, calculateBalanceUpToDate,
     calculatePaidInstallmentsUpToDate, calculateLoanSchedule, getSegurosAApropriar, getSegurosAPagar,
     processStatementFile, getTransactionsForReview, getBillsForMonth, getPotentialFixedBillsForMonth,
     getFutureFixedBills, getOtherPaidExpensesForMonth, getInvoiceForCard, generateInvoiceBills,
     getCardCurrentCycleUsage, getNextCycleBalance, getCardCycleTransactions, autoPopulateFixedBills,
     getValorFipeTotal, getValorImoveisTerrenos, getLoanPrincipalRemaining, getCreditCardDebt, getJurosTotais,
-    getDespesasFixas, getRevenueForPreviousMonth, calcularProgressoMeta, contabilizeImportedTransaction,
+    getDespesasFixas, getRevenueForPreviousMonth, contabilizeImportedTransaction,
     executeTransaction, updateBill, deleteBill, exportData, importData,
-    addCreditCardConfig, addEmprestimo, addImovel, addMetaPersonalizada, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
+    addCreditCardConfig, addEmprestimo, addImovel, addPurchaseInstallments, addStandardizationRule, addTerreno, addVeiculo,
     calculateLoanAmortizationAndInterest, calculateLoanPrincipalDueInNextMonths, deleteCreditCardConfig, deleteImovel, deleteImportedStatement,
-    deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, setVehicleInsuranceStatus, metasPersonalizadas,
+    deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, setVehicleInsuranceStatus,
     uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
-    updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno,
+    updateImportedStatement, updateStandardizationRule, updateTerreno,
     registerInsuranceLaunchFromTransaction, revertInsuranceEffectsForTransactions, configurePendingSeguro, deleteSeguroVeiculo
   ]);
 

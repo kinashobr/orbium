@@ -1,16 +1,14 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "./Sidebar";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { BottomNav } from "./BottomNav";
 import { 
-  Bell, 
   Menu, 
   Settings2, 
   Palette, 
   Cloud, 
   Download, 
-  Upload, 
-  X 
+  Upload
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -22,19 +20,9 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { SidebarAlertas, DEFAULT_ALERTS } from "@/components/dashboard/SidebarAlertas";
-import { AlertasConfigDialog, AlertaConfig } from "@/components/dashboard/AlertasConfigDialog";
 import { GoogleDriveSync } from "./GoogleDriveSync";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { isAfter, isSameDay, startOfDay } from "date-fns";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -52,25 +40,12 @@ export function MainLayout({
 
   const { 
     exportData, 
-    importData, 
-    alertStartDate, 
-    setAlertStartDate,
-    transacoesV2,
-    emprestimos,
-    segurosVeiculo,
-    contasMovimento,
-    calculateBalanceUpToDate
+    importData
   } = useFinance();
   
   const { theme, setTheme, themes } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showNavDrawer, setShowNavDrawer] = useState(false);
-  const [showAlertsDialog, setShowAlertsDialog] = useState(false);
-  
-  const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
-  const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => 
-    JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS))
-  );
 
   useEffect(() => {
     const handleSidebarToggle = (e: CustomEvent) => {
@@ -105,91 +80,10 @@ export function MainLayout({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const alertCount = useMemo(() => {
-    const parsedAlertStartDate = startOfDay(parseDateLocal(alertStartDate));
-    const now = new Date();
-    const empPend = emprestimos.filter(e => e.status === 'pendente_config').length;
-    
-    const receitasMes = transacoesV2
-      .filter(t => (t.operationType === "receita" || t.operationType === "rendimento") && (isAfter(parseDateLocal(t.date), parsedAlertStartDate) || isSameDay(parseDateLocal(t.date), parsedAlertStartDate)))
-      .reduce((acc, t) => acc + t.amount, 0);
-    
-    const despesasMes = transacoesV2
-      .filter(t => (t.operationType === "despesa" || t.operationType === "pagamento_emprestimo") && (isAfter(parseDateLocal(t.date), parsedAlertStartDate) || isSameDay(parseDateLocal(t.date), parsedAlertStartDate)))
-      .reduce((acc, t) => acc + t.amount, 0);
-      
-    const margemPoupanca = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
-    
-    const dataLimiteSeguro = new Date();
-    dataLimiteSeguro.setDate(dataLimiteSeguro.getDate() + 60);
-    const segurosVencendo = segurosVeiculo.filter(s => {
-      try {
-        const vigenciaFim = parseDateLocal(s.vigenciaFim);
-        return vigenciaFim > now && vigenciaFim <= dataLimiteSeguro;
-      } catch { return false; }
-    }).length;
-
-    let count = 0;
-    if (empPend > 0) count++;
-    if (margemPoupanca < 10 && receitasMes > 0) count++;
-    if (segurosVencendo > 0) count++;
-    
-    const saldoLiquidez = contasMovimento
-      .filter(c => ['corrente', 'poupanca', 'reserva'].includes(c.accountType))
-      .reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0);
-    if (saldoLiquidez < 0) count++;
-
-    return count;
-  }, [transacoesV2, emprestimos, segurosVeiculo, alertStartDate, contasMovimento, calculateBalanceUpToDate]);
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col overflow-x-hidden">
       {/* Header Mobile */}
       <header className="fixed top-0 right-0 z-50 md:hidden flex items-center gap-2 p-3">
-        {/* Alertas - Novo Design Superior (Top Sheet) */}
-        <Dialog open={showAlertsDialog} onOpenChange={setShowAlertsDialog}>
-          <DialogTrigger asChild>
-            <button className="relative flex items-center justify-center w-12 h-12 rounded-[1.25rem] bg-card/80 backdrop-blur-xl border border-border/40 shadow-soft-lg active:scale-90 transition-all duration-300">
-              <Bell className="h-5 w-5 text-foreground/80" />
-              {alertCount > 0 && (
-                <span className="absolute top-2.5 right-2.5 flex h-4 w-4 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-destructive/40 opacity-75"></span>
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-destructive border-2 border-card"></span>
-                </span>
-              )}
-            </button>
-          </DialogTrigger>
-          <DialogContent hideCloseButton className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] sm:w-[400px] rounded-[2.5rem] bg-card/95 backdrop-blur-2xl border-border/40 shadow-2xl animate-in slide-in-from-top-8 duration-500 p-0 overflow-hidden translate-y-0">
-            <div className="p-6 max-h-[80vh] overflow-y-auto hide-scrollbar-mobile">
-              <DialogHeader className="pb-4">
-                <DialogTitle className="text-left text-lg font-bold flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-2xl bg-destructive/10">
-                      <Bell className="w-5 h-5 text-destructive" />
-                    </div>
-                    Central de Alertas
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="rounded-full h-10 w-10 bg-muted/50 hover:bg-muted" 
-                    onClick={() => setShowAlertsDialog(false)}
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </DialogTitle>
-              </DialogHeader>
-              <SidebarAlertas 
-                collapsed={false} 
-                onConfigOpen={() => { 
-                  setShowAlertsDialog(false); 
-                  setAlertasConfigOpen(true); 
-                }} 
-              />
-            </div>
-          </DialogContent>
-        </Dialog>
-
         {/* Painel de Controle (Mantido Drawer para diferenciar ações) */}
         <Drawer open={showNavDrawer} onOpenChange={setShowNavDrawer}>
           <DrawerTrigger asChild>
@@ -261,17 +155,6 @@ export function MainLayout({
         </main>
       </div>
       {!hideSidebar && <BottomNav />}
-      <AlertasConfigDialog
-        open={alertasConfigOpen}
-        onOpenChange={setAlertasConfigOpen}
-        config={alertasConfig}
-        onSave={(newAlerts) => {
-          setAlertasConfig(newAlerts);
-          localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
-        }}
-        initialStartDate={alertStartDate}
-        onStartDateChange={setAlertStartDate}
-      />
     </div>
   );
 }

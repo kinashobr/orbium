@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { 
@@ -11,17 +11,11 @@ import {
   Wallet, 
   Download, 
   Upload, 
-  TrendingUp, 
   PieChart, 
   BarChart3, 
-  Building, 
-  Bell, 
   Settings,
   Palette,
   Database,
-  Monitor,
-  CalendarCheck,
-  Sparkles,
   RefreshCw,
   Landmark,
   Cloud,
@@ -29,23 +23,19 @@ import {
   CloudUpload,
   HardDrive
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useFinance } from "@/contexts/FinanceContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { initiateGoogleAuth } from "@/lib/googleDrive";
 import { toast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { SidebarAlertas, DEFAULT_ALERTS } from "@/components/dashboard/SidebarAlertas";
-import { AlertasConfigDialog, AlertaConfig } from "@/components/dashboard/AlertasConfigDialog";
-import { GoogleDriveSync } from "./GoogleDriveSync";
 import { 
   Popover, 
   PopoverContent, 
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
-import { isAfter, isSameDay, startOfDay, format } from "date-fns";
+import { format } from "date-fns";
 
 interface NavItemData {
   title: string;
@@ -64,10 +54,7 @@ const mainNavItems: NavItemData[] = [
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const [alertasPopoverOpen, setAlertasPopoverOpen] = useState(false);
-  const [alertasConfigOpen, setAlertasConfigOpen] = useState(false);
   const [ajustesPopoverOpen, setAjustesPopoverOpen] = useState(false);
-  const [alertasConfig, setAlertasConfig] = useState<AlertaConfig[]>(() => JSON.parse(localStorage.getItem("alertas-config-v3") || JSON.stringify(DEFAULT_ALERTS)));
   const location = useLocation();
   const navigate = useNavigate();
   const finance = useFinance();
@@ -79,15 +66,11 @@ export function Sidebar() {
     emprestimos, 
     segurosVeiculo,
     contasMovimento,
-    getSaldoDevedor,
-    alertStartDate,
-    setAlertStartDate,
-    calculateBalanceUpToDate,
     pluggyConfig,
     syncPluggyData,
     isSyncingPluggy
   } = finance;
-  const { theme, setTheme, themes, resolvedTheme } = useTheme();
+  const { theme, setTheme, themes } = useTheme();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -101,49 +84,6 @@ export function Sidebar() {
     localStorage.setItem("sidebar-collapsed", JSON.stringify(collapsed));
     window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: collapsed }));
   }, [collapsed]);
-
-  const alertCount = useMemo(() => {
-    const parsedAlertStartDate = startOfDay(parseDateLocal(alertStartDate));
-    const now = new Date();
-    const emprestimosPendentes = emprestimos.filter(e => e.status === 'pendente_config').length;
-    
-    const transacoesFluxo = transacoesV2.filter(t => {
-      try {
-        const d = parseDateLocal(t.date);
-        return isAfter(d, parsedAlertStartDate) || isSameDay(d, parsedAlertStartDate);
-      } catch { return false; }
-    });
-
-    const receitasMes = transacoesFluxo
-      .filter(t => t.operationType === "receita" || t.operationType === "rendimento")
-      .reduce((acc, t) => acc + t.amount, 0);
-    const despesasMes = transacoesFluxo
-      .filter(t => t.operationType === "despesa" || t.operationType === "pagamento_emprestimo")
-      .reduce((acc, t) => acc + t.amount, 0);
-    const margemPoupanca = receitasMes > 0 ? ((receitasMes - despesasMes) / receitasMes) * 100 : 0;
-    
-    const dataLimiteSeguro = new Date();
-    dataLimiteSeguro.setDate(dataLimiteSeguro.getDate() + 60);
-    const segurosVencendo = segurosVeiculo.filter(s => {
-      try {
-        const vigenciaFim = parseDateLocal(s.vigenciaFim);
-        return vigenciaFim > now && vigenciaFim <= dataLimiteSeguro;
-      } catch { return false; }
-    }).length;
-
-    let count = 0;
-    if (emprestimosPendentes > 0) count++;
-    if (margemPoupanca < 10 && receitasMes > 0) count++;
-    if (segurosVencendo > 0) count++;
-    
-    const contasLiquidez = contasMovimento.filter(c => 
-      ['corrente', 'poupanca', 'reserva', 'renda_fixa'].includes(c.accountType)
-    );
-    const saldoLiquidez = contasLiquidez.reduce((acc, c) => acc + calculateBalanceUpToDate(c.id, now, transacoesV2, contasMovimento), 0);
-    if (saldoLiquidez < 0) count++;
-
-    return count;
-  }, [transacoesV2, emprestimos, segurosVeiculo, alertStartDate, contasMovimento, calculateBalanceUpToDate]);
 
   const handleExport = () => {
     exportData();
@@ -211,15 +151,12 @@ export function Sidebar() {
         emprestimos: emprestimos, 
         veiculos: finance.veiculos, 
         segurosVeiculo: segurosVeiculo, 
-        objetivos: finance.objetivos, 
         billsTracker: finance.billsTracker, 
         standardizationRules: finance.standardizationRules, 
         importedStatements: finance.importedStatements, 
         revenueForecasts: finance.revenueForecasts, 
-        alertStartDate: alertStartDate, 
         imoveis: finance.imoveis, 
         terrenos: finance.terrenos,
-        metasPersonalizadas: finance.metasPersonalizadas,
         creditCardConfigs: finance.creditCardConfigs,
         cltContracts: finance.cltContracts,
         cltCompetencias: finance.cltCompetencias,
@@ -406,41 +343,6 @@ export function Sidebar() {
             </TooltipContent>
           </Tooltip>
         </div>
-
-        {/* Alertas Popover */}
-        <Popover open={alertasPopoverOpen} onOpenChange={setAlertasPopoverOpen}>
-          <PopoverTrigger asChild>
-            <button className={cn(
-              "relative flex items-center h-9 rounded-xl transition-all duration-300 group hover:bg-muted/50",
-              collapsed ? "justify-center w-full" : "px-3 gap-2.5 w-full"
-            )}>
-              <div className="relative flex items-center justify-center w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors">
-                <Bell size={17} />
-                {alertCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-destructive rounded-full border-2 border-card" />
-                )}
-              </div>
-              {!collapsed && <span className="text-[12px] font-bold text-muted-foreground group-hover:text-foreground">Alertas</span>}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent side="right" sideOffset={12} className="p-0 border-border/40 shadow-2xl rounded-[1.5rem] w-72 bg-card">
-            <div className="px-2 pb-4">
-              <SidebarAlertas collapsed={false} onConfigOpen={() => { setAlertasPopoverOpen(false); setAlertasConfigOpen(true); }} />
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        <AlertasConfigDialog 
-          open={alertasConfigOpen} 
-          onOpenChange={setAlertasConfigOpen} 
-          config={alertasConfig} 
-          onSave={(newAlerts) => {
-            setAlertasConfig(newAlerts);
-            localStorage.setItem("alertas-config-v3", JSON.stringify(newAlerts));
-          }} 
-          initialStartDate={alertStartDate} 
-          onStartDateChange={setAlertStartDate} 
-        />
 
         {/* Ajustes Popover */}
         <Popover open={ajustesPopoverOpen} onOpenChange={setAjustesPopoverOpen}>

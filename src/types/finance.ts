@@ -321,60 +321,6 @@ export interface SeguroVeiculo {
   }[];
 }
 
-// Objetivo Financeiro V2
-export interface ObjetivoFinanceiro {
-  id: number;
-  nome: string;
-  atual: number;
-  meta: number;
-  rentabilidade: number;
-  cor: string;
-  contaMovimentoId?: string;
-}
-
-// ============================================
-// META PERSONALIZADA V1
-// ============================================
-
-export type MetaTipo = 'valor_fixo' | 'percentual' | 'economia' | 'categoria';
-export type MetaMetrica =
-  | 'receita'
-  | 'despesa'
-  | 'investimento'
-  | 'saldo'
-  | 'patrimonio'
-  | 'categoria_especifica'
-  // NOVO: metas guiadas (gestão pessoal)
-  | 'reserva_emergencia';
-export type MetaPeriodo = 'mensal' | 'trimestral' | 'anual';
-export type MetaLogica = 'maior_melhor' | 'menor_melhor';
-
-export interface MetaPersonalizada {
-  id: string;
-  nome: string;
-  descricao?: string;
-  tipo: MetaTipo;
-  metrica: MetaMetrica;
-  valorAlvo: number;
-  categoriaId?: string; // Para metas de categoria específica
-  periodoAvaliacao: MetaPeriodo;
-  logica: MetaLogica;
-  ativo: boolean;
-  criadoEm: string;
-  cor?: string;
-  icone?: string;
-}
-
-export interface MetaProgresso {
-  valorAtual: number;
-  percentual: number;
-  status: 'sucesso' | 'alerta' | 'perigo' | 'neutro';
-}
-
-export function generateMetaId(): string {
-  return `meta_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
-
 // ============================================
 // NOVO: RASTREADOR DE CONTAS A PAGAR (BillTracker)
 // ============================================
@@ -693,13 +639,11 @@ export interface FinanceExportV2 {
     emprestimos: Emprestimo[];
     veiculos: Veiculo[];
     segurosVeiculo: SeguroVeiculo[];
-    objetivos: ObjetivoFinanceiro[];
     billsTracker: BillTracker[];
     standardizationRules: StandardizationRule[];
     importedStatements: ImportedStatement[];
     imoveis: Imovel[];
     terrenos: Terreno[];
-    metasPersonalizadas: MetaPersonalizada[];
     creditCardConfigs: CreditCardConfig[];
     cltContracts: CltContract[];
     cltCompetencias: CltCompetencia[];
@@ -717,7 +661,6 @@ export interface FinanceExportV2 {
     // Configuration/Context States
     monthlyRevenueForecast: number;
     revenueForecasts: Record<string, number>;
-    alertStartDate: string;
   };
 }
 

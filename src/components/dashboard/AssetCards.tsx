@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency, Veiculo, Imovel, Terreno } from "@/types/finance";
 import { 
@@ -10,7 +11,6 @@ import {
   ShieldCheck, 
   ShieldAlert,
   Calendar,
-  DollarSign,
   TrendingUp,
   TrendingDown,
   Landmark,
@@ -23,16 +23,15 @@ import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
 import { cn } from "@/lib/utils";
 import { parseISO, format, isAfter } from "date-fns";
 import { Badge } from "@/components/ui/badge";
-import { VehicleDetailDialog } from "@/components/vehicles/VehicleDetailDialog";
 import { ImovelFormModal } from "@/components/vehicles/ImovelFormModal";
 
 export const AssetCards = () => {
+  const navigate = useNavigate();
   const { 
     veiculos, 
     imoveis, 
     terrenos, 
     segurosVeiculo, 
-    updateVeiculo, 
     deleteImovel, 
     deleteTerreno, 
     addImovel, 
@@ -40,9 +39,6 @@ export const AssetCards = () => {
     addTerreno, 
     updateTerreno 
   } = useFinance();
-  
-  const [showVehicleDetail, setShowVehicleDetail] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState<Veiculo | null>(null);
   
   const [showImovelModal, setShowImovelModal] = useState(false);
   const [imovelModalType, setImovelModalType] = useState<'imovel' | 'terreno'>('imovel');
@@ -65,8 +61,7 @@ export const AssetCards = () => {
   };
 
   const handleViewVehicle = (v: Veiculo) => {
-    setSelectedVehicle(v);
-    setShowVehicleDetail(true);
+    navigate(`/veiculos/${v.id}`);
   };
 
   const handleViewImovel = (type: 'imovel' | 'terreno', item: Imovel | Terreno) => {
@@ -380,15 +375,6 @@ export const AssetCards = () => {
         ))}
       </div>
 
-      <VehicleDetailDialog
-        open={showVehicleDetail}
-        onOpenChange={setShowVehicleDetail}
-        veiculo={selectedVehicle}
-        seguro={selectedVehicle ? getVehicleInsurance(selectedVehicle.id) : undefined}
-        onUpdateFipe={() => {}}
-        onUpdateVeiculo={updateVeiculo}
-      />
-      
       <ImovelFormModal
         open={showImovelModal}
         onOpenChange={setShowImovelModal}

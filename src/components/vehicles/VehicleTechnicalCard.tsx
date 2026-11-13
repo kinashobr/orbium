@@ -21,10 +21,9 @@ import {
 } from "lucide-react";
 import { formatCurrency, Veiculo } from "@/types/finance";
 import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { cn, parseDateLocal, getEstimatedIpvaAndDueDate } from "@/lib/utils";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { getEstimatedIpvaAndDueDate } from "./VehicleDetailDialog";
 
 interface VehicleTechnicalCardProps {
   veiculo: Veiculo;

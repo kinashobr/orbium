@@ -154,3 +154,50 @@ export function getAccountIcon(type: string, name: string = "") {
       return Wallet;
   }
 }
+
+export const getEstimatedIpvaAndDueDate = (
+  placa: string,
+  tipo: 'carro' | 'moto' | 'caminhao',
+  valorFipe: number,
+  anoAtual: number = new Date().getFullYear()
+) => {
+  if (!placa) return { valorIpva: 0, vencimentoIpva: "", valorLicenciamento: 0, vencimentoLicenciamento: "" };
+
+  const cleanedPlaca = placa.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (cleanedPlaca.length < 5) return { valorIpva: 0, vencimentoIpva: "", valorLicenciamento: 0, vencimentoLicenciamento: "" };
+
+  const lastChar = cleanedPlaca.charAt(cleanedPlaca.length - 1);
+  const lastDigit = parseInt(lastChar, 10);
+
+  // IPVA rates standard reference (e.g. SP/RJ/MG): 4% for cars, 2% for bikes, 1.5% for trucks
+  let rate = 0.04;
+  if (tipo === 'moto') rate = 0.02;
+  else if (tipo === 'caminhao') rate = 0.015;
+
+  const valorIpva = Math.round(valorFipe * rate * 100) / 100;
+
+  // IPVA Vencimento (Jan to Oct according to last digit)
+  let ipvaMonth = 1;
+  if (!isNaN(lastDigit)) {
+    if (lastDigit === 0) ipvaMonth = 10;
+    else ipvaMonth = lastDigit;
+  }
+  const vencimentoIpva = `${anoAtual}-${String(ipvaMonth).padStart(2, '0')}-15`;
+
+  // Standard licensing fee reference (around R$ 160.00)
+  const valorLicenciamento = 160.00;
+
+  // Licensing Vencimento (Jul to Dec according to last digit)
+  let licMonth = 7;
+  if (!isNaN(lastDigit)) {
+    if (lastDigit === 1 || lastDigit === 2) licMonth = 7;
+    else if (lastDigit === 3 || lastDigit === 4) licMonth = 8;
+    else if (lastDigit === 5 || lastDigit === 6) licMonth = 9;
+    else if (lastDigit === 7 || lastDigit === 8) licMonth = 10;
+    else if (lastDigit === 9) licMonth = 11;
+    else if (lastDigit === 0) licMonth = 12;
+  }
+  const vencimentoLicenciamento = `${anoAtual}-${String(licMonth).padStart(2, '0')}-31`;
+
+  return { valorIpva, vencimentoIpva, valorLicenciamento, vencimentoLicenciamento };
+};

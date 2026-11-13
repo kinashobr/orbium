@@ -1,35 +1,25 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Car, 
-  Shield, 
   AlertTriangle, 
-  DollarSign, 
-  Search, 
   CheckCircle2, 
   Clock, 
-  Trash2, 
   ArrowRight,
   Sparkles,
   LayoutGrid,
   TrendingUp,
-  History,
   Zap,
   ShieldCheck,
   Calendar,
   TrendingDown, 
-  RefreshCw, 
-  PieChart, 
   Home,
   Map,
-  Plus,
-  Info,
   LineChart,
   Building2,
   Truck
@@ -37,28 +27,19 @@ import {
 import { useFinance } from "@/contexts/FinanceContext";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { PeriodSelector } from "@/components/dashboard/PeriodSelector";
-import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
 import { ImovelFormModal } from "@/components/vehicles/ImovelFormModal";
-import { VehicleDetailDialog } from "@/components/vehicles/VehicleDetailDialog";
 import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
-import { formatCurrency, Veiculo, SeguroVeiculo, Imovel, Terreno } from "@/types/finance";
+import { formatCurrency, Imovel, Terreno } from "@/types/finance";
 import { 
   AreaChart, 
   Area, 
-  ResponsiveContainer, 
-  Tooltip, 
 } from "recharts";
-import { useChartColors } from "@/hooks/useChartColors";
 import { format, subMonths, endOfMonth, isWithinInterval, startOfDay, endOfDay, startOfMonth, parseISO } from "date-fns"; 
 import { ptBR } from "date-fns/locale"; 
-import { toast } from "sonner";
 
 const BensImobilizados = () => {
   const { 
     veiculos, 
-    updateVeiculo,
-    deleteVeiculo, 
-    getPendingVehicles,
     segurosVeiculo,
     getValorFipeTotal,
     getValorImoveisTerrenos,
@@ -139,17 +120,11 @@ const BensImobilizados = () => {
     );
   };
   
-  const colors = useChartColors();
   const [activeTab, setActiveTab] = useState("veiculos");
-  const [showFipeDialog, setShowFipeDialog] = useState(false);
-  const [selectedVeiculoForFipe, setSelectedVeiculoForFipe] = useState<Veiculo | undefined>();
   
   const [showImovelModal, setShowImovelModal] = useState(false);
   const [editingImovel, setEditingImovel] = useState<Imovel | Terreno | undefined>(undefined);
   const [imovelModalType, setImovelModalType] = useState<'imovel' | 'terreno'>('imovel');
-  
-  const [showVehicleDetail, setShowVehicleDetail] = useState(false);
-  const [selectedVehicle, setSelectedVehicle] = useState<Veiculo | null>(null);
 
   const totalFipe = getValorFipeTotal(dateRanges.range1.to);
   const totalImoveisTerrenos = getValorImoveisTerrenos(dateRanges.range1.to);
@@ -164,59 +139,11 @@ const BensImobilizados = () => {
     }
     return result;
   }, [getValorFipeTotal, getValorImoveisTerrenos]);
-
-  const insuranceTimeline = useMemo(() => {
-    return segurosVeiculo.flatMap(s => 
-      s.parcelas.map(p => ({
-        ...p,
-        seguroId: s.id,
-        seguradora: s.seguradora,
-        numeroApolice: s.numeroApolice,
-        vigenciaInicio: s.vigenciaInicio,
-        vigenciaFim: s.vigenciaFim,
-        seguroStatus: s.status || 'ativo',
-        veiculo: veiculos.find(v => v.id === s.veiculoId)?.modelo || "N/A"
-      }))
-    ).sort((a, b) => parseDateLocal(a.vencimento).getTime() - parseDateLocal(b.vencimento).getTime());
-  }, [segurosVeiculo, veiculos]);
-
-  const handleOpenFipe = (v?: Veiculo) => {
-    setSelectedVeiculoForFipe(v);
-    setShowFipeDialog(true);
-  };
-
-  const handleApplyFipe = useCallback((veiculoId: number, valorFipe: number) => {
-    const v = veiculos.find(x => x.id === veiculoId);
-    if (!v) return;
-
-    const oldValue = v.valorFipe || 0;
-    const nowIso = new Date().toISOString();
-
-    const historico = [
-      ...(v.historico || []),
-      {
-        id: `vh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        type: 'fipe' as const,
-        date: nowIso,
-        title: 'Atualização FIPE',
-        description: `${formatCurrency(oldValue)} → ${formatCurrency(valorFipe)}`,
-        amount: valorFipe,
-        meta: { oldValue, newValue: valorFipe },
-      },
-    ];
-
-    updateVeiculo(veiculoId, { valorFipe: valorFipe, historico });
-
-    // Se o modal de detalhes estiver aberto para este veículo, atualiza o estado local
-    setSelectedVehicle(prev => (prev?.id === veiculoId ? { ...prev, valorFipe: valorFipe, historico } : prev));
-
-    toast.success(`FIPE atualizada: ${formatCurrency(valorFipe)}`);
-  }, [veiculos, updateVeiculo]);
   
   const navigate = useNavigate();
 
-  const handleViewDetails = (veiculo: Veiculo) => {
-    navigate(`/veiculos/${veiculo.id}`);
+  const handleViewDetails = (veiculoId: number) => {
+    navigate(`/veiculos/${veiculoId}`);
   };
   
   const handleOpenImovelModal = (type: 'imovel' | 'terreno', asset?: Imovel | Terreno) => {
@@ -387,15 +314,12 @@ const BensImobilizados = () => {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-10">
           <div className="flex justify-center">
-            <TabsList className="grid w-full grid-cols-3 h-14 bg-muted/30 p-1.5 rounded-[2rem] border border-border/40 max-w-xl">
+            <TabsList className="grid w-full grid-cols-2 h-14 bg-muted/30 p-1.5 rounded-[2rem] border border-border/40 max-w-md">
               <TabsTrigger value="veiculos" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all gap-2">
                 <Car className="w-4 h-4" /> Veículos
               </TabsTrigger>
               <TabsTrigger value="imoveis" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all gap-2">
                 <Home className="w-4 h-4" /> Imóveis
-              </TabsTrigger>
-              <TabsTrigger value="seguros" className="rounded-[1.5rem] text-[10px] font-black uppercase tracking-widest data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all gap-2">
-                <Shield className="w-4 h-4" /> Seguros
               </TabsTrigger>
             </TabsList>
           </div>
@@ -425,7 +349,7 @@ const BensImobilizados = () => {
                 return (
                   <div 
                     key={v.id}
-                    onClick={() => handleViewDetails(v)} 
+                    onClick={() => handleViewDetails(v.id)} 
                     className="bg-card hover:bg-muted/10 transition-all duration-500 rounded-[2.5rem] p-8 border border-border/80 dark:border-border/40 shadow-soft hover:shadow-soft-lg hover:-translate-y-2 group relative overflow-hidden cursor-pointer animate-fade-in-up flex flex-col justify-between"
                     style={{ animationDelay: `${(index + 3) * 100}ms` }}
                   >
@@ -657,143 +581,9 @@ const BensImobilizados = () => {
                 ))}
             </div>
           </TabsContent>
-
-          <TabsContent value="seguros" className="space-y-8 animate-in fade-in duration-500">
-            {/* Header com resumo de coberturas e vigências */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-soft">
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">
-                  Apólices Cadastradas
-                </span>
-                <span className="text-2xl font-black text-foreground">
-                  {segurosVeiculo.length} Contrato(s)
-                </span>
-              </div>
-
-              <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-soft">
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">
-                  Status de Cobertura Ativa
-                </span>
-                <span className="text-2xl font-black text-primary">
-                  {veiculos.filter(v => v.status === 'ativo' && v.statusSeguro !== 'sem_seguro' && segurosVeiculo.some(s => s.veiculoId === v.id && s.status !== 'historico' && parseDateLocal(s.vigenciaFim) >= new Date())).length} / {veiculos.filter(v => v.status === 'ativo').length} Veículos
-                </span>
-              </div>
-
-              <div className="p-5 rounded-[2rem] bg-surface-light dark:bg-surface-dark border border-white/60 dark:border-white/5 shadow-soft">
-                <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">
-                  Parcelas a Vencer
-                </span>
-                <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                  {insuranceTimeline.filter(p => !p.paga).length} Parcela(s)
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-surface-light dark:bg-surface-dark rounded-[3rem] p-6 sm:p-8 border border-white/60 dark:border-white/5 shadow-soft space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/40">
-                <div>
-                  <h3 className="font-display font-black text-base text-foreground uppercase tracking-tight">
-                    Cronograma de Obrigações de Seguro & Vigências
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Acompanhamento de parcelas, vigências das apólices e histórico de contratações dos veículos.
-                  </p>
-                </div>
-              </div>
-
-              {insuranceTimeline.length > 0 ? (
-                <div className="space-y-3">
-                  {insuranceTimeline.map((p, idx) => {
-                    const isOverdue = !p.paga && parseDateLocal(p.vencimento) < new Date();
-                    const isVigenciaExpirada = p.vigenciaFim && parseDateLocal(p.vigenciaFim) < new Date();
-                    
-                    return (
-                      <div 
-                        key={idx} 
-                        className={cn(
-                          "flex flex-col sm:flex-row sm:items-center justify-between p-5 sm:p-6 rounded-[2rem] border transition-all group animate-fade-in-up",
-                          p.paga ? "bg-success/[0.02] border-success/20 opacity-75" : 
-                          isOverdue ? "bg-destructive/[0.02] border-destructive/20" : 
-                          "bg-card border-border/40 hover:shadow-soft hover:-translate-y-0.5"
-                        )}
-                        style={{ animationDelay: `${idx * 50}ms` }}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-105 shrink-0",
-                            p.paga ? "bg-success/10 text-success" : 
-                            isOverdue ? "bg-destructive/10 text-destructive" :
-                            "bg-primary/10 text-primary"
-                          )}>
-                            <Shield className="w-6 h-6" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="font-black text-sm text-foreground">{p.seguradora}</p>
-                              {p.numeroApolice && (
-                                <Badge variant="outline" className="font-mono text-[9px] font-bold">
-                                  #{p.numeroApolice}
-                                </Badge>
-                              )}
-                              {p.seguroStatus === 'historico' && (
-                                <Badge variant="secondary" className="text-[8px] font-bold uppercase">
-                                  Histórico
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mt-0.5">
-                              <Car className="w-3 h-3 text-primary" /> {p.veiculo} • Parcela {p.numero}
-                              {p.vigenciaFim && (
-                                <span className={cn(
-                                  "ml-1",
-                                  isVigenciaExpirada ? "text-destructive font-black" : "text-muted-foreground"
-                                )}>
-                                  • Cobertura até {format(parseDateLocal(p.vigenciaFim), "dd/MM/yy")}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center justify-between sm:justify-end gap-6 mt-4 sm:mt-0">
-                          <div className="text-right">
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Vencimento</p>
-                            <p className="font-bold text-sm tabular-nums">{format(parseDateLocal(p.vencimento), "dd/MM/yyyy")}</p>
-                          </div>
-                          <div className="text-right min-w-[90px]">
-                            <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Valor</p>
-                            <p className={cn("font-black text-base tabular-nums", p.paga ? "text-success" : "text-foreground")}>
-                              {formatCurrency(p.valor)}
-                            </p>
-                          </div>
-                          <Badge className={cn(
-                            "text-[9px] font-black border-none px-3 py-1 rounded-lg uppercase tracking-widest",
-                            p.paga ? "bg-success/10 text-success" : isOverdue ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"
-                          )}>
-                            {p.paga ? "Paga" : isOverdue ? "Vencida" : "Pendente"}
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-xs text-muted-foreground font-medium border border-dashed rounded-2xl">
-                  Nenhuma obrigação de seguro encontrada no momento.
-                </div>
-              )}
-            </div>
-          </TabsContent>
         </Tabs>
       </div>
 
-      <FipeConsultaDialog 
-        open={showFipeDialog} 
-        onOpenChange={setShowFipeDialog} 
-        veiculo={selectedVeiculoForFipe}
-        onUpdateFipe={handleApplyFipe}
-      />
-      
       <ImovelFormModal
         open={showImovelModal}
         onOpenChange={setShowImovelModal}
@@ -801,21 +591,6 @@ const BensImobilizados = () => {
         editingAsset={editingImovel}
         onSubmit={handleSaveImovel}
         onDelete={imovelModalType === 'imovel' ? deleteImovel : deleteTerreno}
-      />
-      
-      <VehicleDetailDialog
-        open={showVehicleDetail}
-        onOpenChange={setShowVehicleDetail}
-        veiculo={selectedVehicle ? (veiculos.find(v => v.id === selectedVehicle.id) || selectedVehicle) : null}
-        seguro={selectedVehicle ? (
-          selectedVehicle.statusSeguro === 'sem_seguro' ? undefined : (
-            selectedVehicle.seguroAtivoId
-              ? segurosVeiculo.find(s => s.id === selectedVehicle.seguroAtivoId)
-              : segurosVeiculo.filter(s => s.veiculoId === selectedVehicle.id && s.status !== 'historico' && s.status !== 'cancelado').pop()
-          )
-        ) : undefined}
-        onUpdateFipe={handleOpenFipe}
-        onUpdateVeiculo={updateVeiculo}
       />
     </MainLayout>
   );

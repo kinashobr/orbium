@@ -23,12 +23,11 @@ import {
   Building2
 } from "lucide-react";
 import { formatCurrency, Veiculo, SeguroVeiculo, TransacaoCompleta } from "@/types/finance";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { cn, parseDateLocal, getEstimatedIpvaAndDueDate } from "@/lib/utils";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
-import { getEstimatedIpvaAndDueDate } from "./VehicleDetailDialog";
 
 interface VehicleObligationsTabProps {
   veiculo: Veiculo;
