@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+  <defs>
+    <!-- Máscara para criar os recortes limpos (espaço negativo) entre a órbita e os círculos -->
+    <mask id="orbium-cutout">
+      <rect width="500" height="500" fill="white" />
+      <!-- Recorte ao redor da órbita diagonal -->
+      <path d="M 135 245 C 65 305, 85 375, 195 340 C 285 310, 365 215, 405 135" fill="none" stroke="black" stroke-width="44" stroke-linecap="round" />
+      <!-- Recorte da ponta da seta -->
+      <polygon points="435,85 372,122 432,162" fill="black" />
+    </mask>
+  </defs>
+
+  <!-- Grupo com o planeta e o anel externo aplicados à máscara de recorte -->
+  <g mask="url(#orbium-cutout)">
+    <!-- Anel Externo -->
+    <circle cx="250" cy="250" r="132" fill="none" stroke="#532E14" stroke-width="26" />
+    
+    <!-- Esfera Central (Planeta) -->
+    <circle cx="250" cy="250" r="88" fill="#8C5D3C" stroke="#532E14" stroke-width="10" />
+  </g>
+
+  <!-- Órbita / Seta Ascendente -->
+  <path d="M 135 245 C 65 305, 85 375, 195 340 C 285 310, 365 215, 405 135" fill="none" stroke="#532E14" stroke-width="24" stroke-linecap="round" />
+
+  <!-- Ponta da Seta -->
+  <polygon points="430,92 380,124 426,154" fill="#532E14" />
+</svg>

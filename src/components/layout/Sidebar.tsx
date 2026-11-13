@@ -7,8 +7,7 @@ import {
   CreditCard, 
   Car, 
   ChevronLeft, 
-  ChevronRight, 
-  Wallet, 
+  ChevronRight,
   Download, 
   Upload, 
   PieChart, 
@@ -35,6 +34,7 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { OrbiumLogo } from "@/components/ui/OrbiumLogo";
 import { format } from "date-fns";
 
 interface NavItemData {
@@ -241,11 +241,9 @@ export function Sidebar() {
       {/* Logo */}
       <div className={cn(
         "h-14 flex items-center shrink-0 transition-all duration-500",
-        collapsed ? "justify-center" : "px-4 gap-2"
+        collapsed ? "justify-center" : "px-4 gap-2.5"
       )}>
-        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-primary-dark flex items-center justify-center text-white shadow-lg shadow-primary/20 shrink-0">
-          <Wallet size={16} />
-        </div>
+        <OrbiumLogo className="w-8 h-8 shrink-0" />
         {!collapsed && (
           <div className="flex flex-col min-w-0">
             <span className="font-black text-sm leading-tight tracking-tighter">ORBIUM</span>

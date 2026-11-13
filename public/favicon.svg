@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="61 48 390 390">
+  <style>
+    .orbium-stroke {
+      stroke: #532E14;
+    }
+    .orbium-fill {
+      fill: #532E14;
+    }
+    .orbium-planet {
+      fill: #8C5D3C;
+      stroke: #532E14;
+    }
+    @media (prefers-color-scheme: dark) {
+      .orbium-stroke {
+        stroke: #EFE3D6;
+      }
+      .orbium-fill {
+        fill: #EFE3D6;
+      }
+      .orbium-planet {
+        fill: #B8621E;
+        stroke: #EFE3D6;
+      }
+    }
+  </style>
+  <defs>
+    <mask id="orbium-cutout">
+      <rect width="500" height="500" fill="white" />
+      <path d="M 135 245 C 65 305, 85 375, 195 340 C 285 310, 365 215, 405 135" fill="none" stroke="black" stroke-width="44" stroke-linecap="round" />
+      <polygon points="435,85 372,122 432,162" fill="black" />
+    </mask>
+  </defs>
+  <g mask="url(#orbium-cutout)">
+    <circle cx="250" cy="250" r="132" fill="none" stroke-width="26" class="orbium-stroke" />
+    <circle cx="250" cy="250" r="88" stroke-width="10" class="orbium-planet" />
+  </g>
+  <path d="M 135 245 C 65 305, 85 375, 195 340 C 285 310, 365 215, 405 135" fill="none" stroke-width="24" stroke-linecap="round" class="orbium-stroke" />
+  <polygon points="430,92 380,124 426,154" class="orbium-fill" />
+</svg>
