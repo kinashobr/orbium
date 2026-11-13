@@ -12,14 +12,14 @@
     }
     @media (prefers-color-scheme: dark) {
       .orbium-stroke {
-        stroke: #EFE3D6;
+        stroke: #C86A22;
       }
       .orbium-fill {
-        fill: #EFE3D6;
+        fill: #C86A22;
       }
       .orbium-planet {
-        fill: #B8621E;
-        stroke: #EFE3D6;
+        fill: #C86A22;
+        stroke: #C86A22;
       }
     }
   </style>

@@ -38,7 +38,7 @@ export function OrbiumLogo({ className }: OrbiumLogoProps) {
           r="132"
           fill="none"
           strokeWidth="26"
-          className="stroke-[#532E14] dark:stroke-[#EFE3D6] transition-colors duration-300"
+          className="stroke-[#532E14] dark:stroke-[#C86A22] transition-colors duration-300"
         />
 
         {/* Esfera Central (Planeta) */}
@@ -47,7 +47,7 @@ export function OrbiumLogo({ className }: OrbiumLogoProps) {
           cy="250"
           r="88"
           strokeWidth="10"
-          className="fill-[#8C5D3C] stroke-[#532E14] dark:fill-[hsl(var(--primary))] dark:stroke-[#EFE3D6] transition-colors duration-300"
+          className="fill-[#8C5D3C] stroke-[#532E14] dark:fill-[#C86A22] dark:stroke-[#C86A22] transition-colors duration-300"
         />
       </g>
 
@@ -57,13 +57,13 @@ export function OrbiumLogo({ className }: OrbiumLogoProps) {
         fill="none"
         strokeWidth="24"
         strokeLinecap="round"
-        className="stroke-[#532E14] dark:stroke-[#EFE3D6] transition-colors duration-300"
+        className="stroke-[#532E14] dark:stroke-[#C86A22] transition-colors duration-300"
       />
 
       {/* Ponta da Seta */}
       <polygon
         points="430,92 380,124 426,154"
-        className="fill-[#532E14] dark:fill-[#EFE3D6] transition-colors duration-300"
+        className="fill-[#532E14] dark:fill-[#C86A22] transition-colors duration-300"
       />
     </svg>
   );

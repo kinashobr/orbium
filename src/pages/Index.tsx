@@ -30,7 +30,7 @@ const Index = () => {
         >
           {/* Efeito Atmosférico Suave de Fundo Conforme a Fase do Sistema Estelar */}
           {orbPhase === 2 && (
-            <div className="absolute top-[-30px] right-0 w-[600px] max-w-full h-[320px] bg-rose-500/[0.05] dark:bg-rose-500/[0.08] rounded-full blur-3xl pointer-events-none animate-pulse" />
+            <div className="absolute top-[-30px] right-0 w-[600px] max-w-full h-[320px] bg-rose-500/[0.05] dark:bg-rose-500/[0.08] rounded-full blur-3xl pointer-events-none transition-all duration-700" />
           )}
           {orbPhase === 3 && (
             <div
@@ -52,7 +52,7 @@ const Index = () => {
                 className={cn(
                   "w-12 h-12 rounded-[18px] flex items-center justify-center text-white shadow-lg transition-all duration-700",
                   (orbPhase === 1 || orbPhase === 3) && "bg-primary shadow-primary/20",
-                  orbPhase === 2 && "bg-rose-600 shadow-rose-600/30 animate-pulse"
+                  orbPhase === 2 && "bg-rose-600 shadow-rose-600/30"
                 )}
               >
                 <LayoutDashboard className="w-6 h-6" />

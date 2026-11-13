@@ -589,7 +589,7 @@ export const DateOrb = ({ onPhaseChange }: DateOrbProps) => {
             className={cn(
               "text-[10px] font-black tracking-[0.25em] uppercase transition-colors duration-500",
               currentPhase === 1 && "text-amber-600 dark:text-amber-400",
-              currentPhase === 2 && "text-rose-600 dark:text-rose-400 animate-pulse",
+              currentPhase === 2 && "text-rose-600 dark:text-rose-400",
               currentPhase === 3 && "text-amber-600 dark:text-amber-400"
             )}
           >
