@@ -162,6 +162,213 @@ export function areDescriptionsCompatible(desc1?: any, desc2?: any): boolean {
   return false;
 }
 
+export interface VehicleMatchCandidate {
+  id: number;
+  modelo: string;
+  marca?: string;
+  placa?: string;
+  status?: string;
+  statusSeguro?: string;
+}
+
+export interface InsurancePolicyCandidate {
+  id: number;
+  veiculoId: number;
+  status?: string;
+  parcelas?: { paga: boolean; valor: number }[];
+}
+
+const INSURANCE_MATCH_STOPWORDS = new Set([
+  'seguro', 'apolice', 'parcela', 'parc', 'auto', 'veiculo', 'veicular',
+  'moto', 'carro', 'caminhao', 'pagamento', 'pagto', 'pgto', 'novo', 'nova',
+  'renovacao', 'mensal', 'anual', 'corretora', 'porto', 'azul', 'tokio',
+  'allianz', 'bradesco', 'mapfre', 'suhai', 'hdi', 'liberty', 'yelum',
+  'itau', 'santander', 'caixa', 'bb', 'pix', 'ted', 'doc', 'boleto',
+  'debito', 'credito', 'compra', 'de', 'da', 'do', 'dos', 'das', 'para',
+  'com', 'sem', 'em', 'na', 'no', 'por', 'via', 'ref'
+]);
+
+function normalizeTextTokens(val?: string | null): string {
+  if (!val) return '';
+  return val
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeAlphaNum(val?: string | null): string {
+  if (!val) return '';
+  return val
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function extractModelTokens(text?: string | null): string[] {
+  const norm = normalizeTextTokens(text);
+  if (!norm) return [];
+  const rawWords = norm.split(' ').filter(Boolean);
+  const tokens = new Set<string>();
+  for (const w of rawWords) {
+    if (w.length >= 2 && !INSURANCE_MATCH_STOPWORDS.has(w)) {
+      tokens.add(w);
+    }
+    // Quebrar códigos alfanuméricos como "cb500x" ou "fz25" em partes ("cb", "500", "x", "fz", "25")
+    const parts = w.match(/[a-z]+|\d+/g) || [];
+    for (const p of parts) {
+      if (p.length >= 2 && !INSURANCE_MATCH_STOPWORDS.has(p)) {
+        tokens.add(p);
+      }
+    }
+  }
+  return Array.from(tokens);
+}
+
+/**
+ * Encontra o veículo correspondente a um lançamento de seguro por:
+ * 1) ID explícito (explicitVehicleId)
+ * 2) Placa completa normalizada (ignorando hífen/espaços)
+ * 3) Nome completo do modelo
+ * 4) Nomenclatura parcial do modelo/marca (ex: "Fazer", "CB 500", "Titan 160")
+ * 5) Fallback inteligente (único veículo ativo, ou seguro compatível, ou primeiro ativo)
+ */
+export function matchVehicleForInsurance<T extends VehicleMatchCandidate>(
+  description: string | undefined | null,
+  veiculos: T[],
+  segurosVeiculo?: InsurancePolicyCandidate[],
+  explicitVehicleId?: number | null,
+  amount?: number
+): T | undefined {
+  if (!veiculos || veiculos.length === 0) return undefined;
+
+  if (explicitVehicleId !== undefined && explicitVehicleId !== null) {
+    const explicit = veiculos.find(v => v.id === Number(explicitVehicleId));
+    if (explicit) return explicit;
+  }
+
+  const activeVehs = veiculos.filter(v => v.status !== 'vendido');
+  const pool = activeVehs.length > 0 ? activeVehs : veiculos;
+
+  const descText = normalizeTextTokens(description);
+  const descAlpha = normalizeAlphaNum(description);
+
+  // 1. Match por placa completa (normalizada sem hífen/espaço)
+  if (descAlpha.length >= 4) {
+    const plateMatch = pool.find(v => {
+      const plateAlpha = normalizeAlphaNum(v.placa);
+      return plateAlpha.length >= 4 && descAlpha.includes(plateAlpha);
+    });
+    if (plateMatch) return plateMatch;
+  }
+
+  // 2. Match por modelo completo
+  if (descText.length >= 2) {
+    const fullModelMatch = pool.find(v => {
+      const mText = normalizeTextTokens(v.modelo);
+      const mAlpha = normalizeAlphaNum(v.modelo);
+      return (mText.length >= 2 && descText.includes(mText)) || (mAlpha.length >= 3 && descAlpha.includes(mAlpha));
+    });
+    if (fullModelMatch) return fullModelMatch;
+  }
+
+  // 3. Match parcial por tokens do modelo / marca
+  const descTokens = extractModelTokens(description);
+  if (descTokens.length > 0) {
+    let bestVehicle: T | undefined;
+    let bestScore = 0;
+    let tiedTop = false;
+
+    for (const v of pool) {
+      const modelTokens = extractModelTokens(v.modelo);
+      const brandTokens = extractModelTokens(v.marca);
+      const modelAlpha = normalizeAlphaNum(v.modelo);
+      let score = 0;
+
+      for (const dt of descTokens) {
+        if (modelTokens.includes(dt)) {
+          score += dt.length >= 3 ? 10 : 6;
+          continue;
+        }
+        if (dt.length >= 4 && modelTokens.some(mt => mt.length >= 4 && (mt.includes(dt) || dt.includes(mt)))) {
+          score += 7;
+          continue;
+        }
+        if (dt.length >= 4 && modelAlpha.includes(dt)) {
+          score += 6;
+          continue;
+        }
+        if (brandTokens.includes(dt)) {
+          score += 3;
+        }
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestVehicle = v;
+        tiedTop = false;
+      } else if (score > 0 && score === bestScore) {
+        tiedTop = true;
+      }
+    }
+
+    if (bestVehicle && bestScore >= 3 && !tiedTop) {
+      return bestVehicle;
+    }
+  }
+
+  // 4. Fallback para veículo único ativo
+  if (pool.length === 1) {
+    return pool[0];
+  }
+
+  // 5. Fallback inteligente para múltiplos veículos com descrição genérica/aleatória
+  if (segurosVeiculo && segurosVeiculo.length > 0) {
+    const isActivePolicy = (v: InsuranceVehicleCandidate, s: InsurancePolicyCandidate) =>
+      v.statusSeguro !== 'sem_seguro' &&
+      s.veiculoId === v.id &&
+      (s.status === 'ativo' || s.status === 'pendente_config') &&
+      (!v.seguroAtivoId || s.id === v.seguroAtivoId);
+
+    // 5a. Se houver valor informado, verificar apólice com parcela pendente de valor próximo
+    if (typeof amount === 'number' && amount > 0) {
+      const amountMatchedVeh = pool.find(v =>
+        segurosVeiculo.some(s =>
+          isActivePolicy(v, s) &&
+          s.parcelas?.some(p => !p.paga && Math.abs((p.valor || 0) - amount) <= Math.max(20, amount * 0.1))
+        )
+      );
+      if (amountMatchedVeh) return amountMatchedVeh;
+    }
+
+    // 5b. Veículo com seguro ativo/pendente que possua parcela em aberto
+    const vehWithUnpaid = pool.find(v =>
+      segurosVeiculo.some(s =>
+        isActivePolicy(v, s) &&
+        s.parcelas?.some(p => !p.paga)
+      )
+    );
+    if (vehWithUnpaid) return vehWithUnpaid;
+
+    // 5c. Veículo sem seguro ativo ou com apólice já quitada (provável novo seguro / renovação)
+    const vehWithoutUnpaidSeg = pool.find(v =>
+      v.statusSeguro === 'sem_seguro' ||
+      !segurosVeiculo.some(s =>
+        s.veiculoId === v.id &&
+        (s.status === 'ativo' || s.status === 'pendente_config') &&
+        s.parcelas?.some(p => !p.paga)
+      )
+    );
+    if (vehWithoutUnpaidSeg) return vehWithoutUnpaidSeg;
+  }
+
+  return pool[0];
+}
+
+
 
 
 

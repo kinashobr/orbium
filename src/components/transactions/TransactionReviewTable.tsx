@@ -26,7 +26,7 @@ import { Label } from "@/components/ui/label";
 import { CategorySearchSelector } from "@/components/bills/CategorySearchSelector";
 import { OperationSearchSelector } from "./OperationSearchSelector";
 import { LinkSearchSelector } from "./LinkSearchSelector";
-import { isImportedTransactionReady as isRowReady, isTransactionIncome, isImportedTransactionIncome } from "@/lib/transactionValidator";
+import { isImportedTransactionReady as isRowReady, isTransactionIncome, isImportedTransactionIncome, matchVehicleForInsurance } from "@/lib/transactionValidator";
 
 interface LoanInfo {
   id: string;
@@ -294,14 +294,24 @@ export function TransactionReviewTable({
                     <CategorySearchSelector
                       value={tx.categoryId || null}
                       categories={getFilteredCategories(tx.operationType, isIncome)}
-                      onSelect={(val) => onUpdateTransaction(tx.id, { categoryId: val })}
+                      onSelect={(val) => {
+                        const isSegCat = categories.some(c => c.id === val && c.label.toLowerCase().includes('seguro'));
+                        if (isSegCat && !isIncome && !tx.tempAssetId && veiculos && veiculos.length > 0) {
+                          const matched = matchVehicleForInsurance(tx.description || tx.originalDescription, veiculos, undefined, undefined, tx.amount);
+                          if (matched) {
+                            onUpdateTransaction(tx.id, { categoryId: val, tempAssetId: matched.id, tempAssetType: 'veiculo' });
+                            return;
+                          }
+                        }
+                        onUpdateTransaction(tx.id, { categoryId: val });
+                      }}
                     />
                   )}
                 </div>
               </div>
 
               {/* Vínculo Padronizado */}
-              {(['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo'].includes(tx.operationType || '') || Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))) && (
+              {(['transferencia', 'aplicacao', 'resgate', 'pagamento_emprestimo', 'veiculo'].includes(tx.operationType || '') || (!isIncome && Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro'))))) && (
                 <div className="space-y-1 p-2.5 rounded-xl bg-muted/15 border border-border/30">
                   <Label className="text-[9px] font-black uppercase text-muted-foreground">Vincular Registro</Label>
                   <LinkSearchSelector
@@ -316,7 +326,7 @@ export function TransactionReviewTable({
                     tempLoanId={tx.tempLoanId}
                     tempParcelaId={tx.tempParcelaId}
                     tempAssetId={tx.tempAssetId}
-                    isInsurance={Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))}
+                    isInsurance={!isIncome && Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))}
                     flow={tx.originalFlow || (isIncome ? 'in' : 'out')}
                     isIncome={isIncome}
                     onChange={(updates) => onUpdateTransaction(tx.id, updates)}
@@ -495,7 +505,17 @@ export function TransactionReviewTable({
                     <CategorySearchSelector
                       value={tx.categoryId || null}
                       categories={getFilteredCategories(tx.operationType, isIncome)}
-                      onSelect={(val) => onUpdateTransaction(tx.id, { categoryId: val })}
+                      onSelect={(val) => {
+                        const isSegCat = categories.some(c => c.id === val && c.label.toLowerCase().includes('seguro'));
+                        if (isSegCat && !isIncome && !tx.tempAssetId && veiculos && veiculos.length > 0) {
+                          const matched = matchVehicleForInsurance(tx.description || tx.originalDescription, veiculos, undefined, undefined, tx.amount);
+                          if (matched) {
+                            onUpdateTransaction(tx.id, { categoryId: val, tempAssetId: matched.id, tempAssetType: 'veiculo' });
+                            return;
+                          }
+                        }
+                        onUpdateTransaction(tx.id, { categoryId: val });
+                      }}
                     />
                   )}
                 </TableCell>
@@ -514,7 +534,7 @@ export function TransactionReviewTable({
                     tempLoanId={tx.tempLoanId}
                     tempParcelaId={tx.tempParcelaId}
                     tempAssetId={tx.tempAssetId}
-                    isInsurance={Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))}
+                    isInsurance={!isIncome && Boolean((tx.categoryId && categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))) || (tx.description && tx.description.toLowerCase().includes('seguro')))}
                     flow={tx.originalFlow || (isIncome ? 'in' : 'out')}
                     isIncome={isIncome}
                     onChange={(updates) => onUpdateTransaction(tx.id, updates)}

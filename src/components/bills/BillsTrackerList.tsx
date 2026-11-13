@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { 
   Plus, Trash2, Check, Clock, AlertTriangle, DollarSign, Building2, 
   Shield, Repeat, Info, X, TrendingDown, CheckCircle2, ShoppingCart, 
-  CreditCard, ChevronDown, ChevronUp 
+  CreditCard, ChevronDown, ChevronUp, Car 
 } from "lucide-react";
 import { useFinance } from "@/contexts/FinanceContext";
 import { BillTracker, BillSourceType, formatCurrency, CATEGORY_NATURE_LABELS, BillDisplayItem, ExternalPaidBill } from "@/types/finance";
@@ -18,8 +18,11 @@ import { format } from "date-fns";
 import { EditableCell } from "../EditableCell";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { CategorySearchSelector } from "./CategorySearchSelector";
 import { AccountSearchSelector } from "./AccountSearchSelector";
+import { matchVehicleForInsurance } from "@/lib/transactionValidator";
 
 interface BillsTrackerListProps {
   bills: BillDisplayItem[];
@@ -77,7 +80,8 @@ export function BillsTrackerList({
   onTogglePaid,
   currentDate,
 }: BillsTrackerListProps) {
-  const { categoriasV2, contasMovimento, setBillsTracker, setTransacoesV2 } = useFinance();
+  const { categoriasV2, contasMovimento, setBillsTracker, setTransacoesV2, veiculos, segurosVeiculo } = useFinance();
+  const activeVeiculos = useMemo(() => veiculos.filter(v => v.status !== 'vendido'), [veiculos]);
   const [newBillData, setNewBillData] = useState({ description: '', amount: '', dueDate: format(currentDate, 'yyyy-MM-dd') });
   const [isNewBillOpen, setIsNewBillOpen] = useState(false);
   
@@ -193,7 +197,15 @@ export function BillsTrackerList({
     let type: BillSourceType = bill.sourceType;
     const isFlexibleType = ['ad_hoc', 'fixed_expense', 'variable_expense'].includes(bill.sourceType);
     if (s && isFlexibleType) { type = s.nature === 'despesa_fixa' ? 'fixed_expense' : 'variable_expense'; }
-    onUpdateBill(id, { suggestedCategoryId: categoryId, sourceType: type });
+    const isSegCat = Boolean(s?.label.toLowerCase().includes('seguro'));
+    const matchedVehId = isSegCat
+      ? matchVehicleForInsurance(bill.description, veiculos, segurosVeiculo, bill.suggestedVehicleId, bill.expectedAmount)?.id
+      : undefined;
+    onUpdateBill(id, {
+      suggestedCategoryId: categoryId,
+      sourceType: type,
+      ...(isSegCat && matchedVehId ? { suggestedVehicleId: matchedVehId } : {})
+    });
   };
   
   const [advanceDialog, setAdvanceDialog] = useState<{ bill: BillTracker; newDate: string; daysDiff: number } | null>(null);
@@ -438,12 +450,78 @@ export function BillsTrackerList({
                               <span className="truncate">{cat?.label || '—'}</span>
                             </div>
                           ) : (
-                            <CategorySearchSelector
-                              value={bill.suggestedCategoryId}
-                              categories={expenseCategories}
-                              variant="table"
-                              onSelect={(v) => handleUpdateSuggestedCategory(bill.id, v)}
-                            />
+                            (() => {
+                              const isInsuranceBill = Boolean(
+                                cat?.label.toLowerCase().includes('seguro') ||
+                                bill.description.toLowerCase().includes('seguro')
+                              );
+                              const matchedVeh = isInsuranceBill && activeVeiculos.length > 0
+                                ? matchVehicleForInsurance(
+                                    bill.description,
+                                    activeVeiculos,
+                                    segurosVeiculo,
+                                    isBillTracker(bill) ? bill.suggestedVehicleId : undefined,
+                                    bill.expectedAmount
+                                  )
+                                : undefined;
+
+                              return (
+                                <div className="flex items-center gap-1 w-full min-w-0">
+                                  <CategorySearchSelector
+                                    value={bill.suggestedCategoryId}
+                                    categories={expenseCategories}
+                                    variant="table"
+                                    className="flex-1 min-w-0"
+                                    onSelect={(v) => handleUpdateSuggestedCategory(bill.id, v)}
+                                  />
+                                  {isInsuranceBill && activeVeiculos.length > 0 && (
+                                    <Popover>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          type="button"
+                                          title={matchedVeh ? `Veículo vinculado: ${matchedVeh.modelo}${matchedVeh.placa ? ` (${matchedVeh.placa})` : ''}` : "Vincular veículo ao seguro"}
+                                          className={cn(
+                                            "h-8 w-8 shrink-0 rounded-xl flex items-center justify-center transition-colors border",
+                                            matchedVeh
+                                              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 hover:bg-blue-500/20"
+                                              : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted"
+                                          )}
+                                        >
+                                          <Car className="w-3.5 h-3.5" />
+                                        </button>
+                                      </PopoverTrigger>
+                                      <PopoverContent className="w-[220px] p-0 z-[300] shadow-2xl border-border/40 rounded-2xl overflow-hidden bg-card" align="end">
+                                        <Command className="bg-card">
+                                          <CommandInput placeholder="VEÍCULO DO SEGURO..." className="h-9 text-[10px] font-black uppercase border-none focus:ring-0" />
+                                          <CommandList className="max-h-[200px] overflow-y-auto">
+                                            <CommandEmpty className="py-4 text-[9px] text-center font-black uppercase opacity-40">Nenhum veículo</CommandEmpty>
+                                            <CommandGroup className="p-1.5 space-y-0.5">
+                                              {activeVeiculos.map((v) => {
+                                                const isSelectedVeh = matchedVeh?.id === v.id;
+                                                return (
+                                                  <CommandItem
+                                                    key={v.id}
+                                                    value={`${v.modelo} ${v.placa || ''}`}
+                                                    onSelect={() => onUpdateBill(bill.id, { suggestedVehicleId: v.id })}
+                                                    className="text-[10px] font-black uppercase flex items-center justify-between py-2 px-2.5 cursor-pointer rounded-xl hover:bg-muted/50"
+                                                  >
+                                                    <div className="flex items-center gap-2 truncate">
+                                                      <Car className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+                                                      <span className="truncate">{v.modelo} {v.placa ? `(${v.placa})` : ''}</span>
+                                                    </div>
+                                                    {isSelectedVeh && <Check className="h-3.5 w-3.5 text-primary shrink-0 ml-1" />}
+                                                  </CommandItem>
+                                                );
+                                              })}
+                                            </CommandGroup>
+                                          </CommandList>
+                                        </Command>
+                                      </PopoverContent>
+                                    </Popover>
+                                  )}
+                                </div>
+                              );
+                            })()
                           )}
                         </div>
                       </TableCell>

@@ -112,6 +112,7 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
     }
 
     const items = activeOrLastSeguro.parcelas.map((p) => {
+      const paga = checkIsParcelPaid(p.numero, p.paga, p.transactionId, activeOrLastSeguro.id);
       let labelMes = `P${String(p.numero).padStart(2, "0")}`;
       let subText = "PENDENTE";
       let isOverdue = false;
@@ -119,13 +120,11 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
         try {
           const dateObj = parseDateLocal(p.vencimento);
           subText = format(dateObj, "MMM/yy", { locale: ptBR }).toUpperCase();
-          isOverdue = !p.paga && dateObj.getTime() < new Date().getTime();
+          isOverdue = !paga && dateObj.getTime() < new Date().getTime();
         } catch {
           subText = `VENC ${p.numero}`;
         }
       }
-
-      const paga = checkIsParcelPaid(p.numero, p.paga, p.transactionId, activeOrLastSeguro.id);
 
       return {
         numero: p.numero,
@@ -367,7 +366,7 @@ export function VehicleInsuranceTimeline({ veiculo, seguro }: VehicleInsuranceTi
               {historicoSeguros.map((h) => {
                 const dtInicio = h.vigenciaInicio ? format(parseDateLocal(h.vigenciaInicio), "dd/MM/yyyy") : "N/I";
                 const dtFim = h.vigenciaFim ? format(parseDateLocal(h.vigenciaFim), "dd/MM/yyyy") : "N/I";
-                const pagas = (h.parcelas || []).filter(p => p.paga).length;
+                const pagas = (h.parcelas || []).filter(p => checkIsParcelPaid(p.numero, p.paga, p.transactionId, h.id)).length;
                 const totalP = h.numeroParcelas || (h.parcelas || []).length;
                 const quitada = totalP > 0 && pagas >= totalP;
 

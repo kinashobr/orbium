@@ -56,9 +56,10 @@ const ReceitasDespesas = () => {
     markSeguroParcelPaid, unmarkSeguroParcelPaid,
     standardizationRules, deleteStandardizationRule,
     uncontabilizeImportedTransaction, segurosVeiculo,
+    revertInsuranceEffectsForTransactions,
     updateImovel, updateTerreno, updateVeiculo,
     addVeiculo, addImovel, addTerreno,
-    addTransacaoV2,
+    addTransacaoV2, billsTracker,
   } = useFinance();
 
   const [showMovimentarModal, setShowMovimentarModal] = useState(false);
@@ -180,7 +181,8 @@ const ReceitasDespesas = () => {
         }
       }
     }
-    if (t?.meta.source === 'import') uncontabilizeImportedTransaction(id); 
+    if (t?.meta.source === 'import') uncontabilizeImportedTransaction(id);
+    revertInsuranceEffectsForTransactions([id]);
     setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== t?.links?.transferGroupId : x.id !== id)); 
     toast.success("Lançamento excluído com sucesso!"); 
   };
@@ -200,7 +202,14 @@ const ReceitasDespesas = () => {
     newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
   ) => {
     if (editingTransaction) {
-      // Se estiver editando, removemos a antiga e adicionamos a nova via executeTransaction
+      // Se estiver editando e o vínculo de seguro mudou (ou trocou para novo seguro), reverter o vínculo anterior
+      if (
+        editingTransaction.links?.vehicleTransactionId !== t.links?.vehicleTransactionId ||
+        t.meta?.isNewSeguro
+      ) {
+        revertInsuranceEffectsForTransactions([editingTransaction.id]);
+      }
+      // Removemos a antiga e adicionamos a nova via executeTransaction
       // para garantir que todas as contrapartidas e side-effects sejam re-processados
       setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== editingTransaction.links?.transferGroupId : x.id !== editingTransaction.id));
     }
@@ -316,6 +325,8 @@ const ReceitasDespesas = () => {
         veiculos={veiculos}
         imoveis={imoveis}
         terrenos={terrenos}
+        transacoes={transacoesV2}
+        billsTracker={billsTracker}
         selectedAccountId={selectedAccountForModal}
         onSubmit={handleTransactionSubmit}
         editingTransaction={editingTransaction}

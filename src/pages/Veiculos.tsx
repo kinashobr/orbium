@@ -807,7 +807,13 @@ const BensImobilizados = () => {
         open={showVehicleDetail}
         onOpenChange={setShowVehicleDetail}
         veiculo={selectedVehicle ? (veiculos.find(v => v.id === selectedVehicle.id) || selectedVehicle) : null}
-        seguro={selectedVehicle ? segurosVeiculo.find(s => s.veiculoId === selectedVehicle.id) : undefined}
+        seguro={selectedVehicle ? (
+          selectedVehicle.statusSeguro === 'sem_seguro' ? undefined : (
+            selectedVehicle.seguroAtivoId
+              ? segurosVeiculo.find(s => s.id === selectedVehicle.seguroAtivoId)
+              : segurosVeiculo.filter(s => s.veiculoId === selectedVehicle.id && s.status !== 'historico' && s.status !== 'cancelado').pop()
+          )
+        ) : undefined}
         onUpdateFipe={handleOpenFipe}
         onUpdateVeiculo={updateVeiculo}
       />

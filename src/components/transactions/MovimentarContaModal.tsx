@@ -22,6 +22,7 @@ import {
   Imovel,
   Terreno,
   Veiculo,
+  BillTracker,
   getAllowedOperations,
 } from "@/types/finance";
 import { toast } from "sonner";
@@ -80,6 +81,8 @@ interface MovimentarContaModalProps {
   initialDescription?: string;
   initialAmount?: number;
   initialOperationType?: OperationType;
+  transacoes?: TransacaoCompleta[];
+  billsTracker?: BillTracker[];
 }
 
 const OPERATION_OPTIONS: { value: OperationType; label: string; icon: any; color: string; bgColor: string }[] = [
@@ -112,12 +115,48 @@ export function MovimentarContaModal({
   initialCategoryId,
   initialDescription,
   initialAmount,
-  initialOperationType
+  initialOperationType,
+  transacoes = [],
+  billsTracker = [],
 }: MovimentarContaModalProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const [state, dispatch] = useReducer(formReducer, initialState);
+  const segurosVeiculoRef = React.useRef(segurosVeiculo);
+  segurosVeiculoRef.current = segurosVeiculo;
 
   const isEditing = !!editingTransaction;
+
+  const isSeguroParcelPaid = React.useCallback((seguroId: number, p: { numero: number; paga: boolean; transactionId?: string }) => {
+    if (editingTransaction) {
+      if (p.transactionId === editingTransaction.id) return false;
+      if (editingTransaction.links?.vehicleTransactionId === `${seguroId}_${p.numero}`) return false;
+    }
+    if (p.paga) return true;
+    if (p.transactionId && transacoes.some(t => t.id === p.transactionId && t.id !== editingTransaction?.id)) return true;
+    if (transacoes.some(t => t.id !== editingTransaction?.id && t.links?.vehicleTransactionId === `${seguroId}_${p.numero}`)) return true;
+    if (billsTracker.some(b =>
+      b.sourceType === 'insurance_installment' &&
+      b.sourceRef === String(seguroId) &&
+      b.parcelaNumber === p.numero &&
+      b.isPaid &&
+      (!editingTransaction || b.transactionId !== editingTransaction.id)
+    )) return true;
+    return false;
+  }, [editingTransaction, transacoes, billsTracker]);
+
+  const findActiveSeguroForVehicle = React.useCallback((v: Veiculo | null | undefined): SeguroVeiculo | null => {
+    if (!v || v.statusSeguro === 'sem_seguro') return null;
+    if (v.seguroAtivoId) {
+      const byId = segurosVeiculo.find(
+        s => s.id === v.seguroAtivoId && s.status !== 'historico' && s.status !== 'cancelado' && s.status !== 'inativo'
+      );
+      if (byId) return byId;
+    }
+    const candidates = segurosVeiculo.filter(
+      s => s.veiculoId === v.id && (s.status === 'ativo' || s.status === 'pendente_config' || !s.status)
+    );
+    return candidates.length > 0 ? candidates[candidates.length - 1] : null;
+  }, [segurosVeiculo]);
 
   const isSeguroCategory = useMemo(() => {
     if (!state.categoryId || state.operationType !== 'despesa') return false;
@@ -152,6 +191,28 @@ export function MovimentarContaModal({
   useEffect(() => {
     if (open) {
       if (editingTransaction) {
+        let initSeguroId = editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa'
+          ? editingTransaction.links.vehicleTransactionId.split('_')[0]
+          : null;
+        let initSeguroParcelaId = editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa'
+          ? editingTransaction.links.vehicleTransactionId.split('_')[1]
+          : null;
+        let initVehicleId = editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null;
+
+        if (!initSeguroId && editingTransaction.operationType === 'despesa') {
+          const linkedSeguro = segurosVeiculoRef.current.find(
+            s => s.origemLancamentoId === editingTransaction.id || s.parcelas?.some(p => p.transactionId === editingTransaction.id)
+          );
+          if (linkedSeguro) {
+            initSeguroId = String(linkedSeguro.id);
+            const linkedParcel = linkedSeguro.parcelas?.find(p => p.transactionId === editingTransaction.id) || linkedSeguro.parcelas?.[0];
+            initSeguroParcelaId = linkedParcel ? String(linkedParcel.numero) : null;
+            if (!initVehicleId) {
+              initVehicleId = String(linkedSeguro.veiculoId);
+            }
+          }
+        }
+
         dispatch({ type: 'RESET', payload: {
             accountId: editingTransaction.accountId,
             date: editingTransaction.date,
@@ -164,9 +225,9 @@ export function MovimentarContaModal({
             tempLoanId: editingTransaction.links.loanId,
             tempParcelaId: editingTransaction.links.parcelaId,
             tempVehicleOperation: editingTransaction.operationType === 'veiculo' ? editingTransaction.meta.vehicleOperation || null : null,
-            tempVehicleId: editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null,
-            tempSeguroId: editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa' ? editingTransaction.links.vehicleTransactionId.split('_')[0] : null,
-            tempSeguroParcelaId: editingTransaction.links.vehicleTransactionId && editingTransaction.operationType === 'despesa' ? editingTransaction.links.vehicleTransactionId.split('_')[1] : null,
+            tempVehicleId: initVehicleId,
+            tempSeguroId: initSeguroId,
+            tempSeguroParcelaId: initSeguroParcelaId,
             tempAssetType: editingTransaction.operationType === 'imobilizado' && (editingTransaction.meta.assetType === 'imovel' || editingTransaction.meta.assetType === 'terreno') ? editingTransaction.meta.assetType : null,
             tempAssetId: editingTransaction.meta.assetId ? String(editingTransaction.meta.assetId) : null,
             tempAssetOperation: editingTransaction.operationType === 'imobilizado' ? editingTransaction.meta.assetOperation || null : null,
@@ -316,8 +377,15 @@ export function MovimentarContaModal({
       return; 
     }
 
+    const isCreatingNewSeguro = isSeguroCategory && (!hasUnpaidParcels || state.tempSeguroId === 'new');
+
+    if (isSeguroCategory && !isCreatingNewSeguro && (!state.tempSeguroId || !state.tempSeguroParcelaId)) {
+      toast.error("Selecione a parcela do seguro ou escolha '+ Novo Seguro / Renovação'.");
+      return;
+    }
+
     let vehicleTransactionId = null;
-    if (isSeguroCategory) {
+    if (isSeguroCategory && !isCreatingNewSeguro) {
       if (state.tempSeguroId && state.tempSeguroId !== 'new' && state.tempSeguroParcelaId) {
         vehicleTransactionId = `${state.tempSeguroId}_${state.tempSeguroParcelaId}`;
       }
@@ -369,6 +437,7 @@ export function MovimentarContaModal({
         obligationType: isSeguroCategory ? 'seguro' : undefined,
         assetOperation: finalAssetOperation,
         discountAmount: parsedDiscount > 0 ? parsedDiscount : undefined,
+        isNewSeguro: isCreatingNewSeguro ? true : undefined,
     };
 
     const baseTx: TransacaoCompleta = {
@@ -440,20 +509,49 @@ export function MovimentarContaModal({
 
   const existingSeguroForVehicle = useMemo(() => {
     if (!vehicleForSeguro) return null;
-    return segurosVeiculo.find(s => s.veiculoId === vehicleForSeguro.id && (s.status === 'ativo' || s.status === 'pendente_config')) || null;
-  }, [vehicleForSeguro, segurosVeiculo]);
+    if (editingTransaction) {
+      const linkedSegIdStr = editingTransaction.links?.vehicleTransactionId?.split('_')[0];
+      if (linkedSegIdStr) {
+        const linkedSeg = segurosVeiculo.find(s => s.id === Number(linkedSegIdStr) && s.veiculoId === vehicleForSeguro.id);
+        if (linkedSeg) return linkedSeg;
+      }
+      const originSeg = segurosVeiculo.find(
+        s => s.veiculoId === vehicleForSeguro.id && (s.origemLancamentoId === editingTransaction.id || s.parcelas?.some(p => p.transactionId === editingTransaction.id))
+      );
+      if (originSeg) return originSeg;
+    }
+    return findActiveSeguroForVehicle(vehicleForSeguro);
+  }, [vehicleForSeguro, editingTransaction, segurosVeiculo, findActiveSeguroForVehicle]);
 
-  const hasUnpaidParcels = useMemo(() => {
-    return existingSeguroForVehicle?.parcelas?.some(p => !p.paga) || false;
-  }, [existingSeguroForVehicle]);
+  const unpaidParcelsForExistingSeguro = useMemo(() => {
+    if (!existingSeguroForVehicle?.parcelas) return [];
+    return existingSeguroForVehicle.parcelas.filter(p => !isSeguroParcelPaid(existingSeguroForVehicle.id, p));
+  }, [existingSeguroForVehicle, isSeguroParcelPaid]);
+
+  const hasUnpaidParcels = unpaidParcelsForExistingSeguro.length > 0;
+
+  useEffect(() => {
+    if (!open || !isSeguroCategory || !vehicleForSeguro || isEditing) return;
+
+    if (hasUnpaidParcels && existingSeguroForVehicle) {
+      if (state.tempSeguroId === null || (state.tempSeguroId !== 'new' && state.tempSeguroId !== String(existingSeguroForVehicle.id))) {
+        const firstUnpaid = unpaidParcelsForExistingSeguro[0];
+        dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: String(existingSeguroForVehicle.id) });
+        dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: String(firstUnpaid.numero) });
+      }
+    } else if (state.tempSeguroId !== 'new') {
+      dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: 'new' });
+      dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: null });
+    }
+  }, [open, isSeguroCategory, vehicleForSeguro, isEditing, hasUnpaidParcels, existingSeguroForVehicle, unpaidParcelsForExistingSeguro, state.tempSeguroId]);
 
   const handleVehicleForSeguroChange = (vId: string) => {
     dispatch({ type: 'SET_FIELD', field: 'tempVehicleId', value: vId });
     const targetV = veiculos.find(v => v.id === Number(vId));
     if (!targetV) return;
 
-    const existingSeg = segurosVeiculo.find(s => s.veiculoId === Number(vId) && (s.status === 'ativo' || s.status === 'pendente_config'));
-    const firstUnpaid = existingSeg?.parcelas?.find(p => !p.paga);
+    const existingSeg = findActiveSeguroForVehicle(targetV);
+    const firstUnpaid = existingSeg?.parcelas?.find(p => !isSeguroParcelPaid(existingSeg.id, p));
 
     if (existingSeg && firstUnpaid) {
       dispatch({ type: 'SET_FIELD', field: 'tempSeguroId', value: String(existingSeg.id) });
@@ -487,7 +585,7 @@ export function MovimentarContaModal({
     if (s) {
         const vModel = veiculos.find(v => v.id === s.veiculoId)?.modelo;
         dispatch({ type: 'SET_FIELD', field: 'description', value: `Pagamento Seguro - ${vModel || s.seguradora}` });
-        const firstUnpaid = s.parcelas.find(p => !p.paga);
+        const firstUnpaid = s.parcelas.find(p => !isSeguroParcelPaid(s.id, p));
         if (firstUnpaid) {
             dispatch({ type: 'SET_FIELD', field: 'tempSeguroParcelaId', value: String(firstUnpaid.numero) });
             dispatch({ type: 'SET_FIELD', field: 'amount', value: firstUnpaid.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 }) });
@@ -683,7 +781,7 @@ export function MovimentarContaModal({
                         <SelectValue placeholder="Selecione a parcela ou novo..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {existingSeguroForVehicle.parcelas.filter(p => !p.paga).map(p => (
+                        {unpaidParcelsForExistingSeguro.map(p => (
                           <SelectItem key={p.numero} value={String(p.numero)} className="font-bold">
                             Pagar Parcela {p.numero} ({p.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
                           </SelectItem>

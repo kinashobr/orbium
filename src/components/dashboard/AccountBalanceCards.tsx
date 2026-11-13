@@ -37,9 +37,11 @@ export const AccountBalanceCards = ({ orbPhase = 1 }: AccountBalanceCardsProps) 
     terrenos, 
     segurosVeiculo, 
     transacoesV2, 
+    billsTracker,
     setTransacoesV2,
     calculateBalanceUpToDate,
-    executeTransaction 
+    executeTransaction,
+    revertInsuranceEffectsForTransactions,
   } = useFinance();
   const [selectedAccount, setSelectedAccount] = useState<ContaCorrente | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -84,6 +86,12 @@ export const AccountBalanceCards = ({ orbPhase = 1 }: AccountBalanceCardsProps) 
     newAsset?: { type: 'veiculo' | 'imovel' | 'terreno'; data: any }
   ) => {
     if (editingTransaction) {
+      if (
+        editingTransaction.links?.vehicleTransactionId !== t.links?.vehicleTransactionId ||
+        t.meta?.isNewSeguro
+      ) {
+        revertInsuranceEffectsForTransactions([editingTransaction.id]);
+      }
       setTransacoesV2(prev => prev.filter(x => x.links?.transferGroupId ? x.links.transferGroupId !== editingTransaction.links?.transferGroupId : x.id !== editingTransaction.id));
     }
     executeTransaction(t, g, newAsset);
@@ -283,6 +291,8 @@ export const AccountBalanceCards = ({ orbPhase = 1 }: AccountBalanceCardsProps) 
           veiculos={veiculos}
           imoveis={imoveis}
           terrenos={terrenos}
+          transacoes={transacoesV2}
+          billsTracker={billsTracker}
           editingTransaction={editingTransaction}
           onSubmit={handleTransactionSubmit}
         />

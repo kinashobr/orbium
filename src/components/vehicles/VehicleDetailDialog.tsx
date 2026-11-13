@@ -169,7 +169,13 @@ export function VehicleDetailDialog({
   // Seguro local vinculado ao veículo
   const currentSeguro = useMemo(() => {
     if (!veiculo) return undefined;
-    return segurosVeiculo.find(s => s.veiculoId === veiculo.id) || initialSeguro;
+    if (veiculo.statusSeguro === 'sem_seguro') return undefined;
+    if (veiculo.seguroAtivoId) {
+      const byId = segurosVeiculo.find(s => s.id === veiculo.seguroAtivoId && s.status !== 'cancelado' && s.status !== 'inativo');
+      if (byId) return byId;
+    }
+    const activeList = segurosVeiculo.filter(s => s.veiculoId === veiculo.id && s.status !== 'historico' && s.status !== 'cancelado' && s.status !== 'inativo');
+    return activeList.length > 0 ? activeList[activeList.length - 1] : initialSeguro;
   }, [veiculo, segurosVeiculo, initialSeguro]);
 
   // 1. Histórico de Pontos de FIPE para o Gráfico de Evolução
@@ -1145,7 +1151,7 @@ export function VehicleDetailDialog({
           loanId: null,
           transferGroupId: null,
           parcelaId: null,
-          vehicleTransactionId: null,
+          vehicleTransactionId: `${currentSeguro.id}_${parcelaNumero}`,
         },
         conciliated: true,
         attachments: [],
@@ -1155,6 +1161,8 @@ export function VehicleDetailDialog({
           createdAt: new Date().toISOString(),
           assetType: "veiculo",
           assetId: veiculo.id,
+          obligationType: "seguro",
+          skipAutoInsuranceHook: true,
         },
       };
 

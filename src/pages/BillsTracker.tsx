@@ -20,6 +20,7 @@ import {
   BillTracker, BillDisplayItem, generateBillId, TransactionLinks, OperationType, generateTransactionId, generateTransferGroupId, TransactionDomain 
 } from "@/types/finance";
 import { BudgetPopover } from "@/components/bills/BudgetPopover";
+import { matchVehicleForInsurance } from "@/lib/transactionValidator";
 import { toast } from "sonner";
 
 const isBillTracker = (bill: BillDisplayItem): bill is BillTracker => bill.type === 'tracker';
@@ -45,6 +46,9 @@ export default function BillsTracker() {
     creditCardConfigs,
     autoPopulateFixedBills,
     getExpenseSnapshot,
+    veiculos,
+    segurosVeiculo,
+    revertInsuranceEffectsForTransactions,
   } = useFinance();
 
   const isLargeScreen = useMediaQuery("(min-width: 900px)");
@@ -229,9 +233,10 @@ export default function BillsTracker() {
 
       const account = contasMovimento.find(c => c.id === trackerBill.suggestedAccountId);
       let categoryId = trackerBill.suggestedCategoryId;
+      const isInsuranceInstallment = trackerBill.sourceType === 'insurance_installment';
 
       // Se não houver categoria sugerida, tenta auto-detectar para seguros
-      if (!categoryId && trackerBill.description.toLowerCase().includes('seguro')) {
+      if (!categoryId && (isInsuranceInstallment || trackerBill.description.toLowerCase().includes('seguro'))) {
         const insuranceCategory = categoriasV2.find(c => c.label.toLowerCase().includes('seguro'));
         if (insuranceCategory) {
           categoryId = insuranceCategory.id;
@@ -241,7 +246,7 @@ export default function BillsTracker() {
       const category = categoriasV2.find(c => c.id === categoryId);
       const isLoan = trackerBill.sourceType === 'loan_installment';
       
-      if (!account || (!category && !isLoan)) {
+      if (!account || (!category && !isLoan && !isInsuranceInstallment)) {
         toast.error("Configure conta e categoria antes de pagar.");
         return;
       }
@@ -260,7 +265,15 @@ export default function BillsTracker() {
         markLoanParcelPaid(loanId, trackerBill.expectedAmount, trackerBill.dueDate, trackerBill.parcelaNumber);
       }
 
-      if (trackerBill.sourceType === 'insurance_installment' && trackerBill.sourceRef && trackerBill.parcelaNumber) {
+      const isInsuranceExpense = !isInsuranceInstallment && (
+        (categoryId ? categoriasV2.some(c => c.id === categoryId && c.label.toLowerCase().includes('seguro')) : false) ||
+        trackerBill.description.toLowerCase().includes('seguro')
+      );
+      const targetVehicle = isInsuranceExpense
+        ? matchVehicleForInsurance(trackerBill.description, veiculos, segurosVeiculo, trackerBill.suggestedVehicleId, trackerBill.expectedAmount)
+        : undefined;
+
+      if (isInsuranceInstallment && trackerBill.sourceRef && trackerBill.parcelaNumber) {
         baseLinks.vehicleTransactionId = `${trackerBill.sourceRef}_${trackerBill.parcelaNumber}`;
         markSeguroParcelPaid(parseInt(trackerBill.sourceRef), trackerBill.parcelaNumber, transactionId);
       }
@@ -271,12 +284,20 @@ export default function BillsTracker() {
         categoryId: categoryId || null, description,
         links: { investmentId: null, loanId: baseLinks.loanId || null, transferGroupId: null, parcelaId: baseLinks.parcelaId || null, vehicleTransactionId: baseLinks.vehicleTransactionId || null },
         conciliated: true, attachments: [],
-        meta: { createdBy: 'system', source: 'bill_tracker', createdAt: new Date().toISOString() },
+        meta: {
+          createdBy: 'system',
+          source: 'bill_tracker',
+          createdAt: new Date().toISOString(),
+          assetType: isInsuranceExpense && targetVehicle ? 'veiculo' : undefined,
+          assetId: isInsuranceExpense ? targetVehicle?.id : undefined,
+          obligationType: isInsuranceExpense ? 'seguro' : undefined,
+        },
       });
       updateBill(trackerBill.id, { isPaid: true, paymentDate: trackerBill.dueDate, transactionId });
       toast.success("Despesa paga e lançada!");
     } else {
       if (trackerBill.transactionId) {
+        revertInsuranceEffectsForTransactions([trackerBill.transactionId]);
         setTransacoesV2(prev => prev.filter(t => t.id !== trackerBill.transactionId && t.links?.transferGroupId !== trackerBill.transactionId));
       }
       if (trackerBill.sourceType === 'loan_installment' && trackerBill.sourceRef) {
@@ -288,7 +309,7 @@ export default function BillsTracker() {
       updateBill(trackerBill.id, { isPaid: false, paymentDate: undefined, transactionId: undefined });
       toast.info("Pagamento desfeito.");
     }
-  }, [contasMovimento, categoriasV2, emprestimos, creditCardConfigs, addTransacaoV2, updateBill, setTransacoesV2, setBillsTracker, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid]);
+  }, [contasMovimento, categoriasV2, emprestimos, veiculos, segurosVeiculo, creditCardConfigs, addTransacaoV2, updateBill, setTransacoesV2, setBillsTracker, markLoanParcelPaid, markSeguroParcelPaid, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, revertInsuranceEffectsForTransactions]);
 
   const handleUpdateBill = useCallback((id: string, updates: Partial<BillTracker>) => {
     const isTracker = trackerBillIds.has(id);

@@ -29,7 +29,7 @@ import {
 import { useFinance } from "@/contexts/FinanceContext";
 import { toast } from "sonner";
 import { TransactionReviewTable } from "@/components/transactions/TransactionReviewTable";
-import { isImportedTransactionReady as isRowReady } from "@/lib/transactionValidator";
+import { isImportedTransactionReady as isRowReady, matchVehicleForInsurance } from "@/lib/transactionValidator";
 import { ContabilizedReviewTable } from "@/components/transactions/ContabilizedReviewTable";
 import { StandardizationRuleFormModal } from "@/components/transactions/StandardizationRuleFormModal";
 import { StandardizationRuleManagerModal } from "@/components/transactions/StandardizationRuleManagerModal";
@@ -62,8 +62,11 @@ export default function RevisaoExtrato() {
     deleteImportedTransaction,
     updateImportedTransactionDraft,
     transacoesV2,
-    veiculos
+    veiculos,
+    segurosVeiculo
   } = useFinance();
+
+  const activeVeiculos = useMemo(() => veiculos.filter(v => v.status !== 'vendido'), [veiculos]);
 
   const account = useMemo(() => accounts.find(a => a.id === accountId), [accounts, accountId]);
 
@@ -357,8 +360,15 @@ export default function RevisaoExtrato() {
       const isInsuranceCategory = tx.categoryId 
         ? categories.some(c => c.id === tx.categoryId && c.label.toLowerCase().includes('seguro'))
         : false;
-      const isInsuranceTx = isInsuranceCategory || (tx.description && tx.description.toLowerCase().includes('seguro'));
-      const detectedVehicleId = tx.tempAssetId || (veiculos.length === 1 ? veiculos[0].id : undefined);
+      const isInsuranceTx = flow === 'out' && (
+        isInsuranceCategory ||
+        Boolean(tx.description && tx.description.toLowerCase().includes('seguro')) ||
+        Boolean(tx.originalDescription && tx.originalDescription.toLowerCase().includes('seguro'))
+      );
+      const matchedVehicle = isInsuranceTx
+        ? matchVehicleForInsurance(tx.description || tx.originalDescription, veiculos, segurosVeiculo, tx.tempAssetId, tx.amount)
+        : undefined;
+      const detectedVehicleId = matchedVehicle?.id ?? tx.tempAssetId;
 
       const baseTx: TransacaoCompleta = {
         id: transactionId,
@@ -375,7 +385,7 @@ export default function RevisaoExtrato() {
           loanId: tx.tempLoanId || null,
           transferGroupId,
           parcelaId: tx.tempParcelaId || null,
-          vehicleTransactionId: isInsuranceTx && detectedVehicleId ? `${detectedVehicleId}_1` : null,
+          vehicleTransactionId: null,
         },
         conciliated: true,
         attachments: [],
@@ -386,7 +396,7 @@ export default function RevisaoExtrato() {
           originalDescription: tx.originalDescription,
           fitId: tx.fitId,
           vehicleOperation: tx.operationType === "veiculo" ? tx.tempVehicleOperation || undefined : undefined,
-          assetType: isInsuranceTx ? 'veiculo' : (tx.tempAssetType || (tx.operationType === 'veiculo' ? 'veiculo' : undefined)),
+          assetType: isInsuranceTx && detectedVehicleId ? 'veiculo' : (tx.tempAssetType || (tx.operationType === 'veiculo' ? 'veiculo' : undefined)),
           assetId: isInsuranceTx ? detectedVehicleId : tx.tempAssetId,
           obligationType: isInsuranceTx ? 'seguro' : undefined,
           assetOperation: tx.tempAssetOperation,
@@ -617,7 +627,7 @@ export default function RevisaoExtrato() {
                 categories={categories}
                 investments={investments}
                 loans={loans}
-                veiculos={veiculos}
+                veiculos={activeVeiculos}
                 standardizationRules={standardizationRules}
                 selectedIds={selectedPendingIds}
                 onToggleSelect={handleTogglePendingSelect}

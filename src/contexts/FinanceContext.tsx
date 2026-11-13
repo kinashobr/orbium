@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode, useMemo } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, Dispatch, SetStateAction, ReactNode, useMemo, useRef } from "react";
 import {
 	Categoria, TransacaoCompleta,
 	DEFAULT_ACCOUNTS, DEFAULT_CATEGORIES,
@@ -70,7 +70,7 @@ import {
 } from "@/lib/pluggyAdapter";
 import { parseISO, startOfMonth, endOfMonth, subDays, differenceInDays, differenceInMonths, addMonths, addYears, isBefore, isAfter, isSameDay, isSameMonth, isSameYear, startOfDay, endOfDay, subMonths, format, isWithinInterval } from "date-fns";
 import { parseDateLocal, formatDateLocal, cn } from "@/lib/utils";
-import { areDescriptionsCompatible, normalizeDescriptionForMatch } from "@/lib/transactionValidator";
+import { areDescriptionsCompatible, normalizeDescriptionForMatch, matchVehicleForInsurance } from "@/lib/transactionValidator";
 import { toast } from "sonner";
 import { 
   getContractSalaryTransactions, 
@@ -360,6 +360,7 @@ interface FinanceContextType {
   unmarkSeguroParcelPaid: (seguroId: number, parcelaNumero: number) => void;
   setVehicleInsuranceStatus: (veiculoId: number, status: 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar') => void;
   registerInsuranceLaunchFromTransaction: (veiculoId: number, amount: number, date: string, transactionId?: string, forceNewSeguro?: boolean) => SeguroVeiculo | undefined;
+  revertInsuranceEffectsForTransactions: (transactionIds: string[]) => void;
   configurePendingSeguro: (seguroId: number, config: { seguradora: string; numeroApolice: string; vigenciaInicio: string; vigenciaFim: string; valorTotal: number; numeroParcelas: number; }) => void;
   
   // Objetivos Financeiros
@@ -777,6 +778,19 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
   });
   const [categoriasV2, setCategoriasV2] = useState<Categoria[]>(() => loadFromStorage(STORAGE_KEYS.CATEGORIAS_V2, DEFAULT_CATEGORIES));
   const [transacoesV2, setTransacoesV2] = useState<TransacaoCompleta[]>(() => loadFromStorage(STORAGE_KEYS.TRANSACOES_V2, []));
+
+  const veiculosRef = useRef(veiculos);
+  veiculosRef.current = veiculos;
+  const segurosVeiculoRef = useRef(segurosVeiculo);
+  segurosVeiculoRef.current = segurosVeiculo;
+  const categoriasV2Ref = useRef(categoriasV2);
+  categoriasV2Ref.current = categoriasV2;
+  const transacoesV2Ref = useRef(transacoesV2);
+  transacoesV2Ref.current = transacoesV2;
+  const billsTrackerRef = useRef(billsTracker);
+  billsTrackerRef.current = billsTracker;
+  const registerInsuranceLaunchRef = useRef<((veiculoId: number, amount: number, date: string, transactionId?: string, forceNewSeguro?: boolean) => SeguroVeiculo | undefined) | null>(null);
+  const processAutoInsuranceRef = useRef<((tx: TransacaoCompleta) => void) | null>(null);
   const [standardizationRules, setStandardizationRules] = useState<StandardizationRule[]>(() => loadFromStorage(STORAGE_KEYS.STANDARDIZATION_RULES, initialStandardizationRules));
   const [importedStatements, setImportedStatements] = useState<ImportedStatement[]>(() => normalizeImportedStatements(loadFromStorage(STORAGE_KEYS.IMPORTED_STATEMENTS, initialImportedStatements)));
   const [dateRanges, setDateRanges] = useState<ComparisonDateRanges>(() => loadFromStorage(STORAGE_KEYS.DATE_RANGES, DEFAULT_RANGES));
@@ -926,6 +940,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    processAutoInsuranceRef.current?.(transaction);
     setTransacoesV2(prev => [...prev, transaction, ...counterpartTxs]);
   }, []);
 
@@ -1398,31 +1413,39 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
 
   const markSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number, transactionId?: string) => {
     const finalTxId = transactionId || `tx_seg_${seguroId}_${parcelaNumero}_${Date.now()}`;
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      return {
-        ...seguro,
-        parcelas: seguro.parcelas.map(parcela => 
-          parcela.numero === parcelaNumero 
-            ? { ...parcela, paga: true, transactionId: finalTxId } 
-            : parcela
-        ),
-      };
-    }));
+    setSegurosVeiculo(prevSeguros => {
+      const next = prevSeguros.map(seguro => {
+        if (seguro.id !== seguroId) return seguro;
+        return {
+          ...seguro,
+          parcelas: seguro.parcelas.map(parcela => 
+            parcela.numero === parcelaNumero 
+              ? { ...parcela, paga: true, transactionId: finalTxId } 
+              : parcela
+          ),
+        };
+      });
+      segurosVeiculoRef.current = next;
+      return next;
+    });
   }, []);
 
   const unmarkSeguroParcelPaid = useCallback((seguroId: number, parcelaNumero: number) => {
-    setSegurosVeiculo(prevSeguros => prevSeguros.map(seguro => {
-      if (seguro.id !== seguroId) return seguro;
-      return {
-        ...seguro,
-        parcelas: seguro.parcelas.map(parcela => 
-          parcela.numero === parcelaNumero 
-            ? { ...parcela, paga: false, transactionId: undefined } 
-            : parcela
-        ),
-      };
-    }));
+    setSegurosVeiculo(prevSeguros => {
+      const next = prevSeguros.map(seguro => {
+        if (seguro.id !== seguroId) return seguro;
+        return {
+          ...seguro,
+          parcelas: seguro.parcelas.map(parcela => 
+            parcela.numero === parcelaNumero 
+              ? { ...parcela, paga: false, transactionId: undefined } 
+              : parcela
+          ),
+        };
+      });
+      segurosVeiculoRef.current = next;
+      return next;
+    });
   }, []);
 
   const setVehicleInsuranceStatus = useCallback((veiculoId: number, status: 'ativo' | 'sem_seguro' | 'vencido' | 'a_renovar') => {
@@ -1454,28 +1477,71 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     transactionId?: string,
     forceNewSeguro?: boolean
   ): SeguroVeiculo | undefined => {
-    const targetVeiculo = veiculos.find(v => v.id === veiculoId);
+    const currentVeiculos = veiculosRef.current;
+    const currentSeguros = segurosVeiculoRef.current;
+
+    const targetVeiculo = currentVeiculos.find(v => v.id === veiculoId);
     if (!targetVeiculo) return undefined;
 
-    // Verificar se existe um seguro ativo com parcelas em aberto
-    const activeSeguro = !forceNewSeguro && targetVeiculo.statusSeguro !== 'sem_seguro'
-      ? segurosVeiculo.find(s => s.veiculoId === veiculoId && (s.status === 'ativo' || s.status === 'pendente_config'))
-      : undefined;
+    // Idempotência: evitar duplicação caso o mesmo transactionId já tenha gerado/quitado uma parcela
+    if (transactionId) {
+      const alreadyLinked = currentSeguros.find(
+        s => s.origemLancamentoId === transactionId || s.parcelas?.some(p => p.transactionId === transactionId)
+      );
+      if (alreadyLinked) return alreadyLinked;
+    }
 
-    const hasUnpaidParcel = activeSeguro?.parcelas?.some(p => !p.paga);
+    const isParcelSettled = (seguroId: number, p: { numero: number; paga: boolean; transactionId?: string }) => {
+      if (p.paga) return true;
+      if (p.transactionId && transacoesV2Ref.current.some(t => t.id === p.transactionId)) return true;
+      if (transacoesV2Ref.current.some(t => t.links?.vehicleTransactionId === `${seguroId}_${p.numero}`)) return true;
+      if (billsTrackerRef.current.some(b =>
+        b.sourceType === 'insurance_installment' &&
+        b.sourceRef === String(seguroId) &&
+        b.parcelaNumber === p.numero &&
+        b.isPaid
+      )) return true;
+      return false;
+    };
 
-    if (activeSeguro && hasUnpaidParcel && !forceNewSeguro) {
-      // Quitar a primeira parcela pendente do seguro ativo
-      const nextParcel = activeSeguro.parcelas.find(p => !p.paga);
-      if (nextParcel) {
-        markSeguroParcelPaid(activeSeguro.id, nextParcel.numero, transactionId);
+    // Verificar se existe um seguro ativo/pendente com parcelas em aberto
+    let activeSeguro: SeguroVeiculo | undefined = undefined;
+    if (!forceNewSeguro && targetVeiculo.statusSeguro !== 'sem_seguro') {
+      if (targetVeiculo.seguroAtivoId) {
+        activeSeguro = currentSeguros.find(
+          s => s.id === targetVeiculo.seguroAtivoId && s.status !== 'historico' && s.status !== 'cancelado' && s.status !== 'inativo'
+        );
       }
+      if (!activeSeguro) {
+        const candidates = currentSeguros.filter(
+          s => s.veiculoId === veiculoId && (s.status === 'ativo' || s.status === 'pendente_config' || !s.status)
+        );
+        activeSeguro = candidates.length > 0 ? candidates[candidates.length - 1] : undefined;
+      }
+    }
+
+    const nextParcel = activeSeguro?.parcelas?.find(p => !isParcelSettled(activeSeguro!.id, p));
+
+    if (activeSeguro && nextParcel && !forceNewSeguro) {
+      // Quitar a primeira parcela pendente do seguro ativo
+      const finalTxId = transactionId || `tx_seg_${activeSeguro.id}_${nextParcel.numero}_${Date.now()}`;
+      segurosVeiculoRef.current = currentSeguros.map(s =>
+        s.id !== activeSeguro!.id
+          ? s
+          : {
+              ...s,
+              parcelas: s.parcelas.map(p =>
+                p.numero === nextParcel.numero ? { ...p, paga: true, transactionId: finalTxId } : p
+              ),
+            }
+      );
+      markSeguroParcelPaid(activeSeguro.id, nextParcel.numero, finalTxId);
       return activeSeguro;
     }
 
     // Caso contrário (sem seguro, seguro anterior quitado/vencido ou forceNewSeguro):
     // Cria um novo seguro com status 'pendente_config'
-    const newId = Math.max(0, ...segurosVeiculo.map(x => x.id)) + 1;
+    const newId = Math.max(0, ...currentSeguros.map(x => x.id)) + 1;
     const finalTxId = transactionId || `tx_seg_${newId}_1_${Date.now()}`;
     
     // Início na data do lançamento e fim padrão em 1 ano
@@ -1509,10 +1575,23 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       ]
     };
 
+    const nextSegurosList = [
+      ...currentSeguros.map(existing => {
+        if (existing.veiculoId === veiculoId && (existing.status === 'ativo' || existing.status === 'pendente_config' || !existing.status)) {
+          return { ...existing, status: 'historico' as const, apoliceAnteriorId: existing.id };
+        }
+        return existing;
+      }),
+      newSeguro
+    ];
+    segurosVeiculoRef.current = nextSegurosList;
+
     setSegurosVeiculo(prev => {
-      // Arquivar anteriores ativos como 'historico'
+      if (prev.some(s => s.id === newId || (transactionId && s.origemLancamentoId === transactionId))) {
+        return prev;
+      }
       const updated = prev.map(existing => {
-        if (existing.veiculoId === veiculoId && (existing.status === 'ativo' || !existing.status)) {
+        if (existing.veiculoId === veiculoId && (existing.status === 'ativo' || existing.status === 'pendente_config' || !existing.status)) {
           return { ...existing, status: 'historico' as const, apoliceAnteriorId: existing.id };
         }
         return existing;
@@ -1521,6 +1600,11 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     });
 
     // Atualizar o veículo com o novo seguro
+    veiculosRef.current = currentVeiculos.map(v =>
+      v.id === veiculoId
+        ? { ...v, valorSeguro: amount, vencimentoSeguro: fimDateStr, parcelaSeguro: amount, statusSeguro: 'ativo', seguroAtivoId: newId }
+        : v
+    );
     setVeiculos(prev => prev.map(v => {
       if (v.id === veiculoId) {
         return {
@@ -1536,7 +1620,109 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }));
 
     return newSeguro;
-  }, [veiculos, segurosVeiculo, markSeguroParcelPaid]);
+  }, [markSeguroParcelPaid]);
+
+  registerInsuranceLaunchRef.current = registerInsuranceLaunchFromTransaction;
+
+  const processAutoInsuranceForTransaction = useCallback((transaction: TransacaoCompleta) => {
+    if (!transaction) return;
+    if (transaction.meta?.skipAutoInsuranceHook) return;
+    if (transaction.links?.vehicleTransactionId) return;
+    if (transaction.meta?.obligationType && transaction.meta.obligationType !== 'seguro') return;
+    if (transaction.flow !== 'out') return;
+    if (['transferencia', 'aplicacao', 'resgate', 'veiculo', 'imobilizado', 'initial_balance'].includes(transaction.operationType)) {
+      return;
+    }
+
+    const cats = categoriasV2Ref.current;
+    const isSeguroCategory = transaction.categoryId
+      ? cats.some(c => c.id === transaction.categoryId && c.label.toLowerCase().includes('seguro'))
+      : false;
+    const descLower = (transaction.description || '').toLowerCase();
+    const origDescLower = (transaction.meta?.originalDescription || '').toLowerCase();
+    const isSeguroDesc = descLower.includes('seguro') || origDescLower.includes('seguro');
+    const isSeguroTx = transaction.meta?.obligationType === 'seguro' || isSeguroCategory || isSeguroDesc;
+
+    if (!isSeguroTx) return;
+
+    const explicitVehId = (transaction.meta?.assetType === 'veiculo' && transaction.meta?.assetId)
+      ? Number(transaction.meta.assetId)
+      : undefined;
+
+    const matchedVeh = matchVehicleForInsurance(
+      transaction.description || transaction.meta?.originalDescription,
+      veiculosRef.current,
+      segurosVeiculoRef.current,
+      explicitVehId,
+      transaction.amount
+    );
+
+    if (matchedVeh) {
+      registerInsuranceLaunchRef.current?.(
+        matchedVeh.id,
+        transaction.amount,
+        transaction.date,
+        transaction.id,
+        transaction.meta?.isNewSeguro
+      );
+    }
+  }, []);
+
+  processAutoInsuranceRef.current = processAutoInsuranceForTransaction;
+
+  const revertInsuranceEffectsForTransactions = useCallback((transactionIds: string[]) => {
+    if (!transactionIds || transactionIds.length === 0) return;
+    const txIdSet = new Set(transactionIds);
+    const currentSeguros = segurosVeiculoRef.current;
+
+    const pendenteIdsToRemove = new Set<number>();
+    const affectedVehicleIds = new Set<number>();
+
+    currentSeguros.forEach(s => {
+      if (s.status === 'pendente_config' && s.origemLancamentoId && txIdSet.has(s.origemLancamentoId)) {
+        pendenteIdsToRemove.add(s.id);
+        affectedVehicleIds.add(s.veiculoId);
+      }
+    });
+
+    const hasAnyMatch = pendenteIdsToRemove.size > 0 || currentSeguros.some(s =>
+      s.parcelas?.some(p => p.transactionId && txIdSet.has(p.transactionId))
+    );
+    if (!hasAnyMatch) return;
+
+    const nextSeguros = currentSeguros
+      .filter(s => !pendenteIdsToRemove.has(s.id))
+      .map(s => {
+        let changed = false;
+        const nextParcelas = (s.parcelas || []).map(p => {
+          if (p.transactionId && txIdSet.has(p.transactionId)) {
+            changed = true;
+            return { ...p, paga: false, transactionId: undefined };
+          }
+          return p;
+        });
+        return changed ? { ...s, parcelas: nextParcelas } : s;
+      });
+
+    segurosVeiculoRef.current = nextSeguros;
+    setSegurosVeiculo(nextSeguros);
+
+    if (affectedVehicleIds.size > 0) {
+      setVeiculos(prev => prev.map(v => {
+        if (affectedVehicleIds.has(v.id) && v.seguroAtivoId && pendenteIdsToRemove.has(v.seguroAtivoId)) {
+          return {
+            ...v,
+            statusSeguro: 'sem_seguro',
+            seguroAtivoId: undefined,
+            valorSeguro: 0,
+            parcelaSeguro: 0,
+            vencimentoSeguro: ""
+          };
+        }
+        return v;
+      }));
+    }
+  }, []);
 
   const configurePendingSeguro = useCallback((
     seguroId: number,
@@ -1602,25 +1788,28 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       };
     }));
 
-    // Sincronizar veículo
-    const currentSeguro = segurosVeiculo.find(s => s.id === seguroId);
+    const currentSeguro = segurosVeiculoRef.current.find(s => s.id === seguroId);
     if (currentSeguro?.veiculoId) {
       const vId = currentSeguro.veiculoId;
-      setVeiculos(prev => prev.map(v => {
-        if (v.id === vId) {
-          return {
-            ...v,
-            valorSeguro: config.valorTotal,
-            vencimentoSeguro: config.vigenciaFim,
-            parcelaSeguro: Math.round(config.valorTotal / (config.numeroParcelas || 1)),
-            statusSeguro: 'ativo',
-            seguroAtivoId: seguroId
-          };
-        }
-        return v;
-      }));
+      setVeiculos(prev => {
+        const next = prev.map(v => {
+          if (v.id === vId) {
+            return {
+              ...v,
+              valorSeguro: config.valorTotal,
+              vencimentoSeguro: config.vigenciaFim,
+              parcelaSeguro: Math.round(config.valorTotal / (config.numeroParcelas || 1)),
+              statusSeguro: 'ativo' as const,
+              seguroAtivoId: seguroId
+            };
+          }
+          return v;
+        });
+        veiculosRef.current = next;
+        return next;
+      });
     }
-  }, [segurosVeiculo]);
+  }, []);
 
   const deleteSeguroVeiculo = useCallback((id: number, deleteInitialTransaction?: boolean) => {
     const targetSeguro = segurosVeiculo.find(s => s.id === id);
@@ -1790,10 +1979,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     // 3. Vínculo com BillTracker
     const loanIdStr = links.loanId ? links.loanId.replace('loan_', '') : null;
     const parcelaNum = links.parcelaId ? parseInt(links.parcelaId) : null;
+    const explicitSegMatch = !meta?.isNewSeguro && links.vehicleTransactionId
+      ? links.vehicleTransactionId.split('_')
+      : null;
+    const explicitSegId = explicitSegMatch?.[0] || null;
+    const explicitSegParcel = explicitSegMatch?.[1] ? parseInt(explicitSegMatch[1], 10) : null;
 
     const matchingBill = billsTracker.find(b =>
       (loanIdStr && parcelaNum && b.sourceType === 'loan_installment' && b.sourceRef === loanIdStr && b.parcelaNumber === parcelaNum) ||
+      (explicitSegId && explicitSegParcel && b.sourceType === 'insurance_installment' && b.sourceRef === explicitSegId && b.parcelaNumber === explicitSegParcel) ||
       (!b.isPaid &&
+       !(meta?.isNewSeguro && b.sourceType === 'insurance_installment') &&
        Math.abs(b.expectedAmount - amount) < 2 &&
        isSameMonth(parseDateLocal(b.dueDate), parseDateLocal(transaction.date)) &&
        (b.description.toLowerCase().includes(transaction.description.toLowerCase()) ||
@@ -1812,54 +2008,66 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     // 3.1. Integração Automática com Seguro de Veículo
-    const isSeguroCategory = transaction.categoryId
-      ? categoriasV2.some(c => c.id === transaction.categoryId && c.label.toLowerCase().includes('seguro'))
-      : false;
-    const descLower = (transaction.description || '').toLowerCase();
-    const isSeguroDesc = descLower.includes('seguro');
-    const isSeguroTx = meta?.obligationType === 'seguro' || isSeguroCategory || isSeguroDesc;
+    if (!meta?.skipAutoInsuranceHook && (!meta?.obligationType || meta.obligationType === 'seguro')) {
+      if (flow === 'out' && links?.vehicleTransactionId && !meta?.isNewSeguro) {
+        const [segIdStr, parcNumStr] = links.vehicleTransactionId.split('_');
+        const segId = parseInt(segIdStr, 10);
+        const parcNum = parseInt(parcNumStr, 10);
+        if (!isNaN(segId) && !isNaN(parcNum)) {
+          markSeguroParcelPaid(segId, parcNum, transaction.id);
+        }
+      } else {
+        const isSeguroCategory = transaction.categoryId
+          ? categoriasV2Ref.current.some(c => c.id === transaction.categoryId && c.label.toLowerCase().includes('seguro'))
+          : false;
+        const descLower = (transaction.description || '').toLowerCase();
+        const origDescLower = (meta?.originalDescription || '').toLowerCase();
+        const isSeguroDesc = descLower.includes('seguro') || origDescLower.includes('seguro');
+        const isSeguroTx = (meta?.obligationType === 'seguro' || isSeguroCategory || isSeguroDesc) && flow === 'out';
 
-    let targetVehId = (meta?.assetType === 'veiculo' && meta?.assetId)
-      ? Number(meta.assetId)
-      : (links.vehicleTransactionId ? parseInt(links.vehicleTransactionId.split('_')[0]) : undefined);
+        if (isSeguroTx) {
+          const explicitVehId = (meta?.assetType === 'veiculo' && meta?.assetId)
+            ? Number(meta.assetId)
+            : undefined;
 
-    // Se ainda não encontrou o veículo explicitamente mas a movimentação é de seguro:
-    if (!targetVehId && isSeguroTx) {
-      const activeVehs = veiculos.filter(v => v.status !== 'vendido');
-      const matchedVeh = activeVehs.find(v => 
-        (v.modelo && descLower.includes(v.modelo.toLowerCase())) ||
-        (v.placa && descLower.includes(v.placa.toLowerCase()))
-      );
-      if (matchedVeh) {
-        targetVehId = matchedVeh.id;
-      } else if (activeVehs.length === 1) {
-        targetVehId = activeVehs[0].id;
-      } else if (activeVehs.length > 1) {
-        const vehWithSeg = activeVehs.find(v => 
-          segurosVeiculo.some(s => s.veiculoId === v.id && (s.status === 'ativo' || s.status === 'pendente_config'))
-        );
-        targetVehId = vehWithSeg ? vehWithSeg.id : activeVehs[0].id;
+          const matchedVeh = matchVehicleForInsurance(
+            transaction.description || meta?.originalDescription,
+            veiculosRef.current,
+            segurosVeiculoRef.current,
+            explicitVehId,
+            transaction.amount
+          );
+
+          if (matchedVeh) {
+            registerInsuranceLaunchFromTransaction(
+              matchedVeh.id,
+              transaction.amount,
+              transaction.date,
+              transaction.id,
+              meta?.isNewSeguro
+            );
+          }
+        }
       }
-    }
-
-    if (isSeguroTx && targetVehId) {
-      registerInsuranceLaunchFromTransaction(
-        targetVehId,
-        transaction.amount,
-        transaction.date,
-        transaction.id,
-        meta?.isNewSeguro
-      );
     }
 
     // 4. Persistir transações
     setTransacoesV2(prev => [...prev, transaction, ...counterpartTxs]);
     toast.success(counterpartTxs.length > 0 ? "Lançamento de partida dobrada realizado." : "Transação registrada com sucesso.");
-  }, [billsTracker, updateBill, veiculos, categoriasV2, segurosVeiculo, registerInsuranceLaunchFromTransaction]);
+  }, [billsTracker, updateBill, markSeguroParcelPaid, registerInsuranceLaunchFromTransaction]);
   
   const uncontabilizeImportedTransaction = useCallback((transactionId: string) => {
     const targetTx = transacoesV2.find(t => t.id === transactionId);
     const transferGroupId = targetTx?.links?.transferGroupId;
+    const removedIds: string[] = [transactionId];
+    if (transferGroupId) {
+      transacoesV2.forEach(t => {
+        if (t.links?.transferGroupId === transferGroupId && t.id !== transactionId) {
+          removedIds.push(t.id);
+        }
+      });
+    }
+    revertInsuranceEffectsForTransactions(removedIds);
 
     setTransacoesV2(prev => prev.filter(t => {
       if (t.id === transactionId) return false;
@@ -1886,7 +2094,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       return s;
     }));
-  }, [transacoesV2, setTransacoesV2]);
+  }, [transacoesV2, setTransacoesV2, revertInsuranceEffectsForTransactions]);
 
   const uncontabilizeTransactionsBatch = useCallback((transactionIds: string[]) => {
     if (!transactionIds.length) return;
@@ -1898,6 +2106,15 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         transferGroupIdsToRemove.add(t.links.transferGroupId);
       }
     });
+    const allRemovedIds = new Set(transactionIds);
+    if (transferGroupIdsToRemove.size > 0) {
+      transacoesV2.forEach(t => {
+        if (t.links?.transferGroupId && transferGroupIdsToRemove.has(t.links.transferGroupId)) {
+          allRemovedIds.add(t.id);
+        }
+      });
+    }
+    revertInsuranceEffectsForTransactions(Array.from(allRemovedIds));
 
     setTransacoesV2(prev => prev.filter(t => {
       if (idSet.has(t.id)) return false;
@@ -1924,7 +2141,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
       }
       return s;
     }));
-  }, [transacoesV2, setTransacoesV2]);
+  }, [transacoesV2, setTransacoesV2, revertInsuranceEffectsForTransactions]);
   
   const autoReconcileImportedStatements = useCallback((targetAccountId?: string): number => {
     let reconciledCount = 0;
@@ -2325,11 +2542,17 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
             }
         });
     });
-    segurosVeiculo.forEach(seguro => {
+    segurosVeiculo
+      .filter(seguro => seguro.status !== 'cancelado' && seguro.status !== 'inativo')
+      .forEach(seguro => {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
             if (isWithinInterval(dueDate, { start: monthStart, end: monthEnd })) {
-                potentialBills.push({ key: `ins_${seguro.id}_${parcela.numero}`, sourceType: 'insurance_installment', sourceRef: String(seguro.id), parcelaNumber: parcela.numero, dueDate: parcela.vencimento, expectedAmount: parcela.valor, description: `Seguro ${seguro.numeroApolice} - P${parcela.numero}/${seguro.numeroParcelas}`, isPaid: transacoesV2.some(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`), isIncluded: isBillIncluded('insurance_installment', String(seguro.id), parcela.numero) });
+                const isPaid = Boolean(
+                  parcela.paga ||
+                  transacoesV2.some(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}` || (parcela.transactionId && t.id === parcela.transactionId))
+                );
+                potentialBills.push({ key: `ins_${seguro.id}_${parcela.numero}`, sourceType: 'insurance_installment', sourceRef: String(seguro.id), parcelaNumber: parcela.numero, dueDate: parcela.vencimento, expectedAmount: parcela.valor, description: `Seguro ${seguro.numeroApolice} - P${parcela.numero}/${seguro.numeroParcelas}`, isPaid, isIncluded: isBillIncluded('insurance_installment', String(seguro.id), parcela.numero) });
             }
         });
     });
@@ -2365,10 +2588,16 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
         });
     });
 
-    segurosVeiculo.forEach(seguro => {
+    segurosVeiculo
+      .filter(seguro => seguro.status !== 'cancelado' && seguro.status !== 'inativo')
+      .forEach(seguro => {
         seguro.parcelas.forEach(parcela => {
             const dueDate = parseDateLocal(parcela.vencimento);
             if (isAfter(dueDate, referenceMonthEnd)) {
+                const isPaid = Boolean(
+                  parcela.paga ||
+                  transacoesV2.some(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}` || (parcela.transactionId && t.id === parcela.transactionId))
+                );
                 futureBills.push({
                     key: `ins_${seguro.id}_${parcela.numero}`,
                     sourceType: 'insurance_installment',
@@ -2377,7 +2606,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
                     dueDate: parcela.vencimento,
                     expectedAmount: parcela.valor,
                     description: `Seguro ${seguro.numeroApolice} - P${parcela.numero}/${seguro.numeroParcelas}`,
-                    isPaid: transacoesV2.some(t => t.links?.vehicleTransactionId === `${seguro.id}_${parcela.numero}`),
+                    isPaid,
                     isIncluded: isAlreadyInTracker('insurance_installment', String(seguro.id), parcela.numero)
                 });
             }
@@ -3216,6 +3445,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     }
 
     if (newTransactions.length > 0) {
+      newTransactions.forEach(t => processAutoInsuranceRef.current?.(t));
       setTransacoesV2(prev => [...prev, ...newTransactions]);
       updateLastModified();
       const msg = `${launchedCount} transação(ões) lançada(s) com sucesso no sistema!${skippedDuplicatesCount > 0 ? ` (${skippedDuplicatesCount} duplicadas ignoradas)` : ''}`;
@@ -3760,31 +3990,38 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     terrenos, addTerreno, updateTerreno, deleteTerreno,
     segurosVeiculo, 
     addSeguroVeiculo: (s: any) => {
-      const newId = Math.max(0, ...segurosVeiculo.map(x => x.id)) + 1;
+      const currentSeguros = segurosVeiculoRef.current;
+      const newId = Math.max(0, ...currentSeguros.map(x => x.id)) + 1;
       const newSeguro = { ...s, id: newId, status: s.status || 'ativo' };
       setSegurosVeiculo(p => {
         const updated = p.map(existing => {
-          if (existing.veiculoId === newSeguro.veiculoId && (existing.status === 'ativo' || !existing.status)) {
+          if (existing.veiculoId === newSeguro.veiculoId && (existing.status === 'ativo' || existing.status === 'pendente_config' || !existing.status)) {
             return { ...existing, status: 'historico' as const, apoliceAnteriorId: existing.id };
           }
           return existing;
         });
-        return [...updated, newSeguro];
+        const next = [...updated, newSeguro];
+        segurosVeiculoRef.current = next;
+        return next;
       });
       if (s.veiculoId) {
-        setVeiculos(prev => prev.map(v => {
-          if (v.id === s.veiculoId) {
-            return {
-              ...v,
-              valorSeguro: s.valorTotal || 0,
-              vencimentoSeguro: s.vigenciaFim || "",
-              parcelaSeguro: s.parcelas?.[0]?.valor || (s.numeroParcelas ? Math.round(s.valorTotal / s.numeroParcelas) : 0),
-              statusSeguro: 'ativo',
-              seguroAtivoId: newId,
-            };
-          }
-          return v;
-        }));
+        setVeiculos(prev => {
+          const next = prev.map(v => {
+            if (v.id === s.veiculoId) {
+              return {
+                ...v,
+                valorSeguro: s.valorTotal || 0,
+                vencimentoSeguro: s.vigenciaFim || "",
+                parcelaSeguro: s.parcelas?.[0]?.valor || (s.numeroParcelas ? Math.round(s.valorTotal / s.numeroParcelas) : 0),
+                statusSeguro: 'ativo' as const,
+                seguroAtivoId: newId,
+              };
+            }
+            return v;
+          });
+          veiculosRef.current = next;
+          return next;
+        });
       }
     },
     updateSeguroVeiculo: (id: number, s: any) => setSegurosVeiculo(p => p.map(x => x.id === id ? { ...x, ...s } : x)), 
@@ -3793,6 +4030,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     unmarkSeguroParcelPaid,
     setVehicleInsuranceStatus,
     registerInsuranceLaunchFromTransaction,
+    revertInsuranceEffectsForTransactions,
     configurePendingSeguro,
     objetivos, addObjetivo: (o: any) => setObjetivos(p => [...p, { ...o, id: Math.max(0, ...p.map(x => x.id)) + 1 }]), updateObjetivo: (id: number, o: any) => setObjetivos(p => p.map(x => x.id === id ? { ...x, ...o } : x)), deleteObjetivo: (id: number) => setObjetivos(p => p.filter(x => x.id !== id)),
     billsTracker, setBillsTracker, updateBill, deleteBill, addPurchaseInstallments, getBillsForMonth, getPotentialFixedBillsForMonth, getFutureFixedBills, getOtherPaidExpensesForMonth, autoPopulateFixedBills,
@@ -3923,7 +4161,7 @@ export function FinanceProvider({ children }: { children: ReactNode }) {
     deleteMetaPersonalizada, deleteStandardizationRule, deleteTerreno, markLoanParcelPaid, markSeguroParcelPaid, setVehicleInsuranceStatus, metasPersonalizadas,
     uncontabilizeImportedTransaction, deleteImportedTransaction, updateImportedTransactionDraft, uncontabilizeTransactionsBatch, autoReconcileImportedStatements, unmarkLoanParcelPaid, unmarkSeguroParcelPaid, updateCreditCardConfig, updateEmprestimo, updateImovel,
     updateImportedStatement, updateMetaPersonalizada, updateStandardizationRule, updateTerreno,
-    registerInsuranceLaunchFromTransaction, configurePendingSeguro, deleteSeguroVeiculo
+    registerInsuranceLaunchFromTransaction, revertInsuranceEffectsForTransactions, configurePendingSeguro, deleteSeguroVeiculo
   ]);
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

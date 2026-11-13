@@ -801,10 +801,10 @@ export function VehicleObligationsTab({
                 key={idx}
                 onClick={() => {
                   if (p.paga) {
-                    unmarkSeguroParcelPaid(seguro.veiculoId, p.numero);
+                    unmarkSeguroParcelPaid(seguro.id, p.numero);
                     toast.info(`Parcela ${p.numero} desmarcada.`);
                   } else {
-                    markSeguroParcelPaid(seguro.veiculoId, p.numero);
+                    markSeguroParcelPaid(seguro.id, p.numero);
                     toast.success(`Parcela ${p.numero} marcada como PAGA!`);
                   }
                 }}

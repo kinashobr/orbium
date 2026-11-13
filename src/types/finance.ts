@@ -139,6 +139,9 @@ export interface TransactionMeta {
   discountAmount?: number;
   discountTransactionId?: string;
   fitId?: string; // ID único da transação OFX emitida pela instituição financeira
+  obligationType?: 'seguro' | 'ipva' | 'licenciamento' | string;
+  isNewSeguro?: boolean;
+  skipAutoInsuranceHook?: boolean;
 }
 
 // Transação Completa (atualizada)
@@ -406,6 +409,8 @@ export interface BillTracker {
   
   // Categoria sugerida
   suggestedCategoryId?: string;
+  // Veículo sugerido (para despesas de seguro vinculadas manualmente/auto)
+  suggestedVehicleId?: number | null;
   
   isExcluded?: boolean; // NEW: Mark if excluded from current month's list
   discountAmount?: number; // NEW: Desconto obtido na parcela
