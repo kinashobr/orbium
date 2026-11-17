@@ -17,10 +17,10 @@
 
 ## Visão Geral
 
-O **ORBIUM** centraliza finanças pessoais, fluxo de caixa, cartões, investimentos, financiamentos, bens e relatórios gerenciais em um único painel web (com suporte a PWA e temas claro/escuro). O projeto aplica fundamentos de contabilidade gerencial — como DRE, Balanço Patrimonial e conciliação de extratos — ao controle financeiro pessoal.
+O **ORBIUM** gerencia finanças pessoais em um painel web (com suporte a PWA ). O projeto aplica fundamentos básicos de contabilidade gerencial — como DRE, Balanço Patrimonial e conciliação de extratos — ao controle financeiro pessoal.
 
 > **Status:** em desenvolvimento (pré-alpha).  
-> Projeto experimental fornecido “como está”. Não deve ser utilizado como única fonte para decisões financeiras, fiscais ou trabalhistas.
+> Projeto pessoal. Não deve ser utilizado como única fonte para decisões financeiras, fiscais ou trabalhistas.
 
 ---
 
