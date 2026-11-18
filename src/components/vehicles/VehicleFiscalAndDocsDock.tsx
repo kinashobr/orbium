@@ -35,7 +35,9 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
   const { transacoesV2 } = useFinance();
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [editingDocName, setEditingDocName] = useState("");
+  const [isDraggingOverVault, setIsDraggingOverVault] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   // Buscar pagamentos no extrato/transações
   const ipvaTx = transacoesV2.find(t => 
@@ -59,35 +61,106 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
   // Documentos cadastrados no veículo (sem hardcode estático)
   const docsList: VehicleDocument[] = veiculo.documentos || [];
 
+  const readFileAsDocument = (file: File, index: number): Promise<VehicleDocument | null> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === "string" ? reader.result : undefined;
+        if (!dataUrl) {
+          resolve(null);
+          return;
+        }
+        const cleanFileName = file.name.replace(/\.[^/.]+$/, "");
+        const tipo = file.type.includes("pdf")
+          ? "PDF Digital"
+          : file.type.startsWith("image/")
+            ? "Imagem / Laudo"
+            : "Documento";
+        const tamanho = file.size < 1024 * 1024
+          ? `${Math.max(1, Math.round(file.size / 1024))} KB`
+          : `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+
+        resolve({
+          id: `doc_${Date.now()}_${index}`,
+          nome: cleanFileName || file.name,
+          tipo,
+          data: format(new Date(), "yyyy-MM-dd"),
+          fileData: dataUrl,
+          tamanho,
+        });
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const processUploadedFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+    const loadedDocs = (await Promise.all(files.map((file, idx) => readFileAsDocument(file, idx))))
+      .filter((doc): doc is VehicleDocument => doc !== null);
+
+    if (loadedDocs.length === 0) {
+      toast.error("Não foi possível ler o arquivo selecionado.");
+      return;
+    }
+
+    onUpdateVeiculo(veiculo.id, {
+      documentos: [...docsList, ...loadedDocs]
+    });
+
+    toast.success(
+      loadedDocs.length === 1
+        ? "Documento carregado no cofre com sucesso!"
+        : `${loadedDocs.length} documentos carregados no cofre com sucesso!`
+    );
+  };
+
   // Direct File Upload handler (without intermediate modal)
   const handleDirectFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const cleanFileName = file.name.replace(/\.[^/.]+$/, ""); // Nome do arquivo sem extensão
-
-      const newDoc: VehicleDocument = {
-        id: `doc_${Date.now()}`,
-        nome: cleanFileName || file.name,
-        tipo: file.type.includes("pdf") ? "PDF Digital" : "Imagem / Laudo",
-        data: format(new Date(), "yyyy-MM-dd"),
-        fileData: dataUrl,
-        tamanho: `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-      };
-
-      onUpdateVeiculo(veiculo.id, {
-        documentos: [...docsList, newDoc]
-      });
-
-      toast.success("Documento carregado no cofre com sucesso!");
-    };
-    reader.readAsDataURL(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      void processUploadedFiles(files);
+    }
 
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleVaultDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragCounterRef.current += 1;
+    setIsDraggingOverVault(true);
+  };
+
+  const handleVaultDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.types.includes("Files")) {
+      e.dataTransfer.dropEffect = "copy";
+    }
+  };
+
+  const handleVaultDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.dataTransfer.types.includes("Files")) return;
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+    if (dragCounterRef.current === 0) {
+      setIsDraggingOverVault(false);
+    }
+  };
+
+  const handleVaultDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDraggingOverVault(false);
+    const droppedFiles = Array.from(e.dataTransfer.files || []);
+    if (droppedFiles.length > 0) {
+      void processUploadedFiles(droppedFiles);
+    }
   };
 
   // Inline editing save
@@ -122,7 +195,16 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
     if (doc.fileData) {
       const link = document.createElement("a");
       link.href = doc.fileData;
-      link.download = `${doc.nome}.pdf`;
+      const mimeMatch = doc.fileData.match(/^data:([^;]+);/);
+      const mimeType = mimeMatch?.[1] || "";
+      const ext = mimeType.includes("png")
+        ? "png"
+        : mimeType.includes("jpeg") || mimeType.includes("jpg")
+          ? "jpg"
+          : mimeType.includes("webp")
+            ? "webp"
+            : "pdf";
+      link.download = `${doc.nome}.${ext}`;
       link.click();
       toast.success(`Download de ${doc.nome}`);
     } else {
@@ -217,7 +299,16 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
       </div>
 
       {/* COFRE DE DOCUMENTOS (SEM HARDCODE, COM EDIT INLINE & UPLOAD DIRETO) */}
-      <div className="lg:col-span-5 flex flex-col justify-between p-6 lg:p-7 rounded-3xl bg-card border border-border/80 shadow-sm gap-4">
+      <div
+        onDragEnter={handleVaultDragEnter}
+        onDragOver={handleVaultDragOver}
+        onDragLeave={handleVaultDragLeave}
+        onDrop={handleVaultDrop}
+        className={cn(
+          "lg:col-span-5 flex flex-col justify-between p-6 lg:p-7 rounded-3xl bg-card border border-border/80 shadow-sm gap-4 transition-colors",
+          isDraggingOverVault && "border-primary bg-primary/5 ring-2 ring-primary/20"
+        )}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center text-foreground">
@@ -333,6 +424,7 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
           type="file" 
           ref={fileInputRef} 
           accept="application/pdf,image/*" 
+          multiple
           className="hidden" 
           onChange={handleDirectFileUpload}
         />
@@ -343,7 +435,7 @@ export function VehicleFiscalAndDocsDock({ veiculo, onUpdateVeiculo, onToggleDyn
           className="flex items-center justify-center gap-2 h-11 rounded-2xl text-xs font-bold bg-muted/50 hover:bg-muted border-dashed border-2 hover:border-primary"
           onClick={() => fileInputRef.current?.click()}
         >
-          <Plus className="w-4 h-4 text-primary" /> Anexar CRLV-e / Apólice / Documento
+          <Plus className="w-4 h-4 text-primary" /> Anexar Documento
         </Button>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useFinance } from "@/contexts/FinanceContext";
 import { formatCurrency, Veiculo, Imovel, Terreno } from "@/types/finance";
@@ -11,17 +11,16 @@ import {
   ShieldCheck, 
   ShieldAlert,
   Calendar,
-  TrendingUp,
-  TrendingDown,
   Landmark,
   CheckCircle2,
   XCircle,
   Truck,
-  AlertTriangle
+  AlertTriangle,
+  Clock
 } from "lucide-react";
 import { MotorcycleIcon } from "@/components/ui/MotorcycleIcon";
-import { cn } from "@/lib/utils";
-import { parseISO, format, isAfter } from "date-fns";
+import { cn, parseDateLocal } from "@/lib/utils";
+import { format, isAfter, startOfDay, differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { ImovelFormModal } from "@/components/vehicles/ImovelFormModal";
 
@@ -31,7 +30,9 @@ export const AssetCards = () => {
     veiculos, 
     imoveis, 
     terrenos, 
-    segurosVeiculo, 
+    segurosVeiculo,
+    transacoesV2,
+    billsTracker,
     deleteImovel, 
     deleteTerreno, 
     addImovel, 
@@ -43,6 +44,21 @@ export const AssetCards = () => {
   const [showImovelModal, setShowImovelModal] = useState(false);
   const [imovelModalType, setImovelModalType] = useState<'imovel' | 'terreno'>('imovel');
   const [editingImovel, setEditingImovel] = useState<Imovel | Terreno | null>(null);
+
+  const activeVeiculos = useMemo(
+    () => veiculos.filter(v => v.status !== 'vendido' && v.status !== 'pendente_cadastro'),
+    [veiculos]
+  );
+
+  const activeImoveis = useMemo(
+    () => imoveis.filter(i => i.status !== 'vendido'),
+    [imoveis]
+  );
+
+  const activeTerrenos = useMemo(
+    () => terrenos.filter(t => t.status !== 'vendido'),
+    [terrenos]
+  );
 
   const handleSaveImovelOrTerreno = (data: Partial<Imovel | Terreno>) => {
     if (imovelModalType === 'imovel') {
@@ -70,9 +86,21 @@ export const AssetCards = () => {
     setShowImovelModal(true);
   };
 
-  const getVehicleInsurance = (vehicleId: number) => {
-    return segurosVeiculo.find(s => s.veiculoId === vehicleId);
+  const getActiveVehicleInsurance = (veiculo: Veiculo) => {
+    if (veiculo.statusSeguro === 'sem_seguro') return undefined;
+    if (veiculo.seguroAtivoId) {
+      const found = segurosVeiculo.find(s => s.id === veiculo.seguroAtivoId);
+      if (found && found.status !== 'historico' && found.status !== 'cancelado') {
+        return found;
+      }
+    }
+    const candidates = segurosVeiculo.filter(
+      s => s.veiculoId === veiculo.id && s.status !== 'historico' && s.status !== 'cancelado'
+    );
+    return candidates.length > 0 ? candidates[candidates.length - 1] : undefined;
   };
+
+  const todayStart = startOfDay(new Date());
 
   return (
     <div className="space-y-4">
@@ -82,27 +110,76 @@ export const AssetCards = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
         {/* Veículos */}
-        {veiculos.map(veiculo => {
-          const seguro = getVehicleInsurance(veiculo.id);
-          const isSeguroVencido = seguro && isAfter(new Date(), parseISO(seguro.vigenciaFim));
+        {activeVeiculos.map(veiculo => {
+          const seguro = getActiveVehicleInsurance(veiculo);
 
-          // Calcular diferença entre FIPE e Valor de Aquisição
-          const diff = (veiculo.valorFipe || 0) - (veiculo.valorVeiculo || 0);
-          const percentDiff = veiculo.valorVeiculo > 0 ? (diff / veiculo.valorVeiculo) * 100 : 0;
+          let seguroFimDate: Date | null = null;
+          if (seguro?.vigenciaFim) {
+            const parsed = parseDateLocal(seguro.vigenciaFim);
+            if (!isNaN(parsed.getTime())) seguroFimDate = parsed;
+          }
 
-          // Processar IPVA Real
-          const ipvaVencido = veiculo.ipvaVencimento && !veiculo.ipvaPago && isAfter(new Date(), parseISO(veiculo.ipvaVencimento));
-          const formattedIpvaDate = veiculo.ipvaVencimento ? format(parseISO(veiculo.ipvaVencimento), 'dd/MM/yy') : null;
+          const isSeguroPendenteConfig = seguro?.status === 'pendente_config';
+          const isSeguroVencido = !!seguroFimDate && isAfter(todayStart, seguroFimDate);
+          const seguroDaysRemaining = seguroFimDate ? differenceInDays(seguroFimDate, todayStart) : null;
+          const isSeguroExpiringSoon = !isSeguroVencido && seguroDaysRemaining !== null && seguroDaysRemaining <= 30;
 
-          // Processar Licenciamento Real
-          const licVencido = veiculo.licenciamentoVencimento && !veiculo.licenciamentoPago && isAfter(new Date(), parseISO(veiculo.licenciamentoVencimento));
-          const formattedLicDate = veiculo.licenciamentoVencimento ? format(parseISO(veiculo.licenciamentoVencimento), 'dd/MM/yy') : null;
+          const seguroPaidCount = seguro?.parcelas?.filter(p =>
+            p.paga ||
+            (p.transactionId && transacoesV2.some(t => t.id === p.transactionId)) ||
+            transacoesV2.some(t => t.links?.vehicleTransactionId === `${seguro.id}_${p.numero}`) ||
+            billsTracker.some(b =>
+              b.sourceType === 'insurance_installment' &&
+              b.sourceRef === String(seguro.id) &&
+              b.parcelaNumber === p.numero &&
+              b.isPaid
+            )
+          ).length || 0;
+          const seguroTotalCount = seguro?.parcelas?.length || seguro?.numeroParcelas || 0;
+
+          // Valores FIPE e Aquisição
+          const valorFipe = veiculo.valorFipe || 0;
+          const valorCompra = veiculo.valorVeiculo || 0;
+
+          // Sincronização de IPVA com extrato (mesma regra de VehicleFiscalAndDocsDock e VehicleHeroShowcase)
+          const ipvaTx = transacoesV2.find(t =>
+            (t.meta?.assetId === veiculo.id || t.links?.vehicleTransactionId === String(veiculo.id)) &&
+            (t.meta?.obligationType === 'ipva' || t.description.toLowerCase().includes('ipva'))
+          );
+          const ipvaPago = !!ipvaTx || veiculo.ipvaPago !== false;
+          const ipvaDueDate = veiculo.ipvaVencimento ? parseDateLocal(veiculo.ipvaVencimento) : null;
+          const hasValidIpvaDue = !!ipvaDueDate && !isNaN(ipvaDueDate.getTime());
+          const ipvaVencido = !ipvaPago && hasValidIpvaDue && isAfter(todayStart, ipvaDueDate!);
+          const formattedIpvaDate = hasValidIpvaDue ? format(ipvaDueDate!, 'dd/MM/yy') : null;
+          const ipvaPaidDate = ipvaTx?.date ? parseDateLocal(ipvaTx.date) : ipvaDueDate;
+          const formattedIpvaPaidDate = ipvaPaidDate && !isNaN(ipvaPaidDate.getTime()) ? format(ipvaPaidDate, 'dd/MM/yy') : null;
+
+          // Sincronização de Licenciamento com extrato (mesma regra de VehicleFiscalAndDocsDock e VehicleHeroShowcase)
+          const licTx = transacoesV2.find(t =>
+            (t.meta?.assetId === veiculo.id || t.links?.vehicleTransactionId === String(veiculo.id)) &&
+            (t.meta?.obligationType === 'licenciamento' || t.description.toLowerCase().includes('licenciamento'))
+          );
+          const licPago = !!licTx || veiculo.licenciamentoPago !== false;
+          const licDueDate = veiculo.licenciamentoVencimento ? parseDateLocal(veiculo.licenciamentoVencimento) : null;
+          const hasValidLicDue = !!licDueDate && !isNaN(licDueDate.getTime());
+          const licVencido = !licPago && hasValidLicDue && isAfter(todayStart, licDueDate!);
+          const formattedLicDate = hasValidLicDue ? format(licDueDate!, 'dd/MM/yy') : null;
+          const licPaidDate = licTx?.date ? parseDateLocal(licTx.date) : licDueDate;
+          const formattedLicPaidDate = licPaidDate && !isNaN(licPaidDate.getTime()) ? format(licPaidDate, 'dd/MM/yy') : null;
+
+          const seguroTooltip = !seguro
+            ? "Sem seguro ativo"
+            : isSeguroPendenteConfig
+              ? `${seguro.seguradora || "Seguradora"} • Configuração pendente`
+              : isSeguroVencido
+                ? `${seguro.seguradora || "Seguro"} • Expirado em ${format(seguroFimDate!, 'dd/MM/yyyy')}`
+                : `${seguro.seguradora || "Seguro"}${seguroFimDate ? ` • Vigência até ${format(seguroFimDate, 'dd/MM/yyyy')}` : ""}${seguroTotalCount > 0 ? ` (${seguroPaidCount}/${seguroTotalCount} pagas)` : ""}`;
 
           return (
             <div 
               key={`veh-${veiculo.id}`}
               onClick={() => handleViewVehicle(veiculo)}
-              className="bg-card rounded-[32px] p-6 border border-border/80 dark:border-border/40 shadow-soft hover:shadow-soft-lg group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden cursor-pointer"
+              className="bg-card rounded-[32px] p-6 border border-border/80 dark:border-border/40 shadow-soft hover:shadow-soft-lg group hover:-translate-y-1 transition-all duration-300 relative overflow-hidden cursor-pointer flex flex-col justify-between"
             >
               {/* Marca D'água Decorativa de Fundo (Modo Claro: Marrom Sutil, Modo Escuro: Sutil) */}
               <div className="absolute right-0 bottom-0 translate-x-4 translate-y-4 text-amber-950/[0.08] dark:text-white/[0.08] pointer-events-none group-hover:scale-110 group-hover:-rotate-6 transition-all duration-700">
@@ -115,65 +192,55 @@ export const AssetCards = () => {
                 )}
               </div>
 
-              <div className="flex items-start justify-between mb-6 relative z-10">
-                <div className={cn(
-                  "p-1 rounded-2xl transition-all duration-500 shadow-sm ring-1 ring-black/5 dark:ring-white/5",
-                  veiculo.tipo === 'moto' 
-                    ? "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 group-hover:bg-orange-500 group-hover:text-white" 
-                    : veiculo.tipo === 'caminhao'
-                      ? "bg-purple-100 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 group-hover:bg-purple-500 group-hover:text-white"
-                      : "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 group-hover:bg-blue-500 group-hover:text-white"
-                )}>
-                  {veiculo.tipo === 'moto' ? (
-                    <MotorcycleIcon className="w-16 h-16" />
-                  ) : veiculo.tipo === 'caminhao' ? (
-                    <Truck className="w-8 h-8" />
-                  ) : (
-                    <Car className="w-8 h-8" />
-                  )}
-                </div>
-                <div className="text-right min-w-0">
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "border-none text-[9px] font-black uppercase px-2.5 py-0.5",
-                      veiculo.tipo === 'moto' 
-                        ? "bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-400" 
-                        : veiculo.tipo === 'caminhao'
-                          ? "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-400"
-                          : "bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400"
-                    )}
-                  >
-                    {veiculo.tipo === 'moto' ? "Moto" : veiculo.tipo === 'caminhao' ? "Caminhão" : "Carro"}
-                  </Badge>
-                  <p className="text-lg font-black text-foreground mt-1.5 truncate max-w-[200px]" title={veiculo.modelo}>
-                    {veiculo.modelo}
-                  </p>
-                  <p className="text-xs font-bold text-muted-foreground mt-0.5 uppercase tracking-wider">
-                    {veiculo.marca || "N/A"} • Ano {veiculo.ano}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-6 pt-2 relative z-10">
-                <div className="space-y-0.5">
-                  <p className="text-[11px] font-black text-muted-foreground uppercase tracking-wider opacity-70">Valor FIPE</p>
-                  <p className="text-xl sm:text-2xl font-black text-success tabular-nums">{formatCurrency(veiculo.valorFipe)}</p>
-                </div>
-                <div className="text-right space-y-0.5">
-                  <p className="text-[11px] font-black text-muted-foreground uppercase tracking-wider opacity-70">Aquisição</p>
-                  <p className="text-base sm:text-lg font-bold text-foreground tabular-nums">{formatCurrency(veiculo.valorVeiculo)}</p>
-                </div>
-
-                <div className="col-span-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold mt-1 bg-muted/50 dark:bg-muted/20 px-3 py-1 rounded-full w-fit">
-                    {diff >= 0 ? (
-                      <span className="text-success flex items-center"><TrendingUp className="w-4 h-4 mr-0.5" /> +{percentDiff.toFixed(1)}%</span>
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-6 relative z-10">
+                  <div className={cn(
+                    "w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 transition-all duration-500 shadow-sm ring-1 ring-black/5 dark:ring-white/5",
+                    veiculo.tipo === 'moto' 
+                      ? "bg-orange-100 text-orange-600 dark:bg-orange-950/40 dark:text-orange-400 group-hover:bg-orange-500 group-hover:text-white" 
+                      : veiculo.tipo === 'caminhao'
+                        ? "bg-purple-100 text-purple-600 dark:bg-purple-950/40 dark:text-purple-400 group-hover:bg-purple-500 group-hover:text-white"
+                        : "bg-blue-100 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400 group-hover:bg-blue-500 group-hover:text-white"
+                  )}>
+                    {veiculo.tipo === 'moto' ? (
+                      <MotorcycleIcon className="w-12 h-12" />
+                    ) : veiculo.tipo === 'caminhao' ? (
+                      <Truck className="w-8 h-8" />
                     ) : (
-                      <span className="text-destructive flex items-center"><TrendingDown className="w-4 h-4 mr-0.5" /> {percentDiff.toFixed(1)}%</span>
+                      <Car className="w-8 h-8" />
                     )}
-                    <span className="text-muted-foreground font-medium">Valorização residual</span>
                   </div>
+
+                  <div className="text-right min-w-0 flex-1">
+                    <p className="text-lg font-black text-foreground truncate" title={veiculo.modelo}>
+                      {veiculo.modelo}
+                    </p>
+                    <p className="text-xs font-bold text-muted-foreground mt-0.5 uppercase tracking-wider truncate">
+                      {veiculo.marca || "N/A"} • Ano {veiculo.ano}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6 pt-2 relative z-10">
+                  <div className="space-y-0.5">
+                    <p className="text-[11px] font-black text-muted-foreground uppercase tracking-wider opacity-70">Valor FIPE</p>
+                    <p className="text-xl sm:text-2xl font-black text-success tabular-nums">{formatCurrency(valorFipe)}</p>
+                  </div>
+                  <div className="text-right space-y-0.5">
+                    <p className="text-[11px] font-black text-muted-foreground uppercase tracking-wider opacity-70">Aquisição</p>
+                    <p className="text-base sm:text-lg font-bold text-foreground tabular-nums">{formatCurrency(valorCompra)}</p>
+                  </div>
+
+                  {seguro && !isSeguroPendenteConfig && seguroTotalCount > 0 && (
+                    <div className="col-span-2">
+                      <span
+                        className="inline-block text-[10px] font-bold text-muted-foreground mt-1 bg-muted/40 dark:bg-muted/15 px-2.5 py-1 rounded-full truncate max-w-full"
+                        title={`${seguro.seguradora} • ${seguroPaidCount}/${seguroTotalCount} parcelas pagas`}
+                      >
+                        {seguro.seguradora} ({seguroPaidCount}/{seguroTotalCount})
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -181,7 +248,7 @@ export const AssetCards = () => {
                 {/* IPVA */}
                 <div className="flex flex-col items-center justify-between p-2.5 rounded-[18px] bg-muted/40 dark:bg-muted/10 text-center min-w-0">
                   <span className="text-muted-foreground flex flex-col items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
-                    {veiculo.ipvaPago ? (
+                    {ipvaPago ? (
                       <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
                     ) : ipvaVencido ? (
                       <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
@@ -190,16 +257,27 @@ export const AssetCards = () => {
                     )}
                     IPVA
                   </span>
-                  <span className={cn(
-                    "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
-                    veiculo.ipvaPago 
-                      ? "bg-success/15 text-success dark:bg-success/10" 
-                      : ipvaVencido 
-                        ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
-                        : "bg-warning/15 text-warning dark:bg-warning/10"
-                  )} title={veiculo.ipvaPago ? "Pago" : ipvaVencido ? "Atrasado" : formattedIpvaDate ? `Vence ${formattedIpvaDate}` : "Pendente"}>
-                    {veiculo.ipvaPago 
-                      ? "Pago" 
+                  <span
+                    className={cn(
+                      "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
+                      ipvaPago 
+                        ? "bg-success/15 text-success dark:bg-success/10" 
+                        : ipvaVencido 
+                          ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
+                          : "bg-warning/15 text-warning dark:bg-warning/10"
+                    )}
+                    title={
+                      ipvaPago
+                        ? `Quitado${formattedIpvaPaidDate ? ` (${formattedIpvaPaidDate})` : ""}${veiculo.ipvaValor ? ` • ${formatCurrency(veiculo.ipvaValor)}` : ""}`
+                        : ipvaVencido
+                          ? `Atrasado (venceu ${formattedIpvaDate})`
+                          : formattedIpvaDate
+                            ? `Vence ${formattedIpvaDate}`
+                            : "Pendente"
+                    }
+                  >
+                    {ipvaPago 
+                      ? "Quitado" 
                       : ipvaVencido 
                         ? "Atrasado" 
                         : formattedIpvaDate 
@@ -211,7 +289,7 @@ export const AssetCards = () => {
                 {/* LICENCIAMENTO */}
                 <div className="flex flex-col items-center justify-between p-2.5 rounded-[18px] bg-muted/40 dark:bg-muted/10 text-center min-w-0">
                   <span className="text-muted-foreground flex flex-col items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
-                    {veiculo.licenciamentoPago ? (
+                    {licPago ? (
                       <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
                     ) : licVencido ? (
                       <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
@@ -220,16 +298,27 @@ export const AssetCards = () => {
                     )}
                     Licenc.
                   </span>
-                  <span className={cn(
-                    "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
-                    veiculo.licenciamentoPago 
-                      ? "bg-success/15 text-success dark:bg-success/10" 
-                      : licVencido 
-                        ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
-                        : "bg-warning/15 text-warning dark:bg-warning/10"
-                  )} title={veiculo.licenciamentoPago ? "Pago" : licVencido ? "Atrasado" : formattedLicDate ? `Vence ${formattedLicDate}` : "Pendente"}>
-                    {veiculo.licenciamentoPago 
-                      ? "Pago" 
+                  <span
+                    className={cn(
+                      "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
+                      licPago 
+                        ? "bg-success/15 text-success dark:bg-success/10" 
+                        : licVencido 
+                          ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
+                          : "bg-warning/15 text-warning dark:bg-warning/10"
+                    )}
+                    title={
+                      licPago
+                        ? `Quitado${formattedLicPaidDate ? ` (${formattedLicPaidDate})` : ""}${veiculo.licenciamentoValor ? ` • ${formatCurrency(veiculo.licenciamentoValor)}` : ""}`
+                        : licVencido
+                          ? `Atrasado (venceu ${formattedLicDate})`
+                          : formattedLicDate
+                            ? `Vence ${formattedLicDate}`
+                            : "Pendente"
+                    }
+                  >
+                    {licPago 
+                      ? "Quitado" 
                       : licVencido 
                         ? "Atrasado" 
                         : formattedLicDate 
@@ -242,23 +331,44 @@ export const AssetCards = () => {
                 <div className="flex flex-col items-center justify-between p-2.5 rounded-[18px] bg-muted/40 dark:bg-muted/10 text-center min-w-0">
                   <span className="text-muted-foreground flex flex-col items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
                     {seguro ? (
-                      isSeguroVencido 
-                        ? <ShieldAlert className="w-4 h-4 text-destructive shrink-0" /> 
-                        : <ShieldCheck className="w-4 h-4 text-success shrink-0" />
+                      isSeguroPendenteConfig ? (
+                        <Clock className="w-4 h-4 text-warning shrink-0" />
+                      ) : isSeguroVencido ? (
+                        <ShieldAlert className="w-4 h-4 text-destructive shrink-0" />
+                      ) : isSeguroExpiringSoon ? (
+                        <ShieldAlert className="w-4 h-4 text-warning shrink-0" />
+                      ) : (
+                        <ShieldCheck className="w-4 h-4 text-success shrink-0" />
+                      )
                     ) : (
                       <XCircle className="w-4 h-4 text-muted-foreground shrink-0" />
                     )}
                     Seguro
                   </span>
-                  <span className={cn(
-                    "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
-                    seguro 
-                      ? (isSeguroVencido ? "bg-destructive/15 text-destructive dark:bg-destructive/10" : "bg-success/15 text-success dark:bg-success/10") 
-                      : "bg-muted text-muted-foreground"
-                  )} title={seguro ? (isSeguroVencido ? "Vencido" : `Até ${format(parseISO(seguro.vigenciaFim), 'dd/MM/yy')}`) : "Não possui"}>
+                  <span
+                    className={cn(
+                      "font-bold text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-2.5 w-full text-center truncate",
+                      seguro 
+                        ? isSeguroPendenteConfig
+                          ? "bg-warning/15 text-warning dark:bg-warning/10"
+                          : isSeguroVencido 
+                            ? "bg-destructive/15 text-destructive dark:bg-destructive/10" 
+                            : isSeguroExpiringSoon
+                              ? "bg-warning/15 text-warning dark:bg-warning/10"
+                              : "bg-success/15 text-success dark:bg-success/10" 
+                        : "bg-muted text-muted-foreground"
+                    )}
+                    title={seguroTooltip}
+                  >
                     {seguro 
-                      ? (isSeguroVencido ? "Vencido" : format(parseISO(seguro.vigenciaFim), 'dd/MM/yy')) 
-                      : "Não tem"}
+                      ? isSeguroPendenteConfig
+                        ? "Configurar"
+                        : isSeguroVencido 
+                          ? "Expirado" 
+                          : seguroFimDate 
+                            ? format(seguroFimDate, 'dd/MM/yy')
+                            : "Ativo"
+                      : "Sem Seguro"}
                   </span>
                 </div>
               </div>
@@ -267,7 +377,7 @@ export const AssetCards = () => {
         })}
 
         {/* Imóveis */}
-        {imoveis.map(imovel => (
+        {activeImoveis.map(imovel => (
           <div 
             key={`imm-${imovel.id}`}
             onClick={() => handleViewImovel('imovel', imovel)}
@@ -324,7 +434,7 @@ export const AssetCards = () => {
         ))}
 
         {/* Terrenos */}
-        {terrenos.map(terreno => (
+        {activeTerrenos.map(terreno => (
           <div 
             key={`ter-${terreno.id}`}
             onClick={() => handleViewImovel('terreno', terreno)}

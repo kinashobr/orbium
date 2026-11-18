@@ -106,10 +106,8 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     calculateLoanSchedule,
     emprestimos,
     cltContracts,
-    cltCompetencias,
     cltHolerites,
     parcelasRecebiveis,
-    revenueForecasts,
     expenseSnapshots,
     creditCardConfigs,
   } = useFinance();
@@ -182,13 +180,14 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     });
 
     // 2) Despesas Diretas (Conta Corrente, PIX, Débito, Dinheiro)
-    // Exclui pagamentos de fatura (para usar os itens das faturas pagas), pagamentos de empréstimo e juros
+    // Inclui parcelas inteiras de empréstimo/financiamento em Despesas Operacionais;
+    // exclui pagamentos de fatura (para usar os itens das faturas pagas) e juros bancários avulsos (que vão para Resultado Financeiro)
     const directDespesas = txsInInterval.filter(t => {
-      if (t.operationType !== 'despesa') return false;
+      if (t.operationType !== 'despesa' && t.operationType !== 'pagamento_emprestimo') return false;
       if (creditCardAccountIds.has(t.accountId)) return false;
       const cat = categoriesMap.get(t.categoryId || '');
-      if (isFinanciamentoOuEmprestimoTx(t, cat)) return false;
-      if (isJurosTx(t, cat)) return false;
+      const isLoan = isFinanciamentoOuEmprestimoTx(t, cat);
+      if (!isLoan && isJurosTx(t, cat)) return false;
       const descLower = (t.description || '').toLowerCase();
       if (
         descLower.includes('fatura') ||
@@ -208,18 +207,60 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     const allFixMap = new Map<string, { label: string; value: number; competencia: string }>();
     const allVarMap = new Map<string, { label: string; value: number; competencia: string }>();
 
-    // Insere despesas diretas
+    // Insere despesas diretas (incluindo valor integral da parcela de empréstimo)
     directDespesas.forEach(t => {
       const cat = categoriesMap.get(t.categoryId || '');
+      const isLoan = isFinanciamentoOuEmprestimoTx(t, cat);
       let label = cat?.label || t.description || 'Outros';
+      if (!cat && isLoan) {
+        const lidStr = t.links?.loanId?.replace('loan_', '');
+        const loan = lidStr ? emprestimos.find(e => e.id === parseInt(lidStr)) : undefined;
+        const loanCat = categoriasV2.find(c =>
+          c.label.toLowerCase().includes('empréstimo') ||
+          c.label.toLowerCase().includes('emprestimo') ||
+          c.label.toLowerCase().includes('financiamento')
+        );
+        label = loanCat?.label || (loan ? `Empréstimo ${loan.contrato}` : (t.description || 'Empréstimo'));
+      }
       if (label.toLowerCase().includes('fatura')) return;
-      const isFixa = cat?.nature === 'despesa_fixa';
+      const isFixa = cat ? cat.nature === 'despesa_fixa' : isLoan;
       const comp = format(parseDateLocal(t.date), 'MM/yyyy');
       const key = `${label}__${comp}`;
       const targetMap = isFixa ? allFixMap : allVarMap;
       const cur = targetMap.get(key) || { label, value: 0, competencia: comp };
       targetMap.set(key, { label, value: cur.value + t.amount, competencia: comp });
     });
+
+    // Fallback: parcelas de empréstimo marcadas como pagas no billsTracker sem transação correspondente no período
+    billsTracker
+      .filter(b => b.sourceType === 'loan_installment' && b.isPaid && b.paymentDate && !b.isExcluded)
+      .forEach(b => {
+        try {
+          const pDate = parseDateLocal(b.paymentDate!);
+          if (!rangeFrom || isWithinInterval(pDate, { start: rangeFrom, end: rangeTo || new Date() })) {
+            const alreadyInTx = txsInInterval.some(t =>
+              t.id === b.transactionId ||
+              (t.links?.loanId === `loan_${b.sourceRef}` && t.links?.parcelaId === String(b.parcelaNumber))
+            );
+            if (!alreadyInTx && b.expectedAmount > 0) {
+              const cat = categoriesMap.get(b.suggestedCategoryId || '');
+              const loan = b.sourceRef ? emprestimos.find(e => e.id === parseInt(b.sourceRef!)) : undefined;
+              const loanCat = cat || categoriasV2.find(c =>
+                c.label.toLowerCase().includes('empréstimo') ||
+                c.label.toLowerCase().includes('emprestimo') ||
+                c.label.toLowerCase().includes('financiamento')
+              );
+              const label = loanCat?.label || (loan ? `Empréstimo ${loan.contrato}` : b.description || 'Empréstimo');
+              const isFixa = loanCat ? loanCat.nature === 'despesa_fixa' : true;
+              const comp = format(pDate, 'MM/yyyy');
+              const key = `${label}__${comp}`;
+              const targetMap = isFixa ? allFixMap : allVarMap;
+              const cur = targetMap.get(key) || { label, value: 0, competencia: comp };
+              targetMap.set(key, { label, value: cur.value + b.expectedAmount, competencia: comp });
+            }
+          }
+        } catch { }
+      });
 
     // 3) Despesas de Cartão de Crédito de faturas liquidadas no período:
     // Não exibe agrupamento de fatura: joga os lançamentos diretamente em suas respectivas categorias
@@ -352,50 +393,11 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     });
 
     // 4) Juros e Resultado Financeiro no Método Caixa
+    // Juros de empréstimos não entram em Juros e Encargos (parcela inteira vai para Despesas Operacionais)
     let juros = 0;
-    // Juros de parcelas de empréstimo pagas no período
-    txsInInterval
-      .filter(t => t.operationType === 'pagamento_emprestimo' || t.links?.loanId)
-      .forEach(t => {
-        const lidStr = t.links?.loanId?.replace('loan_', '');
-        const pidStr = t.links?.parcelaId;
-        if (lidStr) {
-          const loanId = parseInt(lidStr);
-          const s = calculateLoanSchedule(loanId);
-          if (pidStr) {
-            const item = s.find(i => i.parcela === parseInt(pidStr));
-            if (item) juros += item.juros;
-          } else {
-            const item = s.find(i => Math.abs((i.juros + i.amortizacao) - t.amount) < 1) || s[0];
-            if (item) juros += item.juros;
-          }
-        }
-      });
-
-    // Também verifica parcelas de empréstimo marcadas como pagas no billsTracker com data de pagamento no período
-    billsTracker
-      .filter(b => b.sourceType === 'loan_installment' && b.isPaid && b.paymentDate && !b.isExcluded)
-      .forEach(b => {
-        try {
-          const pDate = parseDateLocal(b.paymentDate!);
-          if (!rangeFrom || isWithinInterval(pDate, { start: rangeFrom, end: rangeTo || new Date() })) {
-            const alreadyInTx = txsInInterval.some(t => 
-              t.id === b.transactionId || 
-              (t.links?.loanId === `loan_${b.sourceRef}` && t.links?.parcelaId === String(b.parcelaNumber))
-            );
-            if (!alreadyInTx && b.sourceRef) {
-              const s = calculateLoanSchedule(parseInt(b.sourceRef));
-              const item = s.find(i => i.parcela === b.parcelaNumber);
-              if (item) juros += item.juros;
-            }
-          }
-        } catch { }
-      });
-
-    // Juros diretos nas transações do período (cheque especial, encargos rotativo, juros/multas bancárias)
     txsInInterval.forEach(t => {
       const cat = categoriesMap.get(t.categoryId || '');
-      if (isJurosTx(t, cat) && t.operationType !== 'pagamento_emprestimo') {
+      if (isJurosTx(t, cat) && !isFinanciamentoOuEmprestimoTx(t, cat)) {
         juros += t.amount;
       }
     });
@@ -427,7 +429,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         despesasVariaveis: despesasVariaveisDetails,
       },
     };
-  }, [transacoesV2, calculateLoanSchedule, categoriesMap, creditCardAccountIds, contasMovimento, creditCardConfigs, billsTracker]);
+  }, [transacoesV2, categoriesMap, categoriasV2, creditCardAccountIds, contasMovimento, creditCardConfigs, billsTracker, emprestimos]);
 
   // 2. DRE REGIME DE COMPETÊNCIA: Valores na data de origem da obrigação / fato gerador
   const calculateDRECompetencia = useCallback((range: DateRange): DREData => {
@@ -754,7 +756,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     const receitaOperacional = receitasOrcadasList.reduce((a, b) => a + b.value, 0);
 
     // 2) Despesas Orçadas (Valores do Orçamento)
-    // CRÍTICO: Exclui parcelas de financiamento/empréstimo de despesas operacionais (valor total vai para passivo e juros para resultado financeiro)
+    // Inclui parcelas inteiras de empréstimo/financiamento nas Despesas Operacionais
     const despesasFixasOrcadasMap: Record<string, number> = {};
     const despesasVariaveisOrcadasMap: Record<string, number> = {};
 
@@ -762,12 +764,10 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
     if (snapshot && snapshot.categories && snapshot.categories.length > 0) {
       snapshot.categories.forEach(catItem => {
         const nameLower = catItem.name.toLowerCase();
-        // Exclui financiamento / empréstimo da despesa operacional
-        if (nameLower.includes('empréstimo') || nameLower.includes('emprestimo') || nameLower.includes('financiamento')) {
-          return;
-        }
         const cat = categoriasV2.find(c => c.label.toLowerCase() === nameLower);
-        const isFixa = cat?.nature === 'despesa_fixa' || nameLower.includes('fix') || nameLower.includes('aluguel') || nameLower.includes('seguro');
+        const isFixa = cat
+          ? cat.nature === 'despesa_fixa'
+          : (nameLower.includes('fix') || nameLower.includes('aluguel') || nameLower.includes('seguro') || nameLower.includes('empréstimo') || nameLower.includes('emprestimo') || nameLower.includes('financiam'));
         if (isFixa) {
           despesasFixasOrcadasMap[catItem.name] = (despesasFixasOrcadasMap[catItem.name] || 0) + catItem.value;
         } else {
@@ -775,8 +775,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         }
       });
     } else {
-      // Compila orçamento a partir dos compromissos planejados em billsTracker
-      // Exclui faturas de cartão e parcelas de empréstimo/financiamento
+      // Compila orçamento a partir dos compromissos planejados em billsTracker (incluindo parcelas de empréstimo)
       billsTracker
         .filter(b => 
           b.dueDate.startsWith(monthKey) && 
@@ -784,57 +783,63 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
           b.expectedAmount > 0 &&
           b.sourceType !== 'credit_card_invoice' &&
           b.sourceType !== 'card_invoice' &&
-          b.sourceType !== 'loan_installment' &&
-          !b.id.startsWith('invoice_') &&
-          !b.id.startsWith('loan_')
+          !b.id.startsWith('invoice_')
         )
         .forEach(b => {
           const cat = categoriesMap.get(b.suggestedCategoryId || '');
-          const label = cat?.label || b.description || 'Despesa Planejada';
-          const labelLower = label.toLowerCase();
-          if (labelLower.includes('empréstimo') || labelLower.includes('emprestimo') || labelLower.includes('financiamento')) {
-            return;
-          }
-          const isFixa = cat?.nature === 'despesa_fixa' || b.sourceType === 'fixed_expense' || b.sourceType === 'insurance_installment';
+          const isLoanBill = b.sourceType === 'loan_installment' || b.id.startsWith('loan_');
+          const label = cat?.label || (isLoanBill ? (b.description || 'Empréstimo / Financiamento') : (b.description || 'Despesa Planejada'));
+          const isFixa = cat
+            ? cat.nature === 'despesa_fixa'
+            : (b.sourceType === 'fixed_expense' || b.sourceType === 'insurance_installment' || isLoanBill);
           if (isFixa) {
             despesasFixasOrcadasMap[label] = (despesasFixasOrcadasMap[label] || 0) + b.expectedAmount;
           } else {
             despesasVariaveisOrcadasMap[label] = (despesasVariaveisOrcadasMap[label] || 0) + b.expectedAmount;
           }
         });
+
+      // Inclui parcelas inteiras de empréstimos ativos com vencimento no mês que ainda não estejam no billsTracker
+      const loanDefaultCat = categoriasV2.find(c =>
+        c.label.toLowerCase().includes('empréstimo') ||
+        c.label.toLowerCase().includes('emprestimo') ||
+        c.label.toLowerCase().includes('financiamento')
+      );
+      emprestimos.forEach(emp => {
+        if (emp.status === 'ativo' && emp.dataInicio) {
+          try {
+            const schedule = calculateLoanSchedule(emp.id);
+            const parcelaItem = schedule.find(item => {
+              const dueDate = getDueDate(emp.dataInicio!, item.parcela);
+              return format(dueDate, 'yyyy-MM') === monthKey;
+            });
+            if (parcelaItem) {
+              const existsInBills = billsTracker.some(b =>
+                b.sourceType === 'loan_installment' &&
+                b.sourceRef === String(emp.id) &&
+                b.parcelaNumber === parcelaItem.parcela
+              );
+              if (!existsInBills) {
+                const fullInstallment = parcelaItem.juros + parcelaItem.amortizacao;
+                const label = loanDefaultCat?.label || `Empréstimo ${emp.contrato}`;
+                const isFixa = loanDefaultCat ? loanDefaultCat.nature === 'despesa_fixa' : true;
+                if (isFixa) {
+                  despesasFixasOrcadasMap[label] = (despesasFixasOrcadasMap[label] || 0) + fullInstallment;
+                } else {
+                  despesasVariaveisOrcadasMap[label] = (despesasVariaveisOrcadasMap[label] || 0) + fullInstallment;
+                }
+              }
+            }
+          } catch { }
+        }
+      });
     }
 
     const fix = Object.values(despesasFixasOrcadasMap).reduce((a, b) => a + b, 0);
     const var_ = Object.values(despesasVariaveisOrcadasMap).reduce((a, b) => a + b, 0);
 
-    // 3) Juros orçados conforme cronograma dos empréstimos ativos para a competência (Resultado Financeiro)
-    let juros = 0;
-    emprestimos.forEach(emp => {
-      if (emp.status === 'ativo' && emp.dataInicio) {
-        try {
-          const schedule = calculateLoanSchedule(emp.id);
-          const parcelaItem = schedule.find(item => {
-            const dueDate = getDueDate(emp.dataInicio!, item.parcela);
-            return format(dueDate, 'yyyy-MM') === monthKey;
-          });
-          if (parcelaItem) {
-            juros += parcelaItem.juros;
-          }
-        } catch { }
-      }
-    });
-
-    if (juros === 0) {
-      billsTracker
-        .filter(b => b.sourceType === 'loan_installment' && b.dueDate.startsWith(monthKey) && !b.isExcluded)
-        .forEach(b => {
-          if (b.sourceRef) {
-            const schedule = calculateLoanSchedule(parseInt(b.sourceRef));
-            const item = schedule.find(i => i.parcela === b.parcelaNumber);
-            if (item) juros += item.juros;
-          }
-        });
-    }
+    // 3) Juros e Encargos: não é utilizado para empréstimos (a parcela inteira já compõe Despesas Operacionais)
+    const juros = 0;
 
     // Rendimentos previstos (média recente)
     const recentMonths = [1, 2].map(m => subMonths(rangeTo, m));
@@ -990,25 +995,25 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
         {
           label: "Rendimentos Financeiros",
           value: dre1.rendimentos,
-          type: "detail",
+          type: "detail" as const,
           icon: Sparkles,
           color: "text-success",
         },
         {
           label: "Descontos Obtidos",
           value: dre1.descontosObtidos,
-          type: "detail",
+          type: "detail" as const,
           icon: Award,
           color: "text-success",
         },
         {
           label: "Juros e Encargos",
           value: -dre1.juros,
-          type: "detail",
+          type: "detail" as const,
           icon: Gauge,
           color: "text-destructive",
         },
-      ],
+      ].filter((item) => Math.abs(item.value) >= 0.01),
     },
     {
       label: "RESULTADO LÍQUIDO DO PERÍODO",
@@ -1152,7 +1157,7 @@ export function DRETab({ dateRanges }: { dateRanges: ComparisonDateRanges }) {
             value={`${indicadores.impactoFinanceiro.toFixed(1)}%`} 
             status={indicadores.impactoFinanceiro <= 5 ? "success" : "warning"}
             icon={Gauge}
-            description="Impacto dos juros de empréstimos na sua renda."
+            description="Impacto dos juros e encargos financeiros na sua renda."
             formula="Juros ÷ Renda × 100"
             formulaValues={`${formatCurrency(dre1.juros)} ÷ ${formatCurrency(dre1.rec)} × 100`}
           />

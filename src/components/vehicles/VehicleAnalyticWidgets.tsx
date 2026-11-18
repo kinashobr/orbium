@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Veiculo, SeguroVeiculo, formatCurrency } from "@/types/finance";
 import { 
   ShieldCheck, 
@@ -11,19 +11,9 @@ import {
   BarChart2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogFooter 
-} from "@/components/ui/dialog";
-import { toast } from "sonner";
 import { format } from "date-fns";
 import { parseDateLocal, cn } from "@/lib/utils";
+import { FipeConsultaDialog } from "@/components/vehicles/FipeConsultaDialog";
 
 interface VehicleAnalyticWidgetsProps {
   veiculo: Veiculo;
@@ -37,10 +27,13 @@ export function VehicleAnalyticWidgets({
   onUpdateVeiculo,
 }: VehicleAnalyticWidgetsProps) {
   const [showFipeModal, setShowFipeModal] = useState(false);
-  const [fipeInputVal, setFipeInputVal] = useState(veiculo.valorFipe || 0);
 
   // Estado para Tooltip Estável do Gráfico FIPE (Zero Jitter)
   const [hoveredFipeIndex, setHoveredFipeIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    setHoveredFipeIndex(null);
+  }, [veiculo.id, veiculo.historico?.length]);
 
   // WIDGET A: SEGURO (Métricas e Radial SVG Gauge)
   const insuranceMetrics = useMemo(() => {
@@ -92,26 +85,50 @@ export function VehicleAnalyticWidgets({
   // WIDGET B: HISTÓRICO FIPE COM PONTOS PARA TOOLTIP AO PASSAR O MOUSE
   const fipeHistoryData = useMemo(() => {
     const rawFipeHistory = (veiculo.historico || [])
-      .filter(h => h.type === "fipe")
-      .map(h => ({
-        date: h.date ? format(new Date(h.date), "MM/yy") : "Anterior",
-        valor: h.amount || 0
-      }));
+      .filter(h => h.type === "fipe" && typeof h.amount === "number")
+      .map(h => {
+        const parsed = h.date ? parseDateLocal(h.date) : new Date(NaN);
+        const validDate = !isNaN(parsed.getTime());
+        return {
+          ts: validDate ? parsed.getTime() : 0,
+          date: validDate ? format(parsed, "MM/yy") : "Anterior",
+          valor: h.amount || 0
+        };
+      })
+      .sort((a, b) => a.ts - b.ts)
+      .map(({ date, valor }) => ({ date, valor }));
 
-    if (rawFipeHistory.length > 0) {
+    const compra = veiculo.valorVeiculo || 0;
+    const fipeAtual = veiculo.valorFipe || 0;
+    const compraLabel = (() => {
+      if (!veiculo.dataCompra) return "Compra";
+      const d = parseDateLocal(veiculo.dataCompra);
+      return !isNaN(d.getTime()) ? format(d, "MM/yy") : "Compra";
+    })();
+
+    if (rawFipeHistory.length >= 2) {
       return rawFipeHistory;
     }
 
-    const compra = veiculo.valorVeiculo || 21000;
-    const fipeAtual = veiculo.valorFipe || 19689;
+    if (rawFipeHistory.length === 1) {
+      if (compra > 0) {
+        return [{ date: compraLabel, valor: compra }, ...rawFipeHistory];
+      }
+      return rawFipeHistory;
+    }
 
-    return [
-      { date: "Compra", valor: compra },
-      { date: "Jan/26", valor: Math.round(compra * 0.98) },
-      { date: "Mai/26", valor: Math.round(compra * 0.96) },
-      { date: "Set/26", valor: Math.round(compra * 0.94) },
-      { date: "Atual", valor: fipeAtual }
-    ];
+    if (compra > 0 && fipeAtual > 0) {
+      return [
+        { date: compraLabel, valor: compra },
+        { date: "Atual", valor: fipeAtual }
+      ];
+    }
+
+    if (fipeAtual > 0) {
+      return [{ date: "Atual", valor: fipeAtual }];
+    }
+
+    return [];
   }, [veiculo]);
 
   // WIDGET C: CONSUMO DE COMBUSTÍVEL (Pega dados reais com odômetro e litros do histórico)
@@ -263,29 +280,6 @@ export function VehicleAnalyticWidgets({
     };
   }, [veiculo]);
 
-  const handleSaveFipe = () => {
-    if (!fipeInputVal || fipeInputVal <= 0) {
-      toast.error("Informe um valor válido da tabela FIPE.");
-      return;
-    }
-
-    const historyItem = {
-      id: `vh_fipe_${Date.now()}`,
-      type: "fipe" as const,
-      date: format(new Date(), "yyyy-MM-dd"),
-      title: "Atualização de Tabela FIPE",
-      amount: fipeInputVal
-    };
-
-    onUpdateVeiculo(veiculo.id, {
-      valorFipe: fipeInputVal,
-      historico: [...(veiculo.historico || []), historyItem]
-    });
-
-    toast.success("Valor da Tabela FIPE atualizado com sucesso!");
-    setShowFipeModal(false);
-  };
-
   return (
     <>
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -394,56 +388,50 @@ export function VehicleAnalyticWidgets({
           </div>
         </div>
 
-        {/* WIDGET B: FIPE SPARKLINE - CORRIGIDO ESPAÇO EXTRA ENTRE TÍTULO E VALOR */}
-        <div className="flex flex-col justify-start gap-2 p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400">
+        {/* WIDGET B: FIPE SPARKLINE */}
+        <div className="flex flex-col justify-start gap-2 p-6 rounded-3xl bg-card border border-border/80 shadow-sm relative">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                 <TrendingUp className="w-4 h-4" />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-display font-bold text-sm text-foreground leading-tight">
-                  Avaliação FIPE
-                </span>
-                
-                {/* BOTÃO APENAS ÍCONE REDUZIDO DE ATUALIZAR FIPE */}
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="w-6 h-6 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors"
-                  title="Atualizar Valor FIPE"
-                  onClick={() => {
-                    setFipeInputVal(veiculo.valorFipe || 19689);
-                    setShowFipeModal(true);
-                  }}
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </Button>
-              </div>
+              <span className="font-display font-bold text-sm text-foreground leading-tight">
+                Avaliação FIPE
+              </span>
             </div>
 
-            {/* Tooltip Header Pill Estilizado */}
-            {hoveredFipeIndex !== null && (
-              <span className="text-[11px] font-mono font-bold bg-amber-500 text-amber-950 dark:text-zinc-950 px-2.5 py-0.5 rounded-full shadow-sm animate-in fade-in duration-150">
-                {fipeHistoryData[hoveredFipeIndex].date}: {formatCurrency(fipeHistoryData[hoveredFipeIndex].valor)}
-              </span>
-            )}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-xl text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 transition-colors shrink-0"
+              title="Consultar ou atualizar Tabela FIPE"
+              aria-label="Atualizar Tabela FIPE"
+              onClick={() => setShowFipeModal(true)}
+            >
+              <RefreshCw className="w-4 h-4" />
+            </Button>
           </div>
 
-          {/* Valor Principal FIPE & Preço de Compra - FLUXO COMPACTO SEM ESPAÇO EXTRA */}
+          {/* Valor Principal FIPE & Preço de Compra */}
           <div className="flex flex-col">
             <div className="flex items-baseline justify-between">
-              <span className="font-display font-black text-2xl text-foreground">
-                {formatCurrency(veiculo.valorFipe || 19689)}
+              <span className="font-display font-black text-2xl text-foreground tabular-nums">
+                {formatCurrency(veiculo.valorFipe || 0)}
               </span>
             </div>
             <span className="text-xs font-medium text-muted-foreground">
-              Valor Compra: <strong className="text-foreground">{formatCurrency(veiculo.valorVeiculo || 21000)}</strong>
+              Valor Compra: <strong className="text-foreground tabular-nums">{formatCurrency(veiculo.valorVeiculo || 0)}</strong>
             </span>
 
-            {/* Gráfico Sparkline FIPE Ajustado para ocupar mais espaço interno */}
+            {/* Gráfico Sparkline FIPE */}
             <div className="h-32 w-full relative mt-2">
-              {(() => {
+              {fipeHistoryData.length === 0 ? (
+                <div className="h-full w-full flex flex-col items-center justify-center p-4 bg-muted/10 rounded-2xl border border-dashed border-border/60 text-center">
+                  <span className="text-xs font-bold text-muted-foreground">Nenhuma cotação FIPE registrada</span>
+                  <span className="text-[10px] text-muted-foreground/80 mt-0.5">Clique no ícone acima para consultar a Tabela FIPE.</span>
+                </div>
+              ) : (() => {
                 const values = fipeHistoryData.map(d => d.valor);
                 const minV = Math.min(...values);
                 const maxV = Math.max(...values);
@@ -451,96 +439,130 @@ export function VehicleAnalyticWidgets({
                 const width = 320;
                 const height = 110;
                 const padX = 8;
-                const padYTop = 6;
-                const padYBottom = 6;
+                const padYTop = 10;
+                const padYBottom = 10;
                 const usableW = width - padX * 2;
                 const usableH = height - padYTop - padYBottom;
 
                 const points = fipeHistoryData.map((d, i) => {
-                  const x = padX + (i / (fipeHistoryData.length - 1)) * usableW;
-                  const y = padYTop + (1 - (d.valor - minV) / range) * usableH;
+                  const x = fipeHistoryData.length === 1
+                    ? padX + usableW / 2
+                    : padX + (i / (fipeHistoryData.length - 1)) * usableW;
+                  const y = maxV === minV
+                    ? padYTop + usableH / 2
+                    : padYTop + (1 - (d.valor - minV) / range) * usableH;
                   return { x, y, val: d.valor, date: d.date };
                 });
 
-                // Path D para linha curva suavizada
-                let dPath = `M ${points[0].x},${points[0].y}`;
-                for (let i = 0; i < points.length - 1; i++) {
-                  const curr = points[i];
-                  const next = points[i + 1];
-                  const mx = (curr.x + next.x) / 2;
-                  dPath += ` C ${mx},${curr.y} ${mx},${next.y} ${next.x},${next.y}`;
+                let dPath = "";
+                let areaPath = "";
+                if (points.length === 1) {
+                  dPath = `M ${padX},${points[0].y} L ${width - padX},${points[0].y}`;
+                  areaPath = `${dPath} L ${width - padX},${height - 2} L ${padX},${height - 2} Z`;
+                } else {
+                  dPath = `M ${points[0].x},${points[0].y}`;
+                  for (let i = 0; i < points.length - 1; i++) {
+                    const curr = points[i];
+                    const next = points[i + 1];
+                    const mx = (curr.x + next.x) / 2;
+                    dPath += ` C ${mx},${curr.y} ${mx},${next.y} ${next.x},${next.y}`;
+                  }
+                  areaPath = `${dPath} L ${points[points.length - 1].x},${height - 2} L ${points[0].x},${height - 2} Z`;
                 }
 
-                const areaPath = `${dPath} L ${points[points.length - 1].x},${height - 2} L ${points[0].x},${height - 2} Z`;
+                const hoveredPoint = hoveredFipeIndex !== null ? points[hoveredFipeIndex] : null;
+                const xPct = hoveredPoint ? (hoveredPoint.x / width) * 100 : 50;
+                const yPct = hoveredPoint ? (hoveredPoint.y / height) * 100 : 50;
+                const showBelow = yPct < 42;
+                const horizontalAlignClass =
+                  xPct < 24
+                    ? "translate-x-[-10%]"
+                    : xPct > 76
+                      ? "translate-x-[-90%]"
+                      : "-translate-x-1/2";
 
                 return (
-                  <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${width} ${height}`}>
-                    <defs>
-                      <linearGradient id="fipeWidgetGradFixed" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="rgb(245, 158, 11)" stopOpacity="0.3" />
-                        <stop offset="100%" stopColor="rgb(245, 158, 11)" stopOpacity="0.0" />
-                      </linearGradient>
-                    </defs>
+                  <>
+                    <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${width} ${height}`}>
+                      <defs>
+                        <linearGradient id="fipeWidgetGradFixed" x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor="rgb(245, 158, 11)" stopOpacity="0.3" />
+                          <stop offset="100%" stopColor="rgb(245, 158, 11)" stopOpacity="0.0" />
+                        </linearGradient>
+                      </defs>
 
-                    {/* Gradient Area */}
-                    <path d={areaPath} fill="url(#fipeWidgetGradFixed)" />
+                      {/* Gradient Area */}
+                      <path d={areaPath} fill="url(#fipeWidgetGradFixed)" />
 
-                    {/* Stroke Curve */}
-                    <path d={dPath} fill="none" stroke="rgb(245, 158, 11)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                      {/* Stroke Curve */}
+                      <path d={dPath} fill="none" stroke="rgb(245, 158, 11)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
 
-                    {/* Interactive Circles */}
-                    {points.map((pt, i) => {
-                      const isHovered = hoveredFipeIndex === i;
-                      return (
-                        <g key={i}>
-                          {/* Invisible hover target */}
-                          <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r="12"
-                            fill="transparent"
-                            style={{ cursor: "pointer" }}
-                            onMouseEnter={() => setHoveredFipeIndex(i)}
-                            onMouseLeave={() => setHoveredFipeIndex(null)}
-                          />
-                          
-                          {/* Visible Node Circle */}
-                          <circle
-                            cx={pt.x}
-                            cy={pt.y}
-                            r={isHovered ? 5.5 : 3.5}
-                            className={isHovered ? "fill-amber-500 stroke-card" : "fill-card stroke-amber-500"}
-                            strokeWidth="2"
-                            style={{ cursor: "pointer", transition: "all 0.15s ease" }}
-                            onMouseEnter={() => setHoveredFipeIndex(i)}
-                            onMouseLeave={() => setHoveredFipeIndex(null)}
-                          />
-
-                          {/* Floating Tooltip Bubble on Hover (Ajustada cor legível) */}
-                          {isHovered && (
-                            <g className="animate-in fade-in zoom-in-95 duration-150 pointer-events-none">
-                              <rect
-                                x={Math.min(Math.max(pt.x - 48, 4), width - 100)}
-                                y={Math.max(pt.y - 30, 2)}
-                                width="96"
-                                height="22"
-                                rx="6"
-                                className="fill-slate-800 dark:fill-slate-900 stroke-amber-500/40"
+                      {/* Interactive Circles */}
+                      {points.map((pt, i) => {
+                        const isHovered = hoveredFipeIndex === i;
+                        return (
+                          <g key={i}>
+                            {isHovered && (
+                              <line
+                                x1={pt.x}
+                                y1={padYTop}
+                                x2={pt.x}
+                                y2={height - 2}
+                                stroke="rgb(245, 158, 11)"
+                                strokeOpacity="0.35"
+                                strokeWidth="1.5"
+                                strokeDasharray="3 3"
+                                className="pointer-events-none"
                               />
-                              <text
-                                x={Math.min(Math.max(pt.x, 52), width - 52)}
-                                y={Math.max(pt.y - 16, 16)}
-                                textAnchor="middle"
-                                className="fill-slate-100 font-mono font-bold text-[10px]"
-                              >
-                                {pt.date}: {formatCurrency(pt.val)}
-                              </text>
-                            </g>
-                          )}
-                        </g>
-                      );
-                    })}
-                  </svg>
+                            )}
+
+                            <circle
+                              cx={pt.x}
+                              cy={pt.y}
+                              r="14"
+                              fill="transparent"
+                              style={{ cursor: "pointer" }}
+                              onMouseEnter={() => setHoveredFipeIndex(i)}
+                              onMouseLeave={() => setHoveredFipeIndex(null)}
+                            />
+
+                            <circle
+                              cx={pt.x}
+                              cy={pt.y}
+                              r={isHovered ? 6 : 3.5}
+                              className={isHovered ? "fill-amber-500 stroke-card" : "fill-card stroke-amber-500"}
+                              strokeWidth="2"
+                              style={{ cursor: "pointer", transition: "all 0.15s ease" }}
+                              onMouseEnter={() => setHoveredFipeIndex(i)}
+                              onMouseLeave={() => setHoveredFipeIndex(null)}
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {hoveredPoint && (
+                      <div
+                        className={cn(
+                          "absolute z-30 pointer-events-none px-4 py-2.5 rounded-2xl bg-card/95 backdrop-blur-md border border-amber-500/40 shadow-lg flex flex-col gap-0.5 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150",
+                          horizontalAlignClass
+                        )}
+                        style={{
+                          left: `${xPct}%`,
+                          ...(showBelow
+                            ? { top: `calc(${yPct}% + 12px)` }
+                            : { bottom: `calc(${100 - yPct}% + 12px)` }),
+                        }}
+                      >
+                        <span className="text-xs font-mono font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 leading-none">
+                          Ref. {hoveredPoint.date}
+                        </span>
+                        <span className="text-lg font-display font-black text-foreground tabular-nums leading-tight">
+                          {formatCurrency(hoveredPoint.val)}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
             </div>
@@ -633,40 +655,13 @@ export function VehicleAnalyticWidgets({
 
       </section>
 
-      {/* MODAL ATUALIZAR FIPE */}
-      <Dialog open={showFipeModal} onOpenChange={setShowFipeModal}>
-        <DialogContent className="sm:max-w-md rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="font-display font-black text-xl flex items-center gap-2">
-              <RefreshCw className="w-5 h-5 text-amber-500" /> Atualizar Tabela FIPE
-            </DialogTitle>
-            <DialogDescription>
-              Informe o novo valor de mercado do veículo obtido na consulta oficial da FIPE.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold">Novo Valor FIPE (R$)</Label>
-              <Input 
-                type="number"
-                value={fipeInputVal}
-                onChange={e => setFipeInputVal(Number(e.target.value))}
-                className="rounded-xl text-xs font-bold h-11 text-base"
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowFipeModal(false)} className="rounded-xl text-xs font-bold">
-              Cancelar
-            </Button>
-            <Button onClick={handleSaveFipe} className="rounded-xl text-xs font-bold bg-amber-500 text-amber-950 hover:bg-amber-600">
-              Salvar Novo Valor
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* MODAL ATUALIZAR FIPE (CONSULTA ONLINE + VALOR MANUAL) */}
+      <FipeConsultaDialog
+        open={showFipeModal}
+        onOpenChange={setShowFipeModal}
+        veiculo={veiculo}
+        onUpdateVeiculo={onUpdateVeiculo}
+      />
     </>
   );
 }
