@@ -18,10 +18,9 @@ import {
   RefreshCw,
   Landmark,
   Cloud,
-  CloudDownload,
-  CloudUpload,
   HardDrive
 } from "lucide-react";
+import { AnimatedCloudUpload, AnimatedCloudDownload } from "@/components/ui/CloudSyncIcons";
 import { useFinance } from "@/contexts/FinanceContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useGoogleDrive } from "@/hooks/useGoogleDrive";
@@ -58,7 +57,9 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const finance = useFinance();
-  const { isConnected: isConnectedDrive, isSyncing: isSyncingDrive, saveToDrive, loadFromDrive } = useGoogleDrive();
+  const { isConnected: isConnectedDrive, isSyncing: isSyncingDrive, syncAction: syncActionDrive, saveToDrive, loadFromDrive } = useGoogleDrive();
+  const isUploadingDrive = isSyncingDrive && syncActionDrive === "upload";
+  const isDownloadingDrive = isSyncingDrive && syncActionDrive === "download";
   const { 
     exportData, 
     importData,
@@ -297,14 +298,16 @@ export function Sidebar() {
                 onClick={handleQuickSyncDrive}
                 disabled={isSyncingDrive}
                 className={cn(
-                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 group shadow-2xs",
-                  isConnectedDrive 
-                    ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40" 
-                    : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60"
+                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 group shadow-2xs",
+                  isUploadingDrive
+                    ? "bg-primary/15 text-primary border border-primary/40 disabled:opacity-100"
+                    : isConnectedDrive 
+                      ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40 disabled:opacity-40" 
+                      : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60 disabled:opacity-40"
                 )}
                 aria-label="Sincronizar Nuvem (Google Drive)"
               >
-                <CloudUpload size={16} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                <AnimatedCloudUpload size={16} isAnimating={isUploadingDrive} className={cn(isUploadingDrive && "text-primary")} />
                 {isConnectedDrive && (
                   <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
                 )}
@@ -312,7 +315,7 @@ export function Sidebar() {
             </TooltipTrigger>
             <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
               {isConnectedDrive 
-                ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Sincronizar Nuvem (Drive)") 
+                ? (isUploadingDrive ? "Sincronizando Nuvem..." : "Sincronizar Nuvem (Drive)") 
                 : "Conectar Nuvem (Google Drive)"}
             </TooltipContent>
           </Tooltip>
@@ -324,19 +327,21 @@ export function Sidebar() {
                 onClick={handleQuickLoadDrive}
                 disabled={isSyncingDrive}
                 className={cn(
-                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-50 group shadow-2xs",
-                  isConnectedDrive 
-                    ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40" 
-                    : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60"
+                  "relative flex items-center justify-center h-9 w-full rounded-xl transition-all duration-200 active:scale-95 group shadow-2xs",
+                  isDownloadingDrive
+                    ? "bg-primary/15 text-primary border border-primary/40 disabled:opacity-100"
+                    : isConnectedDrive 
+                      ? "bg-card/70 hover:bg-card text-muted-foreground hover:text-primary border border-border/40 hover:border-primary/40 disabled:opacity-40" 
+                      : "bg-card/40 hover:bg-card text-muted-foreground/60 hover:text-foreground border border-border/30 hover:border-border/60 disabled:opacity-40"
                 )}
                 aria-label="Baixar Dados da Nuvem (Google Drive)"
               >
-                <CloudDownload size={16} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                <AnimatedCloudDownload size={16} isAnimating={isDownloadingDrive} className={cn(isDownloadingDrive && "text-primary")} />
               </button>
             </TooltipTrigger>
             <TooltipContent side={collapsed ? "right" : "top"} className="font-bold text-xs shadow-md">
               {isConnectedDrive 
-                ? (isSyncingDrive ? "Baixando da Nuvem..." : "Baixar Dados da Nuvem (Drive)") 
+                ? (isDownloadingDrive ? "Baixando da Nuvem..." : "Baixar Dados da Nuvem (Drive)") 
                 : "Conectar Nuvem (Google Drive)"}
             </TooltipContent>
           </Tooltip>
@@ -473,12 +478,16 @@ export function Sidebar() {
                               onClick={handleQuickSyncDrive}
                               disabled={isSyncingDrive}
                               className={cn(
-                                "relative h-10 w-full rounded-xl border border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs",
-                                isConnectedDrive ? "text-primary" : "text-muted-foreground"
+                                "relative h-10 w-full rounded-xl border flex items-center justify-center transition-all active:scale-95 shadow-2xs",
+                                isUploadingDrive
+                                  ? "bg-primary/15 border-primary/50 text-primary disabled:opacity-100"
+                                  : isConnectedDrive
+                                    ? "border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 text-primary disabled:opacity-40"
+                                    : "border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground disabled:opacity-40"
                               )}
                               aria-label="Sincronizar com Nuvem Google Drive"
                             >
-                              <CloudUpload size={17} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                              <AnimatedCloudUpload size={17} isAnimating={isUploadingDrive} className={cn(isUploadingDrive && "text-primary")} />
                               {isConnectedDrive && (
                                 <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-emerald-500 rounded-full ring-2 ring-card" />
                               )}
@@ -486,7 +495,7 @@ export function Sidebar() {
                           </TooltipTrigger>
                           <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
                             {isConnectedDrive 
-                              ? (isSyncingDrive ? "Sincronizando Nuvem..." : "Nuvem: Sincronizar Dados (Drive)") 
+                              ? (isUploadingDrive ? "Sincronizando Nuvem..." : "Nuvem: Sincronizar Dados (Drive)") 
                               : "Nuvem: Conectar Google Drive"}
                           </TooltipContent>
                         </Tooltip>
@@ -498,17 +507,21 @@ export function Sidebar() {
                               onClick={handleQuickLoadDrive}
                               disabled={isSyncingDrive}
                               className={cn(
-                                "h-10 w-full rounded-xl border border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 flex items-center justify-center transition-all active:scale-95 disabled:opacity-50 shadow-2xs",
-                                isConnectedDrive ? "text-primary" : "text-muted-foreground"
+                                "h-10 w-full rounded-xl border flex items-center justify-center transition-all active:scale-95 shadow-2xs",
+                                isDownloadingDrive
+                                  ? "bg-primary/15 border-primary/50 text-primary disabled:opacity-100"
+                                  : isConnectedDrive
+                                    ? "border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 text-primary disabled:opacity-40"
+                                    : "border-primary/20 bg-card hover:bg-primary/10 hover:border-primary/40 text-muted-foreground disabled:opacity-40"
                               )}
                               aria-label="Baixar Dados da Nuvem Google Drive"
                             >
-                              <CloudDownload size={17} className={cn(isSyncingDrive && "animate-spin text-primary")} />
+                              <AnimatedCloudDownload size={17} isAnimating={isDownloadingDrive} className={cn(isDownloadingDrive && "text-primary")} />
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="top" sideOffset={6} className="font-bold text-xs shadow-md">
                             {isConnectedDrive 
-                              ? (isSyncingDrive ? "Baixando da Nuvem..." : "Nuvem: Baixar Dados (Drive)") 
+                              ? (isDownloadingDrive ? "Baixando da Nuvem..." : "Nuvem: Baixar Dados (Drive)") 
                               : "Nuvem: Conectar Google Drive"}
                           </TooltipContent>
                         </Tooltip>

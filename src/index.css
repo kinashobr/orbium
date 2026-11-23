@@ -310,6 +310,68 @@ html::-webkit-scrollbar-track {
     animation: zoomIn 0.4s ease-out forwards;
   }
 
+  @keyframes cloud-upload-arrow {
+    0% {
+      transform: translateY(2px);
+      opacity: 0.25;
+    }
+    40% {
+      transform: translateY(0px);
+      opacity: 1;
+    }
+    80% {
+      transform: translateY(-2.5px);
+      opacity: 0.9;
+    }
+    100% {
+      transform: translateY(-3px);
+      opacity: 0;
+    }
+  }
+
+  @keyframes cloud-download-arrow {
+    0% {
+      transform: translateY(-3px);
+      opacity: 0;
+    }
+    25% {
+      transform: translateY(-1.5px);
+      opacity: 0.95;
+    }
+    70% {
+      transform: translateY(1.25px);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(2.25px);
+      opacity: 0.2;
+    }
+  }
+
+  @keyframes cloud-breathe {
+    0%, 100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.03);
+    }
+  }
+
+  .animate-cloud-upload-arrow {
+    animation: cloud-upload-arrow 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .animate-cloud-download-arrow {
+    animation: cloud-download-arrow 1.15s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+
+  .animate-cloud-breathe {
+    transform-origin: 12px 10px;
+    animation: cloud-breathe 1.6s ease-in-out infinite;
+  }
+
   .shadow-soft-lg {
     box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.1);
   }

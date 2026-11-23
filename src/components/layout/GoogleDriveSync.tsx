@@ -4,12 +4,15 @@ import { useGoogleDrive } from "@/hooks/useGoogleDrive";
 import { initiateGoogleAuth, logoutGoogleDrive } from "@/lib/googleDrive";
 import { useFinance } from "@/contexts/FinanceContext";
 import { Button } from "@/components/ui/button";
-import { Cloud, RefreshCw, LogOut, Download } from "lucide-react";
+import { Cloud, LogOut } from "lucide-react";
+import { AnimatedCloudUpload, AnimatedCloudDownload } from "@/components/ui/CloudSyncIcons";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export function GoogleDriveSync() {
-  const { isConnected, isSyncing, lastSync, saveToDrive, loadFromDrive } = useGoogleDrive();
+  const { isConnected, isSyncing, syncAction, lastSync, saveToDrive, loadFromDrive } = useGoogleDrive();
+  const isUploading = isSyncing && syncAction === "upload";
+  const isDownloading = isSyncing && syncAction === "download";
   const finance = useFinance();
 
   const handleSync = () => {
@@ -77,16 +80,21 @@ export function GoogleDriveSync() {
           variant="outline"
           onClick={handleSync}
           disabled={isSyncing}
-          className="flex-1 justify-start h-14 rounded-[1.75rem] border-border/60 gap-3 group active:scale-[0.98] transition-all overflow-hidden"
+          className={cn(
+            "flex-1 justify-start h-14 rounded-[1.75rem] border-border/60 gap-3 group active:scale-[0.98] transition-all overflow-hidden",
+            isUploading && "border-primary/40 bg-primary/5 disabled:opacity-100"
+          )}
         >
           <div className={cn(
             "p-2.5 rounded-xl transition-colors shrink-0",
-            isSyncing ? "bg-accent/20 text-accent" : "bg-success/10 text-success"
+            isUploading ? "bg-primary/15 text-primary" : "bg-success/10 text-success"
           )}>
-            {isSyncing ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Cloud className="w-5 h-5" />}
+            <AnimatedCloudUpload size={20} isAnimating={isUploading} className="w-5 h-5" />
           </div>
           <div className="text-left min-w-0 overflow-hidden">
-            <p className="text-sm font-bold truncate">Sincronizar</p>
+            <p className="text-sm font-bold truncate">
+              {isUploading ? "Sincronizando..." : "Sincronizar"}
+            </p>
             <p className="text-[9px] text-muted-foreground uppercase font-black whitespace-nowrap">
               {lastSync ? `Última: ${lastSync}` : "Pendente"}
             </p>
@@ -97,10 +105,15 @@ export function GoogleDriveSync() {
           size="icon"
           onClick={handleLoad}
           disabled={isSyncing}
-          className="h-14 w-12 rounded-2xl text-muted-foreground hover:text-primary hover:bg-primary/5 shrink-0"
+          className={cn(
+            "h-14 w-12 rounded-2xl shrink-0 transition-all",
+            isDownloading
+              ? "text-primary bg-primary/10 border-primary/40 disabled:opacity-100"
+              : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+          )}
           title="Baixar dados"
         >
-          <Download className="w-5 h-5" />
+          <AnimatedCloudDownload size={20} isAnimating={isDownloading} className="w-5 h-5" />
         </Button>
         <Button
           variant="ghost"

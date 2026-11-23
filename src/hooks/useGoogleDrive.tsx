@@ -10,6 +10,7 @@ import { ptBR } from "date-fns/locale";
 export function useGoogleDrive() {
   const { lastModified, importData } = useFinance();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncAction, setSyncAction] = useState<"upload" | "download" | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(() => localStorage.getItem("google_last_sync"));
 
   // Sincroniza o estado do lastSync entre diferentes abas ou componentes
@@ -75,6 +76,7 @@ export function useGoogleDrive() {
     if (!token) return;
 
     setIsSyncing(true);
+    setSyncAction("upload");
     try {
       const fileInfo = await findAppDataFile(token);
       const fileId = fileInfo?.id;
@@ -86,6 +88,7 @@ export function useGoogleDrive() {
       if (localLastModifiedDate <= cloudLastModifiedDate) {
         toast.info("Nuvem já está atualizada.");
         setIsSyncing(false);
+        setSyncAction(null);
         return;
       }
 
@@ -130,6 +133,7 @@ export function useGoogleDrive() {
       toast.error("Erro na sincronização.");
     } finally {
       setIsSyncing(false);
+      setSyncAction(null);
     }
   }, [lastModified]);
 
@@ -138,6 +142,7 @@ export function useGoogleDrive() {
     if (!token) return null;
 
     setIsSyncing(true);
+    setSyncAction("download");
     try {
       const fileInfo = await findAppDataFile(token);
       const fileId = fileInfo?.id;
@@ -172,11 +177,13 @@ export function useGoogleDrive() {
       return null;
     } finally {
       setIsSyncing(false);
+      setSyncAction(null);
     }
   }, [importData]);
 
   return {
     isSyncing,
+    syncAction,
     lastSync: formattedLastSync, // Agora retorna a data formatada
     saveToDrive,
     loadFromDrive,
